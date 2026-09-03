@@ -480,6 +480,12 @@ export interface CustomerLoan {
   note?: string;
   status: 'open' | 'closed';
   createdAt: number;
+  /** QAR conversion rate applied when this loan was derived from an exchange sell order. */
+  qarRate?: number;
+  /** Exchange the source order came from, e.g. 'binance'. */
+  sourceExchange?: string;
+  /** exchange_p2p_orders.id this loan was created from, used to avoid re-linking the same order. */
+  sourceOrderId?: string;
 }
 
 export function getLoanRepaid(loan: CustomerLoan): number {

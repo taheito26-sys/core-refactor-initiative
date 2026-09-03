@@ -24,6 +24,10 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const token = url.searchParams.get("token");
     if (!token) return json({ error: "Missing token" }, 400);
+    // Default redacted: the public /statements/:token page never receives the
+    // USDT quantity or the QAR conversion rate. Cash Management's own inline
+    // preview opts in with ?internal=1 to keep showing the full breakdown.
+    const clientSafe = url.searchParams.get("internal") !== "1";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -164,7 +168,12 @@ Deno.serve(async (req) => {
           note: e.description || null,
           ref: e.ref || null,
         })),
-      binanceOrders,
+      // usdtAmount and qarRate are the two figures the buyer must never see —
+      // stripped here, server-side, rather than only hidden in the UI, so
+      // they never reach the public page's network response at all.
+      binanceOrders: binanceOrders.map((o) => (
+        clientSafe ? { ...o, usdtAmount: undefined, qarRate: undefined } : o
+      )),
     };
 
     return json(response);

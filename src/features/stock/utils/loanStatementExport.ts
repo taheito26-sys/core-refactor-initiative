@@ -76,6 +76,10 @@ export interface StatementDocOptions {
   lang?: string;
   /** Overrides "now" for the statement date. Tests pass a fixed value. */
   now?: number;
+  // Redacts the document for a buyer-facing public view: no USDT quantities,
+  // no QAR conversion rate figures, and every amount other than a per-USDT
+  // sale price rounds to a whole number. Internal views leave this unset.
+  clientSafe?: boolean;
 }
 
 /** Money with two decimals and thousands separators — document formatting. */
@@ -84,6 +88,18 @@ export function formatMoney(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+/** Whole-number money, no decimals — used everywhere in a client-safe document. */
+export function formatMoneyWhole(n: number): string {
+  return Math.round(Number.isFinite(n) ? n : 0).toLocaleString('en-US');
+}
+
+// Strips anything client-safe mode must never surface: the literal string
+// "USDT". Applied to free-text fields (loan notes, entry descriptions) that
+// a merchant could otherwise use to smuggle the redacted data back in.
+function redactClientText(value: string): string {
+  return value.replace(/USDT/gi, '').replace(/\s{2,}/g, ' ').trim();
 }
 
 /** Raw two-decimal number for spreadsheet cells — no separators, so Excel sums it. */
@@ -276,19 +292,21 @@ export function buildStatementHtml(
   labels: StatementDocLabels,
   options: StatementDocOptions = {},
 ): string {
-  const { businessName = '', lang = 'en', now = Date.now() } = options;
+  const { businessName = '', lang = 'en', now = Date.now(), clientSafe = false } = options;
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const cur = escapeHtml(statement.currency);
   const payments = statement.entries.filter(e => e.kind === 'payment');
+  const money = clientSafe ? formatMoneyWhole : formatMoney;
+  const text = (s: string) => escapeHtml(clientSafe ? redactClientText(s) : s);
 
   const loanRows = statement.loans.map(row => `
       <tr>
         <td class="ref">${escapeHtml(row.ref)}</td>
         <td>${escapeHtml(formatDate(row.loan.ts, lang))}</td>
-        <td class="desc">${escapeHtml(row.loan.note || '—')}</td>
-        <td class="num">${formatMoney(row.principal)}</td>
-        <td class="num paid">${formatMoney(row.repaid)}</td>
-        <td class="num due">${formatMoney(row.remaining)}</td>
+        <td class="desc">${row.loan.note ? text(row.loan.note) : '—'}</td>
+        <td class="num">${money(row.principal)}</td>
+        <td class="num paid">${money(row.repaid)}</td>
+        <td class="num due">${money(row.remaining)}</td>
         <td><span class="tag ${row.settled ? 'ok' : 'open'}">${escapeHtml(row.settled ? labels.statusSettled : labels.statusOpen)}</span></td>
         <td class="num">${row.settled ? '—' : row.ageDays}</td>
       </tr>`).join('');
@@ -299,9 +317,9 @@ export function buildStatementHtml(
       <tr>
         <td>${escapeHtml(formatDate(p.ts, lang))}</td>
         <td class="ref">${escapeHtml(p.ref)}</td>
-        <td class="num paid">${formatMoney(p.credit)}</td>
+        <td class="num paid">${money(p.credit)}</td>
         <td>${escapeHtml(p.accountName || '—')}</td>
-        <td class="desc">${escapeHtml(p.description || '—')}</td>
+        <td class="desc">${p.description ? text(p.description) : '—'}</td>
       </tr>`).join('');
 
   const ledgerRows = statement.entries.length === 0
@@ -310,10 +328,10 @@ export function buildStatementHtml(
       <tr>
         <td>${escapeHtml(formatDate(e.ts, lang))}</td>
         <td class="ref">${escapeHtml(e.ref)}</td>
-        <td class="desc">${escapeHtml(e.description || (e.kind === 'charge' ? labels.charge : labels.payment))}</td>
-        <td class="num">${e.debit ? formatMoney(e.debit) : ''}</td>
-        <td class="num paid">${e.credit ? formatMoney(e.credit) : ''}</td>
-        <td class="num strong">${formatMoney(e.balance)}</td>
+        <td class="desc">${text(e.description || (e.kind === 'charge' ? labels.charge : labels.payment))}</td>
+        <td class="num">${e.debit ? money(e.debit) : ''}</td>
+        <td class="num paid">${e.credit ? money(e.credit) : ''}</td>
+        <td class="num strong">${money(e.balance)}</td>
       </tr>`).join('');
 
   return `<!doctype html>
@@ -416,15 +434,15 @@ export function buildStatementHtml(
   <div class="summary">
     <div class="card">
       <div class="label">${escapeHtml(labels.totalLoaned)}</div>
-      <div class="v">${formatMoney(statement.totalLoaned)}<span class="u">${cur}</span></div>
+      <div class="v">${money(statement.totalLoaned)}<span class="u">${cur}</span></div>
     </div>
     <div class="card">
       <div class="label">${escapeHtml(labels.totalRepaid)}</div>
-      <div class="v">${formatMoney(statement.totalRepaid)}<span class="u">${cur}</span></div>
+      <div class="v">${money(statement.totalRepaid)}<span class="u">${cur}</span></div>
     </div>
     <div class="card due">
       <div class="label">${escapeHtml(labels.outstanding)}</div>
-      <div class="v">${formatMoney(statement.outstanding)}<span class="u">${cur}</span></div>
+      <div class="v">${money(statement.outstanding)}<span class="u">${cur}</span></div>
     </div>
   </div>
 
@@ -446,9 +464,9 @@ export function buildStatementHtml(
     <tfoot>
       <tr>
         <td colspan="3">${escapeHtml(labels.summary)}</td>
-        <td class="num">${formatMoney(statement.totalLoaned)}</td>
-        <td class="num">${formatMoney(statement.totalRepaid)}</td>
-        <td class="num">${formatMoney(statement.outstanding)}</td>
+        <td class="num">${money(statement.totalLoaned)}</td>
+        <td class="num">${money(statement.totalRepaid)}</td>
+        <td class="num">${money(statement.outstanding)}</td>
         <td colspan="2"></td>
       </tr>
     </tfoot>
@@ -469,7 +487,7 @@ export function buildStatementHtml(
     ${payments.length > 0 ? `<tfoot>
       <tr>
         <td colspan="2">${escapeHtml(labels.totalRepaid)}</td>
-        <td class="num paid">${formatMoney(statement.totalRepaid)}</td>
+        <td class="num paid">${money(statement.totalRepaid)}</td>
         <td colspan="2"></td>
       </tr>
     </tfoot>` : ''}
@@ -492,14 +510,14 @@ export function buildStatementHtml(
 
   <div class="total-bar">
     <span class="k">${escapeHtml(labels.totalDue)}</span>
-    <span class="v">${formatMoney(statement.outstanding)} ${cur}</span>
+    <span class="v">${money(statement.outstanding)} ${cur}</span>
   </div>
 
   <div class="aging">
-    <div><div class="label">${escapeHtml(labels.agingCurrent)}</div><div class="v">${formatMoney(statement.aging.current)}</div></div>
-    <div><div class="label">${escapeHtml(labels.aging31)}</div><div class="v">${formatMoney(statement.aging.d31)}</div></div>
-    <div><div class="label">${escapeHtml(labels.aging61)}</div><div class="v">${formatMoney(statement.aging.d61)}</div></div>
-    <div><div class="label">${escapeHtml(labels.aging90)}</div><div class="v">${formatMoney(statement.aging.d90plus)}</div></div>
+    <div><div class="label">${escapeHtml(labels.agingCurrent)}</div><div class="v">${money(statement.aging.current)}</div></div>
+    <div><div class="label">${escapeHtml(labels.aging31)}</div><div class="v">${money(statement.aging.d31)}</div></div>
+    <div><div class="label">${escapeHtml(labels.aging61)}</div><div class="v">${money(statement.aging.d61)}</div></div>
+    <div><div class="label">${escapeHtml(labels.aging90)}</div><div class="v">${money(statement.aging.d90plus)}</div></div>
   </div>
 
   <footer>
@@ -523,10 +541,12 @@ export function buildStatementHtmlCompact(
   labels: StatementDocLabels,
   options: StatementDocOptions = {},
 ): string {
-  const { businessName = '', lang = 'en', now = Date.now() } = options;
+  const { businessName = '', lang = 'en', now = Date.now(), clientSafe = false } = options;
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const cur = escapeHtml(statement.currency);
   const payments = statement.entries.filter(e => e.kind === 'payment');
+  const money = clientSafe ? formatMoneyWhole : formatMoney;
+  const redactedText = (s: string) => escapeHtml(clientSafe ? redactClientText(s) : s);
   const percentPaid = statement.totalLoaned > 0
     ? Math.round((statement.totalRepaid / statement.totalLoaned) * 100)
     : 0;
@@ -540,8 +560,8 @@ export function buildStatementHtmlCompact(
       <tr>
         <td class="num">${i + 1}</td>
         <td>${escapeHtml(formatDate(p.ts, lang))}</td>
-        <td class="num paid">${formatMoney(p.credit)}</td>
-        <td class="desc">${escapeHtml(p.description || labels.payment)}</td>
+        <td class="num paid">${money(p.credit)}</td>
+        <td class="desc">${redactedText(p.description || labels.payment)}</td>
         <td class="ref">${escapeHtml(p.ref || '—')}</td>
       </tr>`).join('');
 
@@ -618,15 +638,15 @@ export function buildStatementHtmlCompact(
     <div class="cards">
       <div class="card">
         <div class="k">${escapeHtml(labels.totalLoaned)}</div>
-        <div class="v">${formatMoney(statement.totalLoaned)} ${cur}</div>
+        <div class="v">${money(statement.totalLoaned)} ${cur}</div>
       </div>
       <div class="card paid">
         <div class="k">${escapeHtml(labels.totalRepaid)}</div>
-        <div class="v">${formatMoney(statement.totalRepaid)} ${cur}</div>
+        <div class="v">${money(statement.totalRepaid)} ${cur}</div>
       </div>
       <div class="card due">
         <div class="k">${escapeHtml(labels.outstanding)}</div>
-        <div class="v">${formatMoney(statement.outstanding)} ${cur}</div>
+        <div class="v">${money(statement.outstanding)} ${cur}</div>
       </div>
     </div>
     <div class="pct">${escapeHtml(percentLine)}</div>
@@ -635,15 +655,15 @@ export function buildStatementHtmlCompact(
     <div class="settlement">
       <div class="row">
         <span>${escapeHtml(line(labels.settlementTotalLine, statement.customerName, cur))}</span>
-        <span class="v">${formatMoney(statement.totalLoaned)}</span>
+        <span class="v">${money(statement.totalLoaned)}</span>
       </div>
       <div class="row">
         <span>${escapeHtml(line(labels.settlementPaidLine, statement.customerName, cur))}</span>
-        <span class="v">${formatMoney(statement.totalRepaid)}</span>
+        <span class="v">${money(statement.totalRepaid)}</span>
       </div>
       <div class="row total">
         <span>${escapeHtml(line(labels.settlementRemainingLine, statement.customerName, cur))}</span>
-        <span class="v">${formatMoney(statement.outstanding)}</span>
+        <span class="v">${money(statement.outstanding)}</span>
       </div>
     </div>
 
@@ -665,7 +685,7 @@ export function buildStatementHtmlCompact(
       ${payments.length > 0 ? `<tfoot>
         <tr>
           <td colspan="2">${escapeHtml(labels.totalRepaid)}</td>
-          <td class="num paid">${formatMoney(statement.totalRepaid)}</td>
+          <td class="num paid">${money(statement.totalRepaid)}</td>
           <td colspan="2"></td>
         </tr>
       </tfoot>` : ''}

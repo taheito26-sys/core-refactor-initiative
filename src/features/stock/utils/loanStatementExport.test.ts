@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildBuyerStatements } from './loanStatement';
 import {
-  buildReceivablesCsv, buildStatementCsv, buildStatementHtml, buildStatementText,
+  buildReceivablesCsv, buildStatementCsv, buildStatementHtml, buildStatementHtmlCompact, buildStatementText,
   csvCell, escapeHtml, formatMoney, statementFileBase,
 } from './loanStatementExport';
 import type { StatementDocLabels } from './loanStatementExport';
@@ -132,6 +132,34 @@ describe('buildStatementHtml', () => {
     expect(out).not.toContain('<img src=x');
     expect(out).toContain('&lt;img src=x');
     expect(out).toContain('&lt;b&gt;Ahmed&lt;/b&gt;');
+  });
+});
+
+describe('buildStatementHtml clientSafe', () => {
+  const safe = buildStatementHtml(statement, labels, { lang: 'en', now: NOW, clientSafe: true });
+
+  it('never renders the literal string USDT', () => {
+    expect(safe).not.toMatch(/USDT/i);
+  });
+
+  it('formats amounts as whole numbers, not two-decimal figures', () => {
+    expect(safe).toContain('43,764 QAR');
+    expect(safe).not.toContain('43,764.00');
+  });
+
+  it('leaves the internal (non-clientSafe) document at two decimals with USDT intact', () => {
+    const internal = buildStatementHtml(statement, labels, { lang: 'en', now: NOW });
+    expect(internal).toContain('43,764.00 QAR');
+    expect(internal).toMatch(/USDT/);
+  });
+});
+
+describe('buildStatementHtmlCompact clientSafe', () => {
+  it('never renders USDT and formats amounts as whole numbers', () => {
+    const safe = buildStatementHtmlCompact(statement, labels, { lang: 'en', now: NOW, clientSafe: true });
+    expect(safe).not.toMatch(/USDT/i);
+    expect(safe).toContain('43,764 QAR');
+    expect(safe).not.toContain('43,764.00');
   });
 });
 

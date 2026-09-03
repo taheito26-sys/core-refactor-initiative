@@ -25,8 +25,10 @@ export interface PublicBinanceOrder {
   fiat: string;
   fiatAmount: number;
   fiatPrice: number;
-  usdtAmount: number;
-  qarRate: number;
+  /** Omitted server-side on the public /statements/:token path — never shown to a buyer. */
+  usdtAmount?: number;
+  /** Omitted server-side on the public /statements/:token path — never shown to a buyer. */
+  qarRate?: number;
   qarAmount: number;
 }
 
@@ -176,7 +178,13 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
       </div>
 
       {/* ── SECTION D (Binance P2P sell orders) ── */}
-      {data.binanceOrders && data.binanceOrders.length > 0 && (
+      {data.binanceOrders && data.binanceOrders.length > 0 && (() => {
+        // usdtAmount/qarRate are only present when the caller opted into the
+        // full internal view — the public token page never receives them, so
+        // those two columns simply don't exist to render here.
+        const showUsdt = data.binanceOrders.every(o => o.usdtAmount != null);
+        const showRate = data.binanceOrders.every(o => o.qarRate != null);
+        return (
         <>
           <div style={{ fontSize: 13, fontWeight: 800, marginTop: 24, marginBottom: 8 }}>
             سجل معاملات البيع مقابل الجنيه المصري ({data.binanceOrders.length} معاملة)
@@ -191,8 +199,8 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
                   <th style={thStyle}>التاريخ</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>{`المبلغ (${data.binanceOrders[0].fiat})`}</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>{`السعر (${data.binanceOrders[0].fiat}/USDT)`}</th>
-                  <th style={{ ...thStyle, textAlign: 'left' }}>USDT</th>
-                  <th style={{ ...thStyle, textAlign: 'left' }}>{`سعر التحويل (${cur}/USDT)`}</th>
+                  {showUsdt && <th style={{ ...thStyle, textAlign: 'left' }}>USDT</th>}
+                  {showRate && <th style={{ ...thStyle, textAlign: 'left' }}>{`سعر التحويل (${cur}/USDT)`}</th>}
                   <th style={{ ...thStyle, textAlign: 'left' }}>{`المعادل (${cur})`}</th>
                 </tr>
               </thead>
@@ -205,8 +213,8 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
                     <td style={tdStyle}>{fmtDate(o.date ?? '')}</td>
                     <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.fiatAmount)}</td>
                     <td style={{ ...tdStyle, textAlign: 'left' }}>{o.fiatPrice.toFixed(2)}</td>
-                    <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.usdtAmount)}</td>
-                    <td style={{ ...tdStyle, textAlign: 'left' }}>{o.qarRate.toFixed(2)}</td>
+                    {showUsdt && <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.usdtAmount ?? 0)}</td>}
+                    {showRate && <td style={{ ...tdStyle, textAlign: 'left' }}>{(o.qarRate ?? 0).toFixed(2)}</td>}
                     <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{fmtAmount(o.qarAmount)}</td>
                   </tr>
                 ))}
@@ -218,10 +226,12 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
                     {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.fiatAmount, 0))}
                   </td>
                   <td style={tdStyle} />
-                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
-                    {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.usdtAmount, 0))}
-                  </td>
-                  <td style={tdStyle} />
+                  {showUsdt && (
+                    <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
+                      {fmtAmount(data.binanceOrders.reduce((s, o) => s + (o.usdtAmount ?? 0), 0))}
+                    </td>
+                  )}
+                  {showRate && <td style={tdStyle} />}
                   <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
                     {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.qarAmount, 0))}
                   </td>
@@ -230,7 +240,8 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
             </table>
           </div>
         </>
-      )}
+        );
+      })()}
 
       <div style={{ fontSize: 10, color: '#aaa', marginTop: 24, textAlign: 'center' }}>
         هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.
