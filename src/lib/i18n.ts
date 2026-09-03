@@ -1813,6 +1813,16 @@ const translations = {
   loanReopen: { en: 'Reopen', ar: 'إعادة فتح' },
   loanTotalPrincipal: { en: 'Total principal', ar: 'إجمالي الأصل' },
 
+  // Pending exchange-order → loan queue
+  exchangeLoanQueueTitle: { en: 'Exchange orders awaiting a loan', ar: 'طلبات المنصة بانتظار تحويلها لقرض' },
+  exchangeLoanSelectCustomer: { en: 'Select customer…', ar: 'اختر العميل…' },
+  exchangeLoanRateLabel: { en: 'Rate', ar: 'السعر' },
+  exchangeLoanCreateBtn: { en: 'Create loan', ar: 'إنشاء قرض' },
+  exchangeLoanCreateAllBtn: { en: 'Create all with default rate', ar: 'إنشاء الكل بالسعر الافتراضي' },
+  exchangeLoanPickCustomer: { en: 'Pick a customer for each order first', ar: 'اختر عميلاً لكل طلب أولاً' },
+  exchangeLoanCreated: { en: 'Loan created from exchange order', ar: 'تم إنشاء القرض من طلب المنصة' },
+  exchangeLoanCreateFailed: { en: 'Could not create the loan', ar: 'تعذر إنشاء القرض' },
+
   // Loans page — buyer accounts (receivables ledger)
   loanReceivables: { en: 'Receivables', ar: 'الذمم المدينة' },
   loanBuyerAccounts: { en: 'Buyer accounts', ar: 'حسابات المشترين' },

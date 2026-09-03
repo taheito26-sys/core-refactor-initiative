@@ -28,6 +28,9 @@ import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { findUnlinkedCompletedSellOrders, createLoanFromExchangeOrder, DEFAULT_QAR_RATE } from '@/features/exchanges/loanFromOrder';
+import { EXCHANGE_LABELS, type ExchangeP2POrder } from '@/features/exchanges/types';
 
 interface PublicStatementLink {
   id: string;
@@ -1883,6 +1886,17 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const ledger = state.cashLedger || [];
   const deletedLoanIds = state.deletedLoanIds || [];
   const loans = (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id));
+
+  // ── Pending exchange-order → loan queue ──
+  const { data: exchangeOrders } = useExchangeP2POrders();
+  const unlinkedSellOrders = useMemo(
+    () => findUnlinkedCompletedSellOrders(exchangeOrders || [], state.customerLoans || []),
+    [exchangeOrders, state.customerLoans],
+  );
+  const [pendingRateByOrderId, setPendingRateByOrderId] = useState<Record<string, number>>({});
+  const [pendingCustomerByOrderId, setPendingCustomerByOrderId] = useState<Record<string, string>>({});
+  const [creatingLoanOrderId, setCreatingLoanOrderId] = useState<string | null>(null);
+  const rateForOrder = (orderId: string) => pendingRateByOrderId[orderId] ?? DEFAULT_QAR_RATE;
   const loanedTradeIds = useMemo(() => {
     const s = new Set<string>();
     for (const l of loans) { if (l.tradeId) s.add(l.tradeId); }
@@ -2009,8 +2023,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     try {
       const link = await ensureStatementLink(stmt);
       if (!link) throw new Error('no link');
+      // internal=1 keeps the USDT/rate columns in this merchant-facing preview —
+      // the public /statements/:token page never sends that flag, so it never
+      // gets those fields back from the edge function.
       const { data, error } = await supabase.functions.invoke(
-        `public-buyer-statement?token=${encodeURIComponent(link.token)}`,
+        `public-buyer-statement?token=${encodeURIComponent(link.token)}&internal=1`,
         { method: 'GET' },
       );
       if (error || !data || (data as { error?: string }).error) throw new Error('fetch failed');
@@ -2336,6 +2353,42 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: [...loans, loan] });
     if (ok) setShowNewLoan(false);
+  };
+
+  // Turns one pending exchange sell order into a customer loan at the rate
+  // currently entered for that row. No cash account moves — the USDT already
+  // left the exchange, so unlike addLoan there is no disbursement ledger
+  // entry, only the loan record itself.
+  const createLoanFromPendingOrder = async (order: ExchangeP2POrder) => {
+    const customerId = pendingCustomerByOrderId[order.id];
+    if (!customerId) { toast.error(t('exchangeLoanPickCustomer')); return; }
+    const loan = createLoanFromExchangeOrder(order, customerId, rateForOrder(order.id));
+    if (!loan) { toast.error(t('exchangeLoanCreateFailed')); return; }
+    setCreatingLoanOrderId(order.id);
+    try {
+      const ok = await commit({ ...state, customerLoans: [...loans, loan] });
+      if (ok) toast.success(t('exchangeLoanCreated'));
+      else toast.error(t('exchangeLoanCreateFailed'));
+    } finally {
+      setCreatingLoanOrderId(null);
+    }
+  };
+
+  const createLoansForAllPendingOrders = async () => {
+    const ready = unlinkedSellOrders.filter(o => pendingCustomerByOrderId[o.id]);
+    if (ready.length === 0) { toast.error(t('exchangeLoanPickCustomer')); return; }
+    const newLoans = ready
+      .map(o => createLoanFromExchangeOrder(o, pendingCustomerByOrderId[o.id], rateForOrder(o.id)))
+      .filter((l): l is CustomerLoan => l !== null);
+    if (newLoans.length === 0) return;
+    setCreatingLoanOrderId('bulk');
+    try {
+      const ok = await commit({ ...state, customerLoans: [...loans, ...newLoans] });
+      if (ok) toast.success(t('exchangeLoanCreated'));
+      else toast.error(t('exchangeLoanCreateFailed'));
+    } finally {
+      setCreatingLoanOrderId(null);
+    }
   };
 
   /** Default note on the cash-side row when the payment itself carries none. */
@@ -2956,6 +3009,74 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
             </div>
           </div>
+
+          {/* Completed Binance/OKX sell orders waiting to become a customer loan */}
+          {unlinkedSellOrders.length > 0 && (
+            <div className="panel" style={{ marginBottom: 12, padding: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, fontWeight: 800 }}>
+                  {t('exchangeLoanQueueTitle')} ({unlinkedSellOrders.length})
+                </div>
+                <button
+                  className="rowBtn"
+                  disabled={creatingLoanOrderId !== null}
+                  onClick={createLoansForAllPendingOrders}
+                >
+                  {t('exchangeLoanCreateAllBtn')}
+                </button>
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {unlinkedSellOrders.map(order => (
+                  <div
+                    key={order.id}
+                    style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}
+                  >
+                    <span style={{ fontSize: 10, fontWeight: 700 }}>{EXCHANGE_LABELS[order.exchange]}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{order.counterparty || '—'}</span>
+                    <span style={{ fontSize: 11 }}>{order.total} {order.fiat}</span>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>@ {order.price}</span>
+                    {order.order_time && (
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(order.order_time).toLocaleString()}</span>
+                    )}
+                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>{order.order_number}</span>
+
+                    <select
+                      className="input"
+                      style={{ fontSize: 11, padding: '4px 6px', minWidth: 120 }}
+                      value={pendingCustomerByOrderId[order.id] || ''}
+                      onChange={e => setPendingCustomerByOrderId(prev => ({ ...prev, [order.id]: e.target.value }))}
+                    >
+                      <option value="">{t('exchangeLoanSelectCustomer')}</option>
+                      {(state.customers || []).map((c: Customer) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--muted)' }}>
+                      {t('exchangeLoanRateLabel')}
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="input"
+                        style={{ fontSize: 11, padding: '4px 6px', width: 70 }}
+                        value={rateForOrder(order.id)}
+                        onChange={e => setPendingRateByOrderId(prev => ({ ...prev, [order.id]: Number(e.target.value) || 0 }))}
+                      />
+                    </label>
+
+                    <button
+                      className="btn"
+                      style={{ padding: '4px 10px', fontSize: 11 }}
+                      disabled={creatingLoanOrderId !== null}
+                      onClick={() => createLoanFromPendingOrder(order)}
+                    >
+                      {creatingLoanOrderId === order.id ? '…' : t('exchangeLoanCreateBtn')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* The book in one line per currency: loaned, repaid, still owed */}
           {bookTotals.length > 0 && (
