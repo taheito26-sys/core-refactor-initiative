@@ -1049,9 +1049,11 @@ function CashCounterModal({
 
   const [counts, setCounts] = useState<Record<number, string>>({});
   const [step, setStep] = useState<CounterStep>('count');
-  const [action, setAction] = useState<'add' | 'repay' | 'split' | null>(null);
-  const [repayLoanId, setRepayLoanId] = useState('');
-  const [repayAmount, setRepayAmount] = useState('');
+  // Actions are not mutually exclusive: a merchant can put part of the same
+  // counted cash onto the account balance and use the rest to repay one or
+  // more open loans, all in a single pass.
+  const [actions, setActions] = useState<Set<'add' | 'repay'>>(new Set());
+  const [cashAmount, setCashAmount] = useState('');
   const [splitSelected, setSplitSelected] = useState<Set<string>>(new Set());
   const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
@@ -1075,14 +1077,15 @@ function CashCounterModal({
     () => account ? loans.filter(l => l.currency === account.currency && getLoanRemaining(l) > 0) : [],
     [loans, account, getLoanRemaining]
   );
-  const repayLoan = relevantLoans.find(l => l.id === repayLoanId);
   const customerName = (id: string) => customers.find(c => c.id === id)?.name || id;
 
+  const cashAllocated = actions.has('add') ? num(cashAmount, 0) : 0;
   const splitAllocated = useMemo(
     () => Array.from(splitSelected).reduce((sum, id) => sum + num(splitAmounts[id], 0), 0),
     [splitSelected, splitAmounts]
   );
-  const splitLeftover = total - splitAllocated;
+  const totalAllocated = cashAllocated + (actions.has('repay') ? splitAllocated : 0);
+  const splitLeftover = total - totalAllocated;
 
   const setCount = (denom: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -1097,12 +1100,20 @@ function CashCounterModal({
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
   const resetForClose = () => {
-    setCounts({}); setStep('count'); setAction(null); setRepayLoanId(''); setRepayAmount('');
+    setCounts({}); setStep('count'); setActions(new Set()); setCashAmount('');
     setSplitSelected(new Set()); setSplitAmounts({}); setNote(''); setErr('');
   };
   const closeAndReset = () => { resetForClose(); onClose(); };
 
   const defaultNote = () => note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`;
+
+  const toggleAction = (a: 'add' | 'repay') => {
+    setActions(prev => {
+      const next = new Set(prev);
+      if (next.has(a)) next.delete(a); else next.add(a);
+      return next;
+    });
+  };
 
   const toggleSplitLoan = (loan: CustomerLoan) => {
     setSplitSelected(prev => {
@@ -1111,7 +1122,7 @@ function CashCounterModal({
         next.delete(loan.id);
       } else {
         next.add(loan.id);
-        const already = Array.from(next).reduce((sum, id) => sum + (id === loan.id ? 0 : num(splitAmounts[id], 0)), 0);
+        const already = cashAllocated + Array.from(next).reduce((sum, id) => sum + (id === loan.id ? 0 : num(splitAmounts[id], 0)), 0);
         const room = Math.max(0, total - already);
         setSplitAmounts(a => ({ ...a, [loan.id]: String(Math.min(getLoanRemaining(loan), room)) }));
       }
@@ -1123,49 +1134,46 @@ function CashCounterModal({
     setSplitAmounts(prev => ({ ...prev, [loanId]: value }));
   };
 
-  const handleAddToCash = () => {
-    if (!account) return;
-    const entry: CashLedgerEntry = {
-      id: uid(), ts: Date.now(), type: 'deposit', accountId: account.id,
-      direction: 'in', amount: total, currency: account.currency,
-      note: defaultNote(),
-    };
-    onAddToCash(entry);
-    closeAndReset();
-  };
-
-  const handleRepay = async () => {
-    if (saving) return;
-    setErr('');
-    if (!repayLoan) { setErr(t('loanRepaymentAccount')); return; }
-    const amtNum = num(repayAmount, 0);
-    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
-    setSaving(true);
-    try {
-      await onRepayLoan(repayLoan, account!.id, amtNum, Date.now(), defaultNote());
-      closeAndReset();
-    } catch (error) {
-      setErr(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSplitRepay = async () => {
+  const handleConfirm = async () => {
     if (saving || !account) return;
     setErr('');
-    const allocations = Array.from(splitSelected)
-      .map(id => ({ loan: relevantLoans.find(l => l.id === id)!, amount: num(splitAmounts[id], 0) }))
-      .filter(a => a.loan && a.amount > 0);
-    if (allocations.length < 2) { setErr(t('cashCounterSplitMinTwo') || 'Select at least two loans to split across.'); return; }
-    if (splitAllocated > total + 0.005) { setErr(t('cashCounterSplitOverAllocated') || 'Allocated amount exceeds what you counted.'); return; }
+    const wantsAdd = actions.has('add');
+    const wantsRepay = actions.has('repay');
+    if (!wantsAdd && !wantsRepay) { setErr(t('enterValidAmount') || 'Choose at least one action.'); return; }
+
+    const addAmt = wantsAdd ? num(cashAmount, 0) : 0;
+    if (wantsAdd && !(addAmt > 0)) { setErr(t('enterValidAmount')); return; }
+
+    const allocations = wantsRepay
+      ? Array.from(splitSelected)
+          .map(id => ({ loan: relevantLoans.find(l => l.id === id)!, amount: num(splitAmounts[id], 0) }))
+          .filter(a => a.loan && a.amount > 0)
+      : [];
+    if (wantsRepay && allocations.length === 0) { setErr(t('loanRepaymentAccount') || 'Select at least one loan.'); return; }
     for (const a of allocations) {
       if (a.amount > getLoanRemaining(a.loan) + 0.005) { setErr(`${customerName(a.loan.customerId)}: ${t('loanPaymentCap') || 'amount exceeds what is owed'}`); return; }
     }
+    if (addAmt + allocations.reduce((s, a) => s + a.amount, 0) > total + 0.005) {
+      setErr(t('cashCounterSplitOverAllocated') || 'Allocated amount exceeds what you counted.');
+      return;
+    }
+
     setSaving(true);
     try {
-      const ok = await onSplitRepay(allocations, account.id, Date.now(), defaultNote());
-      if (ok === false) { setErr(t('saveFailed') || 'Save failed'); return; }
+      if (addAmt > 0) {
+        const entry: CashLedgerEntry = {
+          id: uid(), ts: Date.now(), type: 'deposit', accountId: account.id,
+          direction: 'in', amount: addAmt, currency: account.currency,
+          note: defaultNote(),
+        };
+        onAddToCash(entry);
+      }
+      if (allocations.length === 1) {
+        await onRepayLoan(allocations[0].loan, account.id, allocations[0].amount, Date.now(), defaultNote());
+      } else if (allocations.length > 1) {
+        const ok = await onSplitRepay(allocations, account.id, Date.now(), defaultNote());
+        if (ok === false) { setErr(t('saveFailed') || 'Save failed'); setSaving(false); return; }
+      }
       closeAndReset();
     } catch (error) {
       setErr(error instanceof Error ? error.message : String(error));
@@ -1303,12 +1311,20 @@ function CashCounterModal({
               <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => setStep('count')}>{t('cashCounterRecount') || '✏️ Recount'}</button>
             </div>
 
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{t('cashCounterActionPrompt') || 'What do you want to do with this cash?'}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{t('cashCounterActionPrompt') || 'What do you want to do with this cash? (pick one or both)'}</div>
             <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
               <button
-                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                onClick={() => { setAction('add'); setStep('confirm'); }}
+                className="rowBtn" style={{
+                  padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left',
+                  border: '1px solid ' + (actions.has('add') ? 'color-mix(in srgb, var(--brand) 45%, transparent)' : 'var(--line)'),
+                  background: actions.has('add') ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : undefined,
+                }}
+                onClick={() => {
+                  toggleAction('add');
+                  if (!actions.has('add')) setCashAmount(String(total));
+                }}
               >
+                <input type="checkbox" checked={actions.has('add')} readOnly style={{ width: 16, height: 16, flexShrink: 0 }} />
                 <span style={{ fontSize: 18 }}>➕</span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <span>{t('cashCounterAddToCash') || 'Add to cash balance'}</span>
@@ -1316,32 +1332,28 @@ function CashCounterModal({
                 </span>
               </button>
               <button
-                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
+                className="rowBtn" style={{
+                  padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left',
+                  border: '1px solid ' + (actions.has('repay') ? 'color-mix(in srgb, var(--brand) 45%, transparent)' : 'var(--line)'),
+                  background: actions.has('repay') ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : undefined,
+                }}
                 disabled={relevantLoans.length === 0}
                 onClick={() => {
-                  setAction('repay'); setStep('confirm');
-                  const first = relevantLoans[0];
-                  if (first) { setRepayLoanId(first.id); setRepayAmount(String(Math.min(total, getLoanRemaining(first)))); }
+                  toggleAction('repay');
+                  if (!actions.has('repay')) {
+                    const first = relevantLoans[0];
+                    if (first) toggleSplitLoan(first);
+                  } else {
+                    setSplitSelected(new Set()); setSplitAmounts({});
+                  }
                 }}
               >
+                <input type="checkbox" checked={actions.has('repay')} readOnly style={{ width: 16, height: 16, flexShrink: 0 }} />
                 <span style={{ fontSize: 18 }}>💳</span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-                  <span>{t('cashCounterRepayLoan') || 'Repay one loan'}</span>
+                  <span>{t('cashCounterRepayLoan') || 'Repay loan(s)'}</span>
                   <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
-                    {relevantLoans.length === 0 ? t('kpiNoLoans') : (t('cashCounterRepayLoanDesc') || 'Apply the full amount to a single customer')}
-                  </span>
-                </span>
-              </button>
-              <button
-                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                disabled={relevantLoans.length < 2}
-                onClick={() => { setAction('split'); setStep('confirm'); setSplitSelected(new Set()); setSplitAmounts({}); }}
-              >
-                <span style={{ fontSize: 18 }}>🔀</span>
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-                  <span>{t('cashCounterSplitLoans') || 'Split across several loans'}</span>
-                  <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
-                    {relevantLoans.length < 2 ? (t('cashCounterSplitNeedTwo') || 'Needs at least 2 open loans') : (t('cashCounterSplitLoansDesc') || 'Divide this cash across multiple customers')}
+                    {relevantLoans.length === 0 ? t('kpiNoLoans') : (t('cashCounterRepayLoanDesc') || 'Apply part or all of this cash to one or more customers')}
                   </span>
                 </span>
               </button>
@@ -1349,100 +1361,54 @@ function CashCounterModal({
 
             <div className="formActions">
               <button className="btn secondary" onClick={() => setStep('count')}>{t('back') || 'Back'}</button>
-            </div>
-          </>
-        )}
-
-        {step === 'confirm' && action === 'add' && (
-          <>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-              {t('cashCounterAddToCash') || 'Add to cash balance'} — <strong className="mono" style={{ color: 'var(--good)' }}>{fmtTotal(total)} {account.currency}</strong> → <strong>{account.name}</strong>
-            </div>
-            <div className="field2" style={{ marginBottom: 14 }}>
-              <div className="lbl">{t('noteOptional')}</div>
-              <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
-            </div>
-            {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
-            <div className="formActions">
-              <button className="btn secondary" onClick={() => setStep('action')}>{t('back') || 'Back'}</button>
-              <button className="btn" style={{ background: 'var(--good)', color: '#000' }} onClick={handleAddToCash}>
-                {t('cashCounterConfirmAdd') || 'Add to Cash'}
+              <button className="btn" disabled={actions.size === 0} onClick={() => setStep('confirm')}>
+                {t('continueBtn') || 'Continue'}
               </button>
             </div>
           </>
         )}
 
-        {step === 'confirm' && action === 'repay' && (
+        {step === 'confirm' && (
           <>
-            <div className="field2" style={{ marginBottom: 10 }}>
-              <div className="lbl">{t('loanReceivables')}</div>
-              <select value={repayLoanId} onChange={e => {
-                setRepayLoanId(e.target.value);
-                const l = relevantLoans.find(x => x.id === e.target.value);
-                if (l) setRepayAmount(String(Math.min(total, getLoanRemaining(l))));
-              }} style={selectStyle}>
-                {relevantLoans.map(l => (
-                  <option key={l.id} value={l.id} style={optionStyle}>
-                    {customerName(l.customerId)} — {fmtTotal(getLoanRemaining(l))} {l.currency} {t('loanRemaining')}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field2" style={{ marginBottom: 10 }}>
-              <div className="lbl">{t('loanRepaymentAmount')}</div>
-              <div className="inputBox"><input inputMode="decimal" value={repayAmount} onChange={e => setRepayAmount(e.target.value)} placeholder="0.00" /></div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('cashCounterCountedLbl') || 'You counted'}: {fmtTotal(total)} {account.currency}</div>
-            </div>
-            {num(repayAmount, 0) < total && num(repayAmount, 0) > 0 && (
-              <div style={{ fontSize: 10, color: 'var(--warn)', marginBottom: 10 }}>
-                ⚠ {t('cashCounterLeftoverHint') || 'Leftover'}: {fmtTotal(total - num(repayAmount, 0))} {account.currency}
-                {' — '}<button style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', textDecoration: 'underline', fontSize: 10, padding: 0 }} onClick={() => { setAction('split'); setSplitSelected(new Set()); setSplitAmounts({}); }}>{t('cashCounterSplitInstead') || 'split across loans instead?'}</button>
+            {actions.has('add') && (
+              <div className="field2" style={{ marginBottom: 14 }}>
+                <div className="lbl">{t('cashCounterAddToCash') || 'Add to cash balance'} → {account.name}</div>
+                <div className="inputBox"><input inputMode="decimal" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="0.00" /></div>
               </div>
             )}
-            <div className="field2" style={{ marginBottom: 14 }}>
-              <div className="lbl">{t('noteOptional')}</div>
-              <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
-            </div>
-            {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
-            <div className="formActions">
-              <button className="btn secondary" onClick={() => setStep('action')} disabled={saving}>{t('back') || 'Back'}</button>
-              <button className="btn" onClick={handleRepay} disabled={saving}>
-                {saving ? `${t('saving') || 'Saving…'}` : (t('loanAddRepayment'))}
-              </button>
-            </div>
-          </>
-        )}
 
-        {step === 'confirm' && action === 'split' && (
-          <>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-              {t('cashCounterSplitHint') || 'Check off which customers this payment covers — the amount auto-fills up to what each owes.'}
-            </div>
-            <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 260, overflowY: 'auto' }}>
-              {relevantLoans.map(l => {
-                const checked = splitSelected.has(l.id);
-                const remaining = getLoanRemaining(l);
-                return (
-                  <div key={l.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                    border: '1px solid ' + (checked ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
-                    background: checked ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
-                  }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleSplitLoan(l)} style={{ width: 16, height: 16, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName(l.customerId)}</div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('loanRemaining')}: {fmtTotal(remaining)} {l.currency}</div>
-                    </div>
-                    {checked && (
-                      <input
-                        inputMode="decimal" value={splitAmounts[l.id] ?? ''} onChange={e => setSplitAmount(l.id, e.target.value)}
-                        style={{ width: 72, textAlign: 'right', padding: '5px 6px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {actions.has('repay') && (
+              <>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+                  {t('cashCounterSplitHint') || 'Check off which customers this payment covers — the amount auto-fills up to what each owes.'}
+                </div>
+                <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 220, overflowY: 'auto' }}>
+                  {relevantLoans.map(l => {
+                    const checked = splitSelected.has(l.id);
+                    const remaining = getLoanRemaining(l);
+                    return (
+                      <div key={l.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                        border: '1px solid ' + (checked ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
+                        background: checked ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
+                      }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleSplitLoan(l)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName(l.customerId)}</div>
+                          <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('loanRemaining')}: {fmtTotal(remaining)} {l.currency}</div>
+                        </div>
+                        {checked && (
+                          <input
+                            inputMode="decimal" value={splitAmounts[l.id] ?? ''} onChange={e => setSplitAmount(l.id, e.target.value)}
+                            style={{ width: 72, textAlign: 'right', padding: '5px 6px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, marginBottom: 14,
@@ -1464,8 +1430,8 @@ function CashCounterModal({
             {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
             <div className="formActions">
               <button className="btn secondary" onClick={() => setStep('action')} disabled={saving}>{t('back') || 'Back'}</button>
-              <button className="btn" onClick={handleSplitRepay} disabled={saving || splitSelected.size < 2}>
-                {saving ? `${t('saving') || 'Saving…'}` : (t('cashCounterConfirmSplit') || 'Apply Split Repayment')}
+              <button className="btn" style={{ background: 'var(--good)', color: '#000' }} onClick={handleConfirm} disabled={saving}>
+                {saving ? `${t('saving') || 'Saving…'}` : (t('cashCounterConfirmAdd') || 'Confirm')}
               </button>
             </div>
           </>
