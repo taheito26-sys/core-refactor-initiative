@@ -30,13 +30,7 @@ interface MarketConfig {
 
 const MARKETS: MarketConfig[] = [
   { id: "qatar", fiat: "QAR", asset: "USDT" },
-  { id: "uae", fiat: "AED", asset: "USDT" },
   { id: "egypt", fiat: "EGP", asset: "USDT" },
-  { id: "ksa", fiat: "SAR", asset: "USDT" },
-  { id: "turkey", fiat: "TRY", asset: "USDT" },
-  { id: "oman", fiat: "OMR", asset: "USDT" },
-  { id: "georgia", fiat: "GEL", asset: "USDT" },
-  { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
 ];
 
 async function fetchBinanceP2P(
