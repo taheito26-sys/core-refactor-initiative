@@ -107,6 +107,9 @@ export default function StockPage() {
   const [editPrice, setEditPrice] = useState('');
   const [editNote, setEditNote] = useState('');
 
+  /** Correct the tracker-vs-exchange delta by trimming one or more stock batches. */
+  const [showFixMismatchModal, setShowFixMismatchModal] = useState(false);
+
   const [searchParams] = useSearchParams();
   const stockTab = 'batches' as const;
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
@@ -612,6 +615,50 @@ export default function StockPage() {
     setEditingBatchId(null);
   };
 
+  /**
+   * Reconciliation fix: trim one or more batches' remaining stock so the
+   * tracker's available USDT lines back up with Binance + OKX. Same
+   * cash-ledger adjustment logic as a manual batch edit, just applied to
+   * several batches in one commit instead of one at a time.
+   */
+  const applyMismatchFix = (reductions: Array<{ batchId: string; amount: number }>) => {
+    const nextBatches = [...state.batches];
+    let nextCashLedger = [...(state.cashLedger || [])];
+    let totalCostDelta = 0;
+    for (const { batchId, amount } of reductions) {
+      if (!(amount > 0)) continue;
+      const idx = nextBatches.findIndex(b => b.id === batchId);
+      if (idx === -1) continue;
+      const b = nextBatches[idx];
+      const newQty = Math.max(0, b.initialUSDT - amount);
+      const costDelta = (newQty - b.initialUSDT) * b.buyPriceQAR;
+      totalCostDelta += costDelta;
+      if (Math.abs(costDelta) > 0.01 && b.fundingAccountId) {
+        const fundingAcc = (state.cashAccounts || []).find(a => a.id === b.fundingAccountId);
+        nextCashLedger = [...nextCashLedger, {
+          id: uid(), ts: Date.now(), type: 'stock_edit_adjust', accountId: b.fundingAccountId,
+          direction: costDelta > 0 ? 'out' : 'in', amount: Math.abs(costDelta),
+          currency: fundingAcc?.currency || baseFiat,
+          linkedEntityType: 'batch', linkedEntityId: batchId,
+          note: `Exchange reconciliation: reduced by ${fmtU(amount)} USDT`,
+        } as CashLedgerEntry];
+      }
+      nextBatches[idx] = {
+        ...b,
+        initialUSDT: newQty,
+        revisions: [
+          { at: Date.now(), before: { ts: b.ts, source: b.source, note: b.note, initialUSDT: b.initialUSDT, buyPriceQAR: b.buyPriceQAR } },
+          ...b.revisions,
+        ].slice(0, 20),
+      };
+    }
+    const newCashQAR = (state.cashAccounts || []).length > 0
+      ? deriveCashQAR(state.cashAccounts, nextCashLedger)
+      : Math.max(0, num(state.cashQAR, 0) - totalCostDelta);
+    applyState({ ...state, batches: nextBatches, cashLedger: nextCashLedger, cashQAR: newCashQAR });
+    setShowFixMismatchModal(false);
+  };
+
   const deleteBatch = (targetId?: string) => {
     const idToDelete = targetId || editingBatchId;
     if (!idToDelete) return;
@@ -885,6 +932,22 @@ export default function StockPage() {
                 </div>
               </div>
             ))}
+            {reconcileExchangesEnabled && (
+              <div style={{
+                flex: '0 1 auto',
+                padding: '5px 9px',
+                background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 10%, transparent)' : 'color-mix(in srgb, var(--good) 10%, transparent)',
+                border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 30%, transparent)`,
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                  {reconciliationMismatch ? '⚠ ' : ''}{t('reconciliationDelta') || 'Delta'}
+                </div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                  {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: 9 }}>
@@ -935,11 +998,22 @@ export default function StockPage() {
                   </div>
                 </div>
                 {reconciliationMismatch && (
-                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6 }}>
-                    {(reconciliationDelta < 0
-                      ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
-                      : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
-                    ).split('{amount}').join(fmtU(Math.abs(reconciliationDelta)))}
+                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div>
+                      {(reconciliationDelta < 0
+                        ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
+                        : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
+                      ).split('{amount}').join(fmtU(Math.abs(reconciliationDelta)))}
+                    </div>
+                    {reconciliationDelta > 0 && (
+                      <button
+                        className="rowBtn"
+                        style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
+                        onClick={() => setShowFixMismatchModal(true)}
+                      >
+                        🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1721,6 +1795,151 @@ export default function StockPage() {
           </Dialog>
         );
       })()}
+
+      {/* ─── FIX MISMATCH (reconciliation) DIALOG ─── */}
+      {showFixMismatchModal && (
+        <FixMismatchModal
+          targetDelta={reconciliationDelta}
+          batches={perf.filter(b => b.remaining > 1e-9)}
+          isMobile={isMobile}
+          onApply={applyMismatchFix}
+          onClose={() => setShowFixMismatchModal(false)}
+        />
+      )}
     </div>
+  );
+}
+
+interface FixMismatchBatch {
+  id: string;
+  source: string;
+  ts: number;
+  buyPriceQAR: number;
+  remaining: number;
+}
+interface FixMismatchModalProps {
+  /** Positive USDT the tracker needs to come down by to match the exchanges. */
+  targetDelta: number;
+  batches: FixMismatchBatch[];
+  isMobile?: boolean;
+  onApply: (reductions: Array<{ batchId: string; amount: number }>) => void;
+  onClose: () => void;
+}
+/**
+ * Lets the merchant pick which stock batches account for a tracker-vs-exchange
+ * mismatch and how much to trim off each one, instead of hunting for the
+ * right batch to edit by hand. Auto-fills each checked batch up to whatever
+ * is left of the target so a single-batch fix is a single click.
+ */
+function FixMismatchModal({ targetDelta, batches, isMobile = false, onApply, onClose }: FixMismatchModalProps) {
+  const t = useT();
+  const sorted = useMemo(() => [...batches].sort((a, b) => b.ts - a.ts), [batches]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+
+  const allocated = useMemo(
+    () => Array.from(selected).reduce((sum, id) => sum + num(amounts[id], 0), 0),
+    [selected, amounts]
+  );
+  const leftover = targetDelta - allocated;
+
+  const toggle = (b: FixMismatchBatch) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(b.id)) {
+        next.delete(b.id);
+      } else {
+        next.add(b.id);
+        const already = Array.from(next).reduce((sum, id) => sum + (id === b.id ? 0 : num(amounts[id], 0)), 0);
+        const room = Math.max(0, targetDelta - already);
+        setAmounts(a => ({ ...a, [b.id]: String(Math.min(b.remaining, room)) }));
+      }
+      return next;
+    });
+  };
+  const setAmount = (id: string, value: string) => {
+    if (!/^\d*\.?\d*$/.test(value)) return;
+    setAmounts(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleApply = () => {
+    const reductions = Array.from(selected)
+      .map(id => ({ batchId: id, amount: num(amounts[id], 0) }))
+      .filter(r => r.amount > 0);
+    if (reductions.length === 0) return;
+    onApply(reductions);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="tracker-root" style={{ maxWidth: isMobile ? 'min(96vw, 520px)' : 480, width: isMobile ? '96vw' : undefined, maxHeight: isMobile ? '86dvh' : '82vh', overflowY: 'auto', background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : 24, gap: 0 }}>
+        <DialogHeader style={{ marginBottom: 12 }}>
+          <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}</DialogTitle>
+        </DialogHeader>
+
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+          {t('reconciliationFixHint') || 'Check off which batches are overstated and trim each one — the amount auto-fills up to what still needs to come off.'}
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+          background: 'color-mix(in srgb, var(--bad) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 25%, transparent)',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('reconciliationTargetLbl') || 'Needs to come down by'}</span>
+          <span className="mono" style={{ fontWeight: 900, fontSize: 16, color: 'var(--bad)' }}>{fmtU(targetDelta)} USDT</span>
+        </div>
+
+        {sorted.length === 0 ? (
+          <div className="empty" style={{ padding: '20px 0' }}>
+            <div className="empty-t">{t('noBatchesShort')}</div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 300, overflowY: 'auto' }}>
+            {sorted.map(b => {
+              const checked = selected.has(b.id);
+              return (
+                <div key={b.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                  border: '1px solid ' + (checked ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
+                  background: checked ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
+                }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(b)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.source || '—'}</div>
+                    <div style={{ fontSize: 9, color: 'var(--muted)' }}>{fmtDate(b.ts)} · {t('remaining') || 'Remaining'}: {fmtU(b.remaining)} USDT</div>
+                  </div>
+                  {checked && (
+                    <input
+                      inputMode="decimal" value={amounts[b.id] ?? ''} onChange={e => setAmount(b.id, e.target.value)}
+                      style={{ width: 78, textAlign: 'right', padding: '5px 6px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+          background: Math.abs(leftover) < 0.005 ? 'color-mix(in srgb, var(--good) 10%, transparent)' : 'color-mix(in srgb, var(--warn) 10%, transparent)',
+          border: '1px solid ' + (Math.abs(leftover) < 0.005 ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'),
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            {leftover > 0.005 ? (t('reconciliationStillOff') || 'Still off by') : leftover < -0.005 ? (t('cashCounterOverAllocated') || 'Over-allocated') : (t('reconciliationWillMatch') || 'Will match exactly')}
+          </span>
+          <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: Math.abs(leftover) < 0.005 ? 'var(--good)' : 'var(--warn)' }}>
+            {fmtU(Math.abs(leftover))} USDT
+          </span>
+        </div>
+
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" style={{ background: 'var(--bad)', color: '#fff' }} disabled={allocated <= 0} onClick={handleApply}>
+            {t('reconciliationApplyFix') || 'Apply Fix'}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
