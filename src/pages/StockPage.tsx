@@ -819,45 +819,35 @@ export default function StockPage() {
     );
   }
 
-  // Scoped colorful accents for the Add Batch panel/sheet only -- inline
-  // styles on individual elements, never touching the shared .field2 /
-  // .inputBox / .modeToggle / .btn class definitions used across the rest
-  // of the classic UI, so nothing outside this drawer changes look.
   /**
    * Colorful KPI chip for the Stock page header strip — each metric gets its
-   * own accent color and icon badge instead of the flat, single-tone boxes
-   * the strip used before, so the row reads at a glance instead of as a
-   * wall of identical cards.
+   * own accent color (border, tint, left rule) instead of the flat,
+   * single-tone boxes the strip used before, so the row reads at a glance
+   * instead of as a wall of identical cards. No icon badge — just color.
    */
-  const kpiChip = (opts: { icon: string; label: string; value: React.ReactNode; color: string; valueColor?: string }) => (
+  const kpiChip = (opts: { label: string; value: React.ReactNode; color: string; valueColor?: string }) => (
     <div style={{
       flex: '0 1 auto',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '6px 11px 6px 7px',
-      borderRadius: 10,
-      background: `linear-gradient(135deg, color-mix(in srgb, ${opts.color} 16%, transparent), color-mix(in srgb, ${opts.color} 5%, transparent))`,
-      border: `1px solid color-mix(in srgb, ${opts.color} 32%, transparent)`,
-      boxShadow: `0 2px 10px -5px color-mix(in srgb, ${opts.color} 55%, transparent)`,
+      padding: '6px 12px',
+      borderRadius: 8,
+      background: `linear-gradient(135deg, color-mix(in srgb, ${opts.color} 14%, transparent), color-mix(in srgb, ${opts.color} 4%, transparent))`,
+      border: `1px solid color-mix(in srgb, ${opts.color} 28%, transparent)`,
+      borderLeftWidth: 3,
+      borderLeftColor: opts.color,
     }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: 7, flexShrink: 0,
-        background: `linear-gradient(135deg, ${opts.color}, color-mix(in srgb, ${opts.color} 55%, #000))`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
-        boxShadow: `0 2px 6px -2px color-mix(in srgb, ${opts.color} 65%, transparent)`,
-      }}>{opts.icon}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
-          {opts.label}
-        </div>
-        <div className="mono" style={{ fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap', color: opts.valueColor || 'var(--text)' }}>
-          {opts.value}
-        </div>
+      <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+        {opts.label}
+      </div>
+      <div className="mono" style={{ fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap', color: opts.valueColor || 'var(--text)' }}>
+        {opts.value}
       </div>
     </div>
   );
 
+  // Scoped colorful accents for the Add Batch panel/sheet only -- inline
+  // styles on individual elements, never touching the shared .field2 /
+  // .inputBox / .modeToggle / .btn class definitions used across the rest
+  // of the classic UI, so nothing outside this drawer changes look.
   const addBatchAccent = {
     header: { display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'linear-gradient(90deg, color-mix(in srgb, var(--brand) 14%, transparent), transparent)', borderBottom: '1px solid var(--line)' } as React.CSSProperties,
     headerIcon: { width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #6366f1))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0, boxShadow: '0 2px 8px -2px color-mix(in srgb, var(--brand) 60%, transparent)' } as React.CSSProperties,
@@ -909,51 +899,43 @@ export default function StockPage() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
             {reconcileExchangesEnabled && kpiChip({
-              icon: reconciliationMismatch ? '⚠️' : '⚖️',
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
               color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)',
               valueColor: reconciliationMismatch ? 'var(--bad)' : 'var(--good)',
             })}
             {kpiChip({
-              icon: '💰',
               label: t('availableUsdtForSale') || 'Available USDT for Sale',
               value: <>{fmtU(availableUsdt)} {localCur('USDT', t.lang)}</>,
               color: 'var(--good)',
               valueColor: 'var(--good)',
             })}
             {kpiChip({
-              icon: '🏦',
               label: t('totalInvestedQar') || 'Total Invested',
               value: fmtC(perf.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0)),
               color: 'var(--brand)',
             })}
             {wacop > 0 && kpiChip({
-              icon: '📈',
               label: t('estValue') || 'Est. Value',
               value: fmtC(availableUsdt * wacop),
               color: '#8b5cf6',
             })}
             {activeFifoBatch && kpiChip({
-              icon: '📦',
               label: t('activeFifoLayer'),
               value: <>{activeFifoBatch.source || '—'} · {fmtP(activeFifoBatch.buyPriceQAR)}</>,
               color: '#f59e0b',
             })}
             {monthAvgBuyPrice != null && kpiChip({
-              icon: '🧮',
               label: t('monthAvgBuyPrice'),
               value: <>{fmtP(monthAvgBuyPrice)} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}</>,
               color: '#06b6d4',
             })}
             {kpiChip({
-              icon: '🅱️',
               label: `${EXCHANGE_LABELS.binance} USDT (Spot + Funding)`,
               value: <>{fmtU(exchangeUsdtTotals.binance)} {localCur('USDT', t.lang)}</>,
               color: '#f0b90b',
             })}
             {kpiChip({
-              icon: '⭕',
               label: `${EXCHANGE_LABELS.okx} USDT (Spot + Funding)`,
               value: <>{fmtU(exchangeUsdtTotals.okx)} {localCur('USDT', t.lang)}</>,
               color: '#00d4b4',
