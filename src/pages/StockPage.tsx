@@ -827,8 +827,9 @@ export default function StockPage() {
    */
   const kpiChip = (opts: { label: string; value: React.ReactNode; color: string; valueColor?: string }) => (
     <div style={{
-      flex: '0 0 auto',
-      padding: '6px 12px',
+      flex: '1 1 auto',
+      minWidth: 96,
+      padding: '6px 10px',
       borderRadius: 8,
       background: `linear-gradient(135deg, color-mix(in srgb, ${opts.color} 14%, transparent), color-mix(in srgb, ${opts.color} 4%, transparent))`,
       border: `1px solid color-mix(in srgb, ${opts.color} 28%, transparent)`,
@@ -897,7 +898,7 @@ export default function StockPage() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 7, marginBottom: 9, overflowX: 'auto', paddingBottom: 2 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
