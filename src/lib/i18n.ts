@@ -584,6 +584,8 @@ const translations = {
   reconciliationStillOff: { en: 'Still off by', ar: 'لا يزال الفرق' },
   reconciliationWillMatch: { en: 'Will match exactly', ar: 'سيتطابق تمامًا' },
   reconciliationApplyFix: { en: 'Apply Fix', ar: 'تطبيق التصحيح' },
+  reconciliationAddMissingBatch: { en: 'Add missing batch', ar: 'إضافة الدفعة الناقصة' },
+  reconciliationBatchNote: { en: 'Exchange reconciliation top-up', ar: 'تعويض مطابقة المنصة' },
   smartInsights: { en: 'Smart Insights', ar: 'رؤى ذكية' },
   priceTrendUp: { en: 'Your recent buy price is trending higher', ar: 'سعر الشراء الأخير في اتجاه صاعد' },
   priceTrendDown: { en: 'Your recent buy price is trending lower', ar: 'سعر الشراء الأخير في اتجاه هابط' },

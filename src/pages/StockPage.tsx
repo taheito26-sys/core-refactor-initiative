@@ -659,6 +659,29 @@ export default function StockPage() {
     setShowFixMismatchModal(false);
   };
 
+  /**
+   * Reconciliation fix when exchanges hold more than the tracker: prefill
+   * the Add Batch form with the missing quantity so the merchant only has
+   * to confirm the price and source instead of retyping the amount.
+   */
+  const prefillReconciliationBatch = (amountUSDT: number) => {
+    setBatchDate(nowInput());
+    setBatchEntryMode('qty_price');
+    setBatchUsdtQty(String(amountUSDT));
+    setBatchPrice('');
+    setBatchAmount('');
+    setBatchNote(t('reconciliationBatchNote') || 'Exchange reconciliation top-up');
+    setFundingAccountId('none');
+    setBatchMsg('');
+    if (isMobile) {
+      setAddBatchSheetOpen(true);
+    } else {
+      window.setTimeout(() => {
+        focusElementBySelectors(['#batch-usdt-qty-input', '[data-batch-qty-input]']);
+      }, 60);
+    }
+  };
+
   const deleteBatch = (targetId?: string) => {
     const idToDelete = targetId || editingBatchId;
     if (!idToDelete) return;
@@ -850,6 +873,22 @@ export default function StockPage() {
             })}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
+            {reconcileExchangesEnabled && (
+              <div style={{
+                flex: '0 1 auto',
+                padding: '5px 9px',
+                background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 10%, transparent)' : 'color-mix(in srgb, var(--good) 10%, transparent)',
+                border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 30%, transparent)`,
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                  {reconciliationMismatch ? '⚠ ' : ''}{t('reconciliationDelta') || 'Delta'}
+                </div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                  {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}
+                </div>
+              </div>
+            )}
             <div style={{
               flex: '0 1 auto',
               padding: '5px 9px',
@@ -932,22 +971,6 @@ export default function StockPage() {
                 </div>
               </div>
             ))}
-            {reconcileExchangesEnabled && (
-              <div style={{
-                flex: '0 1 auto',
-                padding: '5px 9px',
-                background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 10%, transparent)' : 'color-mix(in srgb, var(--good) 10%, transparent)',
-                border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 30%, transparent)`,
-                borderRadius: 8,
-              }}>
-                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
-                  {reconciliationMismatch ? '⚠ ' : ''}{t('reconciliationDelta') || 'Delta'}
-                </div>
-                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
-                  {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}
-                </div>
-              </div>
-            )}
           </div>
 
           <div style={{ marginBottom: 9 }}>
@@ -1012,6 +1035,15 @@ export default function StockPage() {
                         onClick={() => setShowFixMismatchModal(true)}
                       >
                         🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}
+                      </button>
+                    )}
+                    {reconciliationDelta < 0 && (
+                      <button
+                        className="rowBtn"
+                        style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
+                        onClick={() => prefillReconciliationBatch(Math.abs(reconciliationDelta))}
+                      >
+                        ➕ {t('reconciliationAddMissingBatch') || 'Add missing batch'}
                       </button>
                     )}
                   </div>
@@ -1305,7 +1337,7 @@ export default function StockPage() {
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
                     <div className="field2">
                       <div className="lbl">{t('usdtBought')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                      <div className="inputBox"><input id="batch-usdt-qty-input" data-batch-qty-input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
