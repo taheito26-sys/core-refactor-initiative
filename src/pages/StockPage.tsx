@@ -827,7 +827,7 @@ export default function StockPage() {
    */
   const kpiChip = (opts: { label: string; value: React.ReactNode; color: string; valueColor?: string }) => (
     <div style={{
-      flex: '0 1 auto',
+      flex: '0 0 auto',
       padding: '6px 12px',
       borderRadius: 8,
       background: `linear-gradient(135deg, color-mix(in srgb, ${opts.color} 14%, transparent), color-mix(in srgb, ${opts.color} 4%, transparent))`,
@@ -897,7 +897,7 @@ export default function StockPage() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 7, marginBottom: 9, overflowX: 'auto', paddingBottom: 2 }}>
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
@@ -905,7 +905,7 @@ export default function StockPage() {
               valueColor: reconciliationMismatch ? 'var(--bad)' : 'var(--good)',
             })}
             {kpiChip({
-              label: t('availableUsdtForSale') || 'Available USDT for Sale',
+              label: t('availableUsdtShort') || 'Available USDT',
               value: <>{fmtU(availableUsdt)} {localCur('USDT', t.lang)}</>,
               color: 'var(--good)',
               valueColor: 'var(--good)',
@@ -931,12 +931,12 @@ export default function StockPage() {
               color: '#06b6d4',
             })}
             {kpiChip({
-              label: `${EXCHANGE_LABELS.binance} USDT (Spot + Funding)`,
+              label: `${EXCHANGE_LABELS.binance} ${localCur('USDT', t.lang)}`,
               value: <>{fmtU(exchangeUsdtTotals.binance)} {localCur('USDT', t.lang)}</>,
               color: '#f0b90b',
             })}
             {kpiChip({
-              label: `${EXCHANGE_LABELS.okx} USDT (Spot + Funding)`,
+              label: `${EXCHANGE_LABELS.okx} ${localCur('USDT', t.lang)}`,
               value: <>{fmtU(exchangeUsdtTotals.okx)} {localCur('USDT', t.lang)}</>,
               color: '#00d4b4',
             })}
