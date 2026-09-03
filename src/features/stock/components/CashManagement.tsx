@@ -1087,6 +1087,18 @@ function CashCounterModal({
   const totalAllocated = cashAllocated + (actions.has('repay') ? splitAllocated : 0);
   const splitLeftover = total - totalAllocated;
 
+  // Cash is the "remainder" bucket: whenever loans are also being repaid,
+  // keep the cash amount in sync with whatever the checked loans don't
+  // absorb, the same way an unchecked-but-implied leftover works in the
+  // pure loan-split flow. Loans are auto-filled first (see toggleSplitLoan)
+  // and cash simply mops up what's left.
+  useEffect(() => {
+    if (!actions.has('add')) return;
+    const leftover = actions.has('repay') ? Math.max(0, total - splitAllocated) : total;
+    setCashAmount(String(leftover));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actions.has('add'), actions.has('repay'), splitAllocated, total]);
+
   const setCount = (denom: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     setCounts(prev => ({ ...prev, [denom]: value }));
@@ -1122,7 +1134,10 @@ function CashCounterModal({
         next.delete(loan.id);
       } else {
         next.add(loan.id);
-        const already = cashAllocated + Array.from(next).reduce((sum, id) => sum + (id === loan.id ? 0 : num(splitAmounts[id], 0)), 0);
+        // Loans take priority over cash: fill this loan from what the other
+        // checked loans haven't claimed. Cash (if also selected) absorbs
+        // whatever loans leave over, via the effect above.
+        const already = Array.from(next).reduce((sum, id) => sum + (id === loan.id ? 0 : num(splitAmounts[id], 0)), 0);
         const room = Math.max(0, total - already);
         setSplitAmounts(a => ({ ...a, [loan.id]: String(Math.min(getLoanRemaining(loan), room)) }));
       }
@@ -1319,10 +1334,7 @@ function CashCounterModal({
                   border: '1px solid ' + (actions.has('add') ? 'color-mix(in srgb, var(--brand) 45%, transparent)' : 'var(--line)'),
                   background: actions.has('add') ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : undefined,
                 }}
-                onClick={() => {
-                  toggleAction('add');
-                  if (!actions.has('add')) setCashAmount(String(total));
-                }}
+                onClick={() => toggleAction('add')}
               >
                 <input type="checkbox" checked={actions.has('add')} readOnly style={{ width: 16, height: 16, flexShrink: 0 }} />
                 <span style={{ fontSize: 18 }}>➕</span>
