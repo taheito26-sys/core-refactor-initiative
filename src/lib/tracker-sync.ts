@@ -189,40 +189,55 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   };
 
   // Once cloud has been loaded into memory at least once this session, the
-  // in-memory state already incorporates anything cloud had — so we can
-  // OVERWRITE the cloud row. This is what makes deletes propagate.
-  // Before that first load, we still do read-merge-write so a fresh device
-  // (iOS PWA with empty localStorage) can't wipe cloud by upserting empty.
+  // in-memory state already incorporates anything cloud had — so batches,
+  // customers and suppliers can be OVERWRITTEN from local state. This is what
+  // makes their deletes propagate. Before that first load, we still
+  // read-merge-write everything so a fresh device (iOS PWA with empty
+  // localStorage) can't wipe cloud by upserting empty.
+  //
+  // Trades are the one exception, always: OrdersPage never removes a trade
+  // from the array — "delete" only sets voided:true and leaves the record in
+  // place (see deleteTrade) — so merging trades by id can never resurrect a
+  // real deletion. That makes it safe, and necessary, to always fetch the
+  // latest cloud row and union-merge trades into it on every save, not just
+  // the session's first one. Without this, an idle tab/device whose in-memory
+  // state predates an order added elsewhere will blow that order away the
+  // next time it saves anything at all — its "overwrite once loaded" save
+  // simply never knew the order existed. customerLoans get the same always-
+  // merge treatment since they carry their own delete tombstone
+  // (deletedLoanIds) already.
   let merged: TrackerState = stripped;
-  if (!_cloudLoadedThisSession) {
-    const { data: existingRow } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .from('tracker_snapshots' as any)
-      .select('state')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  const { data: latestRow } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
+    .from('tracker_snapshots' as any)
+    .select('state')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
 
-    if (existingState && typeof existingState === 'object') {
-      const deletedLoanIds = Array.from(new Set([
-        ...(existingState.deletedLoanIds || []),
-        ...(stripped.deletedLoanIds || []),
-      ])).slice(-500);
-      const mergedLoans = mergeArrayById(existingState.customerLoans, stripped.customerLoans)
-        .filter(l => !deletedLoanIds.includes(l.id));
+  if (latestState && typeof latestState === 'object') {
+    const deletedLoanIds = Array.from(new Set([
+      ...(latestState.deletedLoanIds || []),
+      ...(stripped.deletedLoanIds || []),
+    ])).slice(-500);
+    const mergedLoans = mergeArrayById(latestState.customerLoans, stripped.customerLoans)
+      .filter(l => !deletedLoanIds.includes(l.id));
+
+    merged = {
+      ...merged,
+      trades: mergeArrayById(latestState.trades, stripped.trades),
+      customerLoans: mergedLoans,
+      deletedLoanIds,
+    };
+
+    if (!_cloudLoadedThisSession) {
       merged = {
-        ...existingState,
-        ...stripped,
-        batches: mergeArrayById(existingState.batches, stripped.batches),
-        trades: mergeArrayById(existingState.trades, stripped.trades),
-        customers: mergeArrayById(existingState.customers, stripped.customers),
-        suppliers: mergeArrayById(
-          (existingState as Partial<TrackerState>).suppliers,
-          stripped.suppliers,
-        ),
-        customerLoans: mergedLoans,
-        deletedLoanIds,
+        ...latestState,
+        ...merged,
+        batches: mergeArrayById(latestState.batches, stripped.batches),
+        customers: mergeArrayById(latestState.customers, stripped.customers),
+        suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
         cashAccounts: [],
         cashLedger: [],
         cashHistory: [],
