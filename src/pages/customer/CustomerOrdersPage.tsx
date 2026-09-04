@@ -20,6 +20,8 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
+import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
+import type { ExchangeId } from '@/features/exchanges/types';
 import { getP2PRates } from '@/lib/p2p-rates';
 import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
 import { PhasedClientOrderCard } from '@/features/parent-order-fulfillment/components/PhasedClientOrderCard';
@@ -426,6 +428,7 @@ export default function CustomerOrdersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' or null = all
+  const [historyDetailsOpen, setHistoryDetailsOpen] = useState<Record<string, boolean>>({});
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
@@ -524,6 +527,7 @@ export default function CustomerOrdersPage() {
     key: string;
     date: number;
     counterparty: string | null;
+    exchange: ExchangeId | null;
     currency: string;
     totalAmount: number;
     sellPrice: number | null;
@@ -546,6 +550,7 @@ export default function CustomerOrdersPage() {
           key: b.orderNumber || b.tradeId,
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           counterparty: b.counterparty,
+          exchange: b.exchange === 'binance' || b.exchange === 'okx' ? b.exchange : null,
           currency: b.fiat,
           totalAmount: b.fiatAmount,
           sellPrice: b.fiatPrice,
@@ -564,6 +569,7 @@ export default function CustomerOrdersPage() {
           key: o.ref,
           date: o.date,
           counterparty: null,
+          exchange: null,
           currency: s.currency,
           totalAmount: o.amount,
           sellPrice: null,
@@ -1390,56 +1396,131 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into "My Orders". Built with the exact same
-          .tableWrap/table/.pill/.mono classes (src/styles/tracker.css) the
-          merchant's own Orders page table uses, so this renders visually
-          identical — including that stylesheet's own tested mobile
-          handling (low-priority columns collapse via .hide-mobile instead
-          of a bespoke card layout that has to be kept in sync by hand). */}
+          now folded into "My Orders". Desktop uses the merchant Orders
+          page's own .tableWrap/table/.pill classes; mobile mirrors the
+          merchant's own per-order .panel card (header row with exchange +
+          loan badges and a Details toggle, bordered stat grid underneath)
+          instead of a shrunk table — that's what the merchant app itself
+          renders on a phone. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {L('Order History', 'سجل الطلبات')}
           </h3>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{L('Date', 'التاريخ')}</th>
-                  <th>{L('Counterparty', 'الطرف الآخر')}</th>
-                  <th className="r">{L('Total', 'الإجمالي')}</th>
-                  <th className="r hide-mobile">{L('Sell Price', 'سعر البيع')}</th>
-                  <th>{L('Status', 'الحالة')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredHistoryOrders.map((o, i) => {
-                  const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
-                  return (
-                    <tr key={`${o.key}-${i}`}>
-                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                        {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                      </td>
-                      <td>{o.counterparty || '—'}</td>
-                      <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
-                        {Math.round(o.totalAmount).toLocaleString()} {o.currency}
-                      </td>
-                      <td className="mono r hide-mobile">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
-                      <td>
-                        {o.loaned ? (
-                          <span className={`pill ${o.settled ? 'good' : 'warn'}`}>
-                            {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
+
+          {isMobile ? (
+            <div>
+              {filteredHistoryOrders.map((o, i) => {
+                const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+                const isOpen = !!historyDetailsOpen[`${o.key}-${i}`];
+                return (
+                  <div
+                    key={`${o.key}-${i}`}
+                    className="panel"
+                    style={{ margin: '0 0 8px', overflow: 'hidden', ...(o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.counterparty || L('Order', 'طلب')}</span>
+                        {o.exchange && <ImportedBadge exchange={o.exchange} />}
+                        {o.loaned && (
+                          <span className={`pill ${o.settled ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
+                            🤝 {L('Loaned', 'مؤجل')} · {o.settled ? L('Settled', 'مسدد') : `${settledPct ?? 0}%`}
                           </span>
-                        ) : (
-                          <span className="pill">{L('Paid', 'مدفوع')}</span>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <button
+                          className="rowBtn"
+                          style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
+                          onClick={() => setHistoryDetailsOpen(prev => ({ ...prev, [`${o.key}-${i}`]: !prev[`${o.key}-${i}`] }))}
+                        >
+                          {isOpen ? L('Hide', 'إخفاء') : L('Details', 'التفاصيل')}
+                        </button>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>
+                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: isOpen ? '1px solid var(--line2)' : undefined }}>
+                      <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{L('Total', 'الإجمالي')}</div>
+                        <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{Math.round(o.totalAmount).toLocaleString()} {o.currency}</div>
+                      </div>
+                      <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{L('Sell Price', 'سعر البيع')}</div>
+                        <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</div>
+                      </div>
+                      <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{L('Status', 'الحالة')}</div>
+                        <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: o.loaned ? (o.settled ? 'var(--good)' : 'var(--warn)') : 'var(--muted2)' }}>
+                          {o.loaned ? `${settledPct ?? 0}%` : L('Paid', 'مدفوع')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isOpen && o.loaned && o.loanAmount != null && (
+                      <div style={{ padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
+                          <span>{L('Repaid', 'المسدد')}</span>
+                          <span className="mono">{Math.round(o.loanPaid ?? 0).toLocaleString()} / {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}</span>
+                        </div>
+                        <div className="prog" style={{ height: 6 }}>
+                          <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{L('Date', 'التاريخ')}</th>
+                    <th>{L('Counterparty', 'الطرف الآخر')}</th>
+                    <th className="r">{L('Total', 'الإجمالي')}</th>
+                    <th className="r">{L('Sell Price', 'سعر البيع')}</th>
+                    <th>{L('Status', 'الحالة')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistoryOrders.map((o, i) => {
+                    const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+                    return (
+                      <tr key={`${o.key}-${i}`}>
+                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {o.counterparty || '—'}
+                            {o.exchange && <ImportedBadge exchange={o.exchange} />}
+                          </span>
+                        </td>
+                        <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
+                          {Math.round(o.totalAmount).toLocaleString()} {o.currency}
+                        </td>
+                        <td className="mono r">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
+                        <td>
+                          {o.loaned ? (
+                            <span className={`pill ${o.settled ? 'good' : 'warn'}`}>
+                              {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
+                            </span>
+                          ) : (
+                            <span className="pill">{L('Paid', 'مدفوع')}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
