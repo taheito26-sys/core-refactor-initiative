@@ -29,8 +29,9 @@ import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/st
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { findUnlinkedCompletedSellOrders, createLoanFromExchangeOrder, DEFAULT_QAR_RATE } from '@/features/exchanges/loanFromOrder';
+import { findUnlinkedCompletedSellOrders, createLoanFromExchangeOrder, createTradeForExchangeOrder, DEFAULT_QAR_RATE } from '@/features/exchanges/loanFromOrder';
 import { EXCHANGE_LABELS, type ExchangeP2POrder } from '@/features/exchanges/types';
+import { markOrderLinked } from '@/features/exchanges/api';
 
 interface PublicStatementLink {
   id: string;
@@ -2355,20 +2356,38 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (ok) setShowNewLoan(false);
   };
 
-  // Turns one pending exchange sell order into a customer loan at the rate
-  // currently entered for that row. No cash account moves — the USDT already
-  // left the exchange, so unlike addLoan there is no disbursement ledger
-  // entry, only the loan record itself.
+  // Turns one pending exchange sell order into a proper order first — a Trade
+  // carrying the exchange's own EGP amount/price/order number/counterparty
+  // (see Trade.originalFiat*), exactly like importing it by hand from the
+  // Orders page — and a CustomerLoan linked to that trade. No cash account
+  // moves — the USDT already left the exchange, so unlike addLoan there is
+  // no disbursement ledger entry, only the trade + loan records themselves.
+  const buildTradeAndLoan = (order: ExchangeP2POrder, customerId: string, qarRate: number) => {
+    const trade = createTradeForExchangeOrder(order, customerId, qarRate);
+    if (!trade) return null;
+    const loan = createLoanFromExchangeOrder(order, customerId, qarRate, trade.id);
+    if (!loan) return null;
+    return { trade, loan };
+  };
+
   const createLoanFromPendingOrder = async (order: ExchangeP2POrder) => {
     const customerId = pendingCustomerByOrderId[order.id];
     if (!customerId) { toast.error(t('exchangeLoanPickCustomer')); return; }
-    const loan = createLoanFromExchangeOrder(order, customerId, rateForOrder(order.id));
-    if (!loan) { toast.error(t('exchangeLoanCreateFailed')); return; }
+    const pair = buildTradeAndLoan(order, customerId, rateForOrder(order.id));
+    if (!pair) { toast.error(t('exchangeLoanCreateFailed')); return; }
     setCreatingLoanOrderId(order.id);
     try {
-      const ok = await commit({ ...state, customerLoans: [...loans, loan] });
-      if (ok) toast.success(t('exchangeLoanCreated'));
-      else toast.error(t('exchangeLoanCreateFailed'));
+      const ok = await commit({
+        ...state,
+        trades: [...state.trades, pair.trade],
+        customerLoans: [...loans, pair.loan],
+      });
+      if (ok) {
+        toast.success(t('exchangeLoanCreated'));
+        markOrderLinked(order.id, 'trade', pair.trade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+      } else {
+        toast.error(t('exchangeLoanCreateFailed'));
+      }
     } finally {
       setCreatingLoanOrderId(null);
     }
@@ -2377,15 +2396,25 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const createLoansForAllPendingOrders = async () => {
     const ready = unlinkedSellOrders.filter(o => pendingCustomerByOrderId[o.id]);
     if (ready.length === 0) { toast.error(t('exchangeLoanPickCustomer')); return; }
-    const newLoans = ready
-      .map(o => createLoanFromExchangeOrder(o, pendingCustomerByOrderId[o.id], rateForOrder(o.id)))
-      .filter((l): l is CustomerLoan => l !== null);
-    if (newLoans.length === 0) return;
+    const pairs = ready
+      .map(o => ({ order: o, pair: buildTradeAndLoan(o, pendingCustomerByOrderId[o.id], rateForOrder(o.id)) }))
+      .filter((x): x is { order: ExchangeP2POrder; pair: { trade: Trade; loan: CustomerLoan } } => x.pair !== null);
+    if (pairs.length === 0) return;
     setCreatingLoanOrderId('bulk');
     try {
-      const ok = await commit({ ...state, customerLoans: [...loans, ...newLoans] });
-      if (ok) toast.success(t('exchangeLoanCreated'));
-      else toast.error(t('exchangeLoanCreateFailed'));
+      const ok = await commit({
+        ...state,
+        trades: [...state.trades, ...pairs.map(p => p.pair.trade)],
+        customerLoans: [...loans, ...pairs.map(p => p.pair.loan)],
+      });
+      if (ok) {
+        toast.success(t('exchangeLoanCreated'));
+        for (const { order, pair } of pairs) {
+          markOrderLinked(order.id, 'trade', pair.trade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        }
+      } else {
+        toast.error(t('exchangeLoanCreateFailed'));
+      }
     } finally {
       setCreatingLoanOrderId(null);
     }
@@ -3253,13 +3282,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               stays scoped to what the buyer still owes. */}
                           {(() => {
                             const openLoanRows = stmt.loans.filter(row => !row.settled);
-                            const loanRow = (row: typeof stmt.loans[number]) => (
+                            const loanRow = (row: typeof stmt.loans[number]) => {
+                              const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
+                              const isExchangeLoan = !!linkedTrade?.originalFiat;
+                              return (
                               <tr key={row.loan.id}>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                  {row.loan.tradeId ? '🔗 ' : ''}{row.ref}
+                                  {isExchangeLoan ? (
+                                    <span className="pill" style={{ fontSize: 9 }}>
+                                      {fmtTotal(linkedTrade!.originalFiatAmount || 0)} {linkedTrade!.originalFiat}
+                                    </span>
+                                  ) : (
+                                    <>{row.loan.tradeId ? '🔗 ' : ''}{row.ref}</>
+                                  )}
                                 </td>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
-                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>{row.loan.note || '—'}</td>
+                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>
+                                  {isExchangeLoan ? (linkedTrade!.exchangeCounterparty || '—') : (row.loan.note || '—')}
+                                </td>
                                 <td className="r loan-num">{formatMoney(row.principal)}</td>
                                 <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
                                 <td className="r loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
@@ -3298,7 +3338,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   </div>
                                 </td>
                               </tr>
-                            );
+                              );
+                            };
                             return (
                               <div>
                                 <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>

@@ -1,9 +1,45 @@
-import { uid, type CustomerLoan } from '@/lib/tracker-helpers';
-import type { ExchangeP2POrder } from './types';
+import { uid, type CustomerLoan, type Trade } from '@/lib/tracker-helpers';
+import { EXCHANGE_LABELS, type ExchangeP2POrder } from './types';
 
 // Standing QAR conversion rate applied to a Binance sell order when creating
 // a buyer loan, until the merchant edits it on the pending-rate row.
 export const DEFAULT_QAR_RATE = 3.80;
+
+/**
+ * Builds the Trade this exchange order becomes once logged — the "order" the
+ * buyer's statement and the Orders page detail view both key off, carrying
+ * the exchange's own EGP amount/price/order number/counterparty as real
+ * fields (see Trade.originalFiat*) rather than only free text.
+ */
+export function createTradeForExchangeOrder(
+  order: ExchangeP2POrder,
+  customerId: string,
+  qarRate: number,
+): Trade | null {
+  if (order.side !== 'sell') return null;
+  if (order.status.toUpperCase() !== 'COMPLETED') return null;
+  const ts = order.order_time ? new Date(order.order_time).getTime() : Date.now();
+  const who = order.counterparty?.trim() || 'unknown counterparty';
+  return {
+    id: uid(),
+    ts,
+    inputMode: 'QAR',
+    amountUSDT: order.amount,
+    sellPriceQAR: qarRate,
+    feeQAR: 0,
+    note: `Imported from ${EXCHANGE_LABELS[order.exchange]} P2P order ${order.order_number} — counterparty ${who} — ${new Date(ts).toLocaleString()} — sold ${order.amount} USDT for ${order.total} ${order.fiat} (${order.price} ${order.fiat}/USDT)`,
+    voided: false,
+    usesStock: false,
+    revisions: [],
+    customerId,
+    importedFrom: order.exchange,
+    originalFiat: order.fiat,
+    originalFiatAmount: order.total,
+    originalFiatPriceUSDT: order.price,
+    exchangeOrderNumber: order.order_number,
+    exchangeCounterparty: order.counterparty ?? undefined,
+  };
+}
 
 // Builds a CustomerLoan from a completed Binance/OKX P2P sell order. Only a
 // completed sell moves USDT out to a customer on credit, so anything else is
@@ -13,6 +49,7 @@ export function createLoanFromExchangeOrder(
   order: ExchangeP2POrder,
   customerId: string,
   qarRate: number,
+  tradeId?: string,
 ): CustomerLoan | null {
   if (order.side !== 'sell') return null;
   if (order.status.toUpperCase() !== 'COMPLETED') return null;
@@ -22,6 +59,7 @@ export function createLoanFromExchangeOrder(
     id: uid(),
     ts,
     customerId,
+    tradeId,
     principal,
     currency: 'QAR',
     repayments: [],
