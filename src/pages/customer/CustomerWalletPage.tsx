@@ -333,6 +333,25 @@ export default function CustomerWalletPage() {
     return rows.sort((a, b) => b.date - a.date);
   }, [loanStatements]);
 
+  // Month filter — defaults to the current month, same convention as the
+  // Orders page's own month pills.
+  const [paymentsMonth, setPaymentsMonth] = useState<string | null>(() => new Date().toISOString().slice(0, 7));
+  const paymentsMonths = useMemo(() => {
+    const seen = new Set<string>();
+    const months: string[] = [];
+    for (const p of [...loanPayments].sort((a, b) => b.date - a.date)) {
+      const key = new Date(p.date).toISOString().slice(0, 7);
+      if (!seen.has(key)) { seen.add(key); months.push(key); }
+    }
+    return months;
+  }, [loanPayments]);
+  const filteredLoanPayments = useMemo(() =>
+    paymentsMonth
+      ? loanPayments.filter(p => new Date(p.date).toISOString().slice(0, 7) === paymentsMonth)
+      : loanPayments,
+    [loanPayments, paymentsMonth],
+  );
+
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
@@ -685,25 +704,42 @@ export default function CustomerWalletPage() {
                 </div>
               </div>
 
+              {/* Month filter — same convention as the Orders page */}
+              {paymentsMonths.length > 0 && (
+                <div className="month-filter-row">
+                  <button onClick={() => setPaymentsMonth(null)} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
+                    {L("All Months", "كل الأشهر")}
+                  </button>
+                  {paymentsMonths.map(m => {
+                    const [y, mo] = m.split("-");
+                    const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
+                    return (
+                      <button key={m} onClick={() => setPaymentsMonth(m)} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Payments list */}
               <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
                 <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
-                  <span className="text-[10px] text-muted-foreground">{loanPayments.length} {L("payments", "دفعة")}</span>
+                  <span className="text-[10px] text-muted-foreground">{filteredLoanPayments.length} {L("payments", "دفعة")}</span>
                 </div>
-                {loanPayments.length === 0 ? (
+                {filteredLoanPayments.length === 0 ? (
                   <div className="px-6 py-10 text-center">
-                    <p className="text-sm text-muted-foreground">{L("No payments recorded yet", "لا توجد دفعات مسجلة بعد")}</p>
+                    <p className="text-sm text-muted-foreground">{loanPayments.length === 0 ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد") : L("No payments this month", "لا توجد دفعات هذا الشهر")}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-border/40">
-                    {loanPayments.map(p => (
+                    {filteredLoanPayments.map(p => (
                       <div key={p.key} className="flex items-center gap-3 px-4 py-2.5">
                         <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{p.ref || L("Loan repayment", "سداد قرض")}</p>
+                          <p className="text-xs font-semibold truncate">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
                           {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
-                          <p className="text-[10px] text-muted-foreground">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>

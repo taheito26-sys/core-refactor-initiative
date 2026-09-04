@@ -1,4 +1,4 @@
-import { buildBuyerStatements } from "../../../src/features/stock/utils/loanStatement.ts";
+import { buildBuyerStatements, groupPayments } from "../../../src/features/stock/utils/loanStatement.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnySupabaseClient = any;
@@ -131,14 +131,17 @@ export async function buildLoanStatementResponse(
       settled: row.settled,
       note: row.loan.note || null,
     })),
-    payments: statement.entries
-      .filter((e) => e.kind === "payment")
-      .map((e) => ({
-        date: e.ts,
-        amount: Math.round(e.credit),
-        note: e.description || null,
-        ref: e.ref || null,
-      })),
+    // One physical payment applied across several loans/orders (shared
+    // batchId) is grouped into a single row here — a buyer sees "you paid
+    // X on this date", never which specific orders it was split across.
+    payments: groupPayments(statement.entries.filter((e) => e.kind === "payment")).map((g) => ({
+      date: g.ts,
+      amount: Math.round(g.credit),
+      note: g.description || null,
+      // Order references identify which specific orders a payment settled —
+      // that breakdown is for the merchant's own internal view only.
+      ref: clientSafe ? null : g.refs.join(", "),
+    })),
     // usdtAmount and qarRate are the two figures a buyer must never see —
     // stripped here, server-side, rather than only hidden in the UI, so
     // they never reach a buyer-facing network response at all.
