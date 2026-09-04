@@ -255,8 +255,14 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Customer username/password login */}
-              {selectedRole === 'customer' && (
+              {/* Customer username/password login — always visible, not gated
+                  behind picking the "Customer" card first, so a customer
+                  handed a username/password by their merchant can always
+                  find it without discovering a toggle. */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-white/40 lg:text-muted-foreground uppercase tracking-[0.15em]">
+                  {t.isRTL ? 'تسجيل دخول العميل' : 'Customer sign in'}
+                </p>
                 <form
                   className="space-y-3"
                   onSubmit={e => { e.preventDefault(); handleUsernameLogin(); }}
@@ -283,13 +289,14 @@ export default function LoginPage() {
                   <Button type="submit" className="w-full h-12 text-sm font-semibold rounded-xl lg:bg-primary lg:text-primary-foreground max-lg:bg-[#d4af37] max-lg:text-black max-lg:hover:bg-[#d4af37]/90" size="lg" disabled={loading}>
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (t.isRTL ? 'تسجيل الدخول' : 'Sign in')}
                   </Button>
-                  <div className="flex items-center gap-3 text-[10px] text-white/30 lg:text-muted-foreground/60">
-                    <div className="h-px flex-1 bg-white/10 lg:bg-border" />
-                    <span>{t.isRTL ? 'أو' : 'or'}</span>
-                    <div className="h-px flex-1 bg-white/10 lg:bg-border" />
-                  </div>
                 </form>
-              )}
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] text-white/30 lg:text-muted-foreground/60">
+                <div className="h-px flex-1 bg-white/10 lg:bg-border" />
+                <span>{t.isRTL ? 'أو' : 'or'}</span>
+                <div className="h-px flex-1 bg-white/10 lg:bg-border" />
+              </div>
 
               {/* Google Sign In */}
               <Button type="button"
