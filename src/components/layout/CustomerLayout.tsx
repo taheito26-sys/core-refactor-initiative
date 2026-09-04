@@ -1,5 +1,5 @@
 ﻿import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, HandCoins, type LucideIcon } from 'lucide-react';
+import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
@@ -17,7 +17,6 @@ const PRIMARY_NAV = [
 ] as const;
 
 const DRAWER_NAV = [
-  { path: '/c/loan',          icon: HandCoins,  en: 'Loaned Orders', ar: 'الطلبات المؤجّلة' },
   { path: '/c/merchants',     icon: Store,      en: 'Merchants',     ar: 'التجار' },
   { path: '/c/notifications', icon: Bell,       en: 'Notifications', ar: 'التنبيهات' },
   { path: '/c/settings',      icon: Settings,   en: 'Settings',      ar: 'الإعدادات' },

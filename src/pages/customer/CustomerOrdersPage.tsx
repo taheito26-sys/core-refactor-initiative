@@ -505,6 +505,24 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
+  // Historical orders a merchant has recorded for this buyer before the
+  // portal order workflow existed (loan-linked and plain), shared via
+  // customer-loan-statement — same USDT-free data /c/loan used to show.
+  const { data: historyStatements = [] } = useQuery({
+    queryKey: ['c-order-history', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
+      if (error || !data || (data as { error?: string }).error) return [];
+      return (data as { statements: Array<{ currency: string; orders: Array<{ ref: string; date: number; amount: number; paid: number; remaining: number; settled: boolean; note: string | null }> }> }).statements;
+    },
+    enabled: !!userId,
+  });
+
+  const historyOrders = useMemo(
+    () => historyStatements.flatMap(s => s.orders.map(o => ({ ...o, currency: s.currency }))).sort((a, b) => b.date - a.date),
+    [historyStatements],
+  );
+
   // Live updates: any change to this customer's orders rows triggers a refetch
   // so merchant edits / approvals show up without the customer having to reload.
   useEffect(() => {
@@ -756,11 +774,11 @@ export default function CustomerOrdersPage() {
         <div className="flex h-32 items-center justify-center px-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : filteredOrders.length === 0 ? (
+      ) : filteredOrders.length === 0 && historyOrders.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-12 text-center">
           <p className="text-muted-foreground">{orders.length === 0 ? L('No orders yet', 'لا توجد طلبات بعد') : L('No orders this month', 'لا توجد طلبات هذا الشهر')}</p>
         </div>
-      ) : (
+      ) : filteredOrders.length === 0 ? null : (
         <div className="space-y-6 px-4">
           {grouped.map(({ label, orders: dayOrders }) => (
             <div key={label} className="space-y-3">
@@ -1309,6 +1327,43 @@ export default function CustomerOrdersPage() {
               })}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Historical order records the merchant kept before the portal order
+          workflow — same rows /c/loan pulled, now folded into one list so
+          "My Orders" never looks empty for a buyer with only pre-portal history. */}
+      {historyOrders.length > 0 && (
+        <div className="space-y-3 px-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {L('Order History', 'سجل الطلبات')}
+          </h3>
+          <div className="space-y-2">
+            {historyOrders.map((o, i) => (
+              <div key={`${o.ref}-${i}`} className="rounded-xl border border-border/50 bg-card/40 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">{o.ref}</p>
+                    <p className="text-[11px] text-muted-foreground">{new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold">{Math.round(o.amount).toLocaleString()} {o.currency}</p>
+                    <span className={cn(
+                      'inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                      o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
+                    )}>
+                      {o.settled ? L('Settled', 'مسدد') : L('Open', 'مفتوح')}
+                    </span>
+                  </div>
+                </div>
+                {o.remaining > 0 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {L('Remaining', 'المتبقي')}: {Math.round(o.remaining).toLocaleString()} {o.currency}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
