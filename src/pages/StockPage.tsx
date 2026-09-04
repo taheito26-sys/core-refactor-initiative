@@ -106,6 +106,7 @@ export default function StockPage() {
   const [editQty, setEditQty] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editNote, setEditNote] = useState('');
+  const [editFundingAccountId, setEditFundingAccountId] = useState('none');
 
   /** Correct the tracker-vs-exchange delta by trimming one or more stock batches. */
   const [showFixMismatchModal, setShowFixMismatchModal] = useState(false);
@@ -555,6 +556,7 @@ export default function StockPage() {
     setEditQty(String(b.initialUSDT));
     setEditPrice(String(b.buyPriceQAR));
     setEditNote(b.note || '');
+    setEditFundingAccountId(b.fundingAccountId || 'none');
   };
 
   const saveBatchEdit = () => {
@@ -572,23 +574,62 @@ export default function StockPage() {
     const newCost = qty * px;
     const delta = newCost - oldCost; // positive = extra spend, negative = refund
 
-    // ── Ledger adjustment if multi-account is active ─────────────
-    let nextCashLedger = [...(state.cashLedger || [])];
-    if (Math.abs(delta) > 0.01 && existingBatch?.fundingAccountId) {
-      const fundingAcc = (state.cashAccounts || []).find(a => a.id === existingBatch.fundingAccountId);
-      const adjustEntry: CashLedgerEntry = {
-        id: uid(),
-        ts: Date.now(),
-        type: 'stock_edit_adjust',
-        accountId: existingBatch.fundingAccountId,
-        direction: delta > 0 ? 'out' : 'in',
-        amount: Math.abs(delta),
-        currency: fundingAcc?.currency || baseFiat,
-        linkedEntityType: 'batch',
-        linkedEntityId: editingBatchId,
-        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} ${fundingAcc?.currency || baseFiat}`,
-      };
-      nextCashLedger = [...nextCashLedger, adjustEntry];
+    const oldFundingId = existingBatch?.fundingAccountId;
+    const newFundingId = editFundingAccountId && editFundingAccountId !== 'none' ? editFundingAccountId : undefined;
+
+    // ── Ledger adjustment: consume/refund cash to reflect the edit ─────
+    const nextCashLedger = [...(state.cashLedger || [])];
+
+    if (oldFundingId === newFundingId) {
+      // Same funding account (or both unfunded) — adjust by the cost delta only.
+      if (Math.abs(delta) > 0.01 && oldFundingId) {
+        const fundingAcc = (state.cashAccounts || []).find(a => a.id === oldFundingId);
+        nextCashLedger.push({
+          id: uid(),
+          ts: Date.now(),
+          type: 'stock_edit_adjust',
+          accountId: oldFundingId,
+          direction: delta > 0 ? 'out' : 'in',
+          amount: Math.abs(delta),
+          currency: fundingAcc?.currency || baseFiat,
+          linkedEntityType: 'batch',
+          linkedEntityId: editingBatchId,
+          note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} ${fundingAcc?.currency || baseFiat}`,
+        } as CashLedgerEntry);
+      }
+    } else {
+      // Funding account changed — fully refund the old account (if any) and
+      // charge the new one (if any) for the batch's new cost.
+      if (oldFundingId && oldCost > 0.01) {
+        const oldAcc = (state.cashAccounts || []).find(a => a.id === oldFundingId);
+        nextCashLedger.push({
+          id: uid(),
+          ts: Date.now(),
+          type: 'stock_refund',
+          accountId: oldFundingId,
+          direction: 'in',
+          amount: oldCost,
+          currency: oldAcc?.currency || baseFiat,
+          linkedEntityType: 'batch',
+          linkedEntityId: editingBatchId,
+          note: `Batch edit: funding source changed, refunded ${fmtTotal(oldCost)} ${oldAcc?.currency || baseFiat}`,
+        } as CashLedgerEntry);
+      }
+      if (newFundingId && newCost > 0.01) {
+        const newAcc = (state.cashAccounts || []).find(a => a.id === newFundingId);
+        nextCashLedger.push({
+          id: uid(),
+          ts: Date.now(),
+          type: 'stock_purchase',
+          accountId: newFundingId,
+          direction: 'out',
+          amount: newCost,
+          currency: newAcc?.currency || baseFiat,
+          linkedEntityType: 'batch',
+          linkedEntityId: editingBatchId,
+          note: `Batch edit: funding source changed, consumed ${fmtTotal(newCost)} ${newAcc?.currency || baseFiat}`,
+        } as CashLedgerEntry);
+      }
     }
 
     const nextBatches = state.batches.map((b) => {
@@ -600,6 +641,7 @@ export default function StockPage() {
         note: editNote.trim(),
         initialUSDT: qty,
         buyPriceQAR: px,
+        fundingAccountId: newFundingId,
         revisions: [
           { at: Date.now(), before: { ts: b.ts, source: b.source, note: b.note, initialUSDT: b.initialUSDT, buyPriceQAR: b.buyPriceQAR } },
           ...b.revisions,
@@ -1745,7 +1787,7 @@ export default function StockPage() {
               )}
 
               {/* Note */}
-              <div className="field2" style={{ marginBottom: 14 }}>
+              <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('note')}</div>
                 <div className="inputBox" style={{ padding: 0 }}>
                   <textarea
@@ -1756,6 +1798,30 @@ export default function StockPage() {
                   />
                 </div>
               </div>
+
+              {/* Funding source — add/consume cash */}
+              {activeAccounts.length > 0 && (
+                <div className="field2" style={{ marginBottom: 14 }}>
+                  <div className="lbl">{t('fundingSourceLbl')}</div>
+                  <select
+                    value={editFundingAccountId}
+                    onChange={e => setEditFundingAccountId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    style={{ color: 'hsl(var(--foreground))', minHeight: 40 }}
+                  >
+                    <option value="none">🚫 {t('noFundingSource')}</option>
+                    {activeAccounts.map(a => {
+                      const bal = accountBalances.get(a.id) || 0;
+                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                    })}
+                  </select>
+                  {editFundingAccountId && editFundingAccountId !== 'none' && (() => {
+                    const acc = activeAccounts.find(a => a.id === editFundingAccountId);
+                    const bal = accountBalances.get(editFundingAccountId) || 0;
+                    return <div style={{ fontSize: 11, marginTop: 4, color: 'var(--muted)' }}>{t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong></div>;
+                  })()}
+                </div>
+              )}
 
               {/* Batch stats pills */}
               {editBatch && (
