@@ -425,7 +425,9 @@ export default function CustomerOrdersPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' or null = all
+  // 'YYYY-MM' or null = all months. Defaults to the current month, matching
+  // the merchant Orders page's own default.
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(() => new Date().toISOString().slice(0, 7));
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
@@ -763,6 +765,18 @@ export default function CustomerOrdersPage() {
       : historyOrders,
     [historyOrders, selectedMonth],
   );
+
+  // KPI bar over the currently filtered history — same idea as the merchant
+  // Orders page's own COUNT/VOLUME row, EGP + QAR only (no USDT, no margin).
+  const historyKpi = useMemo(() => {
+    let volumeEgp = 0;
+    let totalQar = 0;
+    for (const o of filteredHistoryOrders) {
+      if (o.currency === 'EGP') volumeEgp += o.totalAmount;
+      if (o.loanAmount != null && o.loanCurrency === 'QAR') totalQar += o.loanAmount;
+    }
+    return { count: filteredHistoryOrders.length, volumeEgp, totalQar };
+  }, [filteredHistoryOrders]);
 
   const grouped = groupByDay(filteredOrders, lang);
 
@@ -1387,14 +1401,35 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into "My Orders". Deliberately minimal: date + EGP
-          amount as the title, a repayment progress bar for loaned orders —
-          no counterparty, no exchange badge, no extra chrome. */}
+          now folded into "My Orders". Title is date + EGP amount; sell
+          price and the QAR total sit underneath, plus a repayment progress
+          bar for loaned orders — no counterparty, no exchange badge. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {L('Order History', 'سجل الطلبات')}
           </h3>
+
+          {/* KPI bar — same tile styling as the merchant Orders page's own
+              COUNT/VOLUME/NET P&L row, scoped to the selected month. */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+            {[
+              { label: L('Count', 'العدد'), value: String(historyKpi.count) },
+              { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: `${Math.round(historyKpi.volumeEgp).toLocaleString()} EGP` },
+              { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: `${Math.round(historyKpi.totalQar).toLocaleString()} QAR` },
+            ].map(k => (
+              <div key={k.label} style={{
+                flex: '1 1 100px', minWidth: 100,
+                padding: '6px 10px',
+                background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{k.label}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
 
           {isMobile ? (
             <div>
@@ -1413,6 +1448,13 @@ export default function CustomerOrdersPage() {
                       <div className="mono" style={{ fontSize: 15, fontWeight: 800 }}>
                         {Math.round(o.totalAmount).toLocaleString()} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{o.currency}</span>
                       </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+                      <span>{L('Sell Price', 'سعر البيع')}: <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</span></span>
+                      {o.loanAmount != null && (
+                        <span>{L('Total', 'الإجمالي')} (QAR): <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{Math.round(o.loanAmount).toLocaleString()}</span></span>
+                      )}
                     </div>
 
                     {o.loaned && o.loanAmount != null ? (
@@ -1440,7 +1482,9 @@ export default function CustomerOrdersPage() {
                 <thead>
                   <tr>
                     <th>{L('Date', 'التاريخ')}</th>
-                    <th className="r">{L('Total', 'الإجمالي')}</th>
+                    <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
+                    <th className="r">{L('Sell Price', 'سعر البيع')}</th>
+                    <th className="r">{L('Total (QAR)', 'الإجمالي (ريال)')}</th>
                     <th>{L('Repayment', 'السداد')}</th>
                   </tr>
                 </thead>
@@ -1454,6 +1498,10 @@ export default function CustomerOrdersPage() {
                         </td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {Math.round(o.totalAmount).toLocaleString()} {o.currency}
+                        </td>
+                        <td className="mono r">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
+                        <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
+                          {o.loanAmount != null ? `${Math.round(o.loanAmount).toLocaleString()} ${o.loanCurrency}` : '—'}
                         </td>
                         <td>
                           {o.loaned && o.loanAmount != null ? (
