@@ -180,6 +180,7 @@ import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPag
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
 import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
+import CustomerLoanStatementPage from "./pages/customer/CustomerLoanStatementPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -394,6 +395,7 @@ const App = () => (
                   <Route path="/c/market" element={<Navigate to="/c/home" replace />} />
                   <Route path="/c/orders" element={<CustomerOrdersPage />} />
                   <Route path="/c/wallet" element={<CustomerWalletPage />} />
+                  <Route path="/c/loan" element={<CustomerLoanStatementPage />} />
                   <Route path="/c/notifications" element={<CustomerNotificationsPage />} />
                   <Route path="/c/chat" element={<CustomerChatPage />} />
                   <Route path="/c/settings" element={<CustomerSettingsPage />} />

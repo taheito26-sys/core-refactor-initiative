@@ -167,6 +167,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string
+          customer_user_id: string | null
           id: string
           revoked_at: string | null
           token: string
@@ -176,6 +177,7 @@ export type Database = {
           created_at?: string
           currency: string
           customer_id: string
+          customer_user_id?: string | null
           id?: string
           revoked_at?: string | null
           token: string
@@ -185,6 +187,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string
+          customer_user_id?: string | null
           id?: string
           revoked_at?: string | null
           token?: string
