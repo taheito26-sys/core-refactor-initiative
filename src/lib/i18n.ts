@@ -1812,6 +1812,7 @@ const translations = {
   loanNoSearchMatch: { en: 'Nothing matches this search', ar: 'لا توجد نتائج مطابقة لهذا البحث' },
   loanOutstandingTotal: { en: 'Outstanding', ar: 'المستحق' },
   loanSettledInMonth: { en: 'settled', ar: 'تمت تسويته' },
+  loanOpenInMonth: { en: 'buyers', ar: 'عملاء' },
   loanClosedOn: { en: 'Settled', ar: 'تمت التسوية' },
   loanLastPayment: { en: 'Last payment', ar: 'آخر دفعة' },
   loanNoPaymentsYet: { en: 'No payments yet', ar: 'لا توجد دفعات بعد' },
