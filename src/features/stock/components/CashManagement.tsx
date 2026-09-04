@@ -1904,6 +1904,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   const closedLoanMonths = useMemo(() => groupClosedLoansByMonth(filteredLoans, customerList), [filteredLoans, customerList]);
 
+  // Weighted-average USDT cost across every stock batch ever bought — same
+  // formula OrdersPage uses for its own P&L figures, so a loaned order's Buy/
+  // Net line up with what the rest of the app calls the cost basis.
+  const avgBuyCostQAR = useMemo(() => {
+    const totalUSDT = (state.batches || []).reduce((s, b) => s + b.initialUSDT, 0);
+    if (totalUSDT <= 0) return 0;
+    const totalQAR = (state.batches || []).reduce((s, b) => s + b.buyPriceQAR * b.initialUSDT, 0);
+    return totalQAR / totalUSDT;
+  }, [state.batches]);
+
   // ── Buyer accounts ──────────────────────────────────────────────
   // One statement per buyer per currency, covering their whole history. The
   // receivables list shows only the buyers still carrying a balance; the
@@ -3219,9 +3229,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               const qarToEgpRate = isExchangeLoan && usdtToQarRate
                                 ? (linkedTrade!.originalFiatPriceUSDT ?? 0) / usdtToQarRate
                                 : null;
-                              const otherDetails = isExchangeLoan
-                                ? (linkedTrade!.exchangeCounterparty || '—')
-                                : (row.loan.note || row.ref);
+                              const buyCost = linkedTrade ? linkedTrade.amountUSDT * avgBuyCostQAR : null;
+                              const net = buyCost != null ? row.principal - buyCost : null;
                               return (
                               <tr key={row.loan.id}>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
@@ -3240,8 +3249,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
                                   </span>
                                 </td>
-                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>
-                                  {row.loan.tradeId ? '🔗 ' : ''}{otherDetails}
+                                <td className="r loan-num">{buyCost != null ? formatMoney(buyCost) : '—'}</td>
+                                <td className="r loan-num" style={{ color: net == null ? undefined : net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                  {net != null ? `${net >= 0 ? '+' : ''}${formatMoney(net)}` : '—'}
                                 </td>
                                 <td>
                                   <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -3288,13 +3298,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <th className="r">{t('loanColPaid')}</th>
                                         <th className="r">{t('loanColRemaining')}</th>
                                         <th>{t('loanColStatus')}</th>
-                                        <th>{t('loanColOtherDetails')}</th>
+                                        <th className="r">{t('loanColBuy')}</th>
+                                        <th className="r">{t('loanColNet')}</th>
                                         <th />
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {openLoanRows.length === 0 ? (
-                                        <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                        <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
                                       ) : openLoanRows.map(loanRow)}
                                     </tbody>
                                     <tfoot>
@@ -3304,7 +3315,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <td colSpan={2} />
                                         <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
                                         <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                        <td colSpan={3} />
+                                        <td colSpan={4} />
                                       </tr>
                                     </tfoot>
                                   </table>
