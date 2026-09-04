@@ -3226,12 +3226,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               const qarToEgpRate = isExchangeLoan && usdtToQarRate
                                 ? (linkedTrade!.originalFiatPriceUSDT ?? 0) / usdtToQarRate
                                 : null;
-                              // Same FIFO calc OrdersPage's own trade detail uses — the "Buy" cost
-                              // is the sum of the batch slices this specific order actually drew
-                              // from (its Active FIFO layers), not a blended average, so it's
-                              // identical to what the Orders page shows for the same order.
+                              // Same FIFO calc OrdersPage's own trade detail uses — "Buy" is the
+                              // Avg Buy price of the Active FIFO layer(s) this order drew from
+                              // (per-unit rate, identical to OrdersPage's own "Avg Buy" figure),
+                              // while Net still nets off the total cost of those slices.
                               const calc = linkedTrade ? derivedFifo.tradeCalc.get(linkedTrade.id) : undefined;
                               const buyCost = calc?.ok ? calc.slices.reduce((s, sl) => s + sl.cost, 0) : null;
+                              const avgBuyRate = calc?.ok ? calc.avgBuyQAR : null;
                               const revenue = linkedTrade ? linkedTrade.amountUSDT * linkedTrade.sellPriceQAR : null;
                               const net = buyCost != null && revenue != null
                                 ? revenue - buyCost - (linkedTrade!.feeQAR || 0)
@@ -3255,7 +3256,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
                                   </span>
                                 </td>
-                                <td className="r loan-num">{buyCost != null ? formatMoney(buyCost) : '—'}</td>
+                                <td className="r mono">{avgBuyRate != null ? fmtP(avgBuyRate) : '—'}</td>
                                 <td className="r loan-num" style={{ color: net == null ? undefined : net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                                   {net != null ? `${net >= 0 ? '+' : ''}${formatMoney(net)}` : '—'}
                                 </td>
