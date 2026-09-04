@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, Fragment, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
-  uid, fmtTotal, fmtDate, num,
+  uid, fmtTotal, fmtDate, fmtP, num,
   type TrackerState,
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
@@ -3213,22 +3213,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             const loanRow = (row: typeof stmt.loans[number]) => {
                               const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
                               const isExchangeLoan = !!linkedTrade?.originalFiat;
+                              const usdtToQarRate = linkedTrade?.sellPriceQAR ?? row.loan.qarRate;
+                              // EGP/USDT ÷ QAR/USDT = EGP per QAR — the cross-rate between the two
+                              // fiat legs, since the merchant never trades QAR for EGP directly.
+                              const qarToEgpRate = isExchangeLoan && usdtToQarRate
+                                ? (linkedTrade!.originalFiatPriceUSDT ?? 0) / usdtToQarRate
+                                : null;
+                              const otherDetails = isExchangeLoan
+                                ? (linkedTrade!.exchangeCounterparty || '—')
+                                : (row.loan.note || row.ref);
                               return (
                               <tr key={row.loan.id}>
-                                <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                  {isExchangeLoan ? (
-                                    <span className="pill" style={{ fontSize: 9 }}>
-                                      {fmtTotal(linkedTrade!.originalFiatAmount || 0)} {linkedTrade!.originalFiat}
-                                    </span>
-                                  ) : (
-                                    <>{row.loan.tradeId ? '🔗 ' : ''}{row.ref}</>
-                                  )}
-                                </td>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
-                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>
-                                  {isExchangeLoan ? (linkedTrade!.exchangeCounterparty || '—') : (row.loan.note || '—')}
+                                <td className="r loan-num">
+                                  {isExchangeLoan ? fmtTotal(linkedTrade!.originalFiatAmount || 0) : '—'}
                                 </td>
                                 <td className="r loan-num">{formatMoney(row.principal)}</td>
+                                <td className="r mono">{qarToEgpRate != null ? fmtP(qarToEgpRate) : '—'}</td>
+                                <td className="r mono">{usdtToQarRate ? fmtP(usdtToQarRate) : '—'}</td>
                                 <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
                                 <td className="r loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
                                   {formatMoney(row.remaining)}
@@ -3237,6 +3239,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
                                     {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
                                   </span>
+                                </td>
+                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>
+                                  {row.loan.tradeId ? '🔗 ' : ''}{otherDetails}
                                 </td>
                                 <td>
                                   <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -3275,28 +3280,31 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   <table className="acct-table">
                                     <thead>
                                       <tr>
-                                        <th>{t('loanColRef')}</th>
                                         <th>{t('loanColDate')}</th>
-                                        <th>{t('loanColDescription')}</th>
-                                        <th className="r">{t('loanColAmount')}</th>
+                                        <th className="r">{t('loanColEgpAmount')}</th>
+                                        <th className="r">{t('loanColQarAmount')}</th>
+                                        <th className="r">{t('loanColRateQarEgp')}</th>
+                                        <th className="r">{t('loanColRateUsdtQar')}</th>
                                         <th className="r">{t('loanColPaid')}</th>
                                         <th className="r">{t('loanColRemaining')}</th>
                                         <th>{t('loanColStatus')}</th>
+                                        <th>{t('loanColOtherDetails')}</th>
                                         <th />
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {openLoanRows.length === 0 ? (
-                                        <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                        <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
                                       ) : openLoanRows.map(loanRow)}
                                     </tbody>
                                     <tfoot>
                                       <tr>
-                                        <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
+                                        <td colSpan={2} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
                                         <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                        <td colSpan={2} />
                                         <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
                                         <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                        <td colSpan={2} />
+                                        <td colSpan={3} />
                                       </tr>
                                     </tfoot>
                                   </table>
