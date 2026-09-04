@@ -9,6 +9,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
 import { mapConnectedCustomers, mergeListedCustomers } from '@/features/merchants/lib/customer-listing';
+import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { supabase } from '@/integrations/supabase/client';
 import '@/styles/tracker.css';
 
@@ -217,7 +218,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
         body: { username, password: loginPassword, displayName: loginModalCust.name, phone: loginModalCust.phone },
       });
       if (error || !data || (data as { error?: string }).error) {
-        throw new Error((data as { error?: string })?.error || 'Could not create login');
+        throw new Error(await extractFunctionErrorMessage(error, data, 'Could not create login'));
       }
       toast.success(`Login created for ${loginModalCust.name}: username "${username}"`);
       qc.invalidateQueries({ queryKey: ['crm-connected-customers', merchantProfile?.merchant_id] });

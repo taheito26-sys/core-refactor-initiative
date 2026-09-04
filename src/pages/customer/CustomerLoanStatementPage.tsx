@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { supabase } from '@/integrations/supabase/client';
+import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
 // Authenticated counterpart to /statements/:token — pulls every loan
@@ -18,11 +19,13 @@ export default function CustomerLoanStatementPage() {
 
   const [activeCurrency, setActiveCurrency] = useState<string | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error: queryError } = useQuery({
     queryKey: ['c-loan-statements', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
-      if (error || !data || (data as { error?: string }).error) throw new Error('fetch failed');
+      if (error || !data || (data as { error?: string }).error) {
+        throw new Error(await extractFunctionErrorMessage(error, data, 'fetch failed'));
+      }
       return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
@@ -48,7 +51,10 @@ export default function CustomerLoanStatementPage() {
 
       {!isLoading && isError && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          {L('Could not load your statement. Please try again later.', 'تعذر تحميل كشف الحساب. حاول مرة أخرى لاحقاً.')}
+          {L('Could not load your statement.', 'تعذر تحميل كشف الحساب.')}
+          {queryError instanceof Error && queryError.message && (
+            <div className="mt-1 text-xs opacity-80">{queryError.message}</div>
+          )}
         </div>
       )}
 

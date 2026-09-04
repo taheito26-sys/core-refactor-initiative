@@ -25,6 +25,7 @@ import {
   buildReceivablesCsv, downloadTextFile, formatMoney,
 } from '@/features/stock/utils/loanStatementExport';
 import { statementLabels } from '@/features/stock/utils/statementLabels';
+import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
@@ -2125,11 +2126,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         `public-buyer-statement?token=${encodeURIComponent(link.token)}&internal=1`,
         { method: 'GET' },
       );
-      if (error || !data || (data as { error?: string }).error) throw new Error('fetch failed');
+      if (error || !data || (data as { error?: string }).error) {
+        throw new Error(await extractFunctionErrorMessage(error, data, 'fetch failed'));
+      }
       setReportByKey(prev => ({ ...prev, [stmt.key]: data as PublicStatement }));
-    } catch {
+    } catch (err) {
       setReportByKey(prev => ({ ...prev, [stmt.key]: 'error' }));
-      toast.error(t('statementLinkCreateFailed'));
+      toast.error(err instanceof Error && err.message ? err.message : t('statementLinkCreateFailed'));
     } finally {
       setCreatingLinkKey(null);
     }
