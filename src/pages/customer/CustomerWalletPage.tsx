@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, RefreshCw, BookOpen, BarChart3 } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, RefreshCw, BookOpen, BarChart3, HandCoins } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { fmtTotal } from "@/lib/tracker-helpers";
+import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -288,7 +289,7 @@ export default function CustomerWalletPage() {
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
 
-  const [tab, setTab] = useState<"accounts" | "ledger" | "insights">("accounts");
+  const [tab, setTab] = useState<"accounts" | "ledger" | "payments" | "insights">("accounts");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [depositModal, setDepositModal] = useState<{ account: Account; mode: "deposit" | "withdrawal" } | null>(null);
@@ -308,6 +309,36 @@ export default function CustomerWalletPage() {
     },
     enabled: !!userId,
   });
+
+  // Payments received against this customer's loaned orders — same
+  // USDT-free statement data /c/orders uses, surfaced here since it's real
+  // money movement the customer should see on their Cash tab too.
+  const { data: loanStatements = [] } = useQuery({
+    queryKey: ["customer-cash-loan-statements", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("customer-loan-statement", { method: "GET" });
+      if (error || !data || (data as { error?: string }).error) return [];
+      return (data as { statements: PublicStatement[] }).statements;
+    },
+    enabled: !!userId,
+  });
+
+  const loanPayments = useMemo(() => {
+    const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null }[] = [];
+    for (const s of loanStatements) {
+      for (const p of s.payments) {
+        rows.push({ key: `${s.currency}-${p.date}-${p.amount}-${rows.length}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref });
+      }
+    }
+    return rows.sort((a, b) => b.date - a.date);
+  }, [loanStatements]);
+
+  const loanTotals = useMemo(() => {
+    let totalDebt = 0, totalPaid = 0, outstanding = 0;
+    for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
+    const currency = loanStatements[0]?.currency ?? "QAR";
+    return { totalDebt, totalPaid, outstanding, currency };
+  }, [loanStatements]);
 
   const { data: ledger = [], isLoading: ledgerLoading } = useQuery({
     queryKey: ["customer-cash-ledger", userId],
@@ -444,6 +475,7 @@ export default function CustomerWalletPage() {
           {([
             { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
             { id: "ledger", icon: RefreshCw, en: "Ledger", ar: "السجل" },
+            { id: "payments", icon: HandCoins, en: "Payments", ar: "الدفعات" },
             { id: "insights", icon: BarChart3, en: "Insights", ar: "التحليل" },
           ] as const).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
@@ -627,6 +659,60 @@ export default function CustomerWalletPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── PAYMENTS TAB — payments received against loaned orders,
+              same data the merchant's own Payments Received table shows,
+              minus the account/edit/delete/merge actions (merchant-only). ── */}
+          {tab === "payments" && (
+            <div className="space-y-3">
+              {/* Debt summary */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl border border-border/50 bg-card p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Total Debt", "إجمالي المديونية")}</p>
+                  <p className="text-lg font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+                </div>
+                <div className="rounded-2xl border border-border/50 bg-card p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
+                  <p className="text-lg font-black tabular-nums mt-0.5 text-emerald-600">{fmtTotal(loanTotals.totalPaid)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+                </div>
+                <div className="rounded-2xl border border-border/50 bg-card p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
+                  <p className={cn("text-lg font-black tabular-nums mt-0.5", loanTotals.outstanding > 0 ? "text-amber-600" : "text-emerald-600")}>
+                    {fmtTotal(loanTotals.outstanding)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Payments list */}
+              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
+                  <span className="text-[10px] text-muted-foreground">{loanPayments.length} {L("payments", "دفعة")}</span>
+                </div>
+                {loanPayments.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">{L("No payments recorded yet", "لا توجد دفعات مسجلة بعد")}</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {loanPayments.map(p => (
+                      <div key={p.key} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{p.ref || L("Loan repayment", "سداد قرض")}</p>
+                          {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
+                          <p className="text-[10px] text-muted-foreground">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
