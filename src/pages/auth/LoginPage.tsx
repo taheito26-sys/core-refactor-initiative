@@ -10,13 +10,38 @@ import { toast } from 'sonner';
 
 type PortalRole = 'merchant' | 'customer';
 
+// The synthetic email domain admin-create-customer-login uses for
+// username/password customer accounts — the customer only ever sees or
+// types their username, this suffix is invisible to them.
+const USERNAME_EMAIL_DOMAIN = 'customers.local';
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<PortalRole | null>(null);
-  const { loginWithGoogle, devLogin, isAuthenticated } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const { login, loginWithGoogle, devLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const t = useT();
   const { settings, update } = useTheme();
+
+  const handleUsernameLogin = async () => {
+    const cleanUsername = username.trim().toLowerCase();
+    if (!cleanUsername || !password) {
+      setLoginError(t.isRTL ? 'أدخل اسم المستخدم وكلمة المرور' : 'Enter your username and password');
+      return;
+    }
+    setLoginError('');
+    localStorage.setItem('p2p_signup_role', 'customer');
+    setLoading(true);
+    try {
+      await login(`${cleanUsername}@${USERNAME_EMAIL_DOMAIN}`, password);
+    } catch {
+      setLoginError(t.isRTL ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Incorrect username or password');
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -229,6 +254,42 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Customer username/password login */}
+              {selectedRole === 'customer' && (
+                <form
+                  className="space-y-3"
+                  onSubmit={e => { e.preventDefault(); handleUsernameLogin(); }}
+                >
+                  <input
+                    type="text"
+                    autoComplete="username"
+                    placeholder={t.isRTL ? 'اسم المستخدم' : 'Username'}
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    disabled={loading}
+                    className="w-full h-12 rounded-xl px-4 text-sm bg-white/[0.06] text-white placeholder:text-white/40 lg:bg-muted lg:text-foreground lg:placeholder:text-muted-foreground border border-white/10 lg:border-input focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50"
+                  />
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder={t.isRTL ? 'كلمة المرور' : 'Password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    disabled={loading}
+                    className="w-full h-12 rounded-xl px-4 text-sm bg-white/[0.06] text-white placeholder:text-white/40 lg:bg-muted lg:text-foreground lg:placeholder:text-muted-foreground border border-white/10 lg:border-input focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50"
+                  />
+                  {loginError && <p className="text-xs text-red-400 lg:text-destructive">{loginError}</p>}
+                  <Button type="submit" className="w-full h-12 text-sm font-semibold rounded-xl lg:bg-primary lg:text-primary-foreground max-lg:bg-[#d4af37] max-lg:text-black max-lg:hover:bg-[#d4af37]/90" size="lg" disabled={loading}>
+                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (t.isRTL ? 'تسجيل الدخول' : 'Sign in')}
+                  </Button>
+                  <div className="flex items-center gap-3 text-[10px] text-white/30 lg:text-muted-foreground/60">
+                    <div className="h-px flex-1 bg-white/10 lg:bg-border" />
+                    <span>{t.isRTL ? 'أو' : 'or'}</span>
+                    <div className="h-px flex-1 bg-white/10 lg:bg-border" />
+                  </div>
+                </form>
+              )}
 
               {/* Google Sign In */}
               <Button type="button"

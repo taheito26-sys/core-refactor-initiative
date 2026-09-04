@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTrackerState } from '@/lib/useTrackerState';
 import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, type Customer, type Supplier } from '@/lib/tracker-helpers';
@@ -176,6 +177,57 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
   const [editingSupp, setEditingSupp] = useState('');
   const [suppName, setSuppName] = useState('');
   const [suppError, setSuppError] = useState('');
+
+  // ── Customer portal login modal ─────────────────────────────────────
+  const qc = useQueryClient();
+  const [loginModalCust, setLoginModalCust] = useState<Customer | null>(null);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginConfirm, setLoginConfirm] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginSaving, setLoginSaving] = useState(false);
+
+  const openCreateLogin = (c: Customer) => {
+    setLoginModalCust(c);
+    setLoginUsername('');
+    setLoginPassword('');
+    setLoginConfirm('');
+    setLoginError('');
+  };
+
+  const submitCreateLogin = async () => {
+    if (!loginModalCust) return;
+    const username = loginUsername.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
+      setLoginError('Username must be 3-32 characters: lowercase letters, numbers, dots, dashes, or underscores');
+      return;
+    }
+    if (loginPassword.length < 8) {
+      setLoginError('Password must be at least 8 characters');
+      return;
+    }
+    if (loginPassword !== loginConfirm) {
+      setLoginError('Passwords do not match');
+      return;
+    }
+    setLoginSaving(true);
+    setLoginError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-customer-login', {
+        body: { username, password: loginPassword, displayName: loginModalCust.name, phone: loginModalCust.phone },
+      });
+      if (error || !data || (data as { error?: string }).error) {
+        throw new Error((data as { error?: string })?.error || 'Could not create login');
+      }
+      toast.success(`Login created for ${loginModalCust.name}: username "${username}"`);
+      qc.invalidateQueries({ queryKey: ['crm-connected-customers', merchantProfile?.merchant_id] });
+      setLoginModalCust(null);
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Could not create login');
+    } finally {
+      setLoginSaving(false);
+    }
+  };
 
   // ── Supplier add modal ────────────────────────────────────────────
   const [showAddSuppModal, setShowAddSuppModal] = useState(false);
@@ -531,6 +583,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                               {c.source !== 'connected' ? (
                                 <>
                                   <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
+                                  <button className="rowBtn" style={{ color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>Create login</button>
                                   <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
                                 </>
                               ) : (
@@ -667,6 +720,52 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
               placeholder="Optional notes..."
               value={custForm.notes}
               onChange={e => setCustForm(f => ({ ...f, notes: e.target.value }))}
+            />
+          </FormField>
+        </CRMModal>
+      )}
+
+      {/* ── Create Customer Portal Login Modal ── */}
+      {loginModalCust && (
+        <CRMModal
+          title={`Create Portal Login — ${loginModalCust.name}`}
+          onClose={() => setLoginModalCust(null)}
+          onSave={submitCreateLogin}
+          error={loginError}
+        >
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+            The customer signs into the customer portal with this username and password — no email needed.
+          </div>
+          <FormField label="Username *">
+            <input
+              className="inputBox"
+              style={{ padding: '6px 10px', width: '100%' }}
+              placeholder="e.g. damrawy"
+              value={loginUsername}
+              autoFocus
+              disabled={loginSaving}
+              onChange={e => setLoginUsername(e.target.value)}
+            />
+          </FormField>
+          <FormField label="Password *">
+            <input
+              className="inputBox"
+              type="text"
+              style={{ padding: '6px 10px', width: '100%' }}
+              placeholder="At least 8 characters"
+              value={loginPassword}
+              disabled={loginSaving}
+              onChange={e => setLoginPassword(e.target.value)}
+            />
+          </FormField>
+          <FormField label="Confirm Password *">
+            <input
+              className="inputBox"
+              type="text"
+              style={{ padding: '6px 10px', width: '100%' }}
+              value={loginConfirm}
+              disabled={loginSaving}
+              onChange={e => setLoginConfirm(e.target.value)}
             />
           </FormField>
         </CRMModal>
