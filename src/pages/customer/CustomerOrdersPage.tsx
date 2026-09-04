@@ -1387,14 +1387,18 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into one wide table so "My Orders" never looks empty
-          for a buyer whose history predates the portal. */}
+          now folded into "My Orders" so it never looks empty for a buyer
+          whose history predates the portal. Wide table on desktop; a
+          stacked card list on mobile, where a 5-column table just gets cut
+          off the screen edge with no visible way to scroll to it. */}
       {historyOrders.length > 0 && (
         <div className="px-4 space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {L('Order History', 'سجل الطلبات')}
           </h3>
-          <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/40 shadow-sm">
+
+          {/* Desktop / tablet: wide table */}
+          <div className="hidden overflow-hidden rounded-2xl border border-border/50 bg-card/40 shadow-sm md:block">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-sm">
                 <thead>
@@ -1441,6 +1445,45 @@ export default function CustomerOrdersPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile: stacked cards, no horizontal scroll needed */}
+          <div className="space-y-2 md:hidden">
+            {historyOrders.map((o, i) => {
+              const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+              return (
+                <div key={`${o.key}-${i}-m`} className="rounded-xl border border-border/50 bg-card/40 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{o.counterparty || L('Order', 'طلب')}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        {o.sellPrice != null && <> · {L('Sell', 'بيع')} {o.sellPrice.toFixed(2)}</>}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-end">
+                      <p className="text-sm font-bold whitespace-nowrap">
+                        {Math.round(o.totalAmount).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">{o.currency}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    {o.loaned ? (
+                      <span className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                        o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
+                      )}>
+                        {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                        {L('Paid', 'مدفوع')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

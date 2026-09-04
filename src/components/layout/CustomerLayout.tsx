@@ -101,7 +101,7 @@ export function CustomerLayout() {
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>
           ) : (
-            <div className={cn('mx-auto w-full px-4 py-4', isWideRoute ? 'max-w-6xl' : 'max-w-2xl')}><Outlet /></div>
+            <div className={cn('mx-auto w-full px-4 py-4', isWideRoute ? 'max-w-2xl lg:max-w-6xl' : 'max-w-2xl')}><Outlet /></div>
           )}
         </main>
 
