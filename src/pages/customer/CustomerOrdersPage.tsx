@@ -739,20 +739,32 @@ export default function CustomerOrdersPage() {
     },
   });
 
-  // Derive available months from orders (most recent first)
+  // Derive available months from both live orders and order history, so one
+  // filter row (matching the merchant Orders page) covers everything on
+  // this page — same as the merchant's "All Months / Sep 26 / Aug 26 …" row.
   const availableMonths = useMemo(() => {
     const seen = new Set<string>();
     const months: string[] = [];
-    for (const o of [...orders].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
-      const key = o.created_at.slice(0, 7); // 'YYYY-MM'
+    const keys = [
+      ...orders.map(o => o.created_at.slice(0, 7)),
+      ...historyOrders.map(o => new Date(o.date).toISOString().slice(0, 7)),
+    ].sort((a, b) => b.localeCompare(a));
+    for (const key of keys) {
       if (!seen.has(key)) { seen.add(key); months.push(key); }
     }
     return months;
-  }, [orders]);
+  }, [orders, historyOrders]);
 
   const filteredOrders = useMemo(() =>
     selectedMonth ? orders.filter(o => o.created_at.startsWith(selectedMonth)) : orders,
     [orders, selectedMonth],
+  );
+
+  const filteredHistoryOrders = useMemo(() =>
+    selectedMonth
+      ? historyOrders.filter(o => new Date(o.date).toISOString().slice(0, 7) === selectedMonth)
+      : historyOrders,
+    [historyOrders, selectedMonth],
   );
 
   const grouped = groupByDay(filteredOrders, lang);
@@ -776,17 +788,13 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
 
-        {/* Month filter pills */}
+        {/* Month filter pills — same .month-filter-row/.month-pill classes
+            (src/styles/tracker.css) the merchant Orders page uses. */}
         {availableMonths.length > 0 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-0.5 scrollbar-none">
+          <div className="month-filter-row mt-3">
             <button
               onClick={() => setSelectedMonth(null)}
-              className={cn(
-                'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                selectedMonth === null
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
-              )}
+              className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
             >
               {L('All Months', 'كل الأشهر')}
             </button>
@@ -800,12 +808,7 @@ export default function CustomerOrdersPage() {
                 <button
                   key={m}
                   onClick={() => setSelectedMonth(m)}
-                  className={cn(
-                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                    selectedMonth === m
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                  )}
+                  className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                 >
                   {label}
                 </button>
@@ -829,9 +832,9 @@ export default function CustomerOrdersPage() {
         <div className="flex h-32 items-center justify-center px-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : filteredOrders.length === 0 && historyOrders.length === 0 ? (
+      ) : filteredOrders.length === 0 && filteredHistoryOrders.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-12 text-center">
-          <p className="text-muted-foreground">{orders.length === 0 ? L('No orders yet', 'لا توجد طلبات بعد') : L('No orders this month', 'لا توجد طلبات هذا الشهر')}</p>
+          <p className="text-muted-foreground">{orders.length === 0 && historyOrders.length === 0 ? L('No orders yet', 'لا توجد طلبات بعد') : L('No orders this month', 'لا توجد طلبات هذا الشهر')}</p>
         </div>
       ) : filteredOrders.length === 0 ? null : (
         <div className="space-y-6 px-4">
@@ -1387,103 +1390,55 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into "My Orders" so it never looks empty for a buyer
-          whose history predates the portal. Wide table on desktop; a
-          stacked card list on mobile, where a 5-column table just gets cut
-          off the screen edge with no visible way to scroll to it. */}
-      {historyOrders.length > 0 && (
-        <div className="px-4 space-y-3">
+          now folded into "My Orders". Built with the exact same
+          .tableWrap/table/.pill/.mono classes (src/styles/tracker.css) the
+          merchant's own Orders page table uses, so this renders visually
+          identical — including that stylesheet's own tested mobile
+          handling (low-priority columns collapse via .hide-mobile instead
+          of a bespoke card layout that has to be kept in sync by hand). */}
+      {filteredHistoryOrders.length > 0 && (
+        <div className="px-4 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {L('Order History', 'سجل الطلبات')}
           </h3>
-
-          {/* Desktop / tablet: wide table */}
-          <div className="hidden overflow-hidden rounded-2xl border border-border/50 bg-card/40 shadow-sm md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-5 py-3 text-start font-semibold">{L('Date', 'التاريخ')}</th>
-                    <th className="px-5 py-3 text-start font-semibold">{L('Counterparty', 'الطرف الآخر')}</th>
-                    <th className="px-5 py-3 text-end font-semibold">{L('Total', 'الإجمالي')}</th>
-                    <th className="px-5 py-3 text-end font-semibold">{L('Sell Price', 'سعر البيع')}</th>
-                    <th className="px-5 py-3 text-end font-semibold">{L('Status', 'الحالة')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyOrders.map((o, i) => {
-                    const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
-                    return (
-                      <tr key={`${o.key}-${i}`} className="border-b border-border/30 last:border-0 transition-colors hover:bg-muted/30">
-                        <td className="whitespace-nowrap px-5 py-3.5 text-muted-foreground">
-                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </td>
-                        <td className="px-5 py-3.5 font-medium">{o.counterparty || '—'}</td>
-                        <td className="whitespace-nowrap px-5 py-3.5 text-end font-semibold">
-                          {Math.round(o.totalAmount).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">{o.currency}</span>
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-3.5 text-end text-muted-foreground">
-                          {o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-3.5 text-end">
-                          {o.loaned ? (
-                            <span className={cn(
-                              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                              o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
-                            )}>
-                              {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-                              {L('Paid', 'مدفوع')}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Mobile: stacked cards, no horizontal scroll needed */}
-          <div className="space-y-2 md:hidden">
-            {historyOrders.map((o, i) => {
-              const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
-              return (
-                <div key={`${o.key}-${i}-m`} className="rounded-xl border border-border/50 bg-card/40 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{o.counterparty || L('Order', 'طلب')}</p>
-                      <p className="text-[11px] text-muted-foreground">
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{L('Date', 'التاريخ')}</th>
+                  <th>{L('Counterparty', 'الطرف الآخر')}</th>
+                  <th className="r">{L('Total', 'الإجمالي')}</th>
+                  <th className="r hide-mobile">{L('Sell Price', 'سعر البيع')}</th>
+                  <th>{L('Status', 'الحالة')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHistoryOrders.map((o, i) => {
+                  const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+                  return (
+                    <tr key={`${o.key}-${i}`}>
+                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                         {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        {o.sellPrice != null && <> · {L('Sell', 'بيع')} {o.sellPrice.toFixed(2)}</>}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-end">
-                      <p className="text-sm font-bold whitespace-nowrap">
-                        {Math.round(o.totalAmount).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">{o.currency}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    {o.loaned ? (
-                      <span className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                        o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
-                      )}>
-                        {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-                        {L('Paid', 'مدفوع')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td>{o.counterparty || '—'}</td>
+                      <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
+                        {Math.round(o.totalAmount).toLocaleString()} {o.currency}
+                      </td>
+                      <td className="mono r hide-mobile">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
+                      <td>
+                        {o.loaned ? (
+                          <span className={`pill ${o.settled ? 'good' : 'warn'}`}>
+                            {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
+                          </span>
+                        ) : (
+                          <span className="pill">{L('Paid', 'مدفوع')}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
