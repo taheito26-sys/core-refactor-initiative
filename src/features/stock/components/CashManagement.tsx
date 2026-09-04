@@ -28,10 +28,6 @@ import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
-import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { findUnlinkedCompletedSellOrders, createLoanFromExchangeOrder, createTradeForExchangeOrder, DEFAULT_QAR_RATE } from '@/features/exchanges/loanFromOrder';
-import { EXCHANGE_LABELS, type ExchangeP2POrder } from '@/features/exchanges/types';
-import { markOrderLinked } from '@/features/exchanges/api';
 
 interface PublicStatementLink {
   id: string;
@@ -1888,16 +1884,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const deletedLoanIds = state.deletedLoanIds || [];
   const loans = (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id));
 
-  // ── Pending exchange-order → loan queue ──
-  const { data: exchangeOrders } = useExchangeP2POrders();
-  const unlinkedSellOrders = useMemo(
-    () => findUnlinkedCompletedSellOrders(exchangeOrders || [], state.customerLoans || []),
-    [exchangeOrders, state.customerLoans],
-  );
-  const [pendingRateByOrderId, setPendingRateByOrderId] = useState<Record<string, number>>({});
-  const [pendingCustomerByOrderId, setPendingCustomerByOrderId] = useState<Record<string, string>>({});
-  const [creatingLoanOrderId, setCreatingLoanOrderId] = useState<string | null>(null);
-  const rateForOrder = (orderId: string) => pendingRateByOrderId[orderId] ?? DEFAULT_QAR_RATE;
   const loanedTradeIds = useMemo(() => {
     const s = new Set<string>();
     for (const l of loans) { if (l.tradeId) s.add(l.tradeId); }
@@ -2354,70 +2340,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: [...loans, loan] });
     if (ok) setShowNewLoan(false);
-  };
-
-  // Turns one pending exchange sell order into a proper order first — a Trade
-  // carrying the exchange's own EGP amount/price/order number/counterparty
-  // (see Trade.originalFiat*), exactly like importing it by hand from the
-  // Orders page — and a CustomerLoan linked to that trade. No cash account
-  // moves — the USDT already left the exchange, so unlike addLoan there is
-  // no disbursement ledger entry, only the trade + loan records themselves.
-  const buildTradeAndLoan = (order: ExchangeP2POrder, customerId: string, qarRate: number) => {
-    const trade = createTradeForExchangeOrder(order, customerId, qarRate);
-    if (!trade) return null;
-    const loan = createLoanFromExchangeOrder(order, customerId, qarRate, trade.id);
-    if (!loan) return null;
-    return { trade, loan };
-  };
-
-  const createLoanFromPendingOrder = async (order: ExchangeP2POrder) => {
-    const customerId = pendingCustomerByOrderId[order.id];
-    if (!customerId) { toast.error(t('exchangeLoanPickCustomer')); return; }
-    const pair = buildTradeAndLoan(order, customerId, rateForOrder(order.id));
-    if (!pair) { toast.error(t('exchangeLoanCreateFailed')); return; }
-    setCreatingLoanOrderId(order.id);
-    try {
-      const ok = await commit({
-        ...state,
-        trades: [...state.trades, pair.trade],
-        customerLoans: [...loans, pair.loan],
-      });
-      if (ok) {
-        toast.success(t('exchangeLoanCreated'));
-        markOrderLinked(order.id, 'trade', pair.trade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
-      } else {
-        toast.error(t('exchangeLoanCreateFailed'));
-      }
-    } finally {
-      setCreatingLoanOrderId(null);
-    }
-  };
-
-  const createLoansForAllPendingOrders = async () => {
-    const ready = unlinkedSellOrders.filter(o => pendingCustomerByOrderId[o.id]);
-    if (ready.length === 0) { toast.error(t('exchangeLoanPickCustomer')); return; }
-    const pairs = ready
-      .map(o => ({ order: o, pair: buildTradeAndLoan(o, pendingCustomerByOrderId[o.id], rateForOrder(o.id)) }))
-      .filter((x): x is { order: ExchangeP2POrder; pair: { trade: Trade; loan: CustomerLoan } } => x.pair !== null);
-    if (pairs.length === 0) return;
-    setCreatingLoanOrderId('bulk');
-    try {
-      const ok = await commit({
-        ...state,
-        trades: [...state.trades, ...pairs.map(p => p.pair.trade)],
-        customerLoans: [...loans, ...pairs.map(p => p.pair.loan)],
-      });
-      if (ok) {
-        toast.success(t('exchangeLoanCreated'));
-        for (const { order, pair } of pairs) {
-          markOrderLinked(order.id, 'trade', pair.trade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
-        }
-      } else {
-        toast.error(t('exchangeLoanCreateFailed'));
-      }
-    } finally {
-      setCreatingLoanOrderId(null);
-    }
   };
 
   /** Default note on the cash-side row when the payment itself carries none. */
@@ -3038,74 +2960,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
             </div>
           </div>
-
-          {/* Completed Binance/OKX sell orders waiting to become a customer loan */}
-          {unlinkedSellOrders.length > 0 && (
-            <div className="panel" style={{ marginBottom: 12, padding: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 12, fontWeight: 800 }}>
-                  {t('exchangeLoanQueueTitle')} ({unlinkedSellOrders.length})
-                </div>
-                <button
-                  className="rowBtn"
-                  disabled={creatingLoanOrderId !== null}
-                  onClick={createLoansForAllPendingOrders}
-                >
-                  {t('exchangeLoanCreateAllBtn')}
-                </button>
-              </div>
-              <div style={{ display: 'grid', gap: 6 }}>
-                {unlinkedSellOrders.map(order => (
-                  <div
-                    key={order.id}
-                    style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}
-                  >
-                    <span style={{ fontSize: 10, fontWeight: 700 }}>{EXCHANGE_LABELS[order.exchange]}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{order.counterparty || '—'}</span>
-                    <span style={{ fontSize: 11 }}>{order.total} {order.fiat}</span>
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>@ {order.price}</span>
-                    {order.order_time && (
-                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(order.order_time).toLocaleString()}</span>
-                    )}
-                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>{order.order_number}</span>
-
-                    <select
-                      className="input"
-                      style={{ fontSize: 11, padding: '4px 6px', minWidth: 120 }}
-                      value={pendingCustomerByOrderId[order.id] || ''}
-                      onChange={e => setPendingCustomerByOrderId(prev => ({ ...prev, [order.id]: e.target.value }))}
-                    >
-                      <option value="">{t('exchangeLoanSelectCustomer')}</option>
-                      {(state.customers || []).map((c: Customer) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--muted)' }}>
-                      {t('exchangeLoanRateLabel')}
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="input"
-                        style={{ fontSize: 11, padding: '4px 6px', width: 70 }}
-                        value={rateForOrder(order.id)}
-                        onChange={e => setPendingRateByOrderId(prev => ({ ...prev, [order.id]: Number(e.target.value) || 0 }))}
-                      />
-                    </label>
-
-                    <button
-                      className="btn"
-                      style={{ padding: '4px 10px', fontSize: 11 }}
-                      disabled={creatingLoanOrderId !== null}
-                      onClick={() => createLoanFromPendingOrder(order)}
-                    >
-                      {creatingLoanOrderId === order.id ? '…' : t('exchangeLoanCreateBtn')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* The book in one line per currency: loaned, repaid, still owed */}
           {bookTotals.length > 0 && (
