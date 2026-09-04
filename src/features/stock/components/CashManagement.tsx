@@ -1923,23 +1923,21 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
   ), [buyerStatements, loanQuery]);
 
-  // Active receivables, divided by the month the account's earliest charge
-  // landed in — newest month first, buyers within a month keeping the same
-  // biggest-outstanding-first order buyerStatements already sorts them in.
-  const receivablesByMonth = useMemo(() => {
-    const byMonth = new Map<string, BuyerStatement[]>();
-    for (const stmt of receivableStatements) {
-      const key = monthKey(stmt.firstActivityTs);
-      const arr = byMonth.get(key);
-      if (arr) arr.push(stmt); else byMonth.set(key, [stmt]);
-    }
-    return Array.from(byMonth.entries())
-      .map(([key, statements]) => {
-        const [year, month] = key.split('-').map(Number);
-        return { key, year, month: month - 1, statements };
-      })
-      .sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
-  }, [receivableStatements]);
+  // Active receivables month filter — same pill row pattern as Orders/Stock,
+  // scoped by the month each account's earliest charge landed in.
+  const [selectedLoanMonth, setSelectedLoanMonth] = useState<string>('all');
+  const availableLoanMonths = useMemo(() => (
+    Array.from(new Set(receivableStatements.map(s => monthKey(s.firstActivityTs)))).sort().reverse()
+  ), [receivableStatements]);
+  const monthPillLabel = useCallback((m: string) => {
+    const [y, mm] = m.split('-');
+    return new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+  }, [t.lang]);
+  const visibleReceivableStatements = useMemo(() => (
+    selectedLoanMonth === 'all'
+      ? receivableStatements
+      : receivableStatements.filter(s => monthKey(s.firstActivityTs) === selectedLoanMonth)
+  ), [receivableStatements, selectedLoanMonth]);
 
   /** The live loan and repayment behind a statement payment row, for editing it. */
   const findRepayment = useCallback((entry: StatementEntry) => {
@@ -2085,18 +2083,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   );
   const toggleClosedMonth = (key: string) => {
     setCollapsedClosedMonths(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-
-  // Active months start open — unlike the closed archive, this is the
-  // working list, so nothing should be hidden by default.
-  const [collapsedActiveMonths, setCollapsedActiveMonths] = useState<Set<string>>(new Set());
-  const isActiveMonthOpen = (key: string) => !collapsedActiveMonths.has(key);
-  const toggleActiveMonth = (key: string) => {
-    setCollapsedActiveMonths(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
@@ -3065,13 +3051,33 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
           ) : loanView === 'active' ? (
-            receivableStatements.length === 0 ? (
-              <div className="empty" style={{ padding: '24px 0' }}>
-                <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoOutstanding')}</div>
-              </div>
-            ) : (
-              /* One row per buyer account — the receivables ledger, divided by
-                 the month each account's earliest charge landed in */
+            <>
+              {availableLoanMonths.length > 0 && (
+                <div className="month-filter-row">
+                  <button
+                    onClick={() => setSelectedLoanMonth('all')}
+                    className={`month-pill ${selectedLoanMonth === 'all' ? 'active' : ''}`}
+                  >
+                    {t('allMonths')}
+                  </button>
+                  {availableLoanMonths.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedLoanMonth(m)}
+                      className={`month-pill ${selectedLoanMonth === m ? 'active' : ''}`}
+                    >
+                      {monthPillLabel(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {visibleReceivableStatements.length === 0 ? (
+                <div className="empty" style={{ padding: '24px 0' }}>
+                  <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoOutstanding')}</div>
+                </div>
+              ) : (
+              /* One row per buyer account — the receivables ledger */
               <div className="loan-book">
                 <div className="loan-book-head loan-cols">
                   <span>{t('loanColBuyer')}</span>
@@ -3083,26 +3089,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   <span />
                 </div>
 
-                {receivablesByMonth.map(monthGroup => {
-                  const monthOpen = isActiveMonthOpen(monthGroup.key);
-                  return (
-                    <div key={monthGroup.key} style={{ marginBottom: 8 }}>
-                      <button
-                        onClick={() => toggleActiveMonth(monthGroup.key)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                          padding: '8px 4px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-                          minHeight: isMobile ? 40 : undefined,
-                        }}
-                      >
-                        <span className="mono" style={{ fontSize: 11, color: 'var(--muted)', transform: monthOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'capitalize' }}>{monthLabel(monthGroup.year, monthGroup.month)}</span>
-                        <span className="pill" style={{ fontSize: 9 }}>{monthGroup.statements.length} {t('loanOpenInMonth')}</span>
-                      </button>
-
-                      {monthOpen && (
-                        <div style={{ display: 'grid', gap: 8 }}>
-                          {monthGroup.statements.map(stmt => {
+                          {visibleReceivableStatements.map(stmt => {
                   const expanded = expandedBuyerKeys.has(stmt.key);
                   const pct = stmt.totalLoaned > 0
                     ? Math.min(100, Math.round((stmt.totalRepaid / stmt.totalLoaned) * 100))
@@ -3461,14 +3448,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                       )}
                     </div>
                   );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
                 })}
               </div>
-            )
+              )}
+            </>
           ) : closedLoanMonths.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoClosedLoans')}</div>
