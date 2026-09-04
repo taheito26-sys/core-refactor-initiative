@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, Fragment, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
-  uid, fmtTotal, fmtDate, fmtP, num,
+  uid, fmtTotal, fmtDate, fmtP, fmtU, num, computeFIFO,
   type TrackerState,
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
@@ -1904,15 +1904,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   const closedLoanMonths = useMemo(() => groupClosedLoansByMonth(filteredLoans, customerList), [filteredLoans, customerList]);
 
-  // Weighted-average USDT cost across every stock batch ever bought — same
-  // formula OrdersPage uses for its own P&L figures, so a loaned order's Buy/
-  // Net line up with what the rest of the app calls the cost basis.
-  const avgBuyCostQAR = useMemo(() => {
-    const totalUSDT = (state.batches || []).reduce((s, b) => s + b.initialUSDT, 0);
-    if (totalUSDT <= 0) return 0;
-    const totalQAR = (state.batches || []).reduce((s, b) => s + b.buyPriceQAR * b.initialUSDT, 0);
-    return totalQAR / totalUSDT;
-  }, [state.batches]);
+  // Same FIFO engine OrdersPage runs — computed over ALL trades, not just
+  // this buyer's, since FIFO consumption order depends on every trade
+  // chronologically. A loaned order's Buy/Net must come from this, not a
+  // blended average, to actually match what the Orders page shows for the
+  // same order.
+  const derivedFifo = useMemo(() => computeFIFO(state.batches, state.trades), [state.batches, state.trades]);
 
   // ── Buyer accounts ──────────────────────────────────────────────
   // One statement per buyer per currency, covering their whole history. The
@@ -3229,8 +3226,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               const qarToEgpRate = isExchangeLoan && usdtToQarRate
                                 ? (linkedTrade!.originalFiatPriceUSDT ?? 0) / usdtToQarRate
                                 : null;
-                              const buyCost = linkedTrade ? linkedTrade.amountUSDT * avgBuyCostQAR : null;
-                              const net = buyCost != null ? row.principal - buyCost : null;
+                              // Same FIFO calc OrdersPage's own trade detail uses — the "Buy" cost
+                              // is the sum of the batch slices this specific order actually drew
+                              // from (its Active FIFO layers), not a blended average, so it's
+                              // identical to what the Orders page shows for the same order.
+                              const calc = linkedTrade ? derivedFifo.tradeCalc.get(linkedTrade.id) : undefined;
+                              const buyCost = calc?.ok ? calc.slices.reduce((s, sl) => s + sl.cost, 0) : null;
+                              const revenue = linkedTrade ? linkedTrade.amountUSDT * linkedTrade.sellPriceQAR : null;
+                              const net = buyCost != null && revenue != null
+                                ? revenue - buyCost - (linkedTrade!.feeQAR || 0)
+                                : null;
                               return (
                               <tr key={row.loan.id}>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
@@ -3238,6 +3243,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   {isExchangeLoan ? fmtTotal(linkedTrade!.originalFiatAmount || 0) : '—'}
                                 </td>
                                 <td className="r loan-num">{formatMoney(row.principal)}</td>
+                                <td className="r mono">{linkedTrade ? fmtU(linkedTrade.amountUSDT) : '—'}</td>
                                 <td className="r mono">{qarToEgpRate != null ? fmtP(qarToEgpRate) : '—'}</td>
                                 <td className="r mono">{usdtToQarRate ? fmtP(usdtToQarRate) : '—'}</td>
                                 <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
@@ -3293,6 +3299,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <th>{t('loanColDate')}</th>
                                         <th className="r">{t('loanColEgpAmount')}</th>
                                         <th className="r">{t('loanColQarAmount')}</th>
+                                        <th className="r">{t('loanColUsdtAmount')}</th>
                                         <th className="r">{t('loanColRateQarEgp')}</th>
                                         <th className="r">{t('loanColRateUsdtQar')}</th>
                                         <th className="r">{t('loanColPaid')}</th>
@@ -3305,14 +3312,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </thead>
                                     <tbody>
                                       {openLoanRows.length === 0 ? (
-                                        <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                        <tr><td colSpan={12} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
                                       ) : openLoanRows.map(loanRow)}
                                     </tbody>
                                     <tfoot>
                                       <tr>
                                         <td colSpan={2} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
                                         <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
-                                        <td colSpan={2} />
+                                        <td colSpan={3} />
                                         <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
                                         <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
                                         <td colSpan={4} />

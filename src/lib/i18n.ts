@@ -1814,6 +1814,7 @@ const translations = {
   loanSettledInMonth: { en: 'settled', ar: 'تمت تسويته' },
   loanColEgpAmount: { en: 'EGP Amount', ar: 'المبلغ (جنيه)' },
   loanColQarAmount: { en: 'QAR Amount', ar: 'المبلغ (ر.ق)' },
+  loanColUsdtAmount: { en: 'USDT', ar: 'USDT' },
   loanColRateQarEgp: { en: 'Rate QAR→EGP', ar: 'سعر ر.ق←→جنيه' },
   loanColRateUsdtQar: { en: 'Rate USDT→QAR', ar: 'سعر USDT←→ر.ق' },
   loanColBuy: { en: 'Buy', ar: 'الشراء' },
