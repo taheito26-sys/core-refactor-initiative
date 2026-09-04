@@ -1923,21 +1923,58 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
   ), [buyerStatements, loanQuery]);
 
-  // Active receivables month filter — same pill row pattern as Orders/Stock,
-  // scoped by the month each account's earliest charge landed in.
+  // Active receivables month filter — same pill row pattern as Orders/Stock.
+  // Scoped at the loan level, not the buyer level: a buyer can carry loans
+  // from several months while still owing overall, so picking a month keeps
+  // only that buyer's loans (and totals) from that month, dropping the buyer
+  // entirely if none of their loans fall in it — rather than showing/hiding
+  // whole buyers by their earliest-ever loan, which didn't actually filter
+  // anything once a buyer had activity spanning more than one month.
   const [selectedLoanMonth, setSelectedLoanMonth] = useState<string>('all');
-  const availableLoanMonths = useMemo(() => (
-    Array.from(new Set(receivableStatements.map(s => monthKey(s.firstActivityTs)))).sort().reverse()
-  ), [receivableStatements]);
+  const availableLoanMonths = useMemo(() => {
+    const keys = new Set<string>();
+    for (const s of receivableStatements) {
+      for (const row of s.loans) keys.add(monthKey(row.loan.ts));
+    }
+    return Array.from(keys).sort().reverse();
+  }, [receivableStatements]);
   const monthPillLabel = useCallback((m: string) => {
     const [y, mm] = m.split('-');
     return new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
   }, [t.lang]);
-  const visibleReceivableStatements = useMemo(() => (
-    selectedLoanMonth === 'all'
-      ? receivableStatements
-      : receivableStatements.filter(s => monthKey(s.firstActivityTs) === selectedLoanMonth)
-  ), [receivableStatements, selectedLoanMonth]);
+  const visibleReceivableStatements = useMemo(() => {
+    if (selectedLoanMonth === 'all') return receivableStatements;
+    const scoped: BuyerStatement[] = [];
+    for (const stmt of receivableStatements) {
+      const monthLoans = stmt.loans.filter(row => monthKey(row.loan.ts) === selectedLoanMonth);
+      if (monthLoans.length === 0) continue;
+      const loanIds = new Set(monthLoans.map(row => row.loan.id));
+      const entries = stmt.entries.filter(e => loanIds.has(e.loanId));
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const totalLoaned = round2(monthLoans.reduce((s, r) => s + r.principal, 0));
+      const totalRepaid = round2(monthLoans.reduce((s, r) => s + r.repaid, 0));
+      const outstanding = round2(monthLoans.reduce((s, r) => s + r.remaining, 0));
+      const openRows = monthLoans.filter(r => !r.settled);
+      const lastPaymentTs = monthLoans.reduce<number | null>((max, r) => (
+        r.lastPaymentTs != null && (max == null || r.lastPaymentTs > max) ? r.lastPaymentTs : max
+      ), null);
+      scoped.push({
+        ...stmt,
+        loans: monthLoans,
+        entries,
+        totalLoaned,
+        totalRepaid,
+        outstanding,
+        openCount: openRows.length,
+        settledCount: monthLoans.length - openRows.length,
+        firstActivityTs: entries[0]?.ts ?? monthLoans[0].loan.ts,
+        lastActivityTs: entries[entries.length - 1]?.ts ?? monthLoans[monthLoans.length - 1].loan.ts,
+        lastPaymentTs,
+        oldestOpenDays: openRows.reduce((max, r) => Math.max(max, r.ageDays), 0),
+      });
+    }
+    return scoped;
+  }, [receivableStatements, selectedLoanMonth]);
 
   /** The live loan and repayment behind a statement payment row, for editing it. */
   const findRepayment = useCallback((entry: StatementEntry) => {
