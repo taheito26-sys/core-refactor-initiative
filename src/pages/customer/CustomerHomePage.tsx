@@ -14,6 +14,7 @@ import {
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
 import { getLocalizedCurrencyName, type CurrencyCode } from '@/lib/currency-locale';
+import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { NewOrderForm } from './CustomerOrdersPage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,6 +81,42 @@ export default function CustomerHomePage() {
     return () => { void supabase.removeChannel(channel); };
   }, [userId, dashQc]);
 
+  // Pre-portal order/loan history (same source /c/orders folds in) — the
+  // dashboard's own volume/activity KPIs need this too, or a buyer whose
+  // history predates the portal (like most of the current customer base)
+  // sees every widget stuck at zero even though real orders exist.
+  const { data: historyStatements = [] } = useQuery({
+    queryKey: ['c-dash-history', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
+      if (error || !data || (data as { error?: string }).error) return [];
+      return (data as { statements: PublicStatement[] }).statements;
+    },
+    enabled: !!userId,
+  });
+
+  const historyRows = useMemo(() => {
+    const rows: { ts: number; qar: number; egp: number }[] = [];
+    for (const s of historyStatements) {
+      const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
+      const seenTradeIds = new Set<string>();
+      for (const b of s.binanceOrders ?? []) {
+        seenTradeIds.add(b.tradeId);
+        const loan = loanByTradeId.get(b.tradeId);
+        rows.push({
+          ts: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
+          qar: loan ? loan.amount : 0,
+          egp: b.fiat === 'EGP' ? b.fiatAmount : 0,
+        });
+      }
+      for (const o of s.orders) {
+        if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
+        rows.push({ ts: o.date, qar: s.currency === 'QAR' ? o.amount : 0, egp: 0 });
+      }
+    }
+    return rows;
+  }, [historyStatements]);
+
   const { data: connections = [] } = useQuery({
     queryKey: ['c-dash-connections', userId],
     queryFn: async () => { if (!userId) return []; const { data } = await listCustomerConnections(userId); return (data ?? []).filter((c: any) => c.status === 'active'); },
@@ -143,17 +180,25 @@ export default function CustomerHomePage() {
     const lastMonth  = receivedOrders.filter(o => { const t = new Date(o.created_at).getTime(); return t >= lastMonthStart && t < monthStart; });
     const thisWeek   = receivedOrders.filter(o => new Date(o.created_at).getTime() >= weekStart);
 
+    // Pre-portal history — same buckets as the live orders above, since a
+    // buyer's real volume/activity usually predates the portal entirely.
+    const histThisMonth = historyRows.filter(r => r.ts >= monthStart);
+    const histLastMonth = historyRows.filter(r => r.ts >= lastMonthStart && r.ts < monthStart);
+    const histThisWeek  = historyRows.filter(r => r.ts >= weekStart);
+    const histThisMonthQar = histThisMonth.reduce((s, r) => s + r.qar, 0);
+    const histThisMonthEgp = histThisMonth.reduce((s, r) => s + r.egp, 0);
+
     // Current month completed received orders for summary
     const thisMonthCompleted = receivedCompleted.filter(o => new Date(o.created_at).getTime() >= monthStart);
-    const monthQar = thisMonthCompleted.reduce((s, o) => s + (o.amount ?? 0), 0);
-    const monthEgp = thisMonthCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
+    const monthQar = thisMonthCompleted.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonthQar;
+    const monthEgp = thisMonthCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0) + histThisMonthEgp;
     const monthAvgFx = monthQar > 0 ? monthEgp / monthQar : null;
 
     // Order activity stats (replaces 14-day trend)
-    const totalOrders = orders.length;
-    const approvedOrders = completed.length;
+    const totalOrders = orders.length + historyRows.length;
+    const approvedOrders = completed.length + historyRows.length;
     const pendingOrders = active.length;
-    const thisMonthOrders = orders.filter(o => new Date(o.created_at).getTime() >= monthStart).length;
+    const thisMonthOrders = orders.filter(o => new Date(o.created_at).getTime() >= monthStart).length + histThisMonth.length;
 
     // Trend: last 14 days
     const trend: { date: string; qar: number }[] = [];
@@ -164,19 +209,20 @@ export default function CustomerHomePage() {
         const t = new Date(o.created_at).getTime();
         return t >= d.getTime() && t < next.getTime();
       });
-      trend.push({ date: d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' }), qar: dayOrders.reduce((s, o) => s + (o.amount ?? 0), 0) });
+      const dayHistQar = historyRows.filter(r => r.ts >= d.getTime() && r.ts < next.getTime()).reduce((s, r) => s + r.qar, 0);
+      trend.push({ date: d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' }), qar: dayOrders.reduce((s, o) => s + (o.amount ?? 0), 0) + dayHistQar });
     }
     const maxTrend = Math.max(...trend.map(t => t.qar), 1);
 
     return {
-      thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0),
-      lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0),
-      thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0),
+      thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonth.reduce((s, r) => s + r.qar, 0),
+      lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histLastMonth.reduce((s, r) => s + r.qar, 0),
+      thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisWeek.reduce((s, r) => s + r.qar, 0),
       monthQar, monthEgp, monthAvgFx,
       totalOrders, approvedOrders, pendingOrders, thisMonthOrders,
       active, completed, needsAction, trend, maxTrend,
     };
-  }, [orders, lang]);
+  }, [orders, historyRows, lang]);
 
   const calcResult = guideRate && calcAmount && parseFloat(calcAmount) > 0
     ? parseFloat(calcAmount) * guideRate

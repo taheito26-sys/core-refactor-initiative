@@ -778,6 +778,21 @@ export default function CustomerOrdersPage() {
     return { count: filteredHistoryOrders.length, volumeEgp, totalQar };
   }, [filteredHistoryOrders]);
 
+  // Debt/payment totals — these are running balances, not scoped to the
+  // selected month, so they're summed straight from every statement.
+  const debtKpi = useMemo(() => {
+    let totalDebt = 0;
+    let totalPaid = 0;
+    let outstanding = 0;
+    for (const s of historyStatements) {
+      totalDebt += s.totalLoaned;
+      totalPaid += s.totalRepaid;
+      outstanding += s.outstanding;
+    }
+    const currency = historyStatements[0]?.currency ?? 'QAR';
+    return { totalDebt, totalPaid, outstanding, currency };
+  }, [historyStatements]);
+
   const grouped = groupByDay(filteredOrders, lang);
 
   return (
@@ -1411,22 +1426,44 @@ export default function CustomerOrdersPage() {
           </h3>
 
           {/* KPI bar — same tile styling as the merchant Orders page's own
-              COUNT/VOLUME/NET P&L row, scoped to the selected month. */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+              COUNT/VOLUME/NET P&L row. Top row is scoped to the selected
+              month; bottom row is running debt/payment totals across all
+              statements, so it isn't reset by the month filter. A CSS grid
+              (not flex+nowrap) so long localized values wrap instead of
+              overflowing the tile. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
             {[
               { label: L('Count', 'العدد'), value: String(historyKpi.count) },
               { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: `${Math.round(historyKpi.volumeEgp).toLocaleString()} EGP` },
               { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: `${Math.round(historyKpi.totalQar).toLocaleString()} QAR` },
             ].map(k => (
               <div key={k.label} style={{
-                flex: '1 1 100px', minWidth: 100,
-                padding: '6px 10px',
+                minWidth: 0, boxSizing: 'border-box',
+                padding: '6px 8px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
                 borderRadius: 8,
               }}>
-                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{k.label}</div>
-                <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{k.value}</div>
+                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.label}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, overflowWrap: 'anywhere' }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
+            {[
+              { label: L('Total Debt', 'إجمالي المديونية'), value: `${Math.round(debtKpi.totalDebt).toLocaleString()} ${debtKpi.currency}` },
+              { label: L('Paid', 'المدفوع'), value: `${Math.round(debtKpi.totalPaid).toLocaleString()} ${debtKpi.currency}`, color: 'var(--good)' },
+              { label: L('Outstanding', 'المتبقي'), value: `${Math.round(debtKpi.outstanding).toLocaleString()} ${debtKpi.currency}`, color: debtKpi.outstanding > 0 ? 'var(--warn)' : 'var(--good)' },
+            ].map(k => (
+              <div key={k.label} style={{
+                minWidth: 0, boxSizing: 'border-box',
+                padding: '6px 8px',
+                background: 'color-mix(in srgb, var(--warn) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warn) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.label}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, overflowWrap: 'anywhere', color: k.color || 'var(--fg)' }}>{k.value}</div>
               </div>
             ))}
           </div>
