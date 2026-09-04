@@ -92,3 +92,12 @@ export async function markOrderLinked(orderId: string, entityType: 'batch' | 'tr
     .eq('id', orderId);
   if (error) throw error;
 }
+
+/** Marks a Pay/network transfer as "not an order" (e.g. a loan repayment received via Pay) so it stops showing in the exchange inbox without ever being imported as a batch/trade. */
+export async function dismissTransfer(transferId: string) {
+  const { error } = await supabase
+    .from('exchange_transfers' as any)
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('id', transferId);
+  if (error) throw error;
+}

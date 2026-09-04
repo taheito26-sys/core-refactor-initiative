@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Inbox } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Check, ChevronDown, Inbox, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { EXCHANGE_LABELS, type ExchangeId } from '../types';
+import { dismissTransfer } from '../api';
 
 export interface ExchangeOrderPayload {
   exchange: ExchangeId;
@@ -127,6 +130,20 @@ export function ExchangeInbox({
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
   const [collapsed, setCollapsed] = useState(false);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleDismissTransfer = async (transferId: string) => {
+    setDismissingId(transferId);
+    try {
+      await dismissTransfer(transferId);
+      await queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] });
+    } catch {
+      toast.error('Could not dismiss this transfer');
+    } finally {
+      setDismissingId(null);
+    }
+  };
 
   const inSelectedMonth = useMemo(() => {
     if (!monthKey || monthKey === 'all') return () => true;
@@ -159,7 +176,7 @@ export function ExchangeInbox({
     () =>
       onPickTransfer
         ? (transfers ?? [])
-            .filter((tr) => tr.direction === transferDirection && inSelectedMonth(tr.transfer_time))
+            .filter((tr) => tr.direction === transferDirection && !tr.dismissed_at && inSelectedMonth(tr.transfer_time))
             .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0))
         : [],
     [transfers, onPickTransfer, transferDirection, inSelectedMonth],
@@ -278,8 +295,8 @@ export function ExchangeInbox({
             const imported = isImported(tr.linked_at, tr.linked_entity_id, tr.reference);
             const kind = KIND_CHIP[tr.kind];
             return (
+              <div key={tr.id} className="flex w-full max-w-full items-stretch gap-1">
               <button
-                key={tr.id}
                 type="button"
                 disabled={imported}
                 title={imported ? 'Already in the tracker' : 'Fill the form with this transfer'}
@@ -296,7 +313,7 @@ export function ExchangeInbox({
                   })
                 }
                 className={cn(
-                  'flex w-full max-w-full overflow-hidden rounded border border-dashed text-left',
+                  'flex min-w-0 flex-1 overflow-hidden rounded border border-dashed text-left',
                   imported ? 'cursor-default bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
                 )}
               >
@@ -322,6 +339,18 @@ export function ExchangeInbox({
                   </div>
                 </div>
               </button>
+              {!imported && (
+                <button
+                  type="button"
+                  disabled={dismissingId === tr.id}
+                  title="Not an order — hide this from the list"
+                  onClick={() => handleDismissTransfer(tr.id)}
+                  className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-muted-foreground hover:border-destructive/60 hover:text-destructive disabled:opacity-50"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              </div>
             );
           })())}
         </div>

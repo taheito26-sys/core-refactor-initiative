@@ -60,5 +60,7 @@ export interface ExchangeTransfer {
   linked_entity_type: 'batch' | 'trade' | null;
   linked_entity_id: string | null;
   linked_at: string | null;
+  /** Set when the merchant marked this transfer as "not an order" (e.g. a loan repayment received via Pay) — hidden from the inbox, never imported. */
+  dismissed_at: string | null;
   created_at: string;
 }
