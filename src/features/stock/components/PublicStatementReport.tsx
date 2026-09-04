@@ -9,6 +9,8 @@ export interface PublicPayment {
 
 export interface PublicOrder {
   ref: string;
+  /** Links this loan row to the PublicBinanceOrder it originated from, when any. */
+  tradeId?: string | null;
   date: number;
   amount: number;
   paid: number;
@@ -18,6 +20,7 @@ export interface PublicOrder {
 }
 
 export interface PublicBinanceOrder {
+  tradeId: string;
   orderNumber: string;
   date: string | number | null;
   counterparty: string | null;

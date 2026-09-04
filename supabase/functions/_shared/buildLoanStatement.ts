@@ -45,6 +45,7 @@ export async function buildLoanStatementResponse(
   const buyerTrades = (state.trades ?? []).filter((tr) => tr && tr.customerId === link.customer_id);
 
   type BinanceOrderRow = {
+    tradeId: string;
     orderNumber: string;
     date: string | number | null;
     counterparty: string | null;
@@ -65,6 +66,7 @@ export async function buildLoanStatementResponse(
       const usdtAmount = Number(trade.amountUSDT) || 0;
       const qarRate = Number(trade.sellPriceQAR) || 0;
       binanceOrders.push({
+        tradeId: trade.id,
         orderNumber: trade.exchangeOrderNumber ?? "",
         date: trade.ts ?? null,
         counterparty: trade.exchangeCounterparty ?? null,
@@ -95,6 +97,7 @@ export async function buildLoanStatementResponse(
       const usdtAmount = Number(trade.amountUSDT) || 0;
       const qarRate = Number(trade.sellPriceQAR) || 0;
       binanceOrders.push({
+        tradeId: trade.id,
         orderNumber: o.order_number,
         date: o.order_time ?? trade.ts ?? null,
         counterparty: o.counterparty,
@@ -120,6 +123,7 @@ export async function buildLoanStatementResponse(
     issueDate: new Date().toISOString().slice(0, 10),
     orders: statement.loans.map((row) => ({
       ref: row.ref,
+      tradeId: row.loan.tradeId ?? null,
       date: row.loan.ts,
       amount: Math.round(row.principal),
       paid: Math.round(row.repaid),

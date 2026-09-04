@@ -32,6 +32,7 @@ export function CustomerLayout() {
   const isRTL = settings.language === 'ar';
   const lang  = isRTL ? 'ar' : 'en';
   const isChatRoute = location.pathname.startsWith('/c/chat');
+  const isWideRoute = location.pathname.startsWith('/c/orders');
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const go = (path: string) => { navigate(path); setDrawerOpen(false); };
@@ -100,7 +101,7 @@ export function CustomerLayout() {
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>
           ) : (
-            <div className="mx-auto w-full max-w-2xl px-4 py-4"><Outlet /></div>
+            <div className={cn('mx-auto w-full px-4 py-4', isWideRoute ? 'max-w-6xl' : 'max-w-2xl')}><Outlet /></div>
           )}
         </main>
 

@@ -19,6 +19,7 @@ import {
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
+import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { getP2PRates } from '@/lib/p2p-rates';
 import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
 import { PhasedClientOrderCard } from '@/features/parent-order-fulfillment/components/PhasedClientOrderCard';
@@ -505,23 +506,77 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
-  // Historical orders a merchant has recorded for this buyer before the
-  // portal order workflow existed (loan-linked and plain), shared via
-  // customer-loan-statement — same USDT-free data /c/loan used to show.
+  // Historical EGP-side orders a merchant has recorded for this buyer before
+  // the portal order workflow existed, shared via customer-loan-statement —
+  // the same server-redacted data (no USDT quantity, no QAR conversion
+  // rate) the old /c/loan page showed, now folded into this page.
   const { data: historyStatements = [] } = useQuery({
     queryKey: ['c-order-history', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
       if (error || !data || (data as { error?: string }).error) return [];
-      return (data as { statements: Array<{ currency: string; orders: Array<{ ref: string; date: number; amount: number; paid: number; remaining: number; settled: boolean; note: string | null }> }> }).statements;
+      return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
   });
 
-  const historyOrders = useMemo(
-    () => historyStatements.flatMap(s => s.orders.map(o => ({ ...o, currency: s.currency }))).sort((a, b) => b.date - a.date),
-    [historyStatements],
-  );
+  type HistoryOrderRow = {
+    key: string;
+    date: number;
+    counterparty: string | null;
+    currency: string;
+    totalAmount: number;
+    sellPrice: number | null;
+    loaned: boolean;
+    settled: boolean;
+    loanCurrency: string | null;
+    loanAmount: number | null;
+    loanPaid: number | null;
+  };
+
+  const historyOrders = useMemo<HistoryOrderRow[]>(() => {
+    const rows: HistoryOrderRow[] = [];
+    for (const s of historyStatements) {
+      const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
+      const seenTradeIds = new Set<string>();
+      for (const b of s.binanceOrders ?? []) {
+        seenTradeIds.add(b.tradeId);
+        const loan = loanByTradeId.get(b.tradeId);
+        rows.push({
+          key: b.orderNumber || b.tradeId,
+          date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
+          counterparty: b.counterparty,
+          currency: b.fiat,
+          totalAmount: b.fiatAmount,
+          sellPrice: b.fiatPrice,
+          loaned: !!loan,
+          settled: loan?.settled ?? false,
+          loanCurrency: loan ? s.currency : null,
+          loanAmount: loan?.amount ?? null,
+          loanPaid: loan?.paid ?? null,
+        });
+      }
+      // Loans with no linked Binance trade (manually recorded) still need a
+      // row — same currency as the statement, no counterparty/sell price.
+      for (const o of s.orders) {
+        if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
+        rows.push({
+          key: o.ref,
+          date: o.date,
+          counterparty: null,
+          currency: s.currency,
+          totalAmount: o.amount,
+          sellPrice: null,
+          loaned: true,
+          settled: o.settled,
+          loanCurrency: s.currency,
+          loanAmount: o.amount,
+          loanPaid: o.paid,
+        });
+      }
+    }
+    return rows.sort((a, b) => b.date - a.date);
+  }, [historyStatements]);
 
   // Live updates: any change to this customer's orders rows triggers a refetch
   // so merchant edits / approvals show up without the customer having to reload.
@@ -1330,39 +1385,62 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {/* Historical order records the merchant kept before the portal order
-          workflow — same rows /c/loan pulled, now folded into one list so
-          "My Orders" never looks empty for a buyer with only pre-portal history. */}
+      {/* Historical EGP-side order records the merchant kept before the
+          portal order workflow — same USDT-free data /c/loan used to show,
+          now folded into one wide table so "My Orders" never looks empty
+          for a buyer whose history predates the portal. */}
       {historyOrders.length > 0 && (
-        <div className="space-y-3 px-4">
+        <div className="px-4 space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {L('Order History', 'سجل الطلبات')}
           </h3>
-          <div className="space-y-2">
-            {historyOrders.map((o, i) => (
-              <div key={`${o.ref}-${i}`} className="rounded-xl border border-border/50 bg-card/40 px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{o.ref}</p>
-                    <p className="text-[11px] text-muted-foreground">{new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{Math.round(o.amount).toLocaleString()} {o.currency}</p>
-                    <span className={cn(
-                      'inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
-                    )}>
-                      {o.settled ? L('Settled', 'مسدد') : L('Open', 'مفتوح')}
-                    </span>
-                  </div>
-                </div>
-                {o.remaining > 0 && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {L('Remaining', 'المتبقي')}: {Math.round(o.remaining).toLocaleString()} {o.currency}
-                  </p>
-                )}
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/40 shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="px-5 py-3 text-start font-semibold">{L('Date', 'التاريخ')}</th>
+                    <th className="px-5 py-3 text-start font-semibold">{L('Counterparty', 'الطرف الآخر')}</th>
+                    <th className="px-5 py-3 text-end font-semibold">{L('Total', 'الإجمالي')}</th>
+                    <th className="px-5 py-3 text-end font-semibold">{L('Sell Price', 'سعر البيع')}</th>
+                    <th className="px-5 py-3 text-end font-semibold">{L('Status', 'الحالة')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyOrders.map((o, i) => {
+                    const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+                    return (
+                      <tr key={`${o.key}-${i}`} className="border-b border-border/30 last:border-0 transition-colors hover:bg-muted/30">
+                        <td className="whitespace-nowrap px-5 py-3.5 text-muted-foreground">
+                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="px-5 py-3.5 font-medium">{o.counterparty || '—'}</td>
+                        <td className="whitespace-nowrap px-5 py-3.5 text-end font-semibold">
+                          {Math.round(o.totalAmount).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">{o.currency}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3.5 text-end text-muted-foreground">
+                          {o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3.5 text-end">
+                          {o.loaned ? (
+                            <span className={cn(
+                              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                              o.settled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600',
+                            )}>
+                              {L('Loaned', 'مؤجل')} · {settledPct ?? 0}%
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                              {L('Paid', 'مدفوع')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
