@@ -36,6 +36,12 @@ interface PublicStatementLink {
   currency: string;
   created_at: string;
   revoked_at: string | null;
+  customer_user_id: string | null;
+}
+
+interface ConnectedCustomer {
+  customer_user_id: string;
+  display_name: string;
 }
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
@@ -2029,13 +2035,55 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (!user?.id) return;
     const { data, error } = await supabase
       .from('buyer_statement_links')
-      .select('id, customer_id, token, currency, created_at, revoked_at')
+      .select('id, customer_id, token, currency, created_at, revoked_at, customer_user_id')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (error) { toast.error(t('statementLinkLoadFailed')); return; }
     setStatementLinks((data || []) as PublicStatementLink[]);
     setStatementLinksLoaded(true);
   }, [user?.id, t]);
+
+  // ── Customer portal accounts connected to this merchant, for attaching a
+  // statement link so the buyer can view it in-app instead of via URL. ──
+  const [connectedCustomers, setConnectedCustomers] = useState<ConnectedCustomer[]>([]);
+  const [connectedCustomersLoaded, setConnectedCustomersLoaded] = useState(false);
+  const [attachingLinkId, setAttachingLinkId] = useState<string | null>(null);
+
+  const loadConnectedCustomers = useCallback(async () => {
+    const merchantId = merchantProfile?.merchant_id;
+    if (!merchantId) return;
+    const { data: connections, error } = await supabase
+      .from('customer_merchant_connections')
+      .select('customer_user_id, status')
+      .eq('merchant_id', merchantId)
+      .eq('status', 'accepted');
+    if (error || !connections || connections.length === 0) { setConnectedCustomersLoaded(true); return; }
+    const userIds = [...new Set(connections.map(c => c.customer_user_id))];
+    const { data: profiles } = await supabase
+      .from('customer_profiles')
+      .select('user_id, display_name')
+      .in('user_id', userIds);
+    const profileMap = new Map((profiles || []).map(p => [p.user_id, p.display_name]));
+    setConnectedCustomers(userIds.map(id => ({ customer_user_id: id, display_name: profileMap.get(id) || id })));
+    setConnectedCustomersLoaded(true);
+  }, [merchantProfile?.merchant_id]);
+
+  const attachStatementLinkCustomer = async (link: PublicStatementLink, customerUserId: string | null) => {
+    setAttachingLinkId(link.id);
+    try {
+      const { error } = await supabase
+        .from('buyer_statement_links')
+        .update({ customer_user_id: customerUserId })
+        .eq('id', link.id);
+      if (error) throw error;
+      setStatementLinks(prev => prev.map(l => (l.id === link.id ? { ...l, customer_user_id: customerUserId } : l)));
+      toast.success(t('statementLinkPortalAttachSaved'));
+    } catch {
+      toast.error(t('statementLinkPortalAttachFailed'));
+    } finally {
+      setAttachingLinkId(null);
+    }
+  };
 
   const activeLinkFor = useCallback(
     (customerId: string, currency: string) => statementLinks.find(
@@ -2053,7 +2101,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const { data, error } = await supabase
       .from('buyer_statement_links')
       .insert({ user_id: user.id, customer_id: stmt.customerId, token, currency: stmt.currency })
-      .select('id, customer_id, token, currency, created_at, revoked_at')
+      .select('id, customer_id, token, currency, created_at, revoked_at, customer_user_id')
       .single();
     if (error || !data) return null;
     setStatementLinks(prev => [data as PublicStatementLink, ...prev]);
@@ -2175,7 +2223,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [innerTab, setInnerTab] = useState<'accounts' | 'loans' | 'statements'>('accounts');
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
-  }, [innerTab, statementLinksLoaded, loadStatementLinks]);
+    if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
+  }, [innerTab, statementLinksLoaded, loadStatementLinks, connectedCustomersLoaded, loadConnectedCustomers]);
   /** Account whose own ledger is currently open in the drill-down panel. */
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [showNewLoan, setShowNewLoan] = useState(false);
@@ -3678,6 +3727,21 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   >
                                     {revokingLinkId === link.id ? '…' : t('statementLinkRevoke')}
                                   </button>
+                                  {connectedCustomers.length > 0 && (
+                                    <select
+                                      className="rowBtn"
+                                      style={{ fontSize: 10, color: 'var(--muted)' }}
+                                      disabled={attachingLinkId === link.id}
+                                      value={link.customer_user_id || ''}
+                                      onChange={e => attachStatementLinkCustomer(link, e.target.value || null)}
+                                      title={t('statementLinkPortalAttachHint')}
+                                    >
+                                      <option value="">{t('statementLinkPortalAttachNone')}</option>
+                                      {connectedCustomers.map(c => (
+                                        <option key={c.customer_user_id} value={c.customer_user_id}>{c.display_name}</option>
+                                      ))}
+                                    </select>
+                                  )}
                                 </>
                               )}
                             </div>
