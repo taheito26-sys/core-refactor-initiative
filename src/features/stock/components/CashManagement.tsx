@@ -3233,6 +3233,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               const calc = linkedTrade ? derivedFifo.tradeCalc.get(linkedTrade.id) : undefined;
                               const buyCost = calc?.ok ? calc.slices.reduce((s, sl) => s + sl.cost, 0) : null;
                               const avgBuyRate = calc?.ok ? calc.avgBuyQAR : null;
+                              // The Binance P2P USDT→EGP selling price at the time this order was placed.
+                              const p2pPrice = isExchangeLoan ? linkedTrade!.originalFiatPriceUSDT ?? null : null;
                               const revenue = linkedTrade ? linkedTrade.amountUSDT * linkedTrade.sellPriceQAR : null;
                               const net = buyCost != null && revenue != null
                                 ? revenue - buyCost - (linkedTrade!.feeQAR || 0)
@@ -3253,9 +3255,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 </td>
                                 <td>
                                   <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                    {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
+                                    {row.settled ? t('loanStatusClosed') : `${row.ageDays}${t('loanDaysShort')}`}
                                   </span>
                                 </td>
+                                <td className="r mono">{p2pPrice != null ? fmtP(p2pPrice) : '—'}</td>
                                 <td className="r mono">{avgBuyRate != null ? fmtP(avgBuyRate) : '—'}</td>
                                 <td className="r loan-num" style={{ color: net == null ? undefined : net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                                   {net != null ? `${net >= 0 ? '+' : ''}${formatMoney(net)}` : '—'}
@@ -3306,6 +3309,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <th className="r">{t('loanColPaid')}</th>
                                         <th className="r">{t('loanColRemaining')}</th>
                                         <th>{t('loanColStatus')}</th>
+                                        <th className="r">{t('loanColP2pPrice')}</th>
                                         <th className="r">{t('loanColBuy')}</th>
                                         <th className="r">{t('loanColNet')}</th>
                                         <th />
@@ -3313,7 +3317,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </thead>
                                     <tbody>
                                       {openLoanRows.length === 0 ? (
-                                        <tr><td colSpan={12} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                        <tr><td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
                                       ) : openLoanRows.map(loanRow)}
                                     </tbody>
                                     <tfoot>
@@ -3323,7 +3327,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <td colSpan={3} />
                                         <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
                                         <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                        <td colSpan={4} />
+                                        <td colSpan={5} />
                                       </tr>
                                     </tfoot>
                                   </table>

@@ -1815,6 +1815,7 @@ const translations = {
   loanColEgpAmount: { en: 'EGP Amount', ar: 'المبلغ (جنيه)' },
   loanColQarAmount: { en: 'QAR Amount', ar: 'المبلغ (ر.ق)' },
   loanColUsdtAmount: { en: 'USDT', ar: 'USDT' },
+  loanColP2pPrice: { en: 'P2P Price', ar: 'سعر P2P' },
   loanColRateQarEgp: { en: 'EGP', ar: 'جنيه' },
   loanColRateUsdtQar: { en: 'QAR', ar: 'ر.ق' },
   loanColBuy: { en: 'Buy', ar: 'الشراء' },
