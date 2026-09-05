@@ -400,7 +400,10 @@ export function deriveCustomerOrderMeta(order: Partial<CustomerOrderRow>, fallba
 
 export function formatCustomerNumber(value: number, language: 'en' | 'ar' = 'en', digits = 2) {
   if (!Number.isFinite(value)) return '—';
-  return new Intl.NumberFormat(language === 'ar' ? 'ar-EG' : 'en-US', {
+  // -u-nu-latn pins Western digits even under the 'ar-EG' locale, which
+  // otherwise renders Eastern Arabic-Indic numerals (٠١٢٣...) — amounts on
+  // the customer dashboard stay in plain digits regardless of language.
+  return new Intl.NumberFormat(language === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(value);
