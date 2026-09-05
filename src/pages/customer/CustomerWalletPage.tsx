@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, RefreshCw, BookOpen, BarChart3, HandCoins } from "lucide-react";
 import { toast } from "sonner";
@@ -333,9 +333,14 @@ export default function CustomerWalletPage() {
     return rows.sort((a, b) => b.date - a.date);
   }, [loanStatements]);
 
-  // Month filter — defaults to the current month, same convention as the
-  // Orders page's own month pills.
-  const [paymentsMonth, setPaymentsMonth] = useState<string | null>(() => new Date().toISOString().slice(0, 7));
+  // Month filter. Payments are historical (they predate the portal for most
+  // buyers), so defaulting to the calendar's current month — which the
+  // Orders page does deliberately — would silently show an empty list for
+  // anyone with no payment this month. Default instead to the most recent
+  // month that actually has a payment, falling back to "All Months" only
+  // once data has loaded and there's truly nothing.
+  const [paymentsMonth, setPaymentsMonth] = useState<string | null>(null);
+  const paymentsMonthInitialized = useRef(false);
   const paymentsMonths = useMemo(() => {
     const seen = new Set<string>();
     const months: string[] = [];
@@ -345,6 +350,12 @@ export default function CustomerWalletPage() {
     }
     return months;
   }, [loanPayments]);
+  useEffect(() => {
+    if (paymentsMonthInitialized.current || paymentsMonths.length === 0) return;
+    paymentsMonthInitialized.current = true;
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    setPaymentsMonth(paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0]);
+  }, [paymentsMonths]);
   const filteredLoanPayments = useMemo(() =>
     paymentsMonth
       ? loanPayments.filter(p => new Date(p.date).toISOString().slice(0, 7) === paymentsMonth)

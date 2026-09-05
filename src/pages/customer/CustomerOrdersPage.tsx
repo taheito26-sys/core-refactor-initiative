@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Loader2, Plus, X, Check, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -426,8 +426,12 @@ export default function CustomerOrdersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
   // 'YYYY-MM' or null = all months. Defaults to the current month, matching
-  // the merchant Orders page's own default.
+  // the merchant Orders page's own default — but falls back to the most
+  // recent month that actually has activity once data loads (see the
+  // effect below availableMonths), so a buyer whose entire history
+  // predates the current calendar month doesn't land on a silently empty page.
   const [selectedMonth, setSelectedMonth] = useState<string | null>(() => new Date().toISOString().slice(0, 7));
+  const selectedMonthInitialized = useRef(false);
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
@@ -753,6 +757,13 @@ export default function CustomerOrdersPage() {
     }
     return months;
   }, [orders, historyOrders]);
+
+  useEffect(() => {
+    if (selectedMonthInitialized.current || availableMonths.length === 0) return;
+    selectedMonthInitialized.current = true;
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    if (!availableMonths.includes(currentMonth)) setSelectedMonth(availableMonths[0]);
+  }, [availableMonths]);
 
   const filteredOrders = useMemo(() =>
     selectedMonth ? orders.filter(o => o.created_at.startsWith(selectedMonth)) : orders,
