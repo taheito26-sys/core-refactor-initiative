@@ -1423,6 +1423,7 @@ export default function OrdersPage() {
 
     const restoreMissingMirrors = async () => {
       let mirroredCount = 0;
+      const resolvedStatuses: Record<string, Trade['mirrorStatus']> = {};
 
       for (const trade of state.trades) {
         if (cancelled) return;
@@ -1439,9 +1440,19 @@ export default function OrdersPage() {
         backfillAttemptedTradeIdsRef.current.add(trade.id);
 
         const status = await syncTradeToCustomerOrders(trade);
+        resolvedStatuses[trade.id] = status;
         if (status === 'mirrored') {
           mirroredCount += 1;
         }
+      }
+
+      // Persist terminal statuses so non-connected trades aren't re-attempted
+      // (and re-logged) on every future mount of this page.
+      if (!cancelled && Object.keys(resolvedStatuses).length > 0) {
+        const nextTrades = state.trades.map((trade) =>
+          resolvedStatuses[trade.id] ? { ...trade, mirrorStatus: resolvedStatuses[trade.id] } : trade,
+        );
+        applyState({ ...state, trades: nextTrades });
       }
 
       if (!cancelled && mirroredCount > 0) {
@@ -1458,7 +1469,7 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [merchantProfile?.merchant_id, state.trades, syncTradeToCustomerOrders]);
+  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState]);
 
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {
