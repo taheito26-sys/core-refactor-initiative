@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, RefreshCw, BookOpen, BarChart3, HandCoins } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -42,6 +42,15 @@ interface LedgerRow {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+// 'YYYY-MM' in the viewer's own local timezone — toISOString() converts to
+// UTC first, which rolls a payment timestamped just after local midnight
+// (e.g. 12:01 AM on the 1st, in a timezone ahead of UTC) back into the
+// previous month, silently misfiling it under the wrong month pill.
+function localMonthKey(date: number | string): string {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -289,13 +298,17 @@ export default function CustomerWalletPage() {
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
 
-  const [tab, setTab] = useState<"accounts" | "ledger" | "payments" | "insights">("accounts");
+  const [tab, setTab] = useState<"payments" | "accounts">("payments");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [depositModal, setDepositModal] = useState<{ account: Account; mode: "deposit" | "withdrawal" } | null>(null);
   const [transferModal, setTransferModal] = useState(false);
-  const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: "", type: "" });
   const [clearPromptId, setClearPromptId] = useState<string | null>(null);
+  // Ledger is no longer its own tab — it shows inline as a sub-section under
+  // whichever account it belongs to, expanded on click.
+  const [expandedLedgerAccountId, setExpandedLedgerAccountId] = useState<string | null>(null);
+  const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -323,15 +336,43 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
+  // Stable per-payment key (content-based, not array position) so a
+  // customer's own note keeps attaching to the same payment across refetches.
   const loanPayments = useMemo(() => {
     const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null }[] = [];
     for (const s of loanStatements) {
       for (const p of s.payments) {
-        rows.push({ key: `${s.currency}-${p.date}-${p.amount}-${rows.length}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref });
+        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref });
       }
     }
     return rows.sort((a, b) => b.date - a.date);
   }, [loanStatements]);
+
+  // The customer's own note on a payment — independent of the merchant's
+  // own note field on the same row, which the customer can't edit.
+  const { data: paymentNotes = [] } = useQuery({
+    queryKey: ["customer-payment-notes", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase.from("customer_payment_notes").select("payment_key, note").eq("user_id", userId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!userId,
+  });
+  const paymentNoteByKey = useMemo(() => new Map(paymentNotes.map(n => [n.payment_key, n.note])), [paymentNotes]);
+
+  const savePaymentNote = useMutation({
+    mutationFn: async ({ key, note }: { key: string; note: string }) => {
+      const { error } = await supabase.from("customer_payment_notes").upsert(
+        { user_id: userId, payment_key: key, note },
+        { onConflict: "user_id,payment_key" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customer-payment-notes", userId] }); },
+    onError: (e: any) => toast.error(e?.message),
+  });
 
   // Month filter. Payments are historical (they predate the portal for most
   // buyers), so defaulting to the calendar's current month — which the
@@ -345,7 +386,7 @@ export default function CustomerWalletPage() {
     const seen = new Set<string>();
     const months: string[] = [];
     for (const p of [...loanPayments].sort((a, b) => b.date - a.date)) {
-      const key = new Date(p.date).toISOString().slice(0, 7);
+      const key = localMonthKey(p.date);
       if (!seen.has(key)) { seen.add(key); months.push(key); }
     }
     return months;
@@ -353,12 +394,12 @@ export default function CustomerWalletPage() {
   useEffect(() => {
     if (paymentsMonthInitialized.current || paymentsMonths.length === 0) return;
     paymentsMonthInitialized.current = true;
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey(Date.now());
     setPaymentsMonth(paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0]);
   }, [paymentsMonths]);
   const filteredLoanPayments = useMemo(() =>
     paymentsMonth
-      ? loanPayments.filter(p => new Date(p.date).toISOString().slice(0, 7) === paymentsMonth)
+      ? loanPayments.filter(p => localMonthKey(p.date) === paymentsMonth)
       : loanPayments,
     [loanPayments, paymentsMonth],
   );
@@ -455,25 +496,17 @@ export default function CustomerWalletPage() {
     onError: (e: any) => toast.error(e?.message),
   });
 
-  // ── Filtered ledger ───────────────────────────────────────────
-
-  const filteredLedger = useMemo(() => ledger.filter(e => {
-    if (ledgerFilter.accountId && e.account_id !== ledgerFilter.accountId) return false;
-    if (ledgerFilter.type && e.type !== ledgerFilter.type) return false;
-    return true;
-  }), [ledger, ledgerFilter]);
-
-  // ── Running balance for ledger tab ────────────────────────────
-
-  const ledgerWithRunning = useMemo(() => {
-    const rows = [...filteredLedger].reverse();
+  // ── Per-account ledger with running balance — shown inline as a sub-list
+  // under the account it belongs to, rather than as its own tab. ────────
+  const getAccountLedgerWithRunning = (accountId: string) => {
+    const rows = [...ledger].filter(e => e.account_id === accountId).reverse();
     let running = 0;
     const result = rows.map(e => {
       running += e.direction === "in" ? e.amount : -e.amount;
       return { ...e, running };
     });
     return result.reverse();
-  }, [filteredLedger]);
+  };
 
   const isLoading = accLoading || ledgerLoading;
 
@@ -503,10 +536,8 @@ export default function CustomerWalletPage() {
         {/* Tabs */}
         <div className="flex gap-1">
           {([
-            { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
-            { id: "ledger", icon: RefreshCw, en: "Ledger", ar: "السجل" },
             { id: "payments", icon: HandCoins, en: "Payments", ar: "الدفعات" },
-            { id: "insights", icon: BarChart3, en: "Insights", ar: "التحليل" },
+            { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
           ] as const).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={cn("flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
@@ -599,11 +630,50 @@ export default function CustomerWalletPage() {
                               ⇄ {L("Transfer", "تحويل")}
                             </button>
                           )}
-                          <button onClick={() => setTab("ledger")}
+                          <button onClick={() => setExpandedLedgerAccountId(id => id === acc.id ? null : acc.id)}
                             className="flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80">
                             📋 {L("Ledger", "السجل")}
+                            <ChevronDown className={cn("h-3 w-3 transition-transform", expandedLedgerAccountId === acc.id && "rotate-180")} />
                           </button>
                         </div>
+
+                        {/* Ledger — shown inline as a sub-list under this account, not a separate tab */}
+                        {expandedLedgerAccountId === acc.id && (
+                          <div className="rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+                            {getAccountLedgerWithRunning(acc.id).length === 0 ? (
+                              <div className="px-4 py-6 text-center">
+                                <p className="text-xs text-muted-foreground">{L("No ledger entries", "لا توجد حركات")}</p>
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-border/40">
+                                {getAccountLedgerWithRunning(acc.id).map(e => {
+                                  const typeLabel = LEDGER_TYPE_LABELS[e.type];
+                                  return (
+                                    <div key={e.id} className="flex items-center gap-3 px-3 py-2">
+                                      <div className={cn("h-6 w-6 shrink-0 flex items-center justify-center rounded-full text-[10px] font-bold",
+                                        e.direction === "in" ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
+                                        {e.direction === "in" ? "+" : "−"}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[11px] font-semibold truncate">
+                                          {typeLabel ? (lang === "ar" ? typeLabel.ar : typeLabel.en) : e.type}
+                                          {e.note ? ` · ${e.note}` : ""}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground">{new Date(e.ts).toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}</p>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <p className={cn("text-xs font-black tabular-nums", e.direction === "in" ? "text-emerald-600" : "text-rose-600")}>
+                                          {e.direction === "in" ? "+" : "−"}{fmtTotal(e.amount)} {e.currency}
+                                        </p>
+                                        <p className="text-[9px] text-muted-foreground tabular-nums">{fmtTotal(e.running)} {e.currency}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Clear ledger */}
                         {clearPromptId === acc.id ? (
@@ -636,61 +706,6 @@ export default function CustomerWalletPage() {
             </div>
           )}
 
-          {/* ── LEDGER TAB ── */}
-          {tab === "ledger" && (
-            <div className="space-y-3">
-              {/* Filters */}
-              <div className="flex gap-2 flex-wrap">
-                <select value={ledgerFilter.accountId} onChange={e => setLedgerFilter(f => ({ ...f, accountId: e.target.value }))}
-                  className="h-9 rounded-lg border border-border/50 bg-card px-2 text-xs outline-none">
-                  <option value="">{L("All Accounts", "كل الحسابات")}</option>
-                  {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-                <select value={ledgerFilter.type} onChange={e => setLedgerFilter(f => ({ ...f, type: e.target.value }))}
-                  className="h-9 rounded-lg border border-border/50 bg-card px-2 text-xs outline-none">
-                  <option value="">{L("All Types", "كل الأنواع")}</option>
-                  {Object.entries(LEDGER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{lang === "ar" ? v.ar : v.en}</option>)}
-                </select>
-              </div>
-
-              {ledgerWithRunning.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-10 text-center">
-                  <p className="text-sm text-muted-foreground">{L("No ledger entries", "لا توجد حركات")}</p>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                  <div className="divide-y divide-border/40">
-                    {ledgerWithRunning.map(e => {
-                      const acc = activeAccounts.find(a => a.id === e.account_id);
-                      const typeLabel = LEDGER_TYPE_LABELS[e.type];
-                      return (
-                        <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
-                          <div className={cn("h-7 w-7 shrink-0 flex items-center justify-center rounded-full text-xs font-bold",
-                            e.direction === "in" ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
-                            {e.direction === "in" ? "+" : "−"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{acc?.name ?? e.account_id}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {typeLabel ? (lang === "ar" ? typeLabel.ar : typeLabel.en) : e.type}
-                              {e.note ? ` · ${e.note}` : ""}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">{new Date(e.ts).toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={cn("text-sm font-black tabular-nums", e.direction === "in" ? "text-emerald-600" : "text-rose-600")}>
-                              {e.direction === "in" ? "+" : "−"}{fmtTotal(e.amount)} {e.currency}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground tabular-nums">{fmtTotal(e.running)} {e.currency}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ── PAYMENTS TAB — payments received against loaned orders,
               same data the merchant's own Payments Received table shows,
@@ -745,89 +760,67 @@ export default function CustomerWalletPage() {
                   </div>
                 ) : (
                   <div className="divide-y divide-border/40">
-                    {filteredLoanPayments.map(p => (
-                      <div key={p.key} className="flex items-center gap-3 px-4 py-2.5">
-                        <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
-                          {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
+                    {filteredLoanPayments.map(p => {
+                      const myNote = paymentNoteByKey.get(p.key) ?? "";
+                      const isEditingNote = editingNoteKey === p.key;
+                      return (
+                        <div key={p.key} className="px-4 py-2.5">
+                          <div className="flex items-center gap-3">
+                            <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
+                              {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>
+                            </div>
+                          </div>
+
+                          {/* Customer's own note — separate from the merchant's note above */}
+                          {isEditingNote ? (
+                            <div className="mt-2 flex items-center gap-1.5 ps-10">
+                              <input
+                                autoFocus
+                                value={noteDraft}
+                                onChange={e => setNoteDraft(e.target.value)}
+                                placeholder={L("Add a note...", "أضف ملاحظة...")}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
+                                  if (e.key === "Escape") setEditingNoteKey(null);
+                                }}
+                                className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                              <button
+                                onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
+                                className="rounded-lg bg-primary p-1.5 text-primary-foreground"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : myNote ? (
+                            <button
+                              onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
+                              className="mt-1.5 flex items-center gap-1.5 ps-10 text-[10px] text-primary hover:underline"
+                            >
+                              <Pencil className="h-2.5 w-2.5 shrink-0" /> {myNote}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
+                              className="mt-1.5 flex items-center gap-1 ps-10 text-[10px] text-muted-foreground hover:text-primary"
+                            >
+                              <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
+                            </button>
+                          )}
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* ── INSIGHTS TAB ── */}
-          {tab === "insights" && (
-            <div className="space-y-4">
-              {/* Balance by account */}
-              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/40">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Balance by Account", "الرصيد حسب الحساب")}</p>
-                </div>
-                {activeAccounts.map(acc => {
-                  const bal = balances.get(acc.id) ?? 0;
-                  const pct = totalCash > 0 ? (bal / totalCash) * 100 : 0;
-                  return (
-                    <div key={acc.id} className="px-4 py-3 border-b last:border-0 border-border/40">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-semibold">{acc.name}</span>
-                        <span className="text-sm font-black tabular-nums">{fmtTotal(bal)} {acc.currency}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{pct.toFixed(1)}% {L("of total", "من الإجمالي")}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Transaction summary */}
-              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/40">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Transaction Summary", "ملخص الحركات")}</p>
-                </div>
-                <div className="grid grid-cols-2 divide-x divide-border/40">
-                  <div className="p-4">
-                    <p className="text-[10px] text-muted-foreground mb-1">{L("Total In", "إجمالي الوارد")}</p>
-                    <p className="text-lg font-black text-emerald-600 tabular-nums">
-                      +{fmtTotal(ledger.filter(e => e.direction === "in").reduce((s, e) => s + e.amount, 0))}
-                    </p>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-[10px] text-muted-foreground mb-1">{L("Total Out", "إجمالي الصادر")}</p>
-                    <p className="text-lg font-black text-rose-600 tabular-nums">
-                      −{fmtTotal(ledger.filter(e => e.direction === "out").reduce((s, e) => s + e.amount, 0))}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Order receipts */}
-              {ledger.filter(e => e.type === "order_receipt").length > 0 && (
-                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border/40">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Order Receipts", "استلامات الطلبات")}</p>
-                  </div>
-                  <div className="px-4 py-3">
-                    <p className="text-2xl font-black text-emerald-600 tabular-nums">
-                      +{fmtTotal(ledger.filter(e => e.type === "order_receipt").reduce((s, e) => s + e.amount, 0))} EGP
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {ledger.filter(e => e.type === "order_receipt").length} {L("orders received", "طلبات مستلمة")}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

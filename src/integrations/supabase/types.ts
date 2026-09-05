@@ -195,6 +195,33 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_payment_notes: {
+        Row: {
+          id: string
+          user_id: string
+          payment_key: string
+          note: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          payment_key: string
+          note?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          payment_key?: string
+          note?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       capital_transfers: {
         Row: {
           amount: number

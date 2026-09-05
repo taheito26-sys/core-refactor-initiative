@@ -170,6 +170,16 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
   );
 }
 
+// 'YYYY-MM' in the viewer's own local timezone. toISOString() converts to
+// UTC first, so a payment/order timestamped just after local midnight (e.g.
+// 12:01 AM local on the 1st, in a timezone ahead of UTC) rolls back to the
+// previous month's UTC date — silently misfiling it under the wrong month
+// pill. Local Date getters don't have that problem.
+function localMonthKey(date: number | string): string {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
   const map = new Map<string, WorkflowOrder[]>();
   for (const o of orders) {
@@ -430,7 +440,7 @@ export default function CustomerOrdersPage() {
   // recent month that actually has activity once data loads (see the
   // effect below availableMonths), so a buyer whose entire history
   // predates the current calendar month doesn't land on a silently empty page.
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(() => new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(() => localMonthKey(Date.now()));
   const selectedMonthInitialized = useRef(false);
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
@@ -749,8 +759,8 @@ export default function CustomerOrdersPage() {
     const seen = new Set<string>();
     const months: string[] = [];
     const keys = [
-      ...orders.map(o => o.created_at.slice(0, 7)),
-      ...historyOrders.map(o => new Date(o.date).toISOString().slice(0, 7)),
+      ...orders.map(o => localMonthKey(o.created_at)),
+      ...historyOrders.map(o => localMonthKey(o.date)),
     ].sort((a, b) => b.localeCompare(a));
     for (const key of keys) {
       if (!seen.has(key)) { seen.add(key); months.push(key); }
@@ -761,18 +771,18 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     if (selectedMonthInitialized.current || availableMonths.length === 0) return;
     selectedMonthInitialized.current = true;
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey(Date.now());
     if (!availableMonths.includes(currentMonth)) setSelectedMonth(availableMonths[0]);
   }, [availableMonths]);
 
   const filteredOrders = useMemo(() =>
-    selectedMonth ? orders.filter(o => o.created_at.startsWith(selectedMonth)) : orders,
+    selectedMonth ? orders.filter(o => localMonthKey(o.created_at) === selectedMonth) : orders,
     [orders, selectedMonth],
   );
 
   const filteredHistoryOrders = useMemo(() =>
     selectedMonth
-      ? historyOrders.filter(o => new Date(o.date).toISOString().slice(0, 7) === selectedMonth)
+      ? historyOrders.filter(o => localMonthKey(o.date) === selectedMonth)
       : historyOrders,
     [historyOrders, selectedMonth],
   );
@@ -1445,8 +1455,8 @@ export default function CustomerOrdersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
             {[
               { label: L('Count', 'العدد'), value: String(historyKpi.count) },
-              { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: `${Math.round(historyKpi.volumeEgp).toLocaleString()} EGP` },
-              { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: `${Math.round(historyKpi.totalQar).toLocaleString()} QAR` },
+              { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: Math.round(historyKpi.volumeEgp).toLocaleString() },
+              { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: Math.round(historyKpi.totalQar).toLocaleString() },
             ].map(k => (
               <div key={k.label} style={{
                 minWidth: 0, boxSizing: 'border-box',
@@ -1462,9 +1472,9 @@ export default function CustomerOrdersPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
             {[
-              { label: L('Total Debt', 'إجمالي المديونية'), value: `${Math.round(debtKpi.totalDebt).toLocaleString()} ${debtKpi.currency}` },
-              { label: L('Paid', 'المدفوع'), value: `${Math.round(debtKpi.totalPaid).toLocaleString()} ${debtKpi.currency}`, color: 'var(--good)' },
-              { label: L('Outstanding', 'المتبقي'), value: `${Math.round(debtKpi.outstanding).toLocaleString()} ${debtKpi.currency}`, color: debtKpi.outstanding > 0 ? 'var(--warn)' : 'var(--good)' },
+              { label: `${L('Total Debt', 'إجمالي المديونية')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalDebt).toLocaleString() },
+              { label: `${L('Paid', 'المدفوع')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalPaid).toLocaleString(), color: 'var(--good)' },
+              { label: `${L('Outstanding', 'المتبقي')} (${debtKpi.currency})`, value: Math.round(debtKpi.outstanding).toLocaleString(), color: debtKpi.outstanding > 0 ? 'var(--warn)' : 'var(--good)' },
             ].map(k => (
               <div key={k.label} style={{
                 minWidth: 0, boxSizing: 'border-box',
@@ -1506,18 +1516,32 @@ export default function CustomerOrdersPage() {
                     </div>
 
                     {o.loaned && o.loanAmount != null ? (
-                      <div style={{ marginTop: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
-                          <span>{L('Repaid', 'المسدد')}</span>
-                          <span className="mono">{Math.round(o.loanPaid ?? 0).toLocaleString()} / {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency} · {settledPct ?? 0}%</span>
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
+                            <span>{L('Repaid', 'المسدد')}</span>
+                          </div>
+                          <div className="prog" style={{ height: 8, maxWidth: 'none' }}>
+                            <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                          </div>
+                          <div className="mono" style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>
+                            {Math.round(o.loanPaid ?? 0).toLocaleString()} <span style={{ color: 'var(--muted)', fontWeight: 500 }}>/ {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}</span>
+                          </div>
                         </div>
-                        <div className="prog" style={{ height: 6, maxWidth: 'none' }}>
-                          <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
-                        </div>
+                        <span
+                          className="mono"
+                          style={{
+                            flexShrink: 0, fontSize: 13, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
+                            color: o.settled ? 'var(--good)' : 'var(--warn)',
+                            background: o.settled ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'color-mix(in srgb, var(--warn) 12%, transparent)',
+                          }}
+                        >
+                          {settledPct ?? 0}%
+                        </span>
                       </div>
                     ) : (
-                      <div style={{ marginTop: 8 }}>
-                        <span className="pill good">{L('Paid', 'مدفوع')}</span>
+                      <div style={{ marginTop: 10 }}>
+                        <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                       </div>
                     )}
                   </div>
@@ -1553,14 +1577,28 @@ export default function CustomerOrdersPage() {
                         </td>
                         <td>
                           {o.loaned && o.loanAmount != null ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div className="prog" style={{ height: 6 }}>
-                                <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
+                              <div style={{ flex: 1 }}>
+                                <div className="prog" style={{ height: 7 }}>
+                                  <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                                </div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3, whiteSpace: 'nowrap' }}>
+                                  {Math.round(o.loanPaid ?? 0).toLocaleString()} / {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}
+                                </div>
                               </div>
-                              <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{settledPct ?? 0}%</span>
+                              <span
+                                className="mono"
+                                style={{
+                                  flexShrink: 0, fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                                  color: o.settled ? 'var(--good)' : 'var(--warn)',
+                                  background: o.settled ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'color-mix(in srgb, var(--warn) 12%, transparent)',
+                                }}
+                              >
+                                {settledPct ?? 0}%
+                              </span>
                             </div>
                           ) : (
-                            <span className="pill good">{L('Paid', 'مدفوع')}</span>
+                            <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                           )}
                         </td>
                       </tr>

@@ -96,12 +96,17 @@ Deno.serve(async (req) => {
       .insert({ user_id: newUserId, display_name: displayName, phone, status: "active" });
     if (customerProfileError) throw customerProfileError;
 
+    // "active" — not "accepted" — is the status value the order-placement
+    // path actually recognizes (see CustomerOrdersPage's connections query
+    // and the create_customer_order_request RPC, both of which filter on
+    // status IN ('pending','active')). An "accepted" row is invisible to
+    // both, silently blocking every "New Order" button for this customer.
     const { error: connectionError } = await supabase
       .from("customer_merchant_connections")
       .insert({
         customer_user_id: newUserId,
         merchant_id: merchantProfile.merchant_id,
-        status: "accepted",
+        status: "active",
         nickname: displayName,
       });
     if (connectionError) throw connectionError;
