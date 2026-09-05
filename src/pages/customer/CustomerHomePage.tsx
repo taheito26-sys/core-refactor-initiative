@@ -117,6 +117,16 @@ export default function CustomerHomePage() {
     return rows;
   }, [historyStatements]);
 
+  // Settlement summary — running debt/payment totals across every
+  // statement, not scoped to any month (a balance, not a monthly figure).
+  const debtSummary = useMemo(() => {
+    let totalDebt = 0, totalPaid = 0, outstanding = 0;
+    for (const s of historyStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
+    const currency = historyStatements[0]?.currency ?? 'QAR';
+    const settledPct = totalDebt > 0 ? Math.min(100, Math.round((totalPaid / totalDebt) * 100)) : 0;
+    return { totalDebt, totalPaid, outstanding, currency, settledPct };
+  }, [historyStatements]);
+
   const { data: connections = [] } = useQuery({
     queryKey: ['c-dash-connections', userId],
     queryFn: async () => { if (!userId) return []; const { data } = await listCustomerConnections(userId); return (data ?? []).filter((c: any) => c.status === 'active'); },
@@ -432,6 +442,43 @@ export default function CustomerHomePage() {
                 {createStep < 3 ? L('Next', 'التالي') : (createAccountMutation.isPending ? L('Creating...', 'جارٍ الإنشاء...') : L('Create Account', 'إنشاء الحساب'))}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settlement summary — running debt/payment totals, not scoped to
+          any month, matching the same figures shown on the Cash tab. */}
+      {debtSummary.totalDebt > 0 && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border-t-4 border-t-blue-500 border-x border-b border-border/50 bg-card p-3 text-center">
+              <p className="text-xl font-black tabular-nums text-blue-600">{fmt(debtSummary.totalDebt)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Total Debt', 'إجمالي المستحقات')}</p>
+              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+            </div>
+            <div className="rounded-2xl border-t-4 border-t-emerald-500 border-x border-b border-border/50 bg-card p-3 text-center">
+              <p className="text-xl font-black tabular-nums text-emerald-600">{fmt(debtSummary.totalPaid)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Total Payments Received', 'إجمالي الدفعات المستلمة')}</p>
+              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+            </div>
+            <div className="rounded-2xl border-t-4 border-t-rose-500 border-x border-b border-border/50 bg-card p-3 text-center">
+              <p className="text-xl font-black tabular-nums text-rose-600">{fmt(debtSummary.outstanding)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Remaining Balance', 'الرصيد المتبقي')}</p>
+              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/50 bg-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-emerald-600">{debtSummary.settledPct}%</span>
+              <span className="text-xs font-semibold text-muted-foreground">{L('Settlement Summary', 'ملخص التسوية')}</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${debtSummary.settledPct}%` }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2 text-center">
+              {L(`${debtSummary.settledPct}% of total debt has been paid`, `${fmt(debtSummary.settledPct)}% من إجمالي المستحقات تم سدادها`)}
+            </p>
           </div>
         </div>
       )}
