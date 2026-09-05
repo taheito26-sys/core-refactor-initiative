@@ -101,7 +101,12 @@ export function CustomerLayout() {
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>
           ) : (
-            <div className={cn('mx-auto w-full px-4 py-4', isWideRoute ? 'max-w-2xl lg:max-w-6xl' : 'max-w-2xl')}><Outlet /></div>
+            // No max-width below the lg breakpoint — a wide phone or tablet
+            // viewport (well under 1024px but still bigger than a typical
+            // phone) was hitting max-w-2xl and leaving dead space on both
+            // sides instead of filling the screen. Full width up to lg,
+            // capped only on genuine desktop.
+            <div className={cn('mx-auto w-full px-4 py-4', isWideRoute ? 'lg:max-w-6xl' : 'lg:max-w-2xl')}><Outlet /></div>
           )}
         </main>
 
