@@ -7,7 +7,7 @@ import {
   fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
-  getLoanRepaid, getLoanRemaining,
+  getLoanRepaid, getLoanRemaining, mergeCustomerRecords,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -1154,20 +1154,36 @@ export default function OrdersPage() {
 
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
-    if (!nm) return { id: '', customers: state.customers };
+    if (!nm) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (connected) return materializeListedCustomer(connected, state.customers);
+    if (connected) {
+      const materialized = materializeListedCustomer(connected, state.customers);
+      // A buyer manually recorded before they connected their account left
+      // orders/loans under a locally generated id. Once they resolve to the
+      // connected id here, fold that older duplicate into it instead of
+      // leaving the same person split across two customer rows.
+      const duplicate = state.customers.find(c => c.id !== materialized.id && normalizeName(c.name) === normalizeName(nm));
+      if (duplicate) {
+        const merged = mergeCustomerRecords(
+          { customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans },
+          duplicate.id,
+          materialized.id,
+        );
+        return { id: materialized.id, ...merged };
+      }
+      return { id: materialized.id, customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans };
+    }
     const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (existing) return { id: existing.id, customers: state.customers };
+    if (existing) return { id: existing.id, customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
-    return { id: nextCustomer.id, customers: [...state.customers, nextCustomer] };
+    return { id: nextCustomer.id, customers: [...state.customers, nextCustomer], trades: state.trades, customerLoans: state.customerLoans };
   };
 
   const addBuyerFromModal = () => {
     if (!newBuyerName.trim()) return;
     const created = ensureCustomer(newBuyerName, newBuyerPhone, newBuyerTier);
     if (!created.id) return;
-    applyState({ ...state, customers: created.customers });
+    applyState({ ...state, customers: created.customers, trades: created.trades, customerLoans: created.customerLoans });
     setBuyerName(newBuyerName.trim());
     setBuyerId(created.id);
     setBuyerMenuOpen(false);
@@ -1423,6 +1439,7 @@ export default function OrdersPage() {
 
     const restoreMissingMirrors = async () => {
       let mirroredCount = 0;
+      const resolvedStatuses: Record<string, Trade['mirrorStatus']> = {};
 
       for (const trade of state.trades) {
         if (cancelled) return;
@@ -1439,9 +1456,19 @@ export default function OrdersPage() {
         backfillAttemptedTradeIdsRef.current.add(trade.id);
 
         const status = await syncTradeToCustomerOrders(trade);
+        resolvedStatuses[trade.id] = status;
         if (status === 'mirrored') {
           mirroredCount += 1;
         }
+      }
+
+      // Persist terminal statuses so non-connected trades aren't re-attempted
+      // (and re-logged) on every future mount of this page.
+      if (!cancelled && Object.keys(resolvedStatuses).length > 0) {
+        const nextTrades = state.trades.map((trade) =>
+          resolvedStatuses[trade.id] ? { ...trade, mirrorStatus: resolvedStatuses[trade.id] } : trade,
+        );
+        applyState({ ...state, trades: nextTrades });
       }
 
       if (!cancelled && mirroredCount > 0) {
@@ -1458,7 +1485,7 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [merchantProfile?.merchant_id, state.trades, syncTradeToCustomerOrders]);
+  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState]);
 
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {
@@ -1637,11 +1664,15 @@ export default function OrdersPage() {
     }
 
     let nextCustomers = state.customers;
+    let nextTrades = state.trades;
+    let nextCustomerLoans = state.customerLoans;
     let customerId = '';
     if (buyerName.trim()) {
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
+      nextTrades = ensured.trades;
+      nextCustomerLoans = ensured.customerLoans;
     }
 
     // Remember which customer this exchange counterparty resolved to, so the
@@ -1845,7 +1876,8 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
-          trades: [...state.trades, persistedTrade],
+          customerLoans: nextCustomerLoans,
+          trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
         applyState(applyCashDeposit(next, sell, amountUSDT, persistedTrade.id));
@@ -1992,7 +2024,8 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
-          trades: [...state.trades, persistedTrade],
+          customerLoans: nextCustomerLoans,
+          trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
         applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT, persistedTrade.id));
@@ -2009,7 +2042,8 @@ export default function OrdersPage() {
       let next: TrackerState = {
         ...state,
         customers: nextCustomers,
-        trades: [...state.trades, baseTrade],
+        customerLoans: nextCustomerLoans,
+        trades: [...nextTrades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
       next = applyCashDeposit(next, sell, baseTrade.amountUSDT, baseTrade.id);

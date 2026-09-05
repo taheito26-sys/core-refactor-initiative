@@ -497,6 +497,26 @@ export function getLoanRemaining(loan: CustomerLoan): number {
   return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan)) * 100) / 100);
 }
 
+/**
+ * Fold a duplicate customer record into the canonical one it was split from
+ * (typically the connected-customer id, once a manually-added buyer of the
+ * same name later links their account). Every trade and loan pointing at
+ * `fromId` is repointed at `intoId`, and the duplicate customer row is
+ * dropped, so the buyer never shows as two separate accounts again.
+ */
+export function mergeCustomerRecords(
+  state: Pick<TrackerState, 'customers' | 'trades' | 'customerLoans'>,
+  fromId: string,
+  intoId: string,
+): Pick<TrackerState, 'customers' | 'trades' | 'customerLoans'> {
+  if (!fromId || !intoId || fromId === intoId) return state;
+  return {
+    customers: state.customers.filter(c => c.id !== fromId),
+    trades: state.trades.map(t => (t.customerId === fromId ? { ...t, customerId: intoId } : t)),
+    customerLoans: (state.customerLoans || []).map(l => (l.customerId === fromId ? { ...l, customerId: intoId } : l)),
+  };
+}
+
 /** One customer payment (a loan repayment) landing on a calendar day. */
 export interface DayPayment {
   id: string;
