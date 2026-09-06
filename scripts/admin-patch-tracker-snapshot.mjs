@@ -12,12 +12,19 @@
 // counter (see syncTrackerWriteGenerationToAtLeast in src/lib/tracker-backup.ts)
 // and only then lets it save again, on top of the corrected state.
 //
+// The jump defaults to 1,000,000. A client's local write_generation counter
+// increments by 1 on every autosave, so a merchant who has been using the app
+// daily for months can already be at a counter in the hundreds or thousands —
+// a small jump (e.g. +1000) is not a safe margin and has silently lost data
+// to exactly this race in production. Do not lower this without a specific
+// reason; if anything, prefer raising it further.
+//
 // Usage:
 //   node scripts/admin-patch-tracker-snapshot.mjs \
 //     --user-id <uuid> \
 //     --patch ./my-patch.mjs \
 //     [--backup-dir ./tracker-snapshot-backups] \
-//     [--generation-jump 1000] \
+//     [--generation-jump 1000000] \
 //     [--dry-run]
 //
 // The patch module's default export is (state) => state — a pure function
@@ -34,7 +41,7 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 function parseArgs(argv) {
-  const args = { backupDir: './tracker-snapshot-backups', generationJump: 1000, dryRun: false };
+  const args = { backupDir: './tracker-snapshot-backups', generationJump: 1_000_000, dryRun: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--user-id') args.userId = argv[++i];
