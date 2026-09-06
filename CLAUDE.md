@@ -181,6 +181,17 @@ development, that is what is firing.
   `supabase/config.toml` disables gateway JWT verification for `call-session`, `p2p-scraper`,
   and `push-send` — those functions verify (or intentionally skip) auth themselves.
   Deploy with `supabase functions deploy <name>`.
+- **Never hand-edit `tracker_snapshots.state` with a raw SQL `UPDATE`.** The app is local-first
+  (see §8 Tracker state): a merchant device with the pre-edit data still cached in `localStorage`
+  will read-merge-write its stale copy right back over the fix on its next autosave, resurrecting
+  whatever you just deleted. Use `scripts/admin-patch-tracker-snapshot.mjs` for any out-of-band
+  correction — it backs up the row, applies your patch function, and writes through
+  `save_tracker_snapshot_if_newer` with `write_generation` pushed well ahead of the row's current
+  value. That RPC rejects any client write whose `write_generation` hasn't caught up, so a stale
+  device's next save is refused until it reloads from cloud (which resyncs its local generation
+  counter via `syncTrackerWriteGenerationToAtLeast`) — only then can it save again, on top of the
+  corrected state. After running the script, tell the merchant to refresh/reopen the app once so
+  the fix is picked up everywhere.
 
 Secrets consumed only by Edge Functions (`RELAY_HMAC_SECRET`, `SIGNALING_RELAY_URL`, `TURN_*`,
 `CLOUDFLARE_TURN_*`) are set in the Supabase dashboard, not in `.env`.
