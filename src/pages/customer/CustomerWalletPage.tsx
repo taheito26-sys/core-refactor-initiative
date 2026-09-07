@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -450,8 +450,37 @@ export default function CustomerWalletPage() {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
     const currency = loanStatements[0]?.currency ?? "QAR";
-    return { totalDebt, totalPaid, outstanding, currency };
+    const settledPct = totalDebt > 0 ? Math.min(100, Math.round((totalPaid / totalDebt) * 100)) : 0;
+    return { totalDebt, totalPaid, outstanding, currency, settledPct };
   }, [loanStatements]);
+
+  // Per-month totals — every month that has ever had a payment, newest
+  // first, so "how am I doing this month vs last" is visible without
+  // stepping through the month filter one pill at a time.
+  const monthlyPaymentBreakdown = useMemo(() => {
+    const map = new Map<string, { key: string; total: number; count: number; currency: string }>();
+    for (const p of loanPayments) {
+      const mk = localMonthKey(p.date);
+      let m = map.get(mk);
+      if (!m) { m = { key: mk, total: 0, count: 0, currency: p.currency }; map.set(mk, m); }
+      m.total = Math.round((m.total + p.amount) * 100) / 100;
+      m.count += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+  }, [loanPayments]);
+  const maxMonthlyTotal = useMemo(
+    () => monthlyPaymentBreakdown.reduce((max, m) => Math.max(max, m.total), 0) || 1,
+    [monthlyPaymentBreakdown],
+  );
+  const monthOverMonth = useMemo(() => {
+    if (monthlyPaymentBreakdown.length === 0) return null;
+    const current = monthlyPaymentBreakdown[0];
+    const previous = monthlyPaymentBreakdown[1] ?? null;
+    const changePct = previous && previous.total > 0
+      ? Math.round(((current.total - previous.total) / previous.total) * 100)
+      : null;
+    return { current, previous, changePct };
+  }, [monthlyPaymentBreakdown]);
 
   const { data: ledger = [], isLoading: ledgerLoading } = useQuery({
     queryKey: ["customer-cash-ledger", userId],
@@ -757,23 +786,95 @@ export default function CustomerWalletPage() {
               minus the account/edit/delete/merge actions (merchant-only). ── */}
           {tab === "payments" && (
             <div className="space-y-3">
-              {/* Debt summary */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Total Debt", "إجمالي المديونية")}</p>
-                  <p className="text-lg font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+              {/* Hero — gradient summary + settlement ring, same figures the
+                  flat cards used to show, now the page's visual anchor. */}
+              <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-4 text-primary-foreground">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15"><Wallet2 className="h-4 w-4" /></div>
+                    <p className="text-sm font-bold">{L("Payments Overview", "نظرة عامة على الدفعات")}</p>
+                  </div>
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-black tabular-nums">{loanTotals.settledPct}%</span>
                 </div>
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
-                  <p className="text-lg font-black tabular-nums mt-0.5 text-emerald-600">{fmtTotal(loanTotals.totalPaid)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+                <div className="mt-1.5 h-2 rounded-full bg-white/20 overflow-hidden">
+                  <div className="h-full rounded-full bg-white transition-all" style={{ width: `${loanTotals.settledPct}%` }} />
                 </div>
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
-                  <p className={cn("text-lg font-black tabular-nums mt-0.5", loanTotals.outstanding > 0 ? "text-amber-600" : "text-emerald-600")}>
-                    {fmtTotal(loanTotals.outstanding)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span>
-                  </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Total Debt", "إجمالي المديونية")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalPaid)}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.outstanding)}</p>
+                  </div>
                 </div>
               </div>
+
+              {/* Month-over-month — this month's total vs last month's, so a
+                  trend is visible without stepping through every pill. */}
+              {monthOverMonth && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border-t-4 border-t-violet-500 border-x border-b border-border/50 bg-card p-3">
+                    <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="h-3.5 w-3.5 text-violet-500" /><p className="text-[9px] text-muted-foreground uppercase tracking-wide">{L("This Month", "هذا الشهر")}</p></div>
+                    <p className="text-base font-black tabular-nums">{fmtTotal(monthOverMonth.current.total)} <span className="text-[10px] font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{monthOverMonth.current.count} {monthOverMonth.current.count === 1 ? L("payment", "دفعة") : L("payments", "دفعات")}</p>
+                  </div>
+                  <div className="rounded-2xl border-t-4 border-t-sky-500 border-x border-b border-border/50 bg-card p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {monthOverMonth.changePct == null ? <Minus className="h-3.5 w-3.5 text-muted-foreground" /> : monthOverMonth.changePct >= 0 ? <TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> : <TrendingDown className="h-3.5 w-3.5 text-rose-500" />}
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-wide">{L("vs Last Month", "مقارنة بالشهر الماضي")}</p>
+                    </div>
+                    <p className={cn(
+                      "text-base font-black tabular-nums",
+                      monthOverMonth.changePct == null ? "" : monthOverMonth.changePct >= 0 ? "text-emerald-600" : "text-rose-600",
+                    )}>
+                      {monthOverMonth.changePct == null ? "—" : `${monthOverMonth.changePct >= 0 ? "+" : ""}${monthOverMonth.changePct}%`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {monthOverMonth.previous ? `${fmtTotal(monthOverMonth.previous.total)} ${loanTotals.currency}` : L("No prior month", "لا يوجد شهر سابق")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly breakdown — every month with a payment, newest
+                  first, each bar scaled against that month's own peak. */}
+              {monthlyPaymentBreakdown.length > 1 && (
+                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border/40 flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Monthly Breakdown", "التوزيع الشهري")}</p>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {monthlyPaymentBreakdown.slice(0, 6).map(m => {
+                      const [y, mo] = m.key.split("-");
+                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
+                      const pct = Math.max(4, Math.round((m.total / maxMonthlyTotal) * 100));
+                      return (
+                        <button
+                          key={m.key}
+                          onClick={() => setPaymentsMonth(m.key)}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="w-20 shrink-0">
+                            <p className="text-xs font-semibold truncate">{label}</p>
+                            <p className="text-[10px] text-muted-foreground">{m.count} {m.count === 1 ? L("payment", "دفعة") : L("payments", "دفعات")}</p>
+                          </div>
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="w-20 shrink-0 text-right text-xs font-black tabular-nums">{fmtTotal(m.total)}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Month filter — same convention as the Orders page */}
               {paymentsMonths.length > 0 && (

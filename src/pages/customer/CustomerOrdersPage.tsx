@@ -1512,13 +1512,6 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
-                      <span>{L('Sell Price', 'سعر البيع')}: <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</span></span>
-                      {o.loanAmount != null && (
-                        <span>{L('Total', 'الإجمالي')} (QAR): <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{Math.round(o.loanAmount).toLocaleString()}</span></span>
-                      )}
-                    </div>
-
                     {o.loaned && o.loanAmount != null ? (
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
