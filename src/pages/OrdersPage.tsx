@@ -275,6 +275,13 @@ export default function OrdersPage() {
   // Loaned-order toggle for edit modal — mirrors `isLoanSale` on the new-sale form
   const [editIsLoan, setEditIsLoan] = useState(false);
 
+  // Split-order state for the edit modal — carves part of this trade off to
+  // a second customer (e.g. a Binance order that needs to be shared between
+  // two buyers). See splitEditingTrade below.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitAmount, setSplitAmount] = useState('');
+  const [splitCustomerId, setSplitCustomerId] = useState('');
+
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
   const [editLinkedRelId, setEditLinkedRelId] = useState('');
@@ -2149,6 +2156,79 @@ export default function OrdersPage() {
     setEditCashDepositMode('none');
     setEditCashDepositAmount('');
     setEditCashDepositAccountId('');
+    // Reset split-order state
+    setSplitOpen(false);
+    setSplitAmount('');
+    setSplitCustomerId('');
+  };
+
+  /**
+   * Carves `splitAmount` USDT off the trade currently open in the edit
+   * modal and assigns it to a second customer as its own new trade — e.g. a
+   * Binance order registered in full under one customer that turns out to
+   * need part of it reassigned to someone else. Deliberately narrow: refuses
+   * when the trade already has a cash deposit, a loan, or a linked partner
+   * deal riding on it, since correctly pro-rating those is a different,
+   * larger job than "split this order into two" and silently guessing would
+   * risk real money records.
+   */
+  const splitEditingTrade = () => {
+    if (!editingTradeId) return;
+    const existingTrade = state.trades.find(t => t.id === editingTradeId);
+    if (!existingTrade) return;
+
+    const amount = Number(splitAmount);
+    if (!(amount > 0)) {
+      toast.error(t('splitAmountInvalid'));
+      return;
+    }
+    if (amount >= existingTrade.amountUSDT) {
+      toast.error(t('splitAmountTooLarge'));
+      return;
+    }
+    if (!splitCustomerId) {
+      toast.error(t('splitCustomerRequired'));
+      return;
+    }
+
+    const hasCashDeposit = (state.cashLedger || []).some(e =>
+      e.type === 'sale_deposit' && e.direction === 'in'
+      && (e.tradeId === editingTradeId || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId))
+    );
+    const hasLoan = loanByTradeId.has(editingTradeId);
+    if (hasCashDeposit || hasLoan || existingTrade.linkedDealId) {
+      toast.error(t('splitBlockedComplexOrder'));
+      return;
+    }
+
+    const remainderQty = Math.round((existingTrade.amountUSDT - amount) * 1e8) / 1e8;
+    const splitNote = existingTrade.note
+      ? `${existingTrade.note} — split: ${fmtU(amount)} USDT moved to another customer`
+      : `Split off ${fmtU(amount)} USDT to another customer`;
+
+    const newTrade: Trade = {
+      ...existingTrade,
+      id: uid(),
+      amountUSDT: amount,
+      customerId: splitCustomerId,
+      note: existingTrade.note ? `${existingTrade.note} (split from original order)` : 'Split from original order',
+      revisions: [],
+    };
+
+    const nextTrades = state.trades.map(tr => {
+      if (tr.id !== editingTradeId) return tr;
+      return {
+        ...tr,
+        amountUSDT: remainderQty,
+        note: splitNote,
+        revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
+      };
+    });
+    nextTrades.push(newTrade);
+
+    applyState({ ...state, trades: nextTrades });
+    toast.success(t('splitSuccess'));
+    setEditingTradeId(null);
   };
 
   const saveTradeEdit = async () => {
@@ -5277,6 +5357,49 @@ export default function OrdersPage() {
                   />
                 </div>
               </div>
+
+              {/* Split into two customers */}
+              {!isApproved && editingTrade && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: splitOpen ? 8 : 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={splitOpen}
+                      onChange={e => setSplitOpen(e.target.checked)}
+                      style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
+                  </label>
+                  {splitOpen && (
+                    <div style={{ padding: '10px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('splitOrderHint')}</div>
+                      <div className="g2tight" style={{ marginBottom: 10 }}>
+                        <div className="field2">
+                          <div className="lbl">{t('splitAmountLabel')}</div>
+                          <div className="inputBox"><input inputMode="decimal" value={splitAmount} onChange={numericOnly(setSplitAmount)} style={mobileInputStyle} /></div>
+                        </div>
+                        <div className="field2">
+                          <div className="lbl">{t('splitCustomerLabel')}</div>
+                          <select value={splitCustomerId} onChange={e => setSplitCustomerId(e.target.value)}
+                            style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                          >
+                            <option value="">{t('noCustomerSelected')}</option>
+                            {state.customers.filter(c => c.id !== editCustomerId).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <button
+                        onClick={splitEditingTrade}
+                        style={{ padding: '8px 14px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 11, border: 'none', cursor: 'pointer', width: isMobile ? '100%' : undefined }}
+                      >
+                        {t('splitOrderButton')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Cash Deposit Option */}
               {!isApproved && (() => {
