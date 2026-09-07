@@ -513,7 +513,7 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading: isOrdersQueryLoading } = useQuery({
     queryKey: ['c-orders', userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -521,6 +521,10 @@ export default function CustomerOrdersPage() {
     },
     enabled: !!userId,
   });
+  // react-query's own isLoading is false while the query is disabled (i.e.
+  // before `userId` resolves from auth), so without `!userId` this briefly
+  // renders "No orders yet" on every load, before flashing to the real list.
+  const isLoading = isOrdersQueryLoading || !userId;
 
   // Historical EGP-side orders a merchant has recorded for this buyer before
   // the portal order workflow existed, shared via customer-loan-statement —

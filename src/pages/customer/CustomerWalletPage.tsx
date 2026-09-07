@@ -52,6 +52,15 @@ function localMonthKey(date: number | string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Same local-timezone reasoning as localMonthKey, one level finer: several
+// payments recorded on the same calendar day (a merchant splitting one
+// physical handover into separate entries) should read as one payment to
+// the customer, not a wall of near-identical rows.
+function localDayKey(date: number | string): string {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -404,6 +413,39 @@ export default function CustomerWalletPage() {
     [loanPayments, paymentsMonth],
   );
 
+  // Club same-day payments into one row. Grouped by day + currency (not by
+  // the merchant's account, which the customer never sees) — the amounts
+  // sum, and the group's key stays content-based so a note attached to it
+  // survives a refetch the same way a single payment's does.
+  const groupedLoanPayments = useMemo(() => {
+    const groups = new Map<string, { date: number; amount: number; currency: string; notes: string[]; count: number }>();
+    const order: string[] = [];
+    for (const p of filteredLoanPayments) {
+      const gkey = `${p.currency}:${localDayKey(p.date)}`;
+      let g = groups.get(gkey);
+      if (!g) {
+        g = { date: p.date, amount: 0, currency: p.currency, notes: [], count: 0 };
+        groups.set(gkey, g);
+        order.push(gkey);
+      }
+      g.amount = Math.round((g.amount + p.amount) * 100) / 100;
+      g.date = Math.max(g.date, p.date);
+      g.count += 1;
+      if (p.note && !g.notes.includes(p.note)) g.notes.push(p.note);
+    }
+    return order.map(gkey => {
+      const g = groups.get(gkey)!;
+      return {
+        key: `${gkey}:${g.amount}`,
+        date: g.date,
+        amount: g.amount,
+        currency: g.currency,
+        note: g.notes.join(' · ') || null,
+        count: g.count,
+      };
+    });
+  }, [filteredLoanPayments]);
+
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
@@ -508,7 +550,10 @@ export default function CustomerWalletPage() {
     return result.reverse();
   };
 
-  const isLoading = accLoading || ledgerLoading;
+  // react-query's own isLoading is false while a query is disabled — i.e.
+  // before `userId` resolves from auth — so without `!userId` this briefly
+  // renders "No accounts yet" on every load, before flashing to the real list.
+  const isLoading = accLoading || ledgerLoading || !userId;
 
   return (
     <div className="space-y-0 pb-16">
@@ -754,13 +799,13 @@ export default function CustomerWalletPage() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
                   <span className="text-[10px] text-muted-foreground">{filteredLoanPayments.length} {L("payments", "دفعة")}</span>
                 </div>
-                {filteredLoanPayments.length === 0 ? (
+                {groupedLoanPayments.length === 0 ? (
                   <div className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">{loanPayments.length === 0 ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد") : L("No payments this month", "لا توجد دفعات هذا الشهر")}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-border/40">
-                    {filteredLoanPayments.map(p => {
+                    {groupedLoanPayments.map(p => {
                       const myNote = paymentNoteByKey.get(p.key) ?? "";
                       const isEditingNote = editingNoteKey === p.key;
                       return (
@@ -768,7 +813,14 @@ export default function CustomerWalletPage() {
                           <div className="flex items-center gap-3">
                             <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
+                              <p className="text-xs font-semibold truncate">
+                                {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
+                                {p.count > 1 && (
+                                  <span className="ms-1.5 text-[10px] font-semibold text-muted-foreground">
+                                    ({p.count} {L("payments", "دفعات")})
+                                  </span>
+                                )}
+                              </p>
                               {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
                             </div>
                             <div className="text-right shrink-0">
