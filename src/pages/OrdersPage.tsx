@@ -416,6 +416,23 @@ export default function OrdersPage() {
     saleSell,
     saleFee,
   }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
+  // Keeps "Amount to move" pinned to the sale's live USDT quantity while the
+  // split panel is open -- e.g. an imported order's Amount/Sell Price fields
+  // get filled in after Split is already checked, and the prefilled split
+  // amount must track that recalculation, not freeze at whatever quantity
+  // existed the moment the checkbox was ticked. Stops following once the
+  // merchant types a value of their own for a genuine partial split.
+  const lastAutoSplitAmountRef = useRef('');
+  useEffect(() => {
+    if (!newSaleSplitOpen) return;
+    const liveQty = String(saleDraft.quantityUsdt || '');
+    if (newSaleSplitAmount === lastAutoSplitAmountRef.current) {
+      setNewSaleSplitAmount(liveQty);
+    }
+    lastAutoSplitAmountRef.current = liveQty;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleDraft.quantityUsdt, newSaleSplitOpen]);
+
   const availableFifoUsdt = useMemo(
     () => derived.batches.reduce((sum, b) => sum + Math.max(0, b.remainingUSDT), 0),
     [derived.batches],
