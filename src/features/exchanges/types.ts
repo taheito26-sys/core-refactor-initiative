@@ -44,6 +44,17 @@ export interface ExchangeP2POrder {
   created_at: string;
 }
 
+// Status vocabulary differs by exchange (Binance's C2C API vs. OKX's), so
+// this is a blocklist rather than an allowlist of one known-good string —
+// anything that plainly isn't a finished trade (cancelled, still pending,
+// under appeal, failed, expired) is excluded; unrecognized-but-plausible
+// statuses stay visible rather than getting silently hidden.
+const NON_COMPLETED_P2P_STATUS_PATTERN = /cancel|pending|appeal|fail|expire|reject/i;
+
+export function isCompletedP2POrder(status: string): boolean {
+  return !NON_COMPLETED_P2P_STATUS_PATTERN.test(status);
+}
+
 export interface ExchangeTransfer {
   id: string;
   exchange: ExchangeId;
