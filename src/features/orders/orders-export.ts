@@ -2,6 +2,7 @@ import type ExcelJS from 'exceljs';
 import type { Trade, Customer, DerivedState } from '@/lib/tracker-helpers';
 import { fmtDate, fmtPrice } from '@/lib/tracker-helpers';
 import { localCur } from '@/lib/currency-locale';
+import { EXCHANGE_LABELS, type ExchangeId } from '@/features/exchanges/types';
 
 export interface OrdersReportLabels {
   documentTitle: string;
@@ -22,6 +23,9 @@ export interface OrdersReportLabels {
   colTotalQar: string;
   colCost: string;
   colNet: string;
+  colBuyRate: string;
+  colMargin: string;
+  colSource: string;
   footer: string;
   generatedOn: string;
 }
@@ -34,6 +38,9 @@ interface OrderExportRow {
   totalQar: number;
   cost: number | null;
   net: number | null;
+  buyRate: number | null;
+  marginPct: number | null;
+  source: string;
 }
 
 interface OrdersReportSummary {
@@ -53,6 +60,7 @@ function buildRows(trades: Trade[], customers: Customer[], derived: DerivedState
     let net = c?.ok && cost != null ? totalQar - cost - tr.feeQAR : null;
     const linked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     if (linked && tr.merchantPct && net != null) net = net * (tr.merchantPct / 100);
+    const source = tr.importedFrom ? (EXCHANGE_LABELS[tr.importedFrom as ExchangeId] || tr.importedFrom) : '—';
     return {
       date: fmtDate(tr.ts),
       buyer: customerById.get(tr.customerId) || '—',
@@ -61,6 +69,9 @@ function buildRows(trades: Trade[], customers: Customer[], derived: DerivedState
       totalQar,
       cost,
       net,
+      buyRate: c?.avgBuyQAR ?? null,
+      marginPct: c?.ok ? c.margin : null,
+      source,
     };
   });
 }
@@ -117,12 +128,12 @@ export async function exportOrdersToXlsx(
   const summaryFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF1F4' } };
   const netFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5EC' } };
 
-  sheet.mergeCells('A1:G1');
+  sheet.mergeCells('A1:J1');
   const titleCell = sheet.getCell('A1');
   titleCell.value = labels.documentTitle;
   titleCell.font = { bold: true, size: 16, color: { argb: 'FF0F2A44' } };
 
-  sheet.mergeCells('A2:G2');
+  sheet.mergeCells('A2:J2');
   const periodCell = sheet.getCell('A2');
   periodCell.value = `${labels.period}: ${periodLabel}`;
   periodCell.font = { italic: true, color: { argb: 'FF6B7280' } };
@@ -156,14 +167,15 @@ export async function exportOrdersToXlsx(
 
   // ── Order detail table ──
   const tableStartRow = summaryStartRow + 3;
-  sheet.mergeCells(`A${tableStartRow}:G${tableStartRow}`);
+  sheet.mergeCells(`A${tableStartRow}:J${tableStartRow}`);
   const detailTitleCell = sheet.getCell(`A${tableStartRow}`);
   detailTitleCell.value = labels.orderDetail;
   detailTitleCell.font = { bold: true, size: 12, color: { argb: 'FF0F2A44' } };
 
   const columnHeaders = [
-    labels.colDate, labels.colBuyer, `${labels.colQty} ${lc('USDT')}`, `${labels.colSell} ${lc(baseFiat)}`,
-    `${labels.colTotalQar} ${lc(baseFiat)}`, `${labels.colCost} ${lc(baseFiat)}`, `${labels.colNet} ${lc(baseFiat)}`,
+    labels.colDate, labels.colBuyer, `${labels.colQty} ${lc('USDT')}`, `${labels.colBuyRate} ${lc(baseFiat)}`,
+    `${labels.colSell} ${lc(baseFiat)}`, `${labels.colTotalQar} ${lc(baseFiat)}`, `${labels.colCost} ${lc(baseFiat)}`,
+    `${labels.colNet} ${lc(baseFiat)}`, labels.colMargin, labels.colSource,
   ];
   const colHeaderRow = sheet.getRow(tableStartRow + 1);
   columnHeaders.forEach((h, i) => {
@@ -178,10 +190,13 @@ export async function exportOrdersToXlsx(
     { key: 'date', width: 20 },
     { key: 'buyer', width: 24 },
     { key: 'qtyUsdt', width: 14 },
+    { key: 'buyRate', width: 14 },
     { key: 'sellPrice', width: 14 },
     { key: 'totalQar', width: 16 },
     { key: 'cost', width: 16 },
     { key: 'net', width: 16 },
+    { key: 'marginPct', width: 12 },
+    { key: 'source', width: 14 },
   ];
 
   rows.forEach((row, i) => {
@@ -190,16 +205,21 @@ export async function exportOrdersToXlsx(
     r.getCell(2).value = row.buyer;
     r.getCell(3).value = row.qtyUsdt;
     r.getCell(3).numFmt = '#,##0';
-    r.getCell(4).value = row.sellPrice;
+    r.getCell(4).value = row.buyRate ?? '';
     r.getCell(4).numFmt = '#,##0.###';
-    r.getCell(5).value = row.totalQar;
-    r.getCell(5).numFmt = '#,##0';
-    r.getCell(6).value = row.cost ?? '';
+    r.getCell(5).value = row.sellPrice;
+    r.getCell(5).numFmt = '#,##0.###';
+    r.getCell(6).value = row.totalQar;
     r.getCell(6).numFmt = '#,##0';
-    r.getCell(7).value = row.net ?? '';
+    r.getCell(7).value = row.cost ?? '';
     r.getCell(7).numFmt = '#,##0';
+    r.getCell(8).value = row.net ?? '';
+    r.getCell(8).numFmt = '#,##0';
+    r.getCell(9).value = row.marginPct != null ? row.marginPct / 100 : '';
+    r.getCell(9).numFmt = '0.00%';
+    r.getCell(10).value = row.source;
     if (i % 2 === 1) {
-      for (let col = 1; col <= 7; col++) {
+      for (let col = 1; col <= 10; col++) {
         r.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F8FA' } };
       }
     }
@@ -253,16 +273,19 @@ export function buildOrdersReportHtml(
   const [ordersMeta, qtyMeta, qarMeta, costMeta, netMeta] = CARD_META;
 
   const bodyRows = rows.length === 0
-    ? `<tr><td colspan="7" class="empty">${escapeHtml(labels.totalOrders)} — 0</td></tr>`
+    ? `<tr><td colspan="10" class="empty">${escapeHtml(labels.totalOrders)} — 0</td></tr>`
     : rows.map((row, i) => `
       <tr class="${i % 2 === 1 ? 'alt' : ''}">
         <td>${escapeHtml(row.date)}</td>
         <td class="desc">${escapeHtml(row.buyer)}</td>
         <td class="num">${formatMoney(row.qtyUsdt)}</td>
+        <td class="num">${row.buyRate != null ? fmtPrice(row.buyRate) : '—'}</td>
         <td class="num">${fmtPrice(row.sellPrice)}</td>
         <td class="num strong">${formatMoney(row.totalQar)}</td>
         <td class="num">${row.cost != null ? formatMoney(row.cost) : '—'}</td>
         <td class="num"><span class="pill ${row.net != null && row.net >= 0 ? 'good' : row.net != null ? 'bad' : ''}">${row.net != null ? formatMoney(row.net) : '—'}</span></td>
+        <td class="num">${row.marginPct != null ? `${row.marginPct.toFixed(2)}%` : '—'}</td>
+        <td>${escapeHtml(row.source)}</td>
       </tr>`).join('');
 
   return `<!doctype html>
@@ -382,10 +405,13 @@ export function buildOrdersReportHtml(
           <th>${escapeHtml(labels.colDate)}</th>
           <th>${escapeHtml(labels.colBuyer)}</th>
           <th class="num">${escapeHtml(labels.colQty)} (${usdt})</th>
+          <th class="num">${escapeHtml(labels.colBuyRate)} (${cur})</th>
           <th class="num">${escapeHtml(labels.colSell)} (${cur})</th>
           <th class="num">${escapeHtml(labels.colTotalQar)} (${cur})</th>
           <th class="num">${escapeHtml(labels.colCost)} (${cur})</th>
           <th class="num">${escapeHtml(labels.colNet)} (${cur})</th>
+          <th class="num">${escapeHtml(labels.colMargin)}</th>
+          <th>${escapeHtml(labels.colSource)}</th>
         </tr>
       </thead>
       <tbody>${bodyRows}</tbody>
@@ -394,9 +420,12 @@ export function buildOrdersReportHtml(
           <td colspan="2">${escapeHtml(labels.totalOrders)}: ${summary.count}</td>
           <td class="num">${formatMoney(summary.qtyUsdt)}</td>
           <td></td>
+          <td></td>
           <td class="num">${formatMoney(summary.totalQar)}</td>
           <td class="num">${formatMoney(summary.totalCost)}</td>
           <td class="num"><span class="pill ${netTone}">${formatMoney(summary.totalNet)}</span></td>
+          <td></td>
+          <td></td>
         </tr>
       </tfoot>` : ''}
     </table>

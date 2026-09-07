@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { UnregisteredOrdersBanner } from '@/features/exchanges/components/UnregisteredOrdersBanner';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 
@@ -313,6 +314,8 @@ export function ModernStockView({
           ))}
         </div>
       </div>
+
+      <UnregisteredOrdersBanner side="buy" />
 
       {/* ── 2. ULTRA-SLIM PRO METRIC RIBBON (Zero Wasted Space) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-muted/30 p-1 rounded-xl border border-border/70 text-xs">

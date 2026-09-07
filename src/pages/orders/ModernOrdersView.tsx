@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { UnregisteredOrdersBanner } from '@/features/exchanges/components/UnregisteredOrdersBanner';
 
 export interface ModernOrdersViewProps {
   state: TrackerState;
@@ -302,6 +303,8 @@ export function ModernOrdersView({
           </button>
         </div>
       </div>
+
+      <UnregisteredOrdersBanner side="sell" />
 
       {/* ── 2. METRIC CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">

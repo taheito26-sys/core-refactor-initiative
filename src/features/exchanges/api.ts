@@ -93,6 +93,28 @@ export async function markOrderLinked(orderId: string, entityType: 'batch' | 'tr
   if (error) throw error;
 }
 
+/**
+ * Records one allocation of an exchange P2P order into the tracker, and is
+ * safe to call more than once for the same order -- each call adds a split
+ * row (e.g. part of the order registered under a second customer) rather
+ * than overwriting the previous link. Also refreshes the order's legacy
+ * scalar linked_* columns so existing single-link consumers (badges, the
+ * exchange inbox) keep seeing it as "linked" once any amount is registered.
+ */
+export async function addOrderLink(
+  orderId: string,
+  entityType: 'batch' | 'trade',
+  entityId: string,
+  allocatedAmount: number,
+  customerLabel?: string,
+) {
+  const { error: linkError } = await supabase
+    .from('exchange_p2p_order_links' as any)
+    .insert({ order_id: orderId, entity_type: entityType, entity_id: entityId, allocated_amount: allocatedAmount, customer_label: customerLabel || null });
+  if (linkError) throw linkError;
+  await markOrderLinked(orderId, entityType, entityId);
+}
+
 /** Marks a Pay/network transfer as "not an order" (e.g. a loan repayment received via Pay) so it stops showing in the exchange inbox without ever being imported as a batch/trade. */
 export async function dismissTransfer(transferId: string) {
   const { error } = await supabase

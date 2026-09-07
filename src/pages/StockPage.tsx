@@ -35,7 +35,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
@@ -519,7 +519,11 @@ export default function StockPage() {
       // Best-effort: the batch note embeds the order number, so the inbox
       // recognizes this row as imported (via importedReferences) even if this
       // update fails -- don't let a flaky network call block or duplicate the save.
-      markOrderLinked(pendingImport.orderId, 'batch', batchId).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+      // Recording the actual saved amount (not necessarily the full order
+      // amount) is what lets one order be split across multiple suppliers --
+      // each partial save adds its own link instead of overwriting the last.
+      addOrderLink(pendingImport.orderId, 'batch', batchId, totalUSDT, source || undefined)
+        .catch((err) => console.warn('Failed to mark exchange order as linked', err));
       setPendingImport(null);
     } else if (pendingImport?.kind === 'transfer') {
       markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'batch', entityId: batchId }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));

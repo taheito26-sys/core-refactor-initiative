@@ -28,7 +28,7 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
@@ -2029,7 +2029,11 @@ export default function OrdersPage() {
         // Best-effort: the trade note embeds the order number, so the inbox
         // recognizes this row as imported (via importedReferences) even if this
         // update fails -- don't let a flaky network call block or duplicate the save.
-        markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        // Recording the actual saved amount (not necessarily the full order
+        // amount) is what lets one order be split across multiple customers --
+        // each partial save adds its own link instead of overwriting the last.
+        addOrderLink(pendingImport.orderId, 'trade', baseTrade.id, baseTrade.amountUSDT, buyerName.trim() || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
         markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
