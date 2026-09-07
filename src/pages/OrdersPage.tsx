@@ -27,6 +27,7 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
+import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
@@ -120,6 +121,14 @@ export default function OrdersPage() {
   const [buyerName, setBuyerName] = useState('');
   const [isLoanSale, setIsLoanSale] = useState(false);
   const [buyerId, setBuyerId] = useState('');
+  // Split-at-registration: carve part of a brand-new sale off to a second
+  // buyer in the same submit, rather than saving the full amount and then
+  // reopening it in Edit to split afterward. Mirrors splitEditingTrade's
+  // guards (blocked when a loan or cash deposit is also in play) since
+  // correctly pro-rating those alongside a split is a separate, larger job.
+  const [newSaleSplitOpen, setNewSaleSplitOpen] = useState(false);
+  const [newSaleSplitAmount, setNewSaleSplitAmount] = useState('');
+  const [newSaleSplitCustomerId, setNewSaleSplitCustomerId] = useState('');
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
   const [manualBuyPrice, setManualBuyPrice] = useState('');
@@ -1581,6 +1590,17 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
+    const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
+    if (newSaleSplitOpen) {
+      if (merchantOrderEnabled) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      if (isLoanSale) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      if (cashDepositMode !== 'none') { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      const splitError = validateSplitOrder(splitAmountNum, amountUSDT, newSaleSplitCustomerId);
+      if (splitError === 'invalid_amount') { setSaleMessage(t('splitAmountInvalid')); return; }
+      if (splitError === 'amount_too_large') { setSaleMessage(t('splitAmountTooLarge')); return; }
+      if (splitError === 'no_target_customer') { setSaleMessage(t('splitCustomerRequired')); return; }
+    }
+
     const resolveDefaultCostPerUsdt = () => {
       if (priceMode === 'manual') {
         const manual = parseFloat(manualBuyPrice);
@@ -2012,6 +2032,41 @@ export default function OrdersPage() {
         console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
       }
+    } else if (newSaleSplitOpen) {
+      // Register the sale already carved into two trades -- the remainder
+      // under this buyer, the split-off amount under the second buyer --
+      // instead of saving the full amount and reopening Edit to split later.
+      const { primaryTrade, secondTrade } = splitOrder({
+        trade: baseTrade,
+        splitAmountUsdt: splitAmountNum,
+        targetCustomerId: newSaleSplitCustomerId,
+        newTradeId: uid(),
+        atRegistration: true,
+      });
+      const secondBuyerName = state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || '';
+
+      const next: TrackerState = {
+        ...state,
+        customers: nextCustomers,
+        trades: [...state.trades, primaryTrade, secondTrade],
+        range: inRange(ts, state.range) ? state.range : 'all'
+      };
+      applyState(next);
+      showSaleToast({ amountUSDT, sell, net: salePreview?.net });
+      toast.success(t('splitSuccess'));
+      if (pendingImport?.kind === 'order') {
+        // Each split-off amount gets its own link record, exactly like a
+        // partial save followed by another partial save would -- the inbox
+        // sees this Binance order as fully accounted for across both buyers.
+        addOrderLink(pendingImport.orderId, 'trade', primaryTrade.id, primaryTrade.amountUSDT, buyerName.trim() || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        addOrderLink(pendingImport.orderId, 'trade', secondTrade.id, secondTrade.amountUSDT, secondBuyerName || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        setPendingImport(null);
+      } else if (pendingImport?.kind === 'transfer') {
+        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: primaryTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        setPendingImport(null);
+      }
     } else {
       let next: TrackerState = {
         ...state,
@@ -2066,6 +2121,9 @@ export default function OrdersPage() {
     setCashDepositAccountId('');
     setStockOverrideEnabled(false);
     setStockOverrideConfirmed(false);
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
     // Close mobile sheet after successful submission
     if (isMobile) setNewSaleSheetOpen(false);
   };
@@ -2178,18 +2236,10 @@ export default function OrdersPage() {
     if (!existingTrade) return;
 
     const amount = Number(splitAmount);
-    if (!(amount > 0)) {
-      toast.error(t('splitAmountInvalid'));
-      return;
-    }
-    if (amount >= existingTrade.amountUSDT) {
-      toast.error(t('splitAmountTooLarge'));
-      return;
-    }
-    if (!splitCustomerId) {
-      toast.error(t('splitCustomerRequired'));
-      return;
-    }
+    const validationError = validateSplitOrder(amount, existingTrade.amountUSDT, splitCustomerId);
+    if (validationError === 'invalid_amount') { toast.error(t('splitAmountInvalid')); return; }
+    if (validationError === 'amount_too_large') { toast.error(t('splitAmountTooLarge')); return; }
+    if (validationError === 'no_target_customer') { toast.error(t('splitCustomerRequired')); return; }
 
     const hasCashDeposit = (state.cashLedger || []).some(e =>
       e.type === 'sale_deposit' && e.direction === 'in'
@@ -2201,30 +2251,15 @@ export default function OrdersPage() {
       return;
     }
 
-    const remainderQty = Math.round((existingTrade.amountUSDT - amount) * 1e8) / 1e8;
-    const splitNote = existingTrade.note
-      ? `${existingTrade.note} — split: ${fmtU(amount)} USDT moved to another customer`
-      : `Split off ${fmtU(amount)} USDT to another customer`;
-
-    const newTrade: Trade = {
-      ...existingTrade,
-      id: uid(),
-      amountUSDT: amount,
-      customerId: splitCustomerId,
-      note: existingTrade.note ? `${existingTrade.note} (split from original order)` : 'Split from original order',
-      revisions: [],
-    };
-
-    const nextTrades = state.trades.map(tr => {
-      if (tr.id !== editingTradeId) return tr;
-      return {
-        ...tr,
-        amountUSDT: remainderQty,
-        note: splitNote,
-        revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
-      };
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade: existingTrade,
+      splitAmountUsdt: amount,
+      targetCustomerId: splitCustomerId,
+      newTradeId: uid(),
     });
-    nextTrades.push(newTrade);
+
+    const nextTrades = state.trades.map(tr => (tr.id === editingTradeId ? primaryTrade : tr));
+    nextTrades.push(secondTrade);
 
     applyState({ ...state, trades: nextTrades });
     toast.success(t('splitSuccess'));
@@ -4288,6 +4323,53 @@ export default function OrdersPage() {
                   <input type="checkbox" checked={isLoanSale} onChange={e => setIsLoanSale(e.target.checked)} />
                   🤝 {t('loanSaleCheckbox')}
                 </label>
+
+                {!isLoanSale && !merchantOrderEnabled && cashDepositMode === 'none' && (
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: newSaleSplitOpen ? 8 : 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={newSaleSplitOpen}
+                        onChange={e => { setNewSaleSplitOpen(e.target.checked); setNewSaleSplitAmount(''); setNewSaleSplitCustomerId(''); }}
+                        style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
+                    </label>
+                    {newSaleSplitOpen && (
+                      <div style={{ padding: '10px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('splitOrderHint')}</div>
+                        <div className="g2tight">
+                          <div className="field2">
+                            <div className="lbl">{t('splitAmountLabel')}</div>
+                            <div className="inputBox">
+                              <input
+                                inputMode="decimal"
+                                value={newSaleSplitAmount}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                  setNewSaleSplitAmount(v);
+                                }}
+                                style={mobileInputStyle}
+                              />
+                            </div>
+                          </div>
+                          <div className="field2">
+                            <div className="lbl">{t('splitCustomerLabel')}</div>
+                            <select value={newSaleSplitCustomerId} onChange={e => setNewSaleSplitCustomerId(e.target.value)}
+                              style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                            >
+                              <option value="">{t('noCustomerSelected')}</option>
+                              {state.customers.filter(c => c.id !== buyerId).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {addBuyerOpen && (
                   <div className="previewBox" style={{ marginTop: 2 }}>
