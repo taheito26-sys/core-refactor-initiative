@@ -135,11 +135,19 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
         ...(merged.deletedLoanIds || []),
         ...(Array.isArray(state.deletedLoanIds) ? state.deletedLoanIds : []),
       ])).slice(-500),
+      deletedBatchIds: Array.from(new Set([
+        ...(merged.deletedBatchIds || []),
+        ...(Array.isArray(state.deletedBatchIds) ? state.deletedBatchIds : []),
+      ])).slice(-500),
     };
   }
   if (merged.customerLoans && merged.deletedLoanIds?.length) {
     const deleted = new Set(merged.deletedLoanIds);
     merged.customerLoans = merged.customerLoans.filter(l => !deleted.has(l.id));
+  }
+  if (merged.batches && merged.deletedBatchIds?.length) {
+    const deleted = new Set(merged.deletedBatchIds);
+    merged.batches = merged.batches.filter(b => !deleted.has(b.id));
   }
   return merged;
 }
@@ -188,24 +196,26 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     cashHistory: [],
   };
 
-  // Once cloud has been loaded into memory at least once this session, the
-  // in-memory state already incorporates anything cloud had — so batches,
-  // customers and suppliers can be OVERWRITTEN from local state. This is what
-  // makes their deletes propagate. Before that first load, we still
-  // read-merge-write everything so a fresh device (iOS PWA with empty
-  // localStorage) can't wipe cloud by upserting empty.
+  // We ALWAYS fetch the latest cloud row fresh, right before writing, and
+  // never blindly upload this device's in-memory copy over it — that is what
+  // stops a device whose local state is momentarily behind (a slow initial
+  // cloud load, a missed realtime event, a dropped connection) from wiping
+  // out data another device already wrote. Before the first cloud load this
+  // session, we read-merge-write everything so a fresh device (iOS PWA with
+  // empty localStorage) can't wipe cloud by upserting empty.
   //
-  // Trades are the one exception, always: OrdersPage never removes a trade
-  // from the array — "delete" only sets voided:true and leaves the record in
-  // place (see deleteTrade) — so merging trades by id can never resurrect a
-  // real deletion. That makes it safe, and necessary, to always fetch the
-  // latest cloud row and union-merge trades into it on every save, not just
-  // the session's first one. Without this, an idle tab/device whose in-memory
-  // state predates an order added elsewhere will blow that order away the
-  // next time it saves anything at all — its "overwrite once loaded" save
-  // simply never knew the order existed. customerLoans get the same always-
-  // merge treatment since they carry their own delete tombstone
-  // (deletedLoanIds) already.
+  // Trades and batches are always merged (never overwritten), even after the
+  // first cloud load: OrdersPage never removes a trade from the array —
+  // "delete" only sets voided:true and leaves the record in place (see
+  // deleteTrade) — so merging trades by id can never resurrect a real
+  // deletion. Batches ARE truly removed from the array on delete, so they
+  // carry their own tombstone (deletedBatchIds) that makes the same
+  // always-merge treatment safe for them too — see TrackerState.deletedBatchIds
+  // for why. Without always-merging, an idle tab/device whose in-memory state
+  // predates a batch or order added elsewhere will blow it away the next time
+  // it saves anything at all — its "overwrite once loaded" save simply never
+  // knew the row existed. customerLoans get the same always-merge treatment
+  // since they carry their own delete tombstone (deletedLoanIds) already.
   let merged: TrackerState = stripped;
   const { data: latestRow } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -224,18 +234,26 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     const mergedLoans = mergeArrayById(latestState.customerLoans, stripped.customerLoans)
       .filter(l => !deletedLoanIds.includes(l.id));
 
+    const deletedBatchIds = Array.from(new Set([
+      ...(latestState.deletedBatchIds || []),
+      ...(stripped.deletedBatchIds || []),
+    ])).slice(-500);
+    const mergedBatches = mergeArrayById(latestState.batches, stripped.batches)
+      .filter(b => !deletedBatchIds.includes((b as { id: string }).id));
+
     merged = {
       ...merged,
       trades: mergeArrayById(latestState.trades, stripped.trades),
       customerLoans: mergedLoans,
       deletedLoanIds,
+      batches: mergedBatches,
+      deletedBatchIds,
     };
 
     if (!_cloudLoadedThisSession) {
       merged = {
         ...latestState,
         ...merged,
-        batches: mergeArrayById(latestState.batches, stripped.batches),
         customers: mergeArrayById(latestState.customers, stripped.customers),
         suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
         cashAccounts: [],

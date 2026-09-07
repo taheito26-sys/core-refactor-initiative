@@ -742,7 +742,11 @@ export default function StockPage() {
     );
     if (alreadyRefunded) {
       // Batch already refunded — just remove from list
-      applyState({ ...state, batches: state.batches.filter(b => b.id !== idToDelete) });
+      applyState({
+        ...state,
+        batches: state.batches.filter(b => b.id !== idToDelete),
+        deletedBatchIds: [...(state.deletedBatchIds || []), idToDelete].slice(-500),
+      });
       setEditingBatchId(null);
       return;
     }
@@ -786,6 +790,7 @@ export default function StockPage() {
     applyState({
       ...state,
       batches: state.batches.filter(b => b.id !== idToDelete),
+      deletedBatchIds: [...(state.deletedBatchIds || []), idToDelete].slice(-500),
       cashQAR: newCashQAR,
       cashHistory: [...(state.cashHistory || []), cashTx],
       cashLedger: nextCashLedger,

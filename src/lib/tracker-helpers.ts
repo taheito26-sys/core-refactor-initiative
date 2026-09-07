@@ -579,6 +579,19 @@ export interface TrackerState {
    * what makes the deletion stick.
    */
   deletedLoanIds?: string[];
+  /**
+   * Ids of stock batches deleted locally. Batches, unlike trades (which only
+   * get `voided: true`), are truly removed from the `batches` array on
+   * delete — so every save always merges (unions) this device's batches with
+   * whatever the cloud row currently has, rather than overwriting it wholesale,
+   * to stop one device/tab whose in-memory batch list is momentarily behind
+   * another device's from wiping out batches it simply doesn't know about yet
+   * (the "imported batches show, then disappear" failure). A plain union
+   * alone would then make a real delete un-doable — the deleted id is
+   * tombstoned here and filtered out of every merge so the delete still
+   * sticks. See deletedLoanIds for the identical pattern applied to loans.
+   */
+  deletedBatchIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }
