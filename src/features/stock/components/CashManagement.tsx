@@ -1028,8 +1028,31 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
 // fixed denomination set — no per-currency variation.
 const NOTE_DENOMINATIONS = [500, 200, 100, 50];
 
+// Accepts shorthand like "50k" (50,000) or "1.2m" (1,200,000) alongside a
+// plain number, so a merchant can skip the note-by-note tally when they
+// already know the total.
+function parseShorthandAmount(input: string): number {
+  const trimmed = input.trim().toLowerCase();
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(k|m)?$/);
+  if (!match) return 0;
+  const value = parseFloat(match[1]);
+  if (!Number.isFinite(value)) return 0;
+  if (match[2] === 'k') return value * 1_000;
+  if (match[2] === 'm') return value * 1_000_000;
+  return value;
+}
+
+function todayDateStr(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const COUNTER_STEPS = ['count', 'action', 'confirm'] as const;
 type CounterStep = typeof COUNTER_STEPS[number];
+type CounterMode = 'notes' | 'amount';
 
 interface CashCounterModalProps {
   accounts: CashAccount[];
@@ -1055,6 +1078,8 @@ function CashCounterModal({
   const account = countableAccounts.find(a => a.id === accountId) || countableAccounts[0];
 
   const [counts, setCounts] = useState<Record<number, string>>({});
+  const [countMode, setCountMode] = useState<CounterMode>('notes');
+  const [quickAmount, setQuickAmount] = useState('');
   const [step, setStep] = useState<CounterStep>('count');
   // Actions are not mutually exclusive: a merchant can put part of the same
   // counted cash onto the account balance and use the rest to repay one or
@@ -1064,21 +1089,30 @@ function CashCounterModal({
   const [splitSelected, setSplitSelected] = useState<Set<string>>(new Set());
   const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
+  const [dateStr, setDateStr] = useState(todayDateStr());
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
   const total = useMemo(
-    () => NOTE_DENOMINATIONS.reduce((sum, d) => sum + d * num(counts[d], 0), 0),
-    [counts]
+    () => countMode === 'amount'
+      ? parseShorthandAmount(quickAmount)
+      : NOTE_DENOMINATIONS.reduce((sum, d) => sum + d * num(counts[d], 0), 0),
+    [countMode, quickAmount, counts]
   );
   const noteCountEntries = useMemo(
     () => NOTE_DENOMINATIONS.filter(d => num(counts[d], 0) > 0).map(d => ({ d, n: num(counts[d], 0) })),
     [counts]
   );
   const noteCountSummary = useMemo(
-    () => noteCountEntries.map(({ d, n }) => `${n}×${d}`).join(' + '),
-    [noteCountEntries]
+    () => countMode === 'amount'
+      ? fmtTotal(parseShorthandAmount(quickAmount))
+      : noteCountEntries.map(({ d, n }) => `${n}×${d}`).join(' + '),
+    [countMode, quickAmount, noteCountEntries]
   );
+  const selectedTs = useMemo(() => {
+    const parsed = new Date(`${dateStr}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
+  }, [dateStr]);
 
   const relevantLoans = useMemo(
     () => account ? loans.filter(l => l.currency === account.currency && getLoanRemaining(l) > 0) : [],
@@ -1119,8 +1153,8 @@ function CashCounterModal({
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
   const resetForClose = () => {
-    setCounts({}); setStep('count'); setActions(new Set()); setCashAmount('');
-    setSplitSelected(new Set()); setSplitAmounts({}); setNote(''); setErr('');
+    setCounts({}); setCountMode('notes'); setQuickAmount(''); setStep('count'); setActions(new Set()); setCashAmount('');
+    setSplitSelected(new Set()); setSplitAmounts({}); setNote(''); setDateStr(todayDateStr()); setErr('');
   };
   const closeAndReset = () => { resetForClose(); onClose(); };
 
@@ -1184,16 +1218,16 @@ function CashCounterModal({
     try {
       if (addAmt > 0) {
         const entry: CashLedgerEntry = {
-          id: uid(), ts: Date.now(), type: 'deposit', accountId: account.id,
+          id: uid(), ts: selectedTs, type: 'deposit', accountId: account.id,
           direction: 'in', amount: addAmt, currency: account.currency,
           note: defaultNote(),
         };
         onAddToCash(entry);
       }
       if (allocations.length === 1) {
-        await onRepayLoan(allocations[0].loan, account.id, allocations[0].amount, Date.now(), defaultNote());
+        await onRepayLoan(allocations[0].loan, account.id, allocations[0].amount, selectedTs, defaultNote());
       } else if (allocations.length > 1) {
-        const ok = await onSplitRepay(allocations, account.id, Date.now(), defaultNote());
+        const ok = await onSplitRepay(allocations, account.id, selectedTs, defaultNote());
         if (ok === false) { setErr(t('saveFailed') || 'Save failed'); setSaving(false); return; }
       }
       closeAndReset();
@@ -1263,39 +1297,63 @@ function CashCounterModal({
               </select>
             </div>
 
-            <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
-              {NOTE_DENOMINATIONS.map(d => {
-                const n = num(counts[d], 0);
-                return (
-                  <div key={d} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10,
-                    border: '1px solid ' + (n > 0 ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
-                    background: n > 0 ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
-                  }}>
-                    <div style={{
-                      width: 46, height: 30, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 900, flexShrink: 0, background: 'color-mix(in srgb, var(--brand) 14%, transparent)', color: 'var(--brand)',
-                    }} className="mono">{d}</div>
-                    <button
-                      className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
-                      onClick={() => bumpCount(d, -1)}
-                      disabled={n === 0}
-                    >−</button>
-                    <input
-                      inputMode="numeric" value={counts[d] ?? ''} onChange={e => setCount(d, e.target.value)}
-                      placeholder="0" style={{ width: 48, textAlign: 'center', padding: '6px 4px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
-                    />
-                    <button
-                      className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
-                      onClick={() => bumpCount(d, 1)}
-                    >+</button>
-                    <div style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: n > 0 ? 'var(--text)' : 'var(--muted)' }} className="mono">
-                      {n > 0 ? fmtAmt(d * n, account.currency) : '—'}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="modeToggle" style={{ marginBottom: 12 }}>
+              <button className={countMode === 'notes' ? 'active' : ''} onClick={() => setCountMode('notes')}>
+                {t('cashCounterModeNotes') || 'Count notes'}
+              </button>
+              <button className={countMode === 'amount' ? 'active' : ''} onClick={() => setCountMode('amount')}>
+                {t('cashCounterModeAmount') || 'Enter total'}
+              </button>
             </div>
+
+            {countMode === 'notes' ? (
+              <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+                {NOTE_DENOMINATIONS.map(d => {
+                  const n = num(counts[d], 0);
+                  return (
+                    <div key={d} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10,
+                      border: '1px solid ' + (n > 0 ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
+                      background: n > 0 ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
+                    }}>
+                      <div style={{
+                        width: 46, height: 30, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 900, flexShrink: 0, background: 'color-mix(in srgb, var(--brand) 14%, transparent)', color: 'var(--brand)',
+                      }} className="mono">{d}</div>
+                      <button
+                        className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
+                        onClick={() => bumpCount(d, -1)}
+                        disabled={n === 0}
+                      >−</button>
+                      <input
+                        inputMode="numeric" value={counts[d] ?? ''} onChange={e => setCount(d, e.target.value)}
+                        placeholder="0" style={{ width: 48, textAlign: 'center', padding: '6px 4px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
+                      />
+                      <button
+                        className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
+                        onClick={() => bumpCount(d, 1)}
+                      >+</button>
+                      <div style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: n > 0 ? 'var(--text)' : 'var(--muted)' }} className="mono">
+                        {n > 0 ? fmtAmt(d * n, account.currency) : '—'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="field2" style={{ marginBottom: 14 }}>
+                <div className="lbl">{t('cashCounterQuickAmountLbl') || 'Total amount'}</div>
+                <div className="inputBox">
+                  <input
+                    inputMode="decimal" value={quickAmount} onChange={e => setQuickAmount(e.target.value)}
+                    placeholder="e.g. 50k" style={{ fontSize: isMobile ? 16 : undefined }}
+                  />
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+                  {t('cashCounterQuickAmountHint') || 'You can type shorthand like 50k or 1.2m'}
+                </div>
+              </div>
+            )}
 
             <div style={{
               background: total > 0 ? 'color-mix(in srgb, var(--good) 10%, transparent)' : 'color-mix(in srgb, var(--brand) 8%, transparent)',
@@ -1440,6 +1498,16 @@ function CashCounterModal({
               <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: Math.abs(splitLeftover) < 0.005 ? 'var(--good)' : 'var(--warn)' }}>
                 {fmtTotal(Math.abs(splitLeftover))} {account.currency}
               </span>
+            </div>
+
+            <div className="field2" style={{ marginBottom: 14 }}>
+              <div className="lbl">{t('cashCounterDateLbl') || 'Date'}</div>
+              <div className="inputBox">
+                <input
+                  type="date" value={dateStr} onChange={e => setDateStr(e.target.value || todayDateStr())}
+                  style={{ fontSize: isMobile ? 16 : undefined, colorScheme: 'dark' }}
+                />
+              </div>
             </div>
 
             <div className="field2" style={{ marginBottom: 14 }}>
