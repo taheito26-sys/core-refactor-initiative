@@ -5304,8 +5304,8 @@ export default function OrdersPage() {
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
-                  <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} style={mobileInputStyle} /></div>
+                  <div className="lbl">{t('qtyUsdt')}{splitOpen ? ` · ${t('splitRemainsOnOrder') || 'remains on this order'}` : ''}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved || splitOpen} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
@@ -5367,11 +5367,12 @@ export default function OrdersPage() {
                       checked={splitOpen}
                       onChange={e => {
                         setSplitOpen(e.target.checked);
-                        // Default to moving the whole remaining amount — the
-                        // common case is "this order should have gone
-                        // entirely to the other customer"; the merchant can
-                        // still dial it down to a partial split.
-                        if (e.target.checked && !splitAmount) setSplitAmount(editQty);
+                        setSplitAmount('');
+                        // Closing the section (or opening it fresh) should
+                        // leave QTY USDT showing the order's real, saved
+                        // amount — not a leftover live-preview remainder from
+                        // whatever was typed into "amount to move".
+                        if (editingTrade) setEditQty(String(editingTrade.amountUSDT));
                       }}
                       style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
                     />
@@ -5383,7 +5384,25 @@ export default function OrdersPage() {
                       <div className="g2tight" style={{ marginBottom: 10 }}>
                         <div className="field2">
                           <div className="lbl">{t('splitAmountLabel')}</div>
-                          <div className="inputBox"><input inputMode="decimal" value={splitAmount} onChange={numericOnly(setSplitAmount)} style={mobileInputStyle} /></div>
+                          <div className="inputBox">
+                            <input
+                              inputMode="decimal"
+                              value={splitAmount}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                setSplitAmount(v);
+                                // Mirror the remainder into QTY USDT instantly so the
+                                // merchant can see what stays on this order as they type.
+                                if (editingTrade) {
+                                  const moved = Number(v) || 0;
+                                  const remains = Math.max(0, editingTrade.amountUSDT - moved);
+                                  setEditQty(String(remains));
+                                }
+                              }}
+                              style={mobileInputStyle}
+                            />
+                          </div>
                         </div>
                         <div className="field2">
                           <div className="lbl">{t('splitCustomerLabel')}</div>

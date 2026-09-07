@@ -1089,6 +1089,7 @@ const translations = {
   splitCustomerRequired: { en: 'Select the customer to move this amount to', ar: 'اختر العميل الذي سيتم نقل هذه الكمية إليه' },
   splitBlockedComplexOrder: { en: 'This order already has a cash deposit, loan, or partner link — split it manually instead', ar: 'يحتوي هذا الطلب بالفعل على إيداع نقدي أو قرض أو رابط شريك — قم بتقسيمه يدويًا بدلاً من ذلك' },
   splitSuccess: { en: 'Order split into two customers', ar: 'تم تقسيم الطلب بين عميلين' },
+  splitRemainsOnOrder: { en: 'remains on this order', ar: 'يبقى في هذا الطلب' },
   feeQarLabel: { en: 'Fee QAR', ar: 'الرسوم ر.ق' },
   deductFromInventory: { en: 'Deduct from inventory', ar: 'خصم من المخزون' },
   editBatchInPlace: { en: 'Edit Batch — in Place', ar: 'تعديل الدفعة — في المكان' },
