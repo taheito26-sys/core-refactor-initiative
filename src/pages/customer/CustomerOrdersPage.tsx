@@ -800,7 +800,12 @@ export default function CustomerOrdersPage() {
       if (o.currency === 'EGP') volumeEgp += o.totalAmount;
       if (o.loanAmount != null && o.loanCurrency === 'QAR') totalQar += o.loanAmount;
     }
-    return { count: filteredHistoryOrders.length, volumeEgp, totalQar };
+    // Effective EGP received per QAR across every order in view — the rate
+    // that actually matters to the customer, not the merchant's own
+    // USDT-leg sell price (which used to sit on every mobile card and told
+    // the customer nothing they could act on).
+    const avgRate = totalQar > 0 ? volumeEgp / totalQar : null;
+    return { count: filteredHistoryOrders.length, volumeEgp, totalQar, avgRate };
   }, [filteredHistoryOrders]);
 
   // Debt/payment totals — these are running balances, not scoped to the
@@ -1461,6 +1466,7 @@ export default function CustomerOrdersPage() {
               { label: L('Count', 'العدد'), value: String(historyKpi.count) },
               { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: Math.round(historyKpi.volumeEgp).toLocaleString() },
               { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: Math.round(historyKpi.totalQar).toLocaleString() },
+              { label: L('Avg Rate (EGP/QAR)', 'متوسط السعر (جنيه/ريال)'), value: historyKpi.avgRate != null ? historyKpi.avgRate.toFixed(2) : '—' },
             ].map(k => (
               <div key={k.label} style={{
                 minWidth: 0, boxSizing: 'border-box',
