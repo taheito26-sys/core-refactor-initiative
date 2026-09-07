@@ -545,7 +545,6 @@ export default function CustomerOrdersPage() {
     date: number;
     currency: string;
     totalAmount: number;
-    sellPrice: number | null;
     loaned: boolean;
     settled: boolean;
     loanCurrency: string | null;
@@ -566,7 +565,6 @@ export default function CustomerOrdersPage() {
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
-          sellPrice: b.fiatPrice,
           loaned: !!loan,
           settled: loan?.settled ?? false,
           loanCurrency: loan ? s.currency : null,
@@ -575,7 +573,7 @@ export default function CustomerOrdersPage() {
         });
       }
       // Loans with no linked Binance trade (manually recorded) still need a
-      // row — same currency as the statement, no sell price.
+      // row — same currency as the statement.
       for (const o of s.orders) {
         if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
         rows.push({
@@ -583,7 +581,6 @@ export default function CustomerOrdersPage() {
           date: o.date,
           currency: s.currency,
           totalAmount: o.amount,
-          sellPrice: null,
           loaned: true,
           settled: o.settled,
           loanCurrency: s.currency,
@@ -1446,9 +1443,9 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into "My Orders". Title is date + EGP amount; sell
-          price and the QAR total sit underneath, plus a repayment progress
-          bar for loaned orders — no counterparty, no exchange badge. */}
+          now folded into "My Orders". Title is date + EGP amount; the QAR
+          total sits underneath, plus a repayment progress bar for loaned
+          orders — no counterparty, no exchange badge. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1558,7 +1555,6 @@ export default function CustomerOrdersPage() {
                   <tr>
                     <th>{L('Date', 'التاريخ')}</th>
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
-                    <th className="r">{L('Sell Price', 'سعر البيع')}</th>
                     <th className="r">{L('Total (QAR)', 'الإجمالي (ريال)')}</th>
                     <th>{L('Repayment', 'السداد')}</th>
                   </tr>
@@ -1574,7 +1570,6 @@ export default function CustomerOrdersPage() {
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {Math.round(o.totalAmount).toLocaleString()} {o.currency}
                         </td>
-                        <td className="mono r">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {o.loanAmount != null ? `${Math.round(o.loanAmount).toLocaleString()} ${o.loanCurrency}` : '—'}
                         </td>
