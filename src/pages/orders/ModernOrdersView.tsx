@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   FileText,
   Plus,
@@ -170,20 +170,43 @@ export function ModernOrdersView({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [newSaleSheetOpen, setNewSaleSheetOpen]);
 
+  // Buyer/customer name resolution — Trade only stores customerId, not a display name
+  const customerNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    customers.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [customers]);
+  const getBuyerName = useCallback(
+    (tr: Trade) => customerNameById.get(tr.customerId) || '—',
+    [customerNameById],
+  );
+  const getTradeTotal = (tr: Trade) => tr.amountUSDT * tr.sellPriceQAR;
+
+  // Loans linked to trades — mirrors OrdersPage.tsx loanByTradeId
+  const loanByTradeId = useMemo(() => {
+    const m = new Map<string, typeof state.customerLoans[number]>();
+    const deletedIds = new Set(state.deletedLoanIds || []);
+    for (const loan of state.customerLoans || []) {
+      if (loan.tradeId && !deletedIds.has(loan.id)) m.set(loan.tradeId, loan);
+    }
+    return m;
+  }, [state.customerLoans, state.deletedLoanIds]);
+
   // Filtered trades
   const filteredTrades = useMemo(() => {
     return trades.filter((tr) => {
-      if (selectedCustomerFilter !== 'all' && tr.buyer.toLowerCase() !== selectedCustomerFilter.toLowerCase()) {
+      const name = getBuyerName(tr);
+      if (selectedCustomerFilter !== 'all' && name.toLowerCase() !== selectedCustomerFilter.toLowerCase()) {
         return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const text = `${tr.id} ${tr.buyer} ${tr.note || ''} ${fmtDate(tr.ts)}`.toLowerCase();
+        const text = `${tr.id} ${name} ${tr.note || ''} ${fmtDate(tr.ts)}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
     });
-  }, [trades, selectedCustomerFilter, searchQuery]);
+  }, [trades, selectedCustomerFilter, searchQuery, getBuyerName]);
 
   // Aggregate Metrics for Ultra-Slim KPI Ribbon
   const metrics = useMemo(() => {
@@ -193,10 +216,10 @@ export function ModernOrdersView({
 
     filteredTrades.forEach((tr) => {
       const calc: TradeCalcResult | undefined = derived.tradeCalc?.get(tr.id);
-      totalUsdtSold += tr.usdt;
-      totalGrossFiat += tr.totalQAR;
+      totalUsdtSold += tr.amountUSDT;
+      totalGrossFiat += getTradeTotal(tr);
       if (calc && calc.ok) {
-        totalRealizedProfit += calc.profit;
+        totalRealizedProfit += calc.netQAR;
       }
     });
 
@@ -214,7 +237,7 @@ export function ModernOrdersView({
   const totalOutstandingLoan = useMemo(() => {
     return (state.customerLoans || []).reduce((acc, l) => {
       const repaid = (l.repayments || []).reduce((rSum, r) => rSum + r.amount, 0);
-      return acc + Math.max(0, l.amount - repaid);
+      return acc + Math.max(0, l.principal - repaid);
     }, 0);
   }, [state.customerLoans]);
 
@@ -452,7 +475,10 @@ export function ModernOrdersView({
               ) : (
                 filteredTrades.map((tr, idx) => {
                   const calc: TradeCalcResult | undefined = derived.tradeCalc?.get(tr.id);
-                  const isPositiveProfit = calc && calc.profit >= 0;
+                  const isPositiveProfit = calc && calc.netQAR >= 0;
+                  const buyerName = getBuyerName(tr);
+                  const tradeTotal = getTradeTotal(tr);
+                  const loan = loanByTradeId.get(tr.id);
 
                   return (
                     <tr
@@ -476,7 +502,7 @@ export function ModernOrdersView({
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-foreground">{tr.buyer}</div>
+                        <div className="font-semibold text-foreground">{buyerName}</div>
                         {tr.note && (
                           <p className="text-[9px] text-muted-foreground truncate max-w-[140px]" title={tr.note}>
                             {tr.note}
@@ -485,7 +511,7 @@ export function ModernOrdersView({
                       </td>
 
                       <td className="py-2.5 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">
-                        {fmtU(tr.usdt)}
+                        {fmtU(tr.amountUSDT)}
                       </td>
 
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground whitespace-nowrap">
@@ -493,13 +519,13 @@ export function ModernOrdersView({
                       </td>
 
                       <td className="py-2.5 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">
-                        {fmtTotal(tr.totalQAR)}
+                        {fmtTotal(tradeTotal)}
                       </td>
 
                       <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
                         {calc && calc.ok ? (
                           <span className={cn(isPositiveProfit ? 'text-emerald-500' : 'text-rose-500')}>
-                            {isPositiveProfit ? '+' : ''}{fmtTotal(calc.profit)}
+                            {isPositiveProfit ? '+' : ''}{fmtTotal(calc.netQAR)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -507,9 +533,9 @@ export function ModernOrdersView({
                       </td>
 
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        {tr.isLoan ? (
+                        {loan ? (
                           <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-500/15 to-orange-500/10 text-amber-500 border border-amber-500/25 text-[9px] font-bold">
-                            Loan / Unsettled
+                            {loan.status === 'closed' ? 'Loan / Settled' : 'Loan / Unsettled'}
                           </span>
                         ) : (
                           <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-500 border border-emerald-500/25 text-[9px] font-bold">
@@ -783,11 +809,11 @@ export function ModernOrdersView({
               </div>
               <div className="p-2 rounded-lg bg-muted/60 border border-border flex justify-between">
                 <span className="text-muted-foreground">Customer:</span>
-                <span className="font-bold text-foreground">{selectedTradeDetails.buyer}</span>
+                <span className="font-bold text-foreground">{getBuyerName(selectedTradeDetails)}</span>
               </div>
               <div className="p-2 rounded-lg bg-muted/60 border border-border flex justify-between">
                 <span className="text-muted-foreground">Volume Sold:</span>
-                <span className="font-mono font-bold text-foreground">{fmtU(selectedTradeDetails.usdt)} USDT</span>
+                <span className="font-mono font-bold text-foreground">{fmtU(selectedTradeDetails.amountUSDT)} USDT</span>
               </div>
               <div className="p-2 rounded-lg bg-muted/60 border border-border flex justify-between">
                 <span className="text-muted-foreground">Sell Price:</span>
@@ -795,7 +821,7 @@ export function ModernOrdersView({
               </div>
               <div className="p-2 rounded-lg bg-muted/60 border border-border flex justify-between">
                 <span className="text-muted-foreground">Total Revenue:</span>
-                <span className="font-mono font-bold text-foreground">{fmtTotal(selectedTradeDetails.totalQAR)} {baseFiat}</span>
+                <span className="font-mono font-bold text-foreground">{fmtTotal(getTradeTotal(selectedTradeDetails))} {baseFiat}</span>
               </div>
             </div>
 
