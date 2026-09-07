@@ -5365,7 +5365,14 @@ export default function OrdersPage() {
                     <input
                       type="checkbox"
                       checked={splitOpen}
-                      onChange={e => setSplitOpen(e.target.checked)}
+                      onChange={e => {
+                        setSplitOpen(e.target.checked);
+                        // Default to moving the whole remaining amount — the
+                        // common case is "this order should have gone
+                        // entirely to the other customer"; the merchant can
+                        // still dial it down to a partial split.
+                        if (e.target.checked && !splitAmount) setSplitAmount(editQty);
+                      }}
                       style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
                     />
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
