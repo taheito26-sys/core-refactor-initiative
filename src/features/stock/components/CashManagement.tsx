@@ -2732,9 +2732,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     <button
       onClick={() => setInnerTab(tab)}
       style={{
-        padding: '6px 14px', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
+        padding: isMobile ? '9px 14px' : '6px 14px', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
         borderRadius: 6, background: innerTab === tab ? 'var(--brand)' : 'transparent',
         color: innerTab === tab ? '#fff' : 'var(--muted)',
+        minHeight: isMobile ? 38 : undefined, whiteSpace: 'nowrap',
       }}>
       {label}
     </button>
@@ -3345,9 +3346,131 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               </tr>
                               );
                             };
+                            const loanCard = (row: typeof stmt.loans[number]) => {
+                              const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
+                              const isExchangeLoan = !!linkedTrade?.originalFiat;
+                              const usdtToQarRate = linkedTrade?.sellPriceQAR ?? row.loan.qarRate;
+                              const qarToEgpRate = isExchangeLoan && usdtToQarRate
+                                ? (linkedTrade!.originalFiatPriceUSDT ?? 0) / usdtToQarRate
+                                : null;
+                              const calc = linkedTrade ? derivedFifo.tradeCalc.get(linkedTrade.id) : undefined;
+                              const buyCost = calc?.ok ? calc.slices.reduce((s, sl) => s + sl.cost, 0) : null;
+                              const avgBuyRate = calc?.ok ? calc.avgBuyQAR : null;
+                              const p2pPrice = isExchangeLoan ? linkedTrade!.originalFiatPriceUSDT ?? null : null;
+                              const revenue = linkedTrade ? linkedTrade.amountUSDT * linkedTrade.sellPriceQAR : null;
+                              const net = buyCost != null && revenue != null
+                                ? revenue - buyCost - (linkedTrade!.feeQAR || 0)
+                                : null;
+                              return (
+                                <div key={row.loan.id} className="panel loan-order-card">
+                                  <div className="loan-order-card-top">
+                                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{fmtDate(row.loan.ts)}</span>
+                                    <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                      {row.settled ? t('loanStatusClosed') : `${row.ageDays}${t('loanDaysShort')}`}
+                                    </span>
+                                  </div>
+                                  <div className="loan-order-card-grid">
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColQarAmount')}</div>
+                                      <span className="loan-num">{formatMoney(row.principal)}</span>
+                                    </div>
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColPaid')}</div>
+                                      <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</span>
+                                    </div>
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColRemaining')}</div>
+                                      <span className="loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
+                                        {formatMoney(row.remaining)}
+                                      </span>
+                                    </div>
+                                    {isExchangeLoan && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColEgpAmount')}</div>
+                                        <span className="loan-num">{fmtTotal(linkedTrade!.originalFiatAmount || 0)}</span>
+                                      </div>
+                                    )}
+                                    {linkedTrade && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColUsdtAmount')}</div>
+                                        <span className="mono">{fmtU(linkedTrade.amountUSDT)}</span>
+                                      </div>
+                                    )}
+                                    {qarToEgpRate != null && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColRateQarEgp')}</div>
+                                        <span className="mono">{fmtP(qarToEgpRate)}</span>
+                                      </div>
+                                    )}
+                                    {usdtToQarRate && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColRateUsdtQar')}</div>
+                                        <span className="mono">{fmtP(usdtToQarRate)}</span>
+                                      </div>
+                                    )}
+                                    {p2pPrice != null && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColP2pPrice')}</div>
+                                        <span className="mono">{fmtP(p2pPrice)}</span>
+                                      </div>
+                                    )}
+                                    {avgBuyRate != null && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColBuy')}</div>
+                                        <span className="mono">{fmtP(avgBuyRate)}</span>
+                                      </div>
+                                    )}
+                                    {net != null && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColNet')}</div>
+                                        <span className="loan-num" style={{ color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                          {net >= 0 ? '+' : ''}{formatMoney(net)}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                                    {!row.settled && (
+                                      <button
+                                        className="rowBtn"
+                                        style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }}
+                                        onClick={() => setRepayingLoan(row.loan)}
+                                      >
+                                        + {t('loanAddRepayment')}
+                                      </button>
+                                    )}
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }}
+                                      onClick={() => setEditingLoan(row.loan)}
+                                    >
+                                      {t('edit')}
+                                    </button>
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, color: 'var(--bad)' }}
+                                      onClick={() => setDeleteLoanConfirmId(row.loan.id)}
+                                    >
+                                      {t('delete')}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            };
                             return (
                               <div>
                                 <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
+                                {isMobile ? (
+                                  openLoanRows.length === 0 ? (
+                                    <div className="empty" style={{ padding: '14px 0' }}>
+                                      <div className="empty-s">{t('loanNoOpenOrders')}</div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'grid', gap: 8 }}>
+                                      {openLoanRows.map(loanCard)}
+                                    </div>
+                                  )
+                                ) : (
                                 <div className="tableWrap">
                                   <table className="acct-table">
                                     <thead>
@@ -3384,6 +3507,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </tfoot>
                                   </table>
                                 </div>
+                                )}
                               </div>
                             );
                           })()}
@@ -3434,6 +3558,86 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 )
                               )}
                             </div>
+                            {isMobile ? (
+                              payments.length === 0 ? (
+                                <div className="empty" style={{ padding: '14px 0' }}>
+                                  <div className="empty-s">{t('loanNoPaymentsYet')}</div>
+                                </div>
+                              ) : (
+                              <div style={{ display: 'grid', gap: 8 }}>
+                                {[...paymentGroups].reverse().map(group => {
+                                  const isBatch = group.members.length > 1;
+                                  const isExpanded = expandedPaymentGroups.has(group.id);
+                                  const single = !isBatch ? group.members[0] : null;
+                                  const target = single ? findRepayment(single) : null;
+                                  return (
+                                    <div key={group.id} className="panel loan-payment-card">
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {isMergingHere && (
+                                          <input
+                                            type="checkbox"
+                                            checked={mergePaymentSelection.has(group.id)}
+                                            onChange={() => toggleMergeSelection(group.id)}
+                                          />
+                                        )}
+                                        <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{fmtTs(group.ts)}</span>
+                                        <span className="loan-num" style={{ color: 'var(--good)', marginInlineStart: 'auto' }}>+{formatMoney(group.credit)}</span>
+                                      </div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                                        {isBatch ? (
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '3px 8px', fontSize: 9.5 }}
+                                            onClick={() => togglePaymentGroup(group.id)}
+                                          >
+                                            {isExpanded ? '▾' : '▸'} {t('loanSplitPaymentBadge').replace('{n}', String(group.members.length))}
+                                          </button>
+                                        ) : (
+                                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{group.refs[0]}</span>
+                                        )}
+                                        {group.accountName && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{group.accountName}</span>}
+                                      </div>
+                                      {group.description && (
+                                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{group.description}</div>
+                                      )}
+                                      {!isMergingHere && target && (
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }} onClick={() => setEditingRepayment(target)}>{t('edit')}</button>
+                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(target)}>{t('delete')}</button>
+                                        </div>
+                                      )}
+                                      {!isMergingHere && !target && isBatch && (
+                                        <div style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>
+                                          {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
+                                        </div>
+                                      )}
+                                      {isBatch && isExpanded && (
+                                        <div style={{ display: 'grid', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
+                                          {group.members.map(m => {
+                                            const memberTarget = findRepayment(m);
+                                            return (
+                                              <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 10 }}>
+                                                <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(m.ts)}</span>
+                                                <span className="mono">{m.ref}</span>
+                                                <span className="loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(m.credit)}</span>
+                                                <span style={{ color: 'var(--muted)' }}>{m.accountName || '—'}</span>
+                                                {!isMergingHere && memberTarget && (
+                                                  <div style={{ display: 'flex', gap: 4, marginInlineStart: 'auto' }}>
+                                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingRepayment(memberTarget)}>{t('edit')}</button>
+                                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(memberTarget)}>{t('delete')}</button>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              )
+                            ) : (
                             <div className="tableWrap">
                               <table className="acct-table">
                                 <thead>
@@ -3563,6 +3767,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 )}
                               </table>
                             </div>
+                            )}
                           </div>
                         </div>
                       )}
