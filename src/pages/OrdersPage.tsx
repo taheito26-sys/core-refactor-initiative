@@ -4330,7 +4330,14 @@ export default function OrdersPage() {
                       <input
                         type="checkbox"
                         checked={newSaleSplitOpen}
-                        onChange={e => { setNewSaleSplitOpen(e.target.checked); setNewSaleSplitAmount(''); setNewSaleSplitCustomerId(''); }}
+                        onChange={e => {
+                          setNewSaleSplitOpen(e.target.checked);
+                          // Default to moving the whole amount being registered — the
+                          // common case is "this order should have gone entirely to
+                          // the other customer"; dial it down for a partial split.
+                          setNewSaleSplitAmount(e.target.checked ? String(saleDraft.quantityUsdt || '') : '');
+                          setNewSaleSplitCustomerId('');
+                        }}
                         style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
                       />
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
