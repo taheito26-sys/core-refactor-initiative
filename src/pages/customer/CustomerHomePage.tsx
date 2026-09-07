@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet, Calculator } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet, Calculator, Clock, Users, Landmark } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -125,6 +125,54 @@ export default function CustomerHomePage() {
     const currency = historyStatements[0]?.currency ?? 'QAR';
     const settledPct = totalDebt > 0 ? Math.min(100, Math.round((totalPaid / totalDebt) * 100)) : 0;
     return { totalDebt, totalPaid, outstanding, currency, settledPct };
+  }, [historyStatements]);
+
+  // How old the oldest still-open order is, and how many have crossed the
+  // 30-day mark — the same aging signal the merchant sees on their side,
+  // computed from the order rows already inside historyStatements.
+  const agingStats = useMemo(() => {
+    const now = Date.now();
+    let oldestDays = 0, overdueCount = 0, openCount = 0;
+    for (const s of historyStatements) {
+      for (const o of s.orders) {
+        if (o.remaining <= 0) continue;
+        openCount += 1;
+        const days = Math.floor((now - o.date) / 86400000);
+        if (days > oldestDays) oldestDays = days;
+        if (days > 30) overdueCount += 1;
+      }
+    }
+    return { oldestDays, overdueCount, openCount };
+  }, [historyStatements]);
+
+  // Average/largest order size — the same received+approved order set the
+  // "Volume" tiles above already sum, just viewed per-order instead of as a
+  // running total.
+  const orderSizeStats = useMemo(() => {
+    const amounts = orders
+      .filter(o => o.placed_by_role === 'merchant' && o.workflow_status === 'approved')
+      .map(o => o.amount ?? 0)
+      .filter(a => a > 0);
+    if (amounts.length === 0) return { avg: 0, largest: 0, count: 0 };
+    return {
+      avg: amounts.reduce((s, a) => s + a, 0) / amounts.length,
+      largest: Math.max(...amounts),
+      count: amounts.length,
+    };
+  }, [orders]);
+
+  // Payment history stats — reuses historyStatements' payments array, which
+  // is the same data the debt-settlement progress bar above already sums.
+  const paymentStats = useMemo(() => {
+    let count = 0, total = 0, lastTs: number | null = null;
+    for (const s of historyStatements) {
+      for (const p of s.payments) {
+        count += 1;
+        total += p.amount;
+        if (lastTs == null || p.date > lastTs) lastTs = p.date;
+      }
+    }
+    return { count, avg: count > 0 ? total / count : 0, lastTs, currency: historyStatements[0]?.currency ?? 'QAR' };
   }, [historyStatements]);
 
   const { data: connections = [] } = useQuery({
@@ -303,6 +351,21 @@ export default function CustomerHomePage() {
             <p className="text-sm font-semibold">{metrics.needsAction.length} {L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}</p>
             <p className="text-xs text-muted-foreground">
               {metrics.needsAction.length > 0 && L('Review quotes', 'راجع العروض')}
+            </p>
+          </div>
+        </button>
+      )}
+
+      {/* Overdue balance warning — only once something has actually crossed 30 days */}
+      {agingStats.overdueCount > 0 && (
+        <button onClick={() => navigate('/c/wallet')} className="flex w-full items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-left active:scale-[0.99]">
+          <Clock className="h-5 w-5 shrink-0 text-rose-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              {L(`${agingStats.overdueCount} order(s) overdue`, `${agingStats.overdueCount} طلب متأخر السداد`)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {L(`Oldest is ${agingStats.oldestDays} days old`, `الأقدم منذ ${agingStats.oldestDays} يوماً`)}
             </p>
           </div>
         </button>
@@ -541,6 +604,62 @@ export default function CustomerHomePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Order size — average and largest, same completed/received order set as Volume above */}
+      {orderSizeStats.count > 0 && (
+        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Order Size', 'حجم الطلب')} ({getLocalizedCurrencyName('QAR', lang)})</p>
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-border/40">
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Average', 'المتوسط')}</p>
+              <p className="text-lg font-black tabular-nums">{fmt(orderSizeStats.avg)}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Largest', 'الأكبر')}</p>
+              <p className="text-lg font-black tabular-nums">{fmt(orderSizeStats.largest)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment history stats — same payments data behind the settlement progress bar above */}
+      {paymentStats.count > 0 && (
+        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Payment History', 'سجل الدفعات')}</p>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-border/40">
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Payments', 'الدفعات')}</p>
+              <p className="text-lg font-black tabular-nums">{paymentStats.count}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Average', 'المتوسط')}</p>
+              <p className="text-lg font-black tabular-nums">{fmt(paymentStats.avg)}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Last Payment', 'آخر دفعة')}</p>
+              <p className="text-xs font-bold mt-1.5">
+                {paymentStats.lastTs != null ? formatCustomerDate(new Date(paymentStats.lastTs), lang) : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Network — quick link to the merchants tab, richer than a bare count */}
+      {connections.length > 0 && (
+        <button onClick={() => navigate('/c/merchants')} className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3.5 text-left active:scale-[0.99]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Users className="h-4.5 w-4.5" /></div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">{connections.length} {connections.length === 1 ? L('Connected Merchant', 'تاجر متصل') : L('Connected Merchants', 'تجار متصلون')}</p>
+            <p className="text-xs text-muted-foreground">{L('View your network', 'عرض شبكتك')}</p>
+          </div>
+          <Landmark className="h-4 w-4 text-muted-foreground shrink-0" />
+        </button>
       )}
 
       {/* New order CTA */}

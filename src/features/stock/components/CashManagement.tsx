@@ -2000,7 +2000,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     }),
     [loans, customerList, state.trades, accounts],
   );
-  const bookTotals = useMemo(() => totalsByCurrency(buyerStatements), [buyerStatements]);
   const receivableStatements = useMemo(() => (
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
   ), [buyerStatements, loanQuery]);
@@ -2057,6 +2056,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     }
     return scoped;
   }, [receivableStatements, selectedLoanMonth]);
+
+  // The per-currency book row above the list must total whatever the list
+  // beneath it is actually showing — all-time when no month is picked,
+  // that month's loaned/repaid/outstanding once one is. Before this, the
+  // row kept summing every buyer's all-time totals regardless of the month
+  // pill, so it never matched the (correctly) month-scoped list below it.
+  const bookTotals = useMemo(() => totalsByCurrency(visibleReceivableStatements), [visibleReceivableStatements]);
 
   /** The live loan and repayment behind a statement payment row, for editing it. */
   const findRepayment = useCallback((entry: StatementEntry) => {
