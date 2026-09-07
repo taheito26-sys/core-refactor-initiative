@@ -5305,7 +5305,28 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}{splitOpen ? ` · ${t('splitRemainsOnOrder') || 'remains on this order'}` : ''}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved || splitOpen} style={mobileInputStyle} /></div>
+                  <div className="inputBox">
+                    <input
+                      inputMode="decimal"
+                      value={editQty}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                        setEditQty(v);
+                        // Two-way mirror with "Amount to move": whichever
+                        // field the merchant types into, the other recomputes
+                        // from the order's real saved total so they always
+                        // add back up to the original amount.
+                        if (splitOpen && editingTrade) {
+                          const stays = Number(v) || 0;
+                          const moved = Math.max(0, editingTrade.amountUSDT - stays);
+                          setSplitAmount(String(moved));
+                        }
+                      }}
+                      disabled={isApproved}
+                      style={mobileInputStyle}
+                    />
+                  </div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
