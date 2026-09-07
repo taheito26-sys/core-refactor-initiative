@@ -560,16 +560,21 @@ export default function CustomerOrdersPage() {
       for (const b of s.binanceOrders ?? []) {
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
+        // A trade with no matching loan was already settled at the time of
+        // the trade — nothing to track here, and showing it duplicated the
+        // loan-linked row for the same order with an empty "fully paid"
+        // card. Skip it; only loan-linked trades get a row.
+        if (!loan) continue;
         rows.push({
           key: b.orderNumber || b.tradeId,
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
-          loaned: !!loan,
-          settled: loan?.settled ?? false,
-          loanCurrency: loan ? s.currency : null,
-          loanAmount: loan?.amount ?? null,
-          loanPaid: loan?.paid ?? null,
+          loaned: true,
+          settled: loan.settled,
+          loanCurrency: s.currency,
+          loanAmount: loan.amount,
+          loanPaid: loan.paid,
         });
       }
       // Loans with no linked Binance trade (manually recorded) still need a
