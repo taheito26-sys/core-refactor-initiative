@@ -1515,7 +1515,7 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {o.loaned && o.loanAmount != null ? (
+                    {o.loaned && o.loanAmount != null && (
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
@@ -1538,10 +1538,6 @@ export default function CustomerOrdersPage() {
                         >
                           {settledPct ?? 0}%
                         </span>
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 10 }}>
-                        <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                       </div>
                     )}
                   </div>
@@ -1574,7 +1570,7 @@ export default function CustomerOrdersPage() {
                           {o.loanAmount != null ? `${Math.round(o.loanAmount).toLocaleString()} ${o.loanCurrency}` : '—'}
                         </td>
                         <td>
-                          {o.loaned && o.loanAmount != null ? (
+                          {o.loaned && o.loanAmount != null && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
                               <div style={{ flex: 1 }}>
                                 <div className="prog" style={{ height: 7 }}>
@@ -1595,8 +1591,6 @@ export default function CustomerOrdersPage() {
                                 {settledPct ?? 0}%
                               </span>
                             </div>
-                          ) : (
-                            <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                           )}
                         </td>
                       </tr>
