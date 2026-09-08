@@ -1649,7 +1649,10 @@ export default function OrdersPage() {
       if (merchantOrderEnabled) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
       if (isLoanSale) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
       if (cashDepositMode !== 'none') { setSaleMessage(t('splitBlockedComplexOrder')); return; }
-      const splitError = validateSplitOrder(splitAmountNum, amountUSDT, newSaleSplitCustomerId);
+      // Validate against the anchor (the true pre-split total), not
+      // amountUSDT -- in USDT+Total/USDT+Price modes amountUSDT is already
+      // the mirrored-down remainder by this point, not the whole order.
+      const splitError = validateSplitOrder(splitAmountNum, newSaleSplitAnchorTotal, newSaleSplitCustomerId);
       if (splitError === 'invalid_amount') { setSaleMessage(t('splitAmountInvalid')); return; }
       if (splitError === 'amount_too_large') { setSaleMessage(t('splitAmountTooLarge')); return; }
       if (splitError === 'no_target_customer') { setSaleMessage(t('splitCustomerRequired')); return; }
@@ -2090,8 +2093,18 @@ export default function OrdersPage() {
       // Register the sale already carved into two trades -- the remainder
       // under this buyer, the split-off amount under the second buyer --
       // instead of saving the full amount and reopening Edit to split later.
+      //
+      // baseTrade.amountUSDT is NOT the pre-split total here: in USDT+Total
+      // and USDT+Price modes the quantity field is two-way mirrored against
+      // "Amount to move" (see handleSaleUsdtQtyChange), so by the time the
+      // form is submitted it already shows the post-split remainder, not
+      // the whole order. Feeding that into splitOrder() would subtract the
+      // split amount a second time. newSaleSplitAnchorTotal is the one
+      // fixed reference to the true full amount (captured when Split was
+      // checked), so it -- not baseTrade.amountUSDT -- is what splitOrder
+      // must treat as the order's starting total.
       const { primaryTrade, secondTrade } = splitOrder({
-        trade: baseTrade,
+        trade: { ...baseTrade, amountUSDT: newSaleSplitAnchorTotal },
         splitAmountUsdt: splitAmountNum,
         targetCustomerId: newSaleSplitCustomerId,
         newTradeId: uid(),

@@ -214,6 +214,30 @@ describe('splitOrder', () => {
     expect(secondTrade.sellPriceQAR).toBe(3.8);
   });
 
+  it('regression: splits against the true original total, not an already-reduced remainder', () => {
+    // Reproduces a real production incident: the New Sale form's quantity
+    // field is two-way mirrored against "Amount to move" as the merchant
+    // types, so by the time the order is registered that field already
+    // shows the post-split remainder (3882), not the whole imported order
+    // (4479.66). Calling splitOrder with that already-reduced number as
+    // `trade.amountUSDT` silently subtracts the split amount a second time
+    // (3882 - 597.66 = 3284.34, not 3882) -- callers must always pass the
+    // true pre-split total (the anchor captured when Split was checked),
+    // never whatever the quantity input currently displays.
+    const trade = makeTrade({ amountUSDT: 4479.66 });
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade,
+      splitAmountUsdt: 597.66,
+      targetCustomerId: 'customer-b',
+      newTradeId: 'trade-2',
+      atRegistration: true,
+    });
+
+    expect(primaryTrade.amountUSDT).toBe(3882);
+    expect(secondTrade.amountUSDT).toBe(597.66);
+    expect(primaryTrade.amountUSDT + secondTrade.amountUSDT).toBe(4479.66);
+  });
+
   it('never mutates the original trade object passed in', () => {
     const trade = makeTrade({ amountUSDT: 1000 });
     const frozen = JSON.parse(JSON.stringify(trade));
