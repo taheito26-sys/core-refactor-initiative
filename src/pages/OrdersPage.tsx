@@ -923,6 +923,39 @@ export default function OrdersPage() {
     return new Set(customerIdsByCanonicalName.get(canonicalizeName(selected.name)) ?? [buyerFilter]);
   }, [buyerFilter, state.customers, customerIdsByCanonicalName]);
 
+  // The currently filtered buyer, when their name matches a connected
+  // customer but some of their trades were recorded under buyerType other
+  // than 'connected_customer' (e.g. auto-created from an exchange import).
+  // Those trades never mirror into customer_orders, so the buyer's own
+  // portal shows fewer orders than the merchant sees. Offer an explicit,
+  // merchant-confirmed action to relink them rather than inferring this
+  // silently — the mirror path intentionally never matches by name alone.
+  const buyerLinkCandidate = useMemo(() => {
+    if (!buyerFilter) return null;
+    const selected = state.customers.find(c => c.id === buyerFilter);
+    if (!selected) return null;
+    const key = canonicalizeName(selected.name);
+    const connected = connectedCustomers.find(c => canonicalizeName(c.name) === key);
+    if (!connected) return null;
+    const unlinkedCount = state.trades.filter(t => (
+      !t.voided && t.customerId === selected.id && t.buyerType !== 'connected_customer'
+    )).length;
+    if (unlinkedCount === 0) return null;
+    return { localCustomerId: selected.id, connectedCustomerId: connected.customerUserId, connectedName: connected.name, unlinkedCount };
+  }, [buyerFilter, state.customers, connectedCustomers, state.trades]);
+
+  const linkBuyerToPortal = useCallback(() => {
+    if (!buyerLinkCandidate) return;
+    const { localCustomerId, connectedCustomerId, unlinkedCount } = buyerLinkCandidate;
+    const nextTrades = state.trades.map(t => {
+      if (t.customerId !== localCustomerId || t.buyerType === 'connected_customer') return t;
+      const { mirrorStatus: _mirrorStatus, ...rest } = t;
+      return { ...rest, buyerType: 'connected_customer' as const, connectedCustomerId };
+    });
+    applyState({ ...state, trades: nextTrades });
+    toast.success(`Linking ${unlinkedCount} order${unlinkedCount === 1 ? '' : 's'} to ${buyerLinkCandidate.connectedName}'s portal…`);
+  }, [buyerLinkCandidate, state, applyState]);
+
   const filtered = useMemo(() => {
     return list.filter(t => {
       if (query) {
@@ -3632,6 +3665,16 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                {buyerLinkCandidate && (
+                  <button
+                    className="rowBtn"
+                    style={{ fontSize: 11 }}
+                    onClick={linkBuyerToPortal}
+                    title={`${buyerLinkCandidate.unlinkedCount} order(s) were never synced to ${buyerLinkCandidate.connectedName}'s portal`}
+                  >
+                    🔗 Sync {buyerLinkCandidate.unlinkedCount} order{buyerLinkCandidate.unlinkedCount === 1 ? '' : 's'} to portal
+                  </button>
+                )}
                 <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
                   <input
                     type="number"
