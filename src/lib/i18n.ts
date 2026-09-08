@@ -1083,6 +1083,8 @@ const translations = {
   splitOrderHint: { en: 'Move part of this order to a different customer — the rest stays on this order.', ar: 'انقل جزءًا من هذا الطلب إلى عميل آخر — يبقى الباقي على هذا الطلب.' },
   splitAmountLabel: { en: 'Amount to move (USDT)', ar: 'الكمية المراد نقلها (USDT)' },
   splitCustomerLabel: { en: 'Move to customer', ar: 'نقل إلى العميل' },
+  splitSellPriceLabel: { en: 'Sell price for split-off amount', ar: 'سعر البيع للكمية المنقولة' },
+  splitSellPriceHint: { en: 'Leave blank to use the same sell price as the rest of the order.', ar: 'اتركه فارغًا لاستخدام نفس سعر بيع باقي الطلب.' },
   splitOrderButton: { en: 'Split Order', ar: 'تقسيم الطلب' },
   splitAmountInvalid: { en: 'Enter a valid amount to split off', ar: 'أدخل كمية صالحة للتقسيم' },
   splitAmountTooLarge: { en: 'Split amount must be less than the order total', ar: 'يجب أن تكون كمية التقسيم أقل من إجمالي الطلب' },

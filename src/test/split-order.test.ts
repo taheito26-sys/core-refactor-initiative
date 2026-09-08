@@ -188,6 +188,32 @@ describe('splitOrder', () => {
     })).toThrow();
   });
 
+  it('gives the split-off trade its own sell price when one is provided', () => {
+    const trade = makeTrade({ amountUSDT: 1000, sellPriceQAR: 3.8 });
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade,
+      splitAmountUsdt: 300,
+      targetCustomerId: 'customer-b',
+      newTradeId: 'trade-2',
+      secondSellPriceQAR: 4.1,
+    });
+
+    expect(primaryTrade.sellPriceQAR).toBe(3.8);
+    expect(secondTrade.sellPriceQAR).toBe(4.1);
+  });
+
+  it('falls back to the original rate for the split-off trade when no separate price is given', () => {
+    const trade = makeTrade({ sellPriceQAR: 3.8 });
+    const { secondTrade } = splitOrder({
+      trade,
+      splitAmountUsdt: 300,
+      targetCustomerId: 'customer-b',
+      newTradeId: 'trade-2',
+    });
+
+    expect(secondTrade.sellPriceQAR).toBe(3.8);
+  });
+
   it('never mutates the original trade object passed in', () => {
     const trade = makeTrade({ amountUSDT: 1000 });
     const frozen = JSON.parse(JSON.stringify(trade));

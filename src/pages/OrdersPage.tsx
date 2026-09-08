@@ -129,6 +129,15 @@ export default function OrdersPage() {
   const [newSaleSplitOpen, setNewSaleSplitOpen] = useState(false);
   const [newSaleSplitAmount, setNewSaleSplitAmount] = useState('');
   const [newSaleSplitCustomerId, setNewSaleSplitCustomerId] = useState('');
+  // Separate sell price for the split-off portion -- the two buyers on a
+  // split order don't necessarily pay the same rate. Defaults to the main
+  // sell price but is independently editable.
+  const [newSaleSplitSellPrice, setNewSaleSplitSellPrice] = useState('');
+  // The total USDT this split is carved out of, frozen at the moment Split
+  // is checked so "Amount to move" and the quantity field can mirror each
+  // other (typing into either recomputes the other from this fixed total)
+  // without the anchor itself drifting as the merchant types.
+  const [newSaleSplitAnchorTotal, setNewSaleSplitAnchorTotal] = useState(0);
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
   const [manualBuyPrice, setManualBuyPrice] = useState('');
@@ -252,6 +261,24 @@ export default function OrdersPage() {
     if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
   };
 
+  /**
+   * saleUsdtQty's onChange for the USDT+Total and USDT+Price entry modes.
+   * When the split panel is open, mirrors into "Amount to move" so the two
+   * fields always add back up to newSaleSplitAnchorTotal — typing a smaller
+   * total here moves the difference to the second buyer, and vice versa via
+   * the split amount field's own handler.
+   */
+  const handleSaleUsdtQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleUsdtQty(v);
+    if (newSaleSplitOpen) {
+      const stays = Number(v) || 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
+  };
+
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
   const [newBuyerName, setNewBuyerName] = useState('');
@@ -290,6 +317,10 @@ export default function OrdersPage() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitAmount, setSplitAmount] = useState('');
   const [splitCustomerId, setSplitCustomerId] = useState('');
+  // Separate sell price for the split-off portion — defaults to the order's
+  // own rate but is independently editable (the two buyers on a split order
+  // don't necessarily pay the same price).
+  const [splitSellPrice, setSplitSellPrice] = useState('');
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -416,22 +447,28 @@ export default function OrdersPage() {
     saleSell,
     saleFee,
   }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
-  // Keeps "Amount to move" pinned to the sale's live USDT quantity while the
-  // split panel is open -- e.g. an imported order's Amount/Sell Price fields
-  // get filled in after Split is already checked, and the prefilled split
-  // amount must track that recalculation, not freeze at whatever quantity
-  // existed the moment the checkbox was ticked. Stops following once the
+  // Anchor + mirroring for the split panel. In the USDT+Total and USDT+Price
+  // entry modes the raw quantity field (saleUsdtQty) and "Amount to move"
+  // mirror each other directly through their own onChange handlers below,
+  // against a fixed anchor captured when Split is checked -- typing into
+  // either recomputes the other so they always add back up to the anchor.
+  // Price+Volume mode has no raw quantity field (the total is derived from
+  // Amount/Sell Price), so this effect instead keeps "Amount to move"
+  // tracking that derived total live -- e.g. an imported order whose Sell
+  // Price gets typed in after Split is already checked -- until the
   // merchant types a value of their own for a genuine partial split.
   const lastAutoSplitAmountRef = useRef('');
   useEffect(() => {
-    if (!newSaleSplitOpen) return;
+    if (!newSaleSplitOpen) { lastAutoSplitAmountRef.current = ''; return; }
+    if (saleEntryMode !== 'price_vol') return;
     const liveQty = String(saleDraft.quantityUsdt || '');
     if (newSaleSplitAmount === lastAutoSplitAmountRef.current) {
       setNewSaleSplitAmount(liveQty);
+      setNewSaleSplitAnchorTotal(saleDraft.quantityUsdt || 0);
     }
     lastAutoSplitAmountRef.current = liveQty;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saleDraft.quantityUsdt, newSaleSplitOpen]);
+  }, [saleDraft.quantityUsdt, newSaleSplitOpen, saleEntryMode]);
 
   const availableFifoUsdt = useMemo(
     () => derived.batches.reduce((sum, b) => sum + Math.max(0, b.remainingUSDT), 0),
@@ -2059,6 +2096,7 @@ export default function OrdersPage() {
         targetCustomerId: newSaleSplitCustomerId,
         newTradeId: uid(),
         atRegistration: true,
+        secondSellPriceQAR: parseFloat(newSaleSplitSellPrice) || undefined,
       });
       const secondBuyerName = state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || '';
 
@@ -2141,6 +2179,8 @@ export default function OrdersPage() {
     setNewSaleSplitOpen(false);
     setNewSaleSplitAmount('');
     setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     // Close mobile sheet after successful submission
     if (isMobile) setNewSaleSheetOpen(false);
   };
@@ -2235,6 +2275,7 @@ export default function OrdersPage() {
     setSplitOpen(false);
     setSplitAmount('');
     setSplitCustomerId('');
+    setSplitSellPrice('');
   };
 
   /**
@@ -2273,6 +2314,7 @@ export default function OrdersPage() {
       splitAmountUsdt: amount,
       targetCustomerId: splitCustomerId,
       newTradeId: uid(),
+      secondSellPriceQAR: parseFloat(splitSellPrice) || undefined,
     });
 
     const nextTrades = state.trades.map(tr => (tr.id === editingTradeId ? primaryTrade : tr));
@@ -4247,7 +4289,7 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={handleSaleUsdtQtyChange} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{totalReceivedLabel}</div>
@@ -4265,7 +4307,7 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={handleSaleUsdtQtyChange} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
@@ -4352,8 +4394,11 @@ export default function OrdersPage() {
                           // Default to moving the whole amount being registered — the
                           // common case is "this order should have gone entirely to
                           // the other customer"; dial it down for a partial split.
-                          setNewSaleSplitAmount(e.target.checked ? String(saleDraft.quantityUsdt || '') : '');
+                          const anchor = saleDraft.quantityUsdt || 0;
+                          setNewSaleSplitAnchorTotal(anchor);
+                          setNewSaleSplitAmount(e.target.checked ? String(anchor || '') : '');
                           setNewSaleSplitCustomerId('');
+                          setNewSaleSplitSellPrice(e.target.checked ? saleSell : '');
                         }}
                         style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
                       />
@@ -4373,6 +4418,14 @@ export default function OrdersPage() {
                                   const v = e.target.value;
                                   if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
                                   setNewSaleSplitAmount(v);
+                                  // Two-way mirror with the quantity field in
+                                  // USDT+Total/USDT+Price modes: the two must
+                                  // always add back up to the anchor total.
+                                  if (saleEntryMode !== 'price_vol') {
+                                    const moved = Number(v) || 0;
+                                    const stays = Math.max(0, newSaleSplitAnchorTotal - moved);
+                                    setSaleUsdtQty(String(stays));
+                                  }
                                 }}
                                 style={mobileInputStyle}
                               />
@@ -4389,6 +4442,23 @@ export default function OrdersPage() {
                               ))}
                             </select>
                           </div>
+                        </div>
+                        <div className="field2" style={{ marginTop: 10 }}>
+                          <div className="lbl">{t('splitSellPriceLabel')}</div>
+                          <div className="inputBox">
+                            <input
+                              inputMode="decimal"
+                              placeholder={saleSell || '0.00'}
+                              value={newSaleSplitSellPrice}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                setNewSaleSplitSellPrice(v);
+                              }}
+                              style={mobileInputStyle}
+                            />
+                          </div>
+                          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('splitSellPriceHint')}</div>
                         </div>
                       </div>
                     )}
@@ -5495,6 +5565,7 @@ export default function OrdersPage() {
                       onChange={e => {
                         setSplitOpen(e.target.checked);
                         setSplitAmount('');
+                        setSplitSellPrice(e.target.checked ? editSell : '');
                         // Closing the section (or opening it fresh) should
                         // leave QTY USDT showing the order's real, saved
                         // amount — not a leftover live-preview remainder from
@@ -5542,6 +5613,23 @@ export default function OrdersPage() {
                             ))}
                           </select>
                         </div>
+                      </div>
+                      <div className="field2" style={{ marginBottom: 10 }}>
+                        <div className="lbl">{t('splitSellPriceLabel')}</div>
+                        <div className="inputBox">
+                          <input
+                            inputMode="decimal"
+                            placeholder={editSell || '0.00'}
+                            value={splitSellPrice}
+                            onChange={e => {
+                              const v = e.target.value;
+                              if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                              setSplitSellPrice(v);
+                            }}
+                            style={mobileInputStyle}
+                          />
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('splitSellPriceHint')}</div>
                       </div>
                       <button
                         onClick={splitEditingTrade}

@@ -6,6 +6,8 @@ export interface SplitOrderInput {
   targetCustomerId: string;
   newTradeId: string;
   atRegistration?: boolean;
+  /** Sell price for the split-off portion, when it differs from the original order's rate. Defaults to `trade.sellPriceQAR`. */
+  secondSellPriceQAR?: number;
 }
 
 export interface SplitOrderResult {
@@ -47,6 +49,7 @@ export function splitOrder({
   targetCustomerId,
   newTradeId,
   atRegistration = false,
+  secondSellPriceQAR,
 }: SplitOrderInput): SplitOrderResult {
   const error = validateSplitOrder(splitAmountUsdt, trade.amountUSDT, targetCustomerId);
   if (error) {
@@ -87,6 +90,7 @@ export function splitOrder({
     id: newTradeId,
     amountUSDT: splitAmountUsdt,
     customerId: targetCustomerId,
+    sellPriceQAR: secondSellPriceQAR != null && secondSellPriceQAR > 0 ? secondSellPriceQAR : trade.sellPriceQAR,
     note: trade.note ? `${trade.note} (split from original order)` : 'Split from original order',
     revisions: [],
   };
