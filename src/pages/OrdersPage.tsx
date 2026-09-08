@@ -1198,7 +1198,12 @@ export default function OrdersPage() {
     const splitAmount = Number(newSaleSplitAmount);
     if (!(splitAmount > 0)) return null;
     const ts = new Date(saleDate).getTime();
-    const remainderQty = saleDraft.quantityUsdt;
+    // Computed directly off the anchor, never off the live Amount field --
+    // that field only mirrors the remainder when its own onChange fires, so
+    // reading it back here went stale the moment the split checkbox was
+    // toggled on (before any field had a chance to sync) or the USDT/QAR
+    // mode was switched, leaving both preview legs showing the full total.
+    const remainderQty = Math.max(0, newSaleSplitAnchorTotal - splitAmount);
     const splitSell = parseFloat(newSaleSplitSellPrice) || saleDraft.sellPriceQar;
     if (!(remainderQty >= 0) || !(splitSell > 0) || !Number.isFinite(ts)) return null;
 
@@ -1228,7 +1233,7 @@ export default function OrdersPage() {
       };
     };
     return { remainder: legFor(remainderTrade), split: legFor(splitTrade) };
-  }, [newSaleSplitOpen, newSaleSplitAmount, newSaleSplitSellPrice, saleDate, saleDraft, state.batches, state.trades]);
+  }, [newSaleSplitOpen, newSaleSplitAmount, newSaleSplitAnchorTotal, newSaleSplitSellPrice, saleDate, saleDraft, state.batches, state.trades]);
 
   const fifoDisplayUnitCost = useMemo(() => {
     if (priceMode !== 'fifo' || !saleFifoPreview) return null;
@@ -2214,10 +2219,36 @@ export default function OrdersPage() {
       });
       const secondBuyerName = state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || '';
 
+      // Split orders can be loaned too -- each half owes its own customer for
+      // its own amount at its own sell price, so this creates one loan per
+      // leg rather than a single loan for the pre-split total.
+      const splitLoans: CustomerLoan[] = [];
+      if (isLoanSale) {
+        if (primaryTrade.customerId) {
+          splitLoans.push({
+            id: uid(), ts, customerId: primaryTrade.customerId, tradeId: primaryTrade.id,
+            principal: Math.max(0, primaryTrade.sellPriceQAR * primaryTrade.amountUSDT),
+            currency: baseFiat as CashCurrency,
+            note: `${t('loanFromOrder')} ${fmtU(primaryTrade.amountUSDT)} USDT @ ${fmtP(primaryTrade.sellPriceQAR)}`,
+            repayments: [], status: 'open', createdAt: Date.now(),
+          });
+        }
+        if (secondTrade.customerId) {
+          splitLoans.push({
+            id: uid(), ts, customerId: secondTrade.customerId, tradeId: secondTrade.id,
+            principal: Math.max(0, secondTrade.sellPriceQAR * secondTrade.amountUSDT),
+            currency: baseFiat as CashCurrency,
+            note: `${t('loanFromOrder')} ${fmtU(secondTrade.amountUSDT)} USDT @ ${fmtP(secondTrade.sellPriceQAR)}`,
+            repayments: [], status: 'open', createdAt: Date.now(),
+          });
+        }
+      }
+
       const next: TrackerState = {
         ...state,
         customers: nextCustomers,
         trades: [...state.trades, primaryTrade, secondTrade],
+        customerLoans: splitLoans.length ? [...(state.customerLoans || []), ...splitLoans] : state.customerLoans,
         range: inRange(ts, state.range) ? state.range : 'all'
       };
       applyState(next);
@@ -4497,7 +4528,7 @@ export default function OrdersPage() {
                   🤝 {t('loanSaleCheckbox')}
                 </label>
 
-                {!isLoanSale && !merchantOrderEnabled && cashDepositMode === 'none' && (
+                {!merchantOrderEnabled && cashDepositMode === 'none' && (
                   <div style={{ marginTop: 10 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: newSaleSplitOpen ? 8 : 0 }}>
                       <input
@@ -4513,6 +4544,12 @@ export default function OrdersPage() {
                           setNewSaleSplitAmount(e.target.checked ? String(anchor || '') : '');
                           setNewSaleSplitCustomerId('');
                           setNewSaleSplitSellPrice(e.target.checked ? saleSell : '');
+                          // The Amount field must reflect what actually stays on
+                          // this order the instant the checkbox flips, not just
+                          // once the merchant starts typing into "Amount to
+                          // move" — otherwise it keeps showing the full total
+                          // (moving everything by default leaves nothing here).
+                          setQuantityFieldForMode(e.target.checked ? 0 : anchor);
                         }}
                         style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
                       />
