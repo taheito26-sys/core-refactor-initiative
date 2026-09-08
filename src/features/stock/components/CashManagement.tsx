@@ -29,6 +29,7 @@ import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
+import { canonicalizeName } from '@/lib/text-normalize';
 
 interface PublicStatementLink {
   id: string;
@@ -1972,6 +1973,54 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [loanQuery, setLoanQuery] = useState('');
 
   const customerList = useMemo(() => state.customers || [], [state.customers]);
+
+  // Connected customer-portal accounts, so a loan recorded against a
+  // customer_user_id that never got a local Customer row still resolves to
+  // a real name instead of falling back to the raw uuid — see connectedCustomers
+  // below, hoisted here so buyerStatements (right below) can use it.
+  const [connectedCustomers, setConnectedCustomers] = useState<ConnectedCustomer[]>([]);
+  const [connectedCustomersLoaded, setConnectedCustomersLoaded] = useState(false);
+
+  // A buyer can end up with two ids for the same person: a local Customer.id
+  // (from ensureCustomer / imports) and a connected customer's customer_user_id
+  // (from materializeListedCustomer). When both exist for the same canonical
+  // name, fold the connected id into the local one so loans/statements for
+  // that buyer combine into a single row instead of splitting across ids —
+  // and the local id wins so an edit/repayment still targets a real Customer.
+  const customerIdAlias = useMemo(() => {
+    const canonicalIdByName = new Map<string, string>();
+    for (const c of customerList) {
+      const key = canonicalizeName(c.name);
+      if (!canonicalIdByName.has(key)) canonicalIdByName.set(key, c.id);
+    }
+    const alias = new Map<string, string>();
+    for (const cc of connectedCustomers) {
+      const key = canonicalizeName(cc.display_name);
+      const canonicalId = canonicalIdByName.get(key);
+      if (canonicalId && canonicalId !== cc.customer_user_id) {
+        alias.set(cc.customer_user_id, canonicalId);
+      } else if (!canonicalIdByName.has(key)) {
+        canonicalIdByName.set(key, cc.customer_user_id);
+      }
+    }
+    return alias;
+  }, [customerList, connectedCustomers]);
+
+  // Fallback Customer rows for any connected customer_user_id that still has
+  // no matching local Customer row after aliasing above — keeps buildBuyerStatements
+  // from ever falling back to displaying a raw uuid as the buyer name.
+  const customersForStatements = useMemo(() => {
+    const known = new Set(customerList.map(c => c.id));
+    const extra: Customer[] = [];
+    for (const cc of connectedCustomers) {
+      if (customerIdAlias.has(cc.customer_user_id)) continue;
+      if (known.has(cc.customer_user_id)) continue;
+      known.add(cc.customer_user_id);
+      extra.push({ id: cc.customer_user_id, name: cc.display_name, phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '', createdAt: 0 });
+    }
+    return extra.length ? [...customerList, ...extra] : customerList;
+  }, [customerList, connectedCustomers, customerIdAlias]);
+
   const filteredLoans = useMemo(() => {
     if (!loanQuery.trim()) return loans;
     return loans.filter(l => loanMatchesQuery(l, customerList.find(c => c.id === l.customerId)?.name, loanQuery));
@@ -1991,14 +2040,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // receivables list shows only the buyers still carrying a balance; the
   // statement behind each row keeps the settled loans, so the document the
   // buyer receives is the full account and not just what is overdue today.
+  const loansForStatements = useMemo(() => {
+    if (customerIdAlias.size === 0) return loans;
+    return loans.map(l => {
+      const canonicalId = customerIdAlias.get(l.customerId);
+      return canonicalId ? { ...l, customerId: canonicalId } : l;
+    });
+  }, [loans, customerIdAlias]);
+
   const buyerStatements = useMemo(
     () => buildBuyerStatements({
-      loans,
-      customers: customerList,
+      loans: loansForStatements,
+      customers: customersForStatements,
       trades: state.trades || [],
       accounts,
     }),
-    [loans, customerList, state.trades, accounts],
+    [loansForStatements, customersForStatements, state.trades, accounts],
   );
   const receivableStatements = useMemo(() => (
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
@@ -2119,9 +2176,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   }, [user?.id, t]);
 
   // ── Customer portal accounts connected to this merchant, for attaching a
-  // statement link so the buyer can view it in-app instead of via URL. ──
-  const [connectedCustomers, setConnectedCustomers] = useState<ConnectedCustomer[]>([]);
-  const [connectedCustomersLoaded, setConnectedCustomersLoaded] = useState(false);
+  // statement link so the buyer can view it in-app instead of via URL.
+  // (connectedCustomers/connectedCustomersLoaded declared earlier, above
+  // buyerStatements, so that memo can fold connected-only buyers into their
+  // matching local Customer row.) ──
   const [attachingLinkId, setAttachingLinkId] = useState<string | null>(null);
 
   const loadConnectedCustomers = useCallback(async () => {
