@@ -262,6 +262,44 @@ export default function OrdersPage() {
   };
 
   /**
+   * Switches saleMode (Price+Vol mode's Amount field, USDT vs QAR/EGP)
+   * without wiping the entered amount. deriveSaleDraft reinterprets the
+   * SAME raw saleAmount string differently depending on saleMode (as a
+   * literal USDT quantity, or as a fiat total to divide by the sell price)
+   * — so switching modes on its own either garbles an already-correct
+   * quantity into nonsense, or (with no sell price typed yet, e.g. an
+   * imported order that "needs QAR rate") silently computes to 0. Convert
+   * the displayed number to what it means in the new mode instead, using
+   * the already-derived USDT quantity as the anchor.
+   */
+  const handleSaleModeToggle = (nextMode: 'USDT' | 'QAR' | 'EGP') => {
+    if (nextMode === saleMode) return;
+    const qty = saleDraft.quantityUsdt;
+    if (qty > 0) {
+      const sell = Number(saleSell) || 0;
+      setSaleAmount(nextMode === 'USDT' ? String(qty) : sell > 0 ? String(Math.round(qty * sell * 100) / 100) : '');
+    }
+    setSaleMode(nextMode);
+  };
+
+  /**
+   * Writes a target USDT quantity into whichever raw field(s) the current
+   * entry mode actually reads (saleUsdtQty for USDT+Total/USDT+Price;
+   * saleAmount, converted to the active display currency, for Price+Vol) —
+   * used by the split panel to mirror "Amount to move" back into the
+   * quantity display regardless of which mode is active.
+   */
+  const setQuantityFieldForMode = (targetUsdt: number) => {
+    const qty = Math.max(0, targetUsdt);
+    if (saleEntryMode === 'price_vol') {
+      const sell = Number(saleSell) || 0;
+      setSaleAmount(saleMode === 'USDT' ? String(qty) : sell > 0 ? String(Math.round(qty * sell * 100) / 100) : '');
+    } else {
+      setSaleUsdtQty(String(qty));
+    }
+  };
+
+  /**
    * saleUsdtQty's onChange for the USDT+Total and USDT+Price entry modes.
    * When the split panel is open, mirrors into "Amount to move" so the two
    * fields always add back up to newSaleSplitAnchorTotal — typing a smaller
@@ -274,6 +312,25 @@ export default function OrdersPage() {
     setSaleUsdtQty(v);
     if (newSaleSplitOpen) {
       const stays = Number(v) || 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
+  };
+
+  /**
+   * saleAmount's onChange for Price+Vol mode. Same two-way mirroring as
+   * handleSaleUsdtQtyChange, but has to convert through sell price first
+   * since saleAmount may be a fiat total (QAR/EGP) rather than a raw USDT
+   * quantity depending on saleMode.
+   */
+  const handleSaleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleAmount(v);
+    if (newSaleSplitOpen) {
+      const sell = Number(saleSell) || 0;
+      const raw = Number(v) || 0;
+      const stays = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
       const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
       setNewSaleSplitAmount(String(moved));
     }
@@ -1128,6 +1185,53 @@ export default function OrdersPage() {
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
+
+  /**
+   * Per-leg preview for a split sale: salePreview above already reflects
+   * the "stays on this order" remainder (saleDraft.quantityUsdt is that
+   * remainder once split is open), but the merchant also needs to see what
+   * the split-off leg looks like — its own qty, avg buy, revenue, and net
+   * at its own (possibly different) sell price — before submitting. Both
+   * legs are FIFO-calculated in one computeFIFO pass, in the same order
+   * they'll actually be saved in, so the split leg's avg buy correctly
+   * reflects stock already spoken for by the remainder leg.
+   */
+  const newSaleSplitPreview = useMemo(() => {
+    if (!newSaleSplitOpen) return null;
+    const splitAmount = Number(newSaleSplitAmount);
+    if (!(splitAmount > 0)) return null;
+    const ts = new Date(saleDate).getTime();
+    const remainderQty = saleDraft.quantityUsdt;
+    const splitSell = parseFloat(newSaleSplitSellPrice) || saleDraft.sellPriceQar;
+    if (!(remainderQty >= 0) || !(splitSell > 0) || !Number.isFinite(ts)) return null;
+
+    const remainderTrade: Trade = {
+      id: '__preview_remainder__', ts, inputMode: 'USDT', amountUSDT: remainderQty,
+      sellPriceQAR: saleDraft.sellPriceQar, feeQAR: 0, note: '', voided: false,
+      usesStock: true, revisions: [], customerId: '',
+    };
+    const splitTrade: Trade = {
+      id: '__preview_split__', ts, inputMode: 'USDT', amountUSDT: splitAmount,
+      sellPriceQAR: splitSell, feeQAR: 0, note: '', voided: false,
+      usesStock: true, revisions: [], customerId: '',
+    };
+    const tradeCalc = computeFIFO(state.batches, [...state.trades, remainderTrade, splitTrade]).tradeCalc;
+
+    const legFor = (trade: Trade) => {
+      const calc = tradeCalc.get(trade.id);
+      const revenue = trade.amountUSDT * trade.sellPriceQAR;
+      const cost = calc?.totalCost || 0;
+      return {
+        qty: trade.amountUSDT,
+        sell: trade.sellPriceQAR,
+        revenue,
+        avgBuy: calc?.ok ? calc.avgBuyQAR : NaN,
+        net: calc?.ok ? revenue - cost : NaN,
+        fifoComplete: !!calc?.ok,
+      };
+    };
+    return { remainder: legFor(remainderTrade), split: legFor(splitTrade) };
+  }, [newSaleSplitOpen, newSaleSplitAmount, newSaleSplitSellPrice, saleDate, saleDraft, state.batches, state.trades]);
 
   const fifoDisplayUnitCost = useMemo(() => {
     if (priceMode !== 'fifo' || !saleFifoPreview) return null;
@@ -4285,10 +4389,10 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('amount', saleMode as any))}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={handleSaleAmountChange} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>{localCur('USDT', t.lang)}</button>
-                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{localCur(baseFiat, t.lang)}</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => handleSaleModeToggle('USDT')} style={mobileActionStyle}>{localCur('USDT', t.lang)}</button>
+                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => handleSaleModeToggle(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{localCur(baseFiat, t.lang)}</button>
                       </div>
                     </div>
                     <div className="field2">
@@ -4431,14 +4535,12 @@ export default function OrdersPage() {
                                   const v = e.target.value;
                                   if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
                                   setNewSaleSplitAmount(v);
-                                  // Two-way mirror with the quantity field in
-                                  // USDT+Total/USDT+Price modes: the two must
-                                  // always add back up to the anchor total.
-                                  if (saleEntryMode !== 'price_vol') {
-                                    const moved = Number(v) || 0;
-                                    const stays = Math.max(0, newSaleSplitAnchorTotal - moved);
-                                    setSaleUsdtQty(String(stays));
-                                  }
+                                  // Two-way mirror with the quantity field,
+                                  // whichever one the active entry mode
+                                  // actually uses: the two must always add
+                                  // back up to the anchor total.
+                                  const moved = Number(v) || 0;
+                                  setQuantityFieldForMode(newSaleSplitAnchorTotal - moved);
                                 }}
                                 style={mobileInputStyle}
                               />
@@ -5024,6 +5126,11 @@ export default function OrdersPage() {
                 {(
                 <div className="previewBox" style={isMobile ? { padding: 12 } : undefined}>
                   <div className="pt">{t('livePreview')}</div>
+                  {newSaleSplitOpen && salePreview && (
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                      {t('splitPreviewStaysHeading')}
+                    </div>
+                  )}
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
                       {isInsufficientStock && (
@@ -5113,6 +5220,25 @@ export default function OrdersPage() {
                           {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtC(salePreview.net)}` : '—'}
                         </strong>
                       </div>
+                      {newSaleSplitPreview && (
+                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed color-mix(in srgb,var(--warn) 30%,transparent)' }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--warn)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                            {t('splitPreviewMovesHeading')}{newSaleSplitCustomerId ? ` — ${state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || ''}` : ''}
+                          </div>
+                          {Number.isFinite(newSaleSplitPreview.split.avgBuy) && (
+                            <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(newSaleSplitPreview.split.avgBuy)} QAR</strong></div>
+                          )}
+                          <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(newSaleSplitPreview.split.qty)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</span><strong>{fmtP(newSaleSplitPreview.split.sell)}</strong></div>
+                          <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(newSaleSplitPreview.split.revenue)}</strong></div>
+                          <div className="prev-row">
+                            <span className="muted">{t('net')}</span>
+                            <strong style={{ color: Number.isFinite(newSaleSplitPreview.split.net) ? (newSaleSplitPreview.split.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                              {Number.isFinite(newSaleSplitPreview.split.net) ? `${newSaleSplitPreview.split.net >= 0 ? '+' : ''}${fmtC(newSaleSplitPreview.split.net)}` : '—'}
+                            </strong>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
