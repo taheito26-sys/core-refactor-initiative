@@ -1989,11 +1989,19 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // and the local id wins so an edit/repayment still targets a real Customer.
   const customerIdAlias = useMemo(() => {
     const canonicalIdByName = new Map<string, string>();
+    const alias = new Map<string, string>();
+    // Two local Customer rows can share a name too -- e.g. a pre-existing
+    // exchange-import duplicate from before ensureCustomer started matching
+    // names canonically. Fold every later one onto the first id seen.
     for (const c of customerList) {
       const key = canonicalizeName(c.name);
-      if (!canonicalIdByName.has(key)) canonicalIdByName.set(key, c.id);
+      const canonicalId = canonicalIdByName.get(key);
+      if (!canonicalId) {
+        canonicalIdByName.set(key, c.id);
+      } else if (canonicalId !== c.id) {
+        alias.set(c.id, canonicalId);
+      }
     }
-    const alias = new Map<string, string>();
     for (const cc of connectedCustomers) {
       const key = canonicalizeName(cc.display_name);
       const canonicalId = canonicalIdByName.get(key);
