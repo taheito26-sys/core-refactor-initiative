@@ -139,6 +139,10 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
         ...(merged.deletedBatchIds || []),
         ...(Array.isArray(state.deletedBatchIds) ? state.deletedBatchIds : []),
       ])).slice(-500),
+      deletedTradeIds: Array.from(new Set([
+        ...(merged.deletedTradeIds || []),
+        ...(Array.isArray(state.deletedTradeIds) ? state.deletedTradeIds : []),
+      ])).slice(-500),
     };
   }
   if (merged.customerLoans && merged.deletedLoanIds?.length) {
@@ -148,6 +152,10 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
   if (merged.batches && merged.deletedBatchIds?.length) {
     const deleted = new Set(merged.deletedBatchIds);
     merged.batches = merged.batches.filter(b => !deleted.has(b.id));
+  }
+  if (merged.trades && merged.deletedTradeIds?.length) {
+    const deleted = new Set(merged.deletedTradeIds);
+    merged.trades = merged.trades.filter(tr => !deleted.has(tr.id));
   }
   return merged;
 }
@@ -204,18 +212,20 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   // session, we read-merge-write everything so a fresh device (iOS PWA with
   // empty localStorage) can't wipe cloud by upserting empty.
   //
-  // Trades and batches are always merged (never overwritten), even after the
-  // first cloud load: OrdersPage never removes a trade from the array —
-  // "delete" only sets voided:true and leaves the record in place (see
-  // deleteTrade) — so merging trades by id can never resurrect a real
-  // deletion. Batches ARE truly removed from the array on delete, so they
-  // carry their own tombstone (deletedBatchIds) that makes the same
-  // always-merge treatment safe for them too — see TrackerState.deletedBatchIds
-  // for why. Without always-merging, an idle tab/device whose in-memory state
-  // predates a batch or order added elsewhere will blow it away the next time
-  // it saves anything at all — its "overwrite once loaded" save simply never
-  // knew the row existed. customerLoans get the same always-merge treatment
-  // since they carry their own delete tombstone (deletedLoanIds) already.
+  // Trades, batches, and loans are always merged (never overwritten), even
+  // after the first cloud load, because an idle tab/device whose in-memory
+  // state predates something added elsewhere would otherwise blow it away
+  // the next time it saves anything at all — its "overwrite once loaded"
+  // save simply never knew the row existed.
+  //
+  // The normal UI delete path for a trade only ever sets voided:true and
+  // leaves the record in place (see deleteTrade) — but mergeArrayById lets
+  // the incoming (often stale) copy win over cloud for any id present in
+  // both, so a trade that WAS truly removed from the array (an out-of-band
+  // correction, not the normal UI path) needs the same tombstone treatment
+  // batches and loans already have, or a stale device's save silently
+  // resurrects it. See TrackerState.deletedTradeIds/deletedBatchIds/deletedLoanIds
+  // for the identical pattern applied three times.
   let merged: TrackerState = stripped;
   const { data: latestRow } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -241,9 +251,17 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     const mergedBatches = mergeArrayById(latestState.batches, stripped.batches)
       .filter(b => !deletedBatchIds.includes((b as { id: string }).id));
 
+    const deletedTradeIds = Array.from(new Set([
+      ...(latestState.deletedTradeIds || []),
+      ...(stripped.deletedTradeIds || []),
+    ])).slice(-500);
+    const mergedTrades = mergeArrayById(latestState.trades, stripped.trades)
+      .filter(tr => !deletedTradeIds.includes((tr as { id: string }).id));
+
     merged = {
       ...merged,
-      trades: mergeArrayById(latestState.trades, stripped.trades),
+      trades: mergedTrades,
+      deletedTradeIds,
       customerLoans: mergedLoans,
       deletedLoanIds,
       batches: mergedBatches,

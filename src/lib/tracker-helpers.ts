@@ -592,6 +592,21 @@ export interface TrackerState {
    * sticks. See deletedLoanIds for the identical pattern applied to loans.
    */
   deletedBatchIds?: string[];
+  /**
+   * Ids of trades removed outright (not merely voided) locally, or by a
+   * direct out-of-band correction to the cloud row. The normal UI delete
+   * path only ever sets `voided: true` and leaves the record in place — see
+   * deletedBatchIds above for why an in-place flag flip still needs this:
+   * mergeArrayById lets the incoming (often stale) copy win over cloud for
+   * any id present in both, so a device whose local trade array predates a
+   * voided:true flip, or a genuine removal, will silently reintroduce the
+   * old row — with the old voided state, amounts, and customer — the next
+   * time it saves anything at all. Any code path that actually drops a
+   * trade from the array (rather than voiding it) must add its id here so
+   * every subsequent merge filters it back out. See deletedLoanIds for the
+   * identical pattern applied to loans.
+   */
+  deletedTradeIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }
