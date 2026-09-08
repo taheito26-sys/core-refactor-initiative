@@ -42,6 +42,7 @@ import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRo
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canonicalizeName } from '@/lib/text-normalize';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { ModernOrdersView } from '@/pages/orders/ModernOrdersView';
@@ -63,7 +64,7 @@ interface AllocationRow {
 }
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
-const normalizeName = (v: string) => v.trim().toLowerCase();
+const normalizeName = (v: string) => canonicalizeName(v);
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
 /** Resolve operator & lender display names for an operator priority deal row */
@@ -900,6 +901,28 @@ export default function OrdersPage() {
   const minPriceNum = priceMin.trim() === '' ? null : Number(priceMin);
   const maxPriceNum = priceMax.trim() === '' ? null : Number(priceMax);
 
+  // Groups customer ids that share a canonicalized name — imported orders can
+  // mint a second Customer row for the same person when the raw exchange
+  // counterparty text differs cosmetically (dash character, stray space, …).
+  // Grouping here means picking one of the duplicates in the filter still
+  // surfaces every order, instead of splitting them across two options.
+  const customerIdsByCanonicalName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of state.customers) {
+      const key = canonicalizeName(c.name);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(c.id); else map.set(key, [c.id]);
+    }
+    return map;
+  }, [state.customers]);
+
+  const buyerFilterGroup = useMemo(() => {
+    if (!buyerFilter) return null;
+    const selected = state.customers.find(c => c.id === buyerFilter);
+    if (!selected) return new Set([buyerFilter]);
+    return new Set(customerIdsByCanonicalName.get(canonicalizeName(selected.name)) ?? [buyerFilter]);
+  }, [buyerFilter, state.customers, customerIdsByCanonicalName]);
+
   const filtered = useMemo(() => {
     return list.filter(t => {
       if (query) {
@@ -907,19 +930,28 @@ export default function OrdersPage() {
         const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase();
         if (!haystack.includes(query)) return false;
       }
-      if (buyerFilter && t.customerId !== buyerFilter) return false;
+      if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
       if (minPriceNum != null && !Number.isNaN(minPriceNum) && t.sellPriceQAR < minPriceNum) return false;
       if (maxPriceNum != null && !Number.isNaN(maxPriceNum) && t.sellPriceQAR > maxPriceNum) return false;
       return true;
     });
-  }, [list, query, state.customers, buyerFilter, minPriceNum, maxPriceNum]);
+  }, [list, query, state.customers, buyerFilterGroup, minPriceNum, maxPriceNum]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
+  // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
+  // show up as a second, separate option.
   const buyerFilterOptions = useMemo(() => {
     const ids = new Set(list.map(t => t.customerId).filter(Boolean));
-    return state.customers
-      .filter(c => ids.has(c.id))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const seenNames = new Set<string>();
+    const options: Customer[] = [];
+    for (const c of state.customers) {
+      if (!ids.has(c.id)) continue;
+      const key = canonicalizeName(c.name);
+      if (seenNames.has(key)) continue;
+      seenNames.add(key);
+      options.push(c);
+    }
+    return options.sort((a, b) => a.name.localeCompare(b.name));
   }, [list, state.customers]);
 
   const clearOrderFilters = useCallback(() => {
