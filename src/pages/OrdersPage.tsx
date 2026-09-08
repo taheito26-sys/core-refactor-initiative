@@ -336,6 +336,26 @@ export default function OrdersPage() {
     }
   };
 
+  /**
+   * saleSell's onChange for Price+Vol mode. Only matters for the split
+   * mirror when saleMode is QAR/EGP, since quantity is then derived as
+   * Amount / Sell Price — e.g. an imported order that "needs QAR rate":
+   * Amount gets typed first (with Split already checked), Sell Price
+   * follows, and only then does the true USDT quantity exist to mirror.
+   */
+  const handleSaleSellChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleSell(v);
+    if (newSaleSplitOpen && saleMode !== 'USDT') {
+      const raw = Number(saleAmount) || 0;
+      const sellNum = Number(v) || 0;
+      const stays = sellNum > 0 ? raw / sellNum : 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
+  };
+
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
   const [newBuyerName, setNewBuyerName] = useState('');
@@ -504,29 +524,6 @@ export default function OrdersPage() {
     saleSell,
     saleFee,
   }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
-  // Anchor + mirroring for the split panel. In the USDT+Total and USDT+Price
-  // entry modes the raw quantity field (saleUsdtQty) and "Amount to move"
-  // mirror each other directly through their own onChange handlers below,
-  // against a fixed anchor captured when Split is checked -- typing into
-  // either recomputes the other so they always add back up to the anchor.
-  // Price+Volume mode has no raw quantity field (the total is derived from
-  // Amount/Sell Price), so this effect instead keeps "Amount to move"
-  // tracking that derived total live -- e.g. an imported order whose Sell
-  // Price gets typed in after Split is already checked -- until the
-  // merchant types a value of their own for a genuine partial split.
-  const lastAutoSplitAmountRef = useRef('');
-  useEffect(() => {
-    if (!newSaleSplitOpen) { lastAutoSplitAmountRef.current = ''; return; }
-    if (saleEntryMode !== 'price_vol') return;
-    const liveQty = String(saleDraft.quantityUsdt || '');
-    if (newSaleSplitAmount === lastAutoSplitAmountRef.current) {
-      setNewSaleSplitAmount(liveQty);
-      setNewSaleSplitAnchorTotal(saleDraft.quantityUsdt || 0);
-    }
-    lastAutoSplitAmountRef.current = liveQty;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saleDraft.quantityUsdt, newSaleSplitOpen, saleEntryMode]);
-
   const availableFifoUsdt = useMemo(
     () => derived.batches.reduce((sum, b) => sum + Math.max(0, b.remainingUSDT), 0),
     [derived.batches],
@@ -4397,7 +4394,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={handleSaleSellChange} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
