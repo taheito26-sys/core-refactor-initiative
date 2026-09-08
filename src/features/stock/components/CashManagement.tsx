@@ -2187,17 +2187,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (!merchantId) return;
     const { data: connections, error } = await supabase
       .from('customer_merchant_connections')
-      .select('customer_user_id, status')
+      .select('customer_user_id, status, nickname')
       .eq('merchant_id', merchantId)
       .eq('status', 'accepted');
     if (error || !connections || connections.length === 0) { setConnectedCustomersLoaded(true); return; }
+    const nicknameMap = new Map(connections.map(c => [c.customer_user_id, c.nickname]));
     const userIds = [...new Set(connections.map(c => c.customer_user_id))];
     const { data: profiles } = await supabase
       .from('customer_profiles')
       .select('user_id, display_name')
       .in('user_id', userIds);
     const profileMap = new Map((profiles || []).map(p => [p.user_id, p.display_name]));
-    setConnectedCustomers(userIds.map(id => ({ customer_user_id: id, display_name: profileMap.get(id) || id })));
+    // nickname is the merchant's own label for this connection (seeded from the
+    // customer's display_name, but can also be set independently) -- prefer it
+    // over display_name, which can be empty even when the connection has a name.
+    setConnectedCustomers(userIds.map(id => ({
+      customer_user_id: id,
+      display_name: nicknameMap.get(id) || profileMap.get(id) || id,
+    })));
     setConnectedCustomersLoaded(true);
   }, [merchantProfile?.merchant_id]);
 
