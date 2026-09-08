@@ -2232,6 +2232,43 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     [statementLinks],
   );
 
+  // The connected customer (by canonical name) whose loan/debt figures should
+  // appear on their own wallet -- that page reads customer-loan-statement,
+  // which only finds a buyer's loans through an attached buyer_statement_links
+  // row for this stmt.customerId + currency. Without one, the buyer's wallet
+  // shows nothing for a debt the merchant's own Loans tab clearly has.
+  const portalSyncCandidateFor = useCallback((stmt: BuyerStatement) => {
+    const key = canonicalizeName(stmt.customerName);
+    const connected = connectedCustomers.find(c => canonicalizeName(c.display_name) === key);
+    if (!connected) return null;
+    const link = activeLinkFor(stmt.customerId, stmt.currency);
+    if (link?.customer_user_id === connected.customer_user_id) return null;
+    return connected;
+  }, [connectedCustomers, activeLinkFor]);
+
+  const [syncingStatementKey, setSyncingStatementKey] = useState<string | null>(null);
+
+  const linkStatementToPortal = async (stmt: BuyerStatement) => {
+    const candidate = portalSyncCandidateFor(stmt);
+    if (!candidate) return;
+    setSyncingStatementKey(stmt.key);
+    try {
+      const link = await ensureStatementLink(stmt);
+      if (!link) throw new Error('no link');
+      const { error } = await supabase
+        .from('buyer_statement_links')
+        .update({ customer_user_id: candidate.customer_user_id })
+        .eq('id', link.id);
+      if (error) throw error;
+      setStatementLinks(prev => prev.map(l => (l.id === link.id ? { ...l, customer_user_id: candidate.customer_user_id } : l)));
+      toast.success(`Synced ${stmt.currency} loan statement to ${candidate.display_name}'s wallet`);
+    } catch {
+      toast.error(t('statementLinkPortalAttachFailed'));
+    } finally {
+      setSyncingStatementKey(null);
+    }
+  };
+
   /** Creates the token record (needed for the edge function's service-role lookup) without surfacing a URL. */
   const ensureStatementLink = async (stmt: BuyerStatement): Promise<PublicStatementLink | null> => {
     const existing = activeLinkFor(stmt.customerId, stmt.currency);
@@ -3400,6 +3437,17 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 onClick={() => setSplitPaymentStatement(stmt)}
                               >
                                 🔗 {t('loanSplitPayment')}
+                              </button>
+                            )}
+                            {portalSyncCandidateFor(stmt) && (
+                              <button
+                                className="rowBtn"
+                                style={{ padding: '6px 14px', fontSize: 11 }}
+                                disabled={syncingStatementKey === stmt.key}
+                                onClick={() => linkStatementToPortal(stmt)}
+                                title={`This buyer's own wallet doesn't show this ${stmt.currency} balance yet`}
+                              >
+                                📲 {syncingStatementKey === stmt.key ? '…' : 'Sync to buyer wallet'}
                               </button>
                             )}
                           </div>
