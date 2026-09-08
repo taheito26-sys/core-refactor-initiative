@@ -179,6 +179,19 @@ export default function OrdersPage() {
     // empty for the user to fill in with their own rate.
     setSaleSell(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setSaleAmount('');
+    // Loading a different order into the form must not carry over a split
+    // anchor captured against whatever order was previously on-screen: the
+    // anchor is only ever set once, when Split is checked, and never
+    // refreshed afterward. Left open across a prefill, "Amount to move"
+    // keeps subtracting from the old order's total instead of this one's,
+    // producing a bogus remainder (e.g. an anchor left over from a 3.79
+    // QAR/USDT order silently applied to a freshly-picked 4479.66 USDT
+    // order). Force the merchant to re-check Split for the new order.
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
     setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBuyerId(mappedBuyer?.entityId || '');
@@ -228,6 +241,14 @@ export default function OrdersPage() {
     setSaleUsdtQty(String(prefill.amountUSDT));
     setSaleSell(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
     setSaleAmount('');
+    // See the matching comment in applyExchangeOrderPrefill: a split anchor
+    // left over from whatever order was previously loaded must not silently
+    // apply to this one.
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
     setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
     setBuyerId(mappedBuyer?.entityId || '');

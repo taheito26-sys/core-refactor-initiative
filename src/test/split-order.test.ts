@@ -238,6 +238,60 @@ describe('splitOrder', () => {
     expect(primaryTrade.amountUSDT + secondTrade.amountUSDT).toBe(4479.66);
   });
 
+  it('regression: a stale anchor from a previously-loaded order must never leak into a freshly-picked one', () => {
+    // Reproduces a second, distinct production incident (separate from the
+    // one above): the merchant had an earlier draft in Price+Vol/QAR mode
+    // (Amount 14713 QAR @ 3.79 -> 3882.058047493403 USDT), checked Split
+    // there, then clicked "Edit" on a different imported Binance order
+    // (4479.66 USDT) without ever unchecking Split. The New Sale form's
+    // prefill handlers overwrote the visible total with 4479.66 but never
+    // reset the split anchor, which stayed pinned to the old draft's
+    // 3882.058047493403. Typing 600 into "Amount to move" then computed
+    // 3882.058047493403 - 600 = 3282.058047493403 -- the exact wrong value
+    // seen in production -- instead of 4479.66 - 600 = 3879.66. The fix is
+    // in OrdersPage.tsx (applyExchangeOrderPrefill / applyExchangeTransferPrefill
+    // now reset newSaleSplitOpen/Amount/CustomerId/SellPrice/AnchorTotal on
+    // every prefill); this test pins the correct math splitOrder() must
+    // produce once the anchor is the real, current order total.
+    const staleAnchorResult = splitOrder({
+      trade: makeTrade({ amountUSDT: 3882.058047493403 }),
+      splitAmountUsdt: 600,
+      targetCustomerId: 'customer-b',
+      newTradeId: 'trade-2',
+      atRegistration: true,
+    });
+    expect(staleAnchorResult.primaryTrade.amountUSDT).toBeCloseTo(3282.058047493403, 6);
+
+    const correctAnchorResult = splitOrder({
+      trade: makeTrade({ amountUSDT: 4479.66 }),
+      splitAmountUsdt: 600,
+      targetCustomerId: 'customer-b',
+      newTradeId: 'trade-2',
+      atRegistration: true,
+      secondSellPriceQAR: 3.85,
+    });
+    expect(correctAnchorResult.primaryTrade.amountUSDT).toBe(3879.66);
+    expect(correctAnchorResult.secondTrade.amountUSDT).toBe(600);
+    expect(correctAnchorResult.primaryTrade.amountUSDT + correctAnchorResult.secondTrade.amountUSDT).toBe(4479.66);
+    expect(correctAnchorResult.secondTrade.sellPriceQAR).toBe(3.85);
+    expect(correctAnchorResult.secondTrade.amountUSDT * correctAnchorResult.secondTrade.sellPriceQAR).toBe(2310);
+  });
+
+  it('changing the split sell price only changes the fiat value, never the USDT quantities', () => {
+    const trade = makeTrade({ amountUSDT: 4479.66, sellPriceQAR: 3.79 });
+    const at385 = splitOrder({
+      trade, splitAmountUsdt: 600, targetCustomerId: 'customer-b', newTradeId: 'trade-2', secondSellPriceQAR: 3.85,
+    });
+    const at400 = splitOrder({
+      trade, splitAmountUsdt: 600, targetCustomerId: 'customer-b', newTradeId: 'trade-2', secondSellPriceQAR: 4.00,
+    });
+
+    expect(at385.primaryTrade.amountUSDT).toBe(at400.primaryTrade.amountUSDT);
+    expect(at385.secondTrade.amountUSDT).toBe(at400.secondTrade.amountUSDT);
+    expect(at385.secondTrade.amountUSDT * at385.secondTrade.sellPriceQAR).toBe(2310);
+    expect(at400.secondTrade.amountUSDT * at400.secondTrade.sellPriceQAR).toBe(2400);
+  });
+
   it('never mutates the original trade object passed in', () => {
     const trade = makeTrade({ amountUSDT: 1000 });
     const frozen = JSON.parse(JSON.stringify(trade));
