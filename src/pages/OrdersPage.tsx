@@ -2940,7 +2940,16 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // A loan created from this trade (loanFromOrder) is otherwise never
+    // cleared once the trade is cancelled -- it has no dependency on
+    // trade.voided, so it keeps showing in the buyer's own portal statement
+    // forever as a ghost order. Drop it here too, but only when nothing has
+    // been repaid against it yet -- once a real payment exists the loan is
+    // no longer purely a byproduct of this trade.
+    const nextLoans = (state.customerLoans || []).filter(l => (
+      l.tradeId !== tradeId || getLoanRepaid(l) > 0
+    ));
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
   };
 
@@ -2958,7 +2967,12 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // See handleCancelTrade above -- a loan from this trade otherwise
+    // outlives the cancellation and keeps showing in the buyer's portal.
+    const nextLoans = (state.customerLoans || []).filter(l => (
+      l.tradeId !== cancelTradeId || getLoanRepaid(l) > 0
+    ));
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans });
     setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
   };
