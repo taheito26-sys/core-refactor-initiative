@@ -600,6 +600,7 @@ export default function OrdersPage() {
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
   const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
+  const autoRelinkAttemptedRef = useRef(false);
 
   const linkedRelationship = useMemo(
     () => relationships.find(r => r.id === linkedRelId),
@@ -1677,6 +1678,41 @@ export default function OrdersPage() {
     }
   }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
 
+  // One-time, whole-book version of linkBuyerToPortal above: any trade whose
+  // local buyer's name matches an already-connected portal customer, but
+  // wasn't recorded as buyerType 'connected_customer' (the common case,
+  // since nothing sets that by default at sale time for older trades), gets
+  // relinked automatically here instead of requiring the merchant to filter
+  // to each buyer and click "Link to portal" by hand. The mirror effect
+  // below then picks up the relinked trades on this same pass, since it
+  // reacts to state.trades and only skips trades with a terminal
+  // mirrorStatus. Runs once per page load, not on every state change, so it
+  // never fights a merchant who intentionally unlinks a trade afterward.
+  useEffect(() => {
+    if (autoRelinkAttemptedRef.current) return;
+    if (connectedCustomers.length === 0) return;
+    if (state.trades.length === 0) return;
+    autoRelinkAttemptedRef.current = true;
+
+    const connectedByName = new Map(connectedCustomers.map(c => [canonicalizeName(c.name), c]));
+    const customerNameById = new Map(state.customers.map(c => [c.id, c.name]));
+    let relinkedCount = 0;
+    const nextTrades = state.trades.map(t => {
+      if (t.voided || !t.customerId || t.buyerType === 'connected_customer') return t;
+      const name = customerNameById.get(t.customerId);
+      if (!name) return t;
+      const connected = connectedByName.get(canonicalizeName(name));
+      if (!connected) return t;
+      relinkedCount += 1;
+      const { mirrorStatus: _mirrorStatus, ...rest } = t;
+      return { ...rest, buyerType: 'connected_customer' as const, connectedCustomerId: connected.customerUserId };
+    });
+
+    if (relinkedCount > 0) {
+      applyState({ ...state, trades: nextTrades });
+    }
+  }, [connectedCustomers, state, applyState]);
+
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;
     if (state.trades.length === 0) return;
@@ -1920,6 +1956,14 @@ export default function OrdersPage() {
       nextCustomers = ensured.customers;
     }
 
+    // Auto-link this sale to the buyer's connected portal account when the
+    // name matches one, so it mirrors into their customer portal without a
+    // separate manual "Link to portal" step (see buyerLinkCandidate above,
+    // which does the same match for already-recorded trades).
+    const autoLinkedConnectedCustomer = buyerName.trim()
+      ? connectedCustomers.find(c => canonicalizeName(c.name) === canonicalizeName(buyerName))
+      : undefined;
+
     // Remember which customer this exchange counterparty resolved to, so the
     // next import from the same person prefills correctly on its own --
     // whatever name the sale actually got saved under (auto-matched,
@@ -1953,6 +1997,8 @@ export default function OrdersPage() {
       exchangeOrderNumber: pendingImport?.kind === 'order' ? pendingImport.exchangeOrderNumber : undefined,
       exchangeCounterparty: pendingImport?.kind === 'order' ? pendingImport.exchangeCounterparty : undefined,
       voided: false, usesStock: useStock, revisions: [], customerId,
+      buyerType: autoLinkedConnectedCustomer ? 'connected_customer' : undefined,
+      connectedCustomerId: autoLinkedConnectedCustomer?.customerUserId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       linkedMerchantId: merchantOrderEnabled ? (isNewAllocFlowActive ? (allocations[0]?.merchantId || linkedCounterpartyId) : linkedCounterpartyId) || undefined : undefined,
