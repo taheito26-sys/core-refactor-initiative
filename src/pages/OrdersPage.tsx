@@ -1578,9 +1578,6 @@ export default function OrdersPage() {
           buyerType: trade.buyerType,
           connectedCustomerId: trade.connectedCustomerId,
           tradeId: trade.id,
-          connectedCustomersCount: connectedCustomers.length,
-          connectedCustomerIds: connectedCustomers.map((c) => c.customerUserId),
-          isUuidLikeResult: trade.connectedCustomerId ? isUuidLike(trade.connectedCustomerId) : null,
         });
         return 'skipped_not_connected';
       }
@@ -1679,7 +1676,7 @@ export default function OrdersPage() {
       console.error(`Mirror exception: ${syncErr?.message ?? 'unknown error'}`, syncErr);
       return 'failed';
     }
-  }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency, connectedCustomers]);
+  }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
 
   // One-time, whole-book version of linkBuyerToPortal above: any trade whose
   // local buyer's name matches an already-connected portal customer, but
