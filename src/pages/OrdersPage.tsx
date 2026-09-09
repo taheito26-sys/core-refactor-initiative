@@ -2910,7 +2910,17 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === editingTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // See handleCancelTrade -- a loan from this trade otherwise outlives the
+    // deletion and keeps showing in the buyer's portal; tombstoned so a
+    // stale tab's next autosave can't bring it back.
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === editingTradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     setEditingTradeId(null);
   };
 
@@ -2946,10 +2956,17 @@ export default function OrdersPage() {
     // forever as a ghost order. Drop it here too, but only when nothing has
     // been repaid against it yet -- once a real payment exists the loan is
     // no longer purely a byproduct of this trade.
-    const nextLoans = (state.customerLoans || []).filter(l => (
-      l.tradeId !== tradeId || getLoanRepaid(l) > 0
-    ));
-    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans });
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === tradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    // A plain removal isn't enough to make the delete stick across
+    // tabs/devices -- mergeArrayById on the next autosave from any other
+    // open tab would just bring the loan back. See TrackerState.deletedLoanIds.
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
   };
 
@@ -2968,11 +2985,16 @@ export default function OrdersPage() {
       t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     // See handleCancelTrade above -- a loan from this trade otherwise
-    // outlives the cancellation and keeps showing in the buyer's portal.
-    const nextLoans = (state.customerLoans || []).filter(l => (
-      l.tradeId !== cancelTradeId || getLoanRepaid(l) > 0
-    ));
-    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans });
+    // outlives the cancellation and keeps showing in the buyer's portal,
+    // and must be tombstoned or a stale tab's next autosave brings it back.
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === cancelTradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
   };
