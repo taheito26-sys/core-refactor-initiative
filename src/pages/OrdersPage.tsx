@@ -1417,10 +1417,17 @@ export default function OrdersPage() {
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers };
-    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (connected) return materializeListedCustomer(connected, state.customers);
+    // Prefer an existing local customer over a connected-portal match: a
+    // buyer who already has trades/loans recorded under a local id must
+    // keep landing on that same id once they also connect their portal
+    // account, otherwise every new sale after that point starts a second,
+    // disconnected identity (keyed by their connectedCustomerId) that the
+    // buyer's own statement link never covers -- their order history then
+    // silently splits across two ids with no error anywhere.
     const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
     if (existing) return { id: existing.id, customers: state.customers };
+    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
+    if (connected) return materializeListedCustomer(connected, state.customers);
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
     return { id: nextCustomer.id, customers: [...state.customers, nextCustomer] };
   };
