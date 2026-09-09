@@ -6,7 +6,7 @@ import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
-  type CustomerLoan, type CashCurrency,
+  type CustomerLoan, type CashCurrency, type MirrorStatus,
   getLoanRepaid, getLoanRemaining,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -1593,15 +1593,16 @@ export default function OrdersPage() {
         return 'failed';
       }
 
+      // Exact match on the local trade's own id, not a fuzzy amount+rate+time
+      // window -- the row's created_at is always "now" at insert time, never
+      // close to the trade's own (often much older) sale date, so a window
+      // around trade.ts never actually caught an existing mirror and every
+      // reload re-inserted every trade again.
       const { data: existingOrder, error: existingError } = await supabase
         .from('customer_orders')
         .select('id')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('customer_user_id', customerUserId)
-        .eq('amount', trade.amountUSDT)
-        .eq('rate', trade.sellPriceQAR)
-        .gte('created_at', new Date(trade.ts - 60_000).toISOString())
-        .lte('created_at', new Date(trade.ts + 60_000).toISOString())
+        .eq('source_trade_id', trade.id)
         .maybeSingle();
 
       if (existingError) {
@@ -1663,6 +1664,7 @@ export default function OrdersPage() {
         p_quote_rejection_reason: null,
         p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
         p_pricing_version: 'tracker-sync-v1',
+        p_source_trade_id: trade.id,
       });
 
       if (error) {
@@ -1685,6 +1687,12 @@ export default function OrdersPage() {
 
     const restoreMissingMirrors = async () => {
       let mirroredCount = 0;
+      // mirrorStatus was never written back onto state.trades after an
+      // attempt, so every reload reprocessed every trade from scratch --
+      // collect the outcomes here and persist them once at the end, so a
+      // trade this pass already resolved (mirrored or a terminal skip)
+      // won't be attempted again next time.
+      const statusUpdates = new Map<string, MirrorStatus>();
 
       for (const trade of state.trades) {
         if (cancelled) return;
@@ -1701,9 +1709,19 @@ export default function OrdersPage() {
         backfillAttemptedTradeIdsRef.current.add(trade.id);
 
         const status = await syncTradeToCustomerOrders(trade);
+        statusUpdates.set(trade.id, status);
         if (status === 'mirrored') {
           mirroredCount += 1;
         }
+      }
+
+      if (!cancelled && statusUpdates.size > 0) {
+        applyState({
+          ...state,
+          trades: state.trades.map((t) => (
+            statusUpdates.has(t.id) ? { ...t, mirrorStatus: statusUpdates.get(t.id) } : t
+          )),
+        });
       }
 
       if (!cancelled && mirroredCount > 0) {
@@ -1720,7 +1738,7 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [merchantProfile?.merchant_id, state.trades, syncTradeToCustomerOrders]);
+  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState]);
 
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {
@@ -1759,12 +1777,8 @@ export default function OrdersPage() {
       const { data: existing } = await supabase
         .from('customer_orders')
         .select('id')
-        .eq('customer_user_id', customerUserId)
         .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('amount', trade.amountUSDT)
-        .eq('rate', trade.sellPriceQAR)
-        .gte('created_at', new Date(trade.ts - 60000).toISOString())
-        .lte('created_at', new Date(trade.ts + 60000).toISOString())
+        .eq('source_trade_id', trade.id)
         .maybeSingle();
 
       if (existing?.id) {
@@ -1802,6 +1816,7 @@ export default function OrdersPage() {
         p_quote_rejection_reason: null,
         p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
         p_pricing_version: 'tracker-sync-v1',
+        p_source_trade_id: trade.id,
       });
 
       if (insertErr) throw insertErr;

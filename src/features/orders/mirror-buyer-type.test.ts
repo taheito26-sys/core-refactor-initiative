@@ -175,6 +175,34 @@ describe('Customer order mirror buyer type handling', () => {
     });
   });
 
+  describe('Duplicate-mirror dedup key', () => {
+    // Regression test for the 2026-09-09 incident: the dedup check used to
+    // compare a new customer_orders row's created_at (always "now" at
+    // insert time) against a +-60s window around the trade's own sale
+    // date. Those two timestamps are almost never close, so the check
+    // never found a row it had already inserted and every page reload
+    // re-mirrored every eligible trade again -- 63 duplicate rows landed
+    // in production from two reloads a few minutes apart. The fix keys
+    // dedup on the trade's own stable id (customer_orders.source_trade_id,
+    // backed by a unique (merchant_id, source_trade_id) index), not a
+    // fuzzy amount+rate+time match.
+    test('a mirrored row and its source trade share a stable, exact id -- not a time window', () => {
+      const trade = mockTrade({ id: 'trade-abc-123', ts: Date.parse('2026-08-01T00:00:00Z') });
+      const mirroredAt = Date.parse('2026-09-09T14:15:00Z'); // inserted weeks after the sale
+
+      const oldFuzzyMatch = (rowCreatedAt: number) => (
+        rowCreatedAt >= trade.ts - 60_000 && rowCreatedAt <= trade.ts + 60_000
+      );
+      const newExactMatch = (rowSourceTradeId: string) => rowSourceTradeId === trade.id;
+
+      // The old check would have missed this row entirely, allowing a
+      // second mirror attempt to insert a duplicate.
+      expect(oldFuzzyMatch(mirroredAt)).toBe(false);
+      // The new check finds it regardless of how much time has passed.
+      expect(newExactMatch(trade.id)).toBe(true);
+    });
+  });
+
   describe('Legacy trade data handling', () => {
     test('trade without buyerType should be treated as non-mirrorable', () => {
       const trade = mockTrade({

@@ -1638,6 +1638,7 @@ export type Database = {
           revision_no: number
           send_country: string | null
           send_currency: string | null
+          source_trade_id: string | null
           status: string
           total: number | null
           updated_at: string
@@ -1698,6 +1699,7 @@ export type Database = {
           revision_no?: number
           send_country?: string | null
           send_currency?: string | null
+          source_trade_id?: string | null
           status?: string
           total?: number | null
           updated_at?: string
@@ -1758,6 +1760,7 @@ export type Database = {
           revision_no?: number
           send_country?: string | null
           send_currency?: string | null
+          source_trade_id?: string | null
           status?: string
           total?: number | null
           updated_at?: string
@@ -4577,6 +4580,7 @@ export type Database = {
           revision_no: number
           send_country: string | null
           send_currency: string | null
+          source_trade_id: string | null
           status: string
           total: number | null
           updated_at: string
@@ -5206,6 +5210,7 @@ export type Database = {
           revision_no: number
           send_country: string | null
           send_currency: string | null
+          source_trade_id: string | null
           status: string
           total: number | null
           updated_at: string
@@ -5685,6 +5690,7 @@ export type Database = {
           revision_no: number
           send_country: string | null
           send_currency: string | null
+          source_trade_id: string | null
           status: string
           total: number | null
           updated_at: string
@@ -5777,6 +5783,7 @@ export type Database = {
           revision_no: number
           send_country: string | null
           send_currency: string | null
+          source_trade_id: string | null
           status: string
           total: number | null
           updated_at: string
