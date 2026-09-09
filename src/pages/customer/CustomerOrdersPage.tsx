@@ -530,6 +530,11 @@ export default function CustomerOrdersPage() {
   // the portal order workflow existed, shared via customer-loan-statement —
   // the same server-redacted data (no USDT quantity, no QAR conversion
   // rate) the old /c/loan page showed, now folded into this page.
+  // This data comes from the merchant's raw tracker state via an edge
+  // function, not a table the customer's client can read directly, so there
+  // is no postgres_changes channel to subscribe to here the way 'c-orders'
+  // below has. Poll instead so a merchant-side edit/cancellation shows up
+  // without the buyer having to manually refresh the page.
   const { data: historyStatements = [] } = useQuery({
     queryKey: ['c-order-history', userId],
     queryFn: async () => {
@@ -538,6 +543,7 @@ export default function CustomerOrdersPage() {
       return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
+    refetchInterval: 20000,
   });
 
   type HistoryOrderRow = {
