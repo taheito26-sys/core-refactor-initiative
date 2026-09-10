@@ -1842,6 +1842,7 @@ const translations = {
 
   // Loans page — active / closed split
   loanTabActive: { en: 'Active', ar: 'نشط' },
+  loanTabOrders: { en: 'Loaned Orders', ar: 'الطلبات المُقرضة' },
   loanTabClosed: { en: 'Closed Loans', ar: 'القروض المغلقة' },
   loanSearchPlaceholder: { en: 'Search customer, note, or amount…', ar: 'ابحث بالعميل أو الملاحظة أو المبلغ…' },
   loanNoActiveLoans: { en: 'No active loans — everything is settled', ar: 'لا توجد قروض نشطة — تمت تسوية كل شيء' },
