@@ -1782,6 +1782,7 @@ const translations = {
   loanSplitPayment:      { en: 'Split payment across orders',   ar: 'تقسيم دفعة على عدة طلبات' },
   loanSplitPaymentBadge: { en: 'Split payment · {n} orders',    ar: 'دفعة مقسمة · {n} طلبات' },
   loanPaymentViewDetails: { en: 'Details', ar: 'التفاصيل' },
+  loanPaymentOrderCount: { en: 'Orders', ar: 'الطلبات' },
   loanSplitEditHint:         { en: 'Expand ▸ to edit',            ar: 'افتح ▸ للتعديل' },
   loanSplitEditHintExpanded: { en: 'Edit below',                  ar: 'التعديل بالأسفل' },
   loanSplitPaymentHint:  { en: 'Record one payment the buyer used to close several orders at once — it will show as a single payment, not one per order.', ar: 'سجّل دفعة واحدة استخدمها المشتري لإغلاق عدة طلبات دفعة واحدة — ستظهر كدفعة واحدة وليس دفعة لكل طلب.' },
@@ -1973,6 +1974,11 @@ const translations = {
     ar: 'سيؤدي هذا إلى حذف الدفعة والقيد النقدي الناتج عنها، وإعادة فتح القرض إذا كانت هذه الدفعة قد سوّته. لا يمكن التراجع عن هذا الإجراء.',
   },
   loanDeleteDayPayments: { en: 'Delete day', ar: 'حذف اليوم' },
+  loanEditDayPayments: { en: 'Edit day', ar: 'تعديل اليوم' },
+  loanEditDayPaymentsHint: {
+    en: 'Applies to all {n} payment(s) recorded this day. Amounts are left as-is — each still belongs to a specific order.',
+    ar: 'ينطبق هذا على جميع الدفعات المسجلة في هذا اليوم ({n}). تبقى المبالغ كما هي — لأن كل مبلغ يخص طلباً محدداً.',
+  },
   loanDeleteDayPaymentsConfirm: {
     en: 'This removes every payment recorded on this day ({n} order(s)) and the cash entries they created, reopening any loan they had settled. This cannot be undone.',
     ar: 'سيؤدي هذا إلى حذف جميع الدفعات المسجلة في هذا اليوم ({n} طلب) والقيود النقدية الناتجة عنها، وإعادة فتح أي قرض كانت قد سوّته. لا يمكن التراجع عن هذا الإجراء.',

@@ -1034,6 +1034,102 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   );
 }
 
+interface EditPaymentGroupModalProps {
+  group: PaymentGroup;
+  accounts: CashAccount[];
+  onSave: (patch: { ts: number; note?: string; accountId: string | null }) => Promise<boolean | void> | void;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+/**
+ * Edits a whole day's grouped payment at once -- date, note, and whether it's
+ * cash-linked -- instead of opening each underlying order's repayment one by
+ * one. Amounts are untouched: each still belongs to a specific loan's
+ * balance, so there's no single day total to redistribute across orders.
+ */
+function EditPaymentGroupModal({ group, accounts, onSave, onClose, isMobile = false }: EditPaymentGroupModalProps) {
+  const t = useT();
+  const [addToCash, setAddToCash] = useState(!!group.accountName);
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
+  const [date, setDate] = useState(() => toLocalInput(group.ts));
+  const [note, setNote] = useState(group.description || '');
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  const handle = async () => {
+    if (saving) return;
+    setErr('');
+    if (addToCash && !accountId) { setErr(t('loanRepaymentAccount')); return; }
+    const ts = new Date(date).getTime();
+    if (!Number.isFinite(ts)) { setErr(t('date')); return; }
+    setSaving(true);
+    try {
+      await onSave({ ts, note: note.trim() || undefined, accountId: addToCash ? accountId : null });
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 380, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('loanEditDayPayments')}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
+          {t('loanEditDayPaymentsHint').replace('{n}', String(group.members.length))}
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            <input type="checkbox" checked={addToCash} onChange={e => setAddToCash(e.target.checked)} />
+            {t('loanAddCash')}
+          </label>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{t('loanAddCashHint')}</div>
+        </div>
+
+        {addToCash && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('loanRepaymentAccount')}</div>
+            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+              {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
+            </select>
+          </div>
+        )}
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanRepaymentDate')}</div>
+          <div className="inputBox"><input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} /></div>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 14 }}>
+          <div className="lbl">{t('loanNoteLabel')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('loanRepaymentNotePh')} /></div>
+        </div>
+
+        {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose} disabled={saving}>{t('cancel')}</button>
+          <button className="btn" onClick={handle} disabled={saving}>
+            {saving ? `${t('saving') || 'Saving…'}` : t('saveChanges')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── CashCounterModal ─────────────────────────────────────────────
 // Physical banknote tally → total → what to do with it: add it onto a
 // cash account, apply it against one open customer loan, or split it
@@ -2521,6 +2617,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** Every payment on a buyer's statement, pending bulk deletion. */
   const [deletingAllPayments, setDeletingAllPayments] = useState<BuyerStatement | null>(null);
   const [bulkDeletingPayments, setBulkDeletingPayments] = useState(false);
+  /** A whole day's worth of grouped payments open for a bulk date/note/account edit. */
+  const [editingPaymentGroup, setEditingPaymentGroup] = useState<PaymentGroup | null>(null);
   const [editingLoan, setEditingLoan] = useState<CustomerLoan | null>(null);
   const [deleteLoanConfirmId, setDeleteLoanConfirmId] = useState<string | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -2889,6 +2987,39 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     return ok;
   };
 
+  /**
+   * Applies the same date/note/cash-account change to every repayment in a
+   * day's payment group at once -- editing the day as a unit rather than
+   * clicking into each order individually. Amounts are left as recorded:
+   * each still belongs to a specific loan's balance, so there's no single
+   * "day total" to redistribute.
+   */
+  const updateLoanRepayments = async (
+    targets: Array<{ loan: CustomerLoan; repaymentId: string }>,
+    patch: { ts: number; note?: string; accountId: string | null },
+  ) => {
+    let workingLedger = ledger;
+    let newLoans = loans;
+    for (const { loan, repaymentId } of targets) {
+      const live = newLoans.find(l => l.id === loan.id) || loan;
+      const existingAmount = (live.repayments || []).find(r => r.id === repaymentId)?.amount;
+      if (existingAmount == null) continue;
+      const next = editRepayment(
+        live, repaymentId, { ...patch, amount: existingAmount, newLedgerEntryId: uid() }, workingLedger, repaymentLedgerNote(live, patch.note),
+      );
+      if (!next) continue;
+      workingLedger = next.ledger;
+      newLoans = newLoans.map(l => (l.id === live.id ? next.loan : l));
+    }
+    const ok = await commit({
+      ...state,
+      cashLedger: workingLedger,
+      cashQAR: deriveCashQAR(accounts, workingLedger),
+      customerLoans: newLoans,
+    });
+    return ok;
+  };
+
   const confirmDeletePaymentGroup = async () => {
     if (!deletingPaymentGroup) return;
     const targets = deletingPaymentGroup.members
@@ -2899,6 +3030,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const ok = await deleteLoanRepayments(targets);
     setBulkDeletingPayments(false);
     if (ok) { setDeletingPaymentGroup(null); toast.success(t('loanPaymentDeleted')); }
+  };
+
+  const confirmEditPaymentGroup = async (patch: { ts: number; note?: string; accountId: string | null }) => {
+    if (!editingPaymentGroup) return;
+    const targets = editingPaymentGroup.members
+      .map(findRepayment)
+      .filter((x): x is { loan: CustomerLoan; repayment: LoanRepayment } => !!x)
+      .map(({ loan, repayment }) => ({ loan, repaymentId: repayment.id }));
+    const ok = await updateLoanRepayments(targets, patch);
+    if (ok) { setEditingPaymentGroup(null); toast.success(t('loanPaymentUpdated')); }
   };
 
   const confirmDeleteAllPayments = async () => {
@@ -3510,6 +3651,20 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   const overdue = stmt.oldestOpenDays > 30;
                   const payments = stmt.entries.filter(e => e.kind === 'payment');
                   const paymentGroups = groupPaymentsByDay(payments);
+                  // USDT/EGP totals for a payment's Details panel -- pulled from
+                  // the exchange-imported trade behind each settled order, not
+                  // from the payment itself (a repayment only ever carries the
+                  // loan's own currency, QAR here).
+                  const paymentGroupTotals = (group: PaymentGroup) => {
+                    let usdt = 0, egp = 0, hasEgp = false;
+                    for (const m of group.members) {
+                      const loan = loans.find(l => l.id === m.loanId);
+                      const trade = loan?.tradeId ? state.trades.find(tr => tr.id === loan.tradeId) : undefined;
+                      if (trade) usdt += trade.amountUSDT;
+                      if (trade?.originalFiat) { hasEgp = true; egp += trade.originalFiatAmount || 0; }
+                    }
+                    return { usdt, egp, hasEgp };
+                  };
                   const isMergingHere = mergePaymentsKey === stmt.key;
                   return (
                     <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -4052,38 +4207,44 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         </div>
                                       )}
                                       {!isMergingHere && !target && isBatch && (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 6 }}>
-                                          <div style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
-                                            {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
-                                          </div>
-                                          <button
-                                            className="rowBtn"
-                                            style={{ padding: '3px 8px', fontSize: 9, color: 'var(--bad)' }}
-                                            onClick={() => setDeletingPaymentGroup(group)}
-                                          >
-                                            🗑 {t('loanDeleteDayPayments')}
-                                          </button>
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
+                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
                                         </div>
                                       )}
                                       {isExpanded && (
                                         <div style={{ display: 'grid', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
-                                          {group.members.map(m => {
-                                            const memberTarget = findRepayment(m);
+                                          {(() => {
+                                            const { usdt, egp, hasEgp } = paymentGroupTotals(group);
                                             return (
-                                              <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 10 }}>
-                                                <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(m.ts)}</span>
-                                                <span className="mono">{m.ref}</span>
-                                                <span className="loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(m.credit)}</span>
-                                                <span style={{ color: 'var(--muted)' }}>{m.accountName || '—'}</span>
-                                                {!isMergingHere && memberTarget && (
-                                                  <div style={{ display: 'flex', gap: 4, marginInlineStart: 'auto' }}>
-                                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingRepayment(memberTarget)}>{t('edit')}</button>
-                                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(memberTarget)}>{t('delete')}</button>
+                                              <>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                                  <span style={{ color: 'var(--muted)' }}>{t('loanColDate')}</span>
+                                                  <span className="mono">{fmtTs(group.ts)}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                                  <span style={{ color: 'var(--muted)' }}>{t('loanColQarAmount')}</span>
+                                                  <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(group.credit)}</span>
+                                                </div>
+                                                {usdt > 0 && (
+                                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                                    <span style={{ color: 'var(--muted)' }}>{t('loanColUsdtAmount')}</span>
+                                                    <span className="mono">{fmtU(usdt)}</span>
                                                   </div>
                                                 )}
-                                              </div>
+                                                {hasEgp && (
+                                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                                    <span style={{ color: 'var(--muted)' }}>{t('loanColEgpAmount')}</span>
+                                                    <span className="mono">{fmtTotal(egp)}</span>
+                                                  </div>
+                                                )}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                                  <span style={{ color: 'var(--muted)' }}>{t('loanPaymentOrderCount')}</span>
+                                                  <span className="mono">{group.members.length}</span>
+                                                </div>
+                                              </>
                                             );
-                                          })}
+                                          })()}
                                         </div>
                                       )}
                                     </div>
@@ -4161,58 +4322,32 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                                 </button>
                                               </div>
                                             )}
-                                            {/* A split payment is several separate repayment records, not one --
-                                                there's nothing here to edit as a single row. Point at the expand
-                                                toggle instead of leaving this cell looking broken/empty. */}
                                             {!isMergingHere && !target && isBatch && (
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                                                <span style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                  {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
-                                                </span>
-                                                <button
-                                                  className="rowBtn"
-                                                  style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                                  onClick={() => setDeletingPaymentGroup(group)}
-                                                >
-                                                  🗑 {t('loanDeleteDayPayments')}
-                                                </button>
+                                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                                <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
+                                                <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
                                               </div>
                                             )}
                                           </td>
                                         </tr>
-                                        {isExpanded && group.members.map(m => {
-                                          const memberTarget = findRepayment(m);
+                                        {isExpanded && (() => {
+                                          const { usdt, egp, hasEgp } = paymentGroupTotals(group);
                                           return (
-                                            <tr key={m.id} style={{ background: 'var(--panel2)' }}>
+                                            <tr style={{ background: 'var(--panel2)' }}>
                                               {isMergingHere && <td />}
-                                              <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 20, color: 'var(--muted)' }}>{fmtTs(m.ts)}</td>
-                                              <td className="mono" style={{ whiteSpace: 'nowrap' }}>{m.ref}</td>
-                                              <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(m.credit)}</td>
-                                              <td style={{ color: 'var(--muted)' }}>{m.accountName || '—'}</td>
-                                              <td style={{ color: 'var(--muted)', minWidth: 140 }}>{m.description || '—'}</td>
-                                              <td>
-                                                {!isMergingHere && memberTarget && (
-                                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                                    <button
-                                                      className="rowBtn"
-                                                      style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                                                      onClick={() => setEditingRepayment(memberTarget)}
-                                                    >
-                                                      {t('edit')}
-                                                    </button>
-                                                    <button
-                                                      className="rowBtn"
-                                                      style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                                      onClick={() => setDeletingRepayment(memberTarget)}
-                                                    >
-                                                      {t('delete')}
-                                                    </button>
-                                                  </div>
-                                                )}
+                                              <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 20, color: 'var(--muted)' }}>{fmtTs(group.ts)}</td>
+                                              <td colSpan={4}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 10, color: 'var(--muted)' }}>
+                                                  <span>{t('loanColQarAmount')}: <strong className="mono" style={{ color: 'var(--good)' }}>{formatMoney(group.credit)}</strong></span>
+                                                  {usdt > 0 && <span>{t('loanColUsdtAmount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtU(usdt)}</strong></span>}
+                                                  {hasEgp && <span>{t('loanColEgpAmount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(egp)}</strong></span>}
+                                                  <span>{t('loanPaymentOrderCount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{group.members.length}</strong></span>
+                                                </div>
                                               </td>
+                                              <td />
                                             </tr>
                                           );
-                                        })}
+                                        })()}
                                       </Fragment>
                                     );
                                   })}
@@ -4742,6 +4877,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </div>
           </div>
         </div>
+      )}
+
+      {editingPaymentGroup && (
+        <EditPaymentGroupModal
+          group={editingPaymentGroup}
+          accounts={activeAccounts}
+          isMobile={isMobile}
+          onSave={confirmEditPaymentGroup}
+          onClose={() => setEditingPaymentGroup(null)}
+        />
       )}
 
       {deletingPaymentGroup && (
