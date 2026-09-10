@@ -497,6 +497,26 @@ export function getLoanRemaining(loan: CustomerLoan): number {
   return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan)) * 100) / 100);
 }
 
+/**
+ * Strips any tombstoned repayment out of every loan's own repayments array
+ * and re-derives status (a loan a deleted repayment had settled reopens) --
+ * see TrackerState.deletedRepaymentIds for why a plain merge can't do this.
+ */
+export function withoutDeletedRepayments(
+  loans: CustomerLoan[] | undefined,
+  deletedRepaymentIds: string[] | undefined,
+): CustomerLoan[] {
+  if (!Array.isArray(loans) || loans.length === 0) return [];
+  const deleted = new Set(deletedRepaymentIds || []);
+  if (deleted.size === 0) return loans;
+  return loans.map(loan => {
+    const repayments = loan.repayments || [];
+    if (!repayments.some(r => deleted.has(r.id))) return loan;
+    const nextLoan = { ...loan, repayments: repayments.filter(r => !deleted.has(r.id)) };
+    return { ...nextLoan, status: getLoanRemaining(nextLoan) <= 0 ? 'closed' : 'open' };
+  });
+}
+
 /** One customer payment (a loan repayment) landing on a calendar day. */
 export interface DayPayment {
   id: string;
@@ -607,6 +627,19 @@ export interface TrackerState {
    * identical pattern applied to loans.
    */
   deletedTradeIds?: string[];
+  /**
+   * Ids of individual loan repayments removed outright (a repayment deleted
+   * off an otherwise-still-open loan, not the whole loan). The loan itself
+   * survives, so deletedLoanIds doesn't cover this — mergeArrayById/unionById
+   * still merge customerLoans by loan id, and whichever side's copy of that
+   * loan object wins carries its own `repayments` array wholesale. A stale
+   * device that still has the deleted repayment in its in-memory copy of the
+   * loan resurrects it the next time it saves anything at all. Tombstoning
+   * the repayment id here, and filtering every loan's repayments array by it
+   * on every merge, is what makes the deletion stick. See deletedLoanIds for
+   * the identical pattern applied one level up.
+   */
+  deletedRepaymentIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }

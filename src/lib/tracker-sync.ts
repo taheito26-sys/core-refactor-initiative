@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
-import type { TrackerState } from './tracker-helpers';
+import { withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -143,11 +143,18 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
         ...(merged.deletedTradeIds || []),
         ...(Array.isArray(state.deletedTradeIds) ? state.deletedTradeIds : []),
       ])).slice(-500),
+      deletedRepaymentIds: Array.from(new Set([
+        ...(merged.deletedRepaymentIds || []),
+        ...(Array.isArray(state.deletedRepaymentIds) ? state.deletedRepaymentIds : []),
+      ])).slice(-500),
     };
   }
   if (merged.customerLoans && merged.deletedLoanIds?.length) {
     const deleted = new Set(merged.deletedLoanIds);
     merged.customerLoans = merged.customerLoans.filter(l => !deleted.has(l.id));
+  }
+  if (merged.customerLoans && merged.deletedRepaymentIds?.length) {
+    merged.customerLoans = withoutDeletedRepayments(merged.customerLoans, merged.deletedRepaymentIds);
   }
   if (merged.batches && merged.deletedBatchIds?.length) {
     const deleted = new Set(merged.deletedBatchIds);
@@ -241,8 +248,15 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       ...(latestState.deletedLoanIds || []),
       ...(stripped.deletedLoanIds || []),
     ])).slice(-500);
-    const mergedLoans = mergeArrayById(latestState.customerLoans, stripped.customerLoans)
-      .filter(l => !deletedLoanIds.includes(l.id));
+    const deletedRepaymentIds = Array.from(new Set([
+      ...(latestState.deletedRepaymentIds || []),
+      ...(stripped.deletedRepaymentIds || []),
+    ])).slice(-500);
+    const mergedLoans = withoutDeletedRepayments(
+      mergeArrayById(latestState.customerLoans, stripped.customerLoans)
+        .filter(l => !deletedLoanIds.includes(l.id)),
+      deletedRepaymentIds,
+    );
 
     const deletedBatchIds = Array.from(new Set([
       ...(latestState.deletedBatchIds || []),
@@ -264,6 +278,7 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       deletedTradeIds,
       customerLoans: mergedLoans,
       deletedLoanIds,
+      deletedRepaymentIds,
       batches: mergedBatches,
       deletedBatchIds,
     };

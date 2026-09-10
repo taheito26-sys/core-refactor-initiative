@@ -2953,11 +2953,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const next = deleteRepayment(loans.find(l => l.id === loan.id) || loan, repaymentId, ledger);
     if (!next) { setDeletingRepayment(null); return; }
 
+    // Tombstoned so a stale device that still has this repayment in its
+    // in-memory copy of the loan doesn't resurrect it on its next save --
+    // see TrackerState.deletedRepaymentIds.
+    const newDeletedRepaymentIds = Array.from(new Set([...(state.deletedRepaymentIds || []), repaymentId])).slice(-500);
     const ok = await commit({
       ...state,
       cashLedger: next.ledger,
       cashQAR: deriveCashQAR(accounts, next.ledger),
       customerLoans: replaceLoan(next.loan),
+      deletedRepaymentIds: newDeletedRepaymentIds,
     });
     if (ok) { setDeletingRepayment(null); toast.success(t('loanPaymentDeleted')); }
   };
@@ -2971,18 +2976,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const deleteLoanRepayments = async (targets: Array<{ loan: CustomerLoan; repaymentId: string }>) => {
     let workingLedger = ledger;
     let newLoans = loans;
+    const deletedIds: string[] = [];
     for (const { loan, repaymentId } of targets) {
       const live = newLoans.find(l => l.id === loan.id) || loan;
       const next = deleteRepayment(live, repaymentId, workingLedger);
       if (!next) continue;
       workingLedger = next.ledger;
       newLoans = newLoans.map(l => (l.id === live.id ? next.loan : l));
+      deletedIds.push(repaymentId);
     }
+    // Tombstoned so a stale device doesn't resurrect any of these on its
+    // next save -- see TrackerState.deletedRepaymentIds.
+    const newDeletedRepaymentIds = Array.from(new Set([...(state.deletedRepaymentIds || []), ...deletedIds])).slice(-500);
     const ok = await commit({
       ...state,
       cashLedger: workingLedger,
       cashQAR: deriveCashQAR(accounts, workingLedger),
       customerLoans: newLoans,
+      deletedRepaymentIds: newDeletedRepaymentIds,
     });
     return ok;
   };

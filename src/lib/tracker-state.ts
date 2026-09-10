@@ -1,5 +1,5 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
-import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
+import { computeFIFO, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
 import { getCurrentTrackerState, hasMeaningfulTrackerData, isTrackerDataCleared } from './tracker-backup';
 
 interface StateOverrides {
@@ -26,6 +26,11 @@ function withoutDeletedLoans(
   if (!Array.isArray(loans) || loans.length === 0) return [];
   const deleted = new Set(deletedLoanIds || []);
   return deleted.size === 0 ? loans : loans.filter(l => !deleted.has(l.id));
+}
+
+/** Union deleted-repayment tombstones from two sources, capped to a sane size. */
+function unionDeletedRepaymentIds(a: string[] | undefined, b: string[] | undefined): string[] {
+  return Array.from(new Set([...(a || []), ...(b || [])])).slice(-500);
 }
 
 /** Union deleted-batch tombstones from two sources, capped to a sane size. */
@@ -89,9 +94,13 @@ export function buildStateFrom(
     cashHistory: Array.isArray(stored?.cashHistory) ? stored.cashHistory : [],
     cashAccounts: Array.isArray(stored?.cashAccounts) ? stored.cashAccounts : [],
     cashLedger: Array.isArray(stored?.cashLedger) ? stored.cashLedger : [],
-    customerLoans: withoutDeletedLoans(stored?.customerLoans, stored?.deletedLoanIds),
+    customerLoans: withoutDeletedRepayments(
+      withoutDeletedLoans(stored?.customerLoans, stored?.deletedLoanIds),
+      stored?.deletedRepaymentIds,
+    ),
     deletedLoanIds: Array.isArray(stored?.deletedLoanIds) ? stored.deletedLoanIds : [],
     deletedBatchIds: Array.isArray(stored?.deletedBatchIds) ? stored.deletedBatchIds : [],
+    deletedRepaymentIds: Array.isArray(stored?.deletedRepaymentIds) ? stored.deletedRepaymentIds : [],
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? asNumber(stored?.settings?.lowStockThreshold, 5000),
       priceAlertThreshold: overrides?.priceAlertThreshold ?? asNumber(stored?.settings?.priceAlertThreshold, 2),
@@ -142,6 +151,7 @@ export function mergeLocalAndCloud(
     const cleanCloud = stripCashState(cloud) ?? {};
     const deletedLoanIds = unionDeletedLoanIds(cleanLocal.deletedLoanIds, cleanCloud.deletedLoanIds);
     const deletedBatchIds = unionDeletedBatchIds(cleanLocal.deletedBatchIds, cleanCloud.deletedBatchIds);
+    const deletedRepaymentIds = unionDeletedRepaymentIds(cleanLocal.deletedRepaymentIds, cleanCloud.deletedRepaymentIds);
     return {
       ...cleanLocal,
       ...cleanCloud,
@@ -154,14 +164,19 @@ export function mergeLocalAndCloud(
       cashHistory: [],
       cashQAR: 0,
       cashOwner: '',
-      customerLoans: withoutDeletedLoans(unionById(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
+      customerLoans: withoutDeletedRepayments(
+        withoutDeletedLoans(unionById(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
+        deletedRepaymentIds,
+      ),
       deletedLoanIds,
       deletedBatchIds,
+      deletedRepaymentIds,
     };
   }
 
   const deletedLoanIds = unionDeletedLoanIds(local.deletedLoanIds, cloud.deletedLoanIds);
   const deletedBatchIds = unionDeletedBatchIds(local.deletedBatchIds, cloud.deletedBatchIds);
+  const deletedRepaymentIds = unionDeletedRepaymentIds(local.deletedRepaymentIds, cloud.deletedRepaymentIds);
   return {
     ...local,
     ...cloud,
@@ -172,9 +187,13 @@ export function mergeLocalAndCloud(
     cashAccounts: unionById(local.cashAccounts, cloud.cashAccounts),
     cashLedger: unionById(local.cashLedger, cloud.cashLedger),
     cashHistory: unionById(local.cashHistory, cloud.cashHistory),
-    customerLoans: withoutDeletedLoans(unionById(local.customerLoans, cloud.customerLoans), deletedLoanIds),
+    customerLoans: withoutDeletedRepayments(
+      withoutDeletedLoans(unionById(local.customerLoans, cloud.customerLoans), deletedLoanIds),
+      deletedRepaymentIds,
+    ),
     deletedLoanIds,
     deletedBatchIds,
+    deletedRepaymentIds,
   };
 }
 
