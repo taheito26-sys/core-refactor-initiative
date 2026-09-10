@@ -3692,23 +3692,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     ? Math.min(100, Math.round((stmt.totalRepaid / stmt.totalLoaned) * 100))
                     : 0;
                   const overdue = stmt.oldestOpenDays > 30;
-                  const payments = stmt.entries.filter(e => e.kind === 'payment');
-                  const paymentGroups = groupPaymentsByDay(payments);
-                  // USDT/EGP totals for a payment's Details panel -- pulled from
-                  // the exchange-imported trade behind each settled order, not
-                  // from the payment itself (a repayment only ever carries the
-                  // loan's own currency, QAR here).
-                  const paymentGroupTotals = (group: PaymentGroup) => {
-                    let usdt = 0, egp = 0, hasEgp = false;
-                    for (const m of group.members) {
-                      const loan = loans.find(l => l.id === m.loanId);
-                      const trade = loan?.tradeId ? state.trades.find(tr => tr.id === loan.tradeId) : undefined;
-                      if (trade) usdt += trade.amountUSDT;
-                      if (trade?.originalFiat) { hasEgp = true; egp += trade.originalFiatAmount || 0; }
-                    }
-                    return { usdt, egp, hasEgp };
-                  };
-                  const isMergingHere = mergePaymentsKey === stmt.key;
                   return (
                     <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
                       <button className="loan-row loan-cols" onClick={() => toggleBuyer(stmt.key)}>
@@ -4148,331 +4131,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             );
                           })()}
 
-                          {/* Every payment this buyer has made, newest first — payments split
-                              across several orders in one physical transaction are shown as
-                              a single grouped row, expandable to the per-order breakdown. */}
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                              <div className="acct-sec">{t('stmtPaymentsReceived')} · {payments.length}</div>
-                              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                              {payments.length > 0 && !isMergingHere && (
-                                <button
-                                  className="rowBtn"
-                                  style={{ padding: '4px 10px', fontSize: 10, color: 'var(--bad)' }}
-                                  onClick={() => setDeletingAllPayments(stmt)}
-                                >
-                                  🗑 {t('loanDeleteAllPayments')}
-                                </button>
-                              )}
-                              {paymentGroups.length > 1 && (
-                                isMergingHere ? (
-                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>
-                                      {t('loanMergeSelectedCount').replace('{n}', String(mergePaymentSelection.size))}
-                                    </span>
-                                    <button
-                                      className="rowBtn"
-                                      style={{ padding: '4px 10px', fontSize: 10 }}
-                                      onClick={() => { setMergePaymentsKey(null); setMergePaymentSelection(new Set()); }}
-                                    >
-                                      {t('cancel')}
-                                    </button>
-                                    <button
-                                      className="btn"
-                                      style={{ padding: '4px 10px', fontSize: 10 }}
-                                      disabled={mergePaymentSelection.size < 2}
-                                      onClick={() => {
-                                        const targets = paymentGroups
-                                          .filter(g => mergePaymentSelection.has(g.id))
-                                          .flatMap(g => g.members)
-                                          .map(findRepayment)
-                                          .filter((x): x is { loan: CustomerLoan; repayment: LoanRepayment } => !!x);
-                                        mergeExistingPayments(targets);
-                                      }}
-                                    >
-                                      {t('loanMergeConfirm').replace('{n}', String(mergePaymentSelection.size))}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    className="rowBtn"
-                                    style={{ padding: '4px 10px', fontSize: 10 }}
-                                    onClick={() => { setMergePaymentsKey(stmt.key); setMergePaymentSelection(new Set()); }}
-                                  >
-                                    🔗 {t('loanMergePayments')}
-                                  </button>
-                                )
-                              )}
-                              </div>
-                            </div>
-                            {isMobile ? (
-                              payments.length === 0 ? (
-                                <div className="empty" style={{ padding: '14px 0' }}>
-                                  <div className="empty-s">{t('loanNoPaymentsYet')}</div>
-                                </div>
-                              ) : (
-                              <div style={{ display: 'grid', gap: 8 }}>
-                                {[...paymentGroups].reverse().map(group => {
-                                  const isBatch = group.members.length > 1;
-                                  const isExpanded = expandedPaymentGroups.has(group.id);
-                                  const single = !isBatch ? group.members[0] : null;
-                                  const target = single ? findRepayment(single) : null;
-                                  return (
-                                    <div key={group.id} className="panel loan-payment-card">
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        {isMergingHere && (
-                                          <input
-                                            type="checkbox"
-                                            checked={mergePaymentSelection.has(group.id)}
-                                            onChange={() => toggleMergeSelection(group.id)}
-                                          />
-                                        )}
-                                        <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{fmtTs(group.ts)}</span>
-                                        <span className="loan-num" style={{ color: 'var(--good)', marginInlineStart: 'auto' }}>+{formatMoney(group.credit)}</span>
-                                      </div>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                                        <button
-                                          className="rowBtn"
-                                          style={{ padding: '3px 8px', fontSize: 9.5 }}
-                                          onClick={() => togglePaymentGroup(group.id)}
-                                        >
-                                          {isExpanded ? '▾' : '▸'} {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : t('loanPaymentViewDetails')}
-                                        </button>
-                                        {group.accountName && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{group.accountName}</span>}
-                                      </div>
-                                      {group.description && (
-                                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{group.description}</div>
-                                      )}
-                                      {!isMergingHere && target && (
-                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }} onClick={() => setEditingRepayment(target)}>{t('edit')}</button>
-                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(target)}>{t('delete')}</button>
-                                        </div>
-                                      )}
-                                      {!isMergingHere && !target && isBatch && (
-                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
-                                          <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
-                                        </div>
-                                      )}
-                                      {isExpanded && (
-                                        <div style={{ display: 'grid', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
-                                          {(() => {
-                                            const { usdt, egp, hasEgp } = paymentGroupTotals(group);
-                                            return (
-                                              <>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                                  <span style={{ color: 'var(--muted)' }}>{t('loanColDate')}</span>
-                                                  <span className="mono">{fmtTs(group.ts)}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                                  <span style={{ color: 'var(--muted)' }}>{t('loanColQarAmount')}</span>
-                                                  <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(group.credit)}</span>
-                                                </div>
-                                                {usdt > 0 && (
-                                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                                    <span style={{ color: 'var(--muted)' }}>{t('loanColUsdtAmount')}</span>
-                                                    <span className="mono">{fmtU(usdt)}</span>
-                                                  </div>
-                                                )}
-                                                {hasEgp && (
-                                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                                    <span style={{ color: 'var(--muted)' }}>{t('loanColEgpAmount')}</span>
-                                                    <span className="mono">{fmtTotal(egp)}</span>
-                                                  </div>
-                                                )}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                                  <span style={{ color: 'var(--muted)' }}>{t('loanPaymentOrderCount')}</span>
-                                                  <span className="mono">{group.members.length}</span>
-                                                </div>
-                                              </>
-                                            );
-                                          })()}
-                                          {(() => {
-                                            const subGroups = groupPayments(group.members);
-                                            if (subGroups.length <= 1) return null;
-                                            return (
-                                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line2)' }}>
-                                                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 4 }}>{t('loanPaymentsInDay')}</div>
-                                                {subGroups.map(sub => (
-                                                  <div key={sub.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 10, padding: '4px 0' }}>
-                                                    <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(sub.ts)}</span>
-                                                    <span className="loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(sub.credit)}</span>
-                                                    <span style={{ color: 'var(--muted)' }}>{sub.members.length} {t('loanPaymentOrderCount').toLowerCase()}</span>
-                                                    {!isMergingHere && (
-                                                      <div style={{ display: 'flex', gap: 4, marginInlineStart: 'auto' }}>
-                                                        <button
-                                                          className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                                                          onClick={() => (sub.members.length > 1 ? setEditingPaymentGroup(sub) : (() => { const tgt = findRepayment(sub.members[0]); if (tgt) setEditingRepayment(tgt); })())}
-                                                        >{t('edit')}</button>
-                                                        <button
-                                                          className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                                          onClick={() => (sub.members.length > 1 ? setDeletingPaymentGroup(sub) : (() => { const tgt = findRepayment(sub.members[0]); if (tgt) setDeletingRepayment(tgt); })())}
-                                                        >{t('delete')}</button>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            );
-                                          })()}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              )
-                            ) : (
-                            <div className="tableWrap">
-                              <table className="acct-table">
-                                <thead>
-                                  <tr>
-                                    {isMergingHere && <th />}
-                                    <th>{t('loanColDate')}</th>
-                                    <th>{t('loanColRef')}</th>
-                                    <th className="r">{t('loanColAmount')}</th>
-                                    <th>{t('loanColAccount')}</th>
-                                    <th>{t('loanNoteLabel')}</th>
-                                    <th />
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {payments.length === 0 ? (
-                                    <tr>
-                                      <td colSpan={isMergingHere ? 7 : 6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
-                                        {t('loanNoPaymentsYet')}
-                                      </td>
-                                    </tr>
-                                  ) : [...paymentGroups].reverse().map(group => {
-                                    const isBatch = group.members.length > 1;
-                                    const isExpanded = expandedPaymentGroups.has(group.id);
-                                    const single = !isBatch ? group.members[0] : null;
-                                    const target = single ? findRepayment(single) : null;
-                                    return (
-                                      <Fragment key={group.id}>
-                                        <tr>
-                                          {isMergingHere && (
-                                            <td>
-                                              <input
-                                                type="checkbox"
-                                                checked={mergePaymentSelection.has(group.id)}
-                                                onChange={() => toggleMergeSelection(group.id)}
-                                              />
-                                            </td>
-                                          )}
-                                          <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(group.ts)}</td>
-                                          <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                            <button
-                                              className="rowBtn"
-                                              style={{ padding: '1px 6px', fontSize: 9, minHeight: 18 }}
-                                              onClick={() => togglePaymentGroup(group.id)}
-                                            >
-                                              {isExpanded ? '▾' : '▸'} {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : t('loanPaymentViewDetails')}
-                                            </button>
-                                          </td>
-                                          <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(group.credit)}</td>
-                                          <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
-                                          <td style={{ color: 'var(--muted)', minWidth: 140 }}>{group.description || '—'}</td>
-                                          <td>
-                                            {!isMergingHere && target && (
-                                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                                <button
-                                                  className="rowBtn"
-                                                  style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                                                  onClick={() => setEditingRepayment(target)}
-                                                >
-                                                  {t('edit')}
-                                                </button>
-                                                <button
-                                                  className="rowBtn"
-                                                  style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                                  onClick={() => setDeletingRepayment(target)}
-                                                >
-                                                  {t('delete')}
-                                                </button>
-                                              </div>
-                                            )}
-                                            {!isMergingHere && !target && isBatch && (
-                                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                                <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
-                                                <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
-                                              </div>
-                                            )}
-                                          </td>
-                                        </tr>
-                                        {isExpanded && (() => {
-                                          const { usdt, egp, hasEgp } = paymentGroupTotals(group);
-                                          return (
-                                            <tr style={{ background: 'var(--panel2)' }}>
-                                              {isMergingHere && <td />}
-                                              <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 20, color: 'var(--muted)' }}>{fmtTs(group.ts)}</td>
-                                              <td colSpan={4}>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 10, color: 'var(--muted)' }}>
-                                                  <span>{t('loanColQarAmount')}: <strong className="mono" style={{ color: 'var(--good)' }}>{formatMoney(group.credit)}</strong></span>
-                                                  {usdt > 0 && <span>{t('loanColUsdtAmount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtU(usdt)}</strong></span>}
-                                                  {hasEgp && <span>{t('loanColEgpAmount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(egp)}</strong></span>}
-                                                  <span>{t('loanPaymentOrderCount')}: <strong className="mono" style={{ color: 'var(--text)' }}>{group.members.length}</strong></span>
-                                                </div>
-                                              </td>
-                                              <td />
-                                            </tr>
-                                          );
-                                        })()}
-                                        {isExpanded && (() => {
-                                          const subGroups = groupPayments(group.members);
-                                          return subGroups.length > 1 ? subGroups : [];
-                                        })().map(sub => {
-                                          const subSingle = sub.members.length === 1 ? sub.members[0] : null;
-                                          const subTarget = subSingle ? findRepayment(subSingle) : null;
-                                          return (
-                                            <tr key={sub.id} style={{ background: 'var(--panel2)' }}>
-                                              {isMergingHere && <td />}
-                                              <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 36, color: 'var(--muted)' }}>{fmtTs(sub.ts)}</td>
-                                              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                                {sub.members.length > 1 ? t('loanSplitPaymentBadge').replace('{n}', String(sub.members.length)) : sub.refs[0]}
-                                              </td>
-                                              <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(sub.credit)}</td>
-                                              <td style={{ color: 'var(--muted)' }}>{sub.accountName || '—'}</td>
-                                              <td style={{ color: 'var(--muted)', minWidth: 140 }}>{sub.description || '—'}</td>
-                                              <td>
-                                                {!isMergingHere && (
-                                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                                    <button
-                                                      className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                                                      onClick={() => (subTarget ? setEditingRepayment(subTarget) : setEditingPaymentGroup(sub))}
-                                                    >
-                                                      {t('edit')}
-                                                    </button>
-                                                    <button
-                                                      className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                                      onClick={() => (subTarget ? setDeletingRepayment(subTarget) : setDeletingPaymentGroup(sub))}
-                                                    >
-                                                      {t('delete')}
-                                                    </button>
-                                                  </div>
-                                                )}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </Fragment>
-                                    );
-                                  })}
-                                </tbody>
-                                {payments.length > 0 && (
-                                  <tfoot>
-                                    <tr>
-                                      <td colSpan={isMergingHere ? 3 : 2} style={{ fontWeight: 700 }}>{t('loanColRepaid')}</td>
-                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                      <td colSpan={3} />
-                                    </tr>
-                                  </tfoot>
-                                )}
-                              </table>
-                            </div>
-                            )}
-                          </div>
                         </div>
                       )}
                     </div>
@@ -4537,6 +4195,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(buyerTotal)}</span>
                             </div>
                           </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 10px 8px' }}>
+                            <button
+                              className="rowBtn"
+                              style={{ padding: '4px 10px', fontSize: 10, color: 'var(--bad)' }}
+                              onClick={() => setDeletingAllPayments(stmt)}
+                            >
+                              🗑 {t('loanDeleteAllPayments')}
+                            </button>
+                          </div>
                           <div className="tableWrap">
                             <table className="acct-table">
                               <thead>
@@ -4551,13 +4218,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               </thead>
                               <tbody>
                                 {groups.map(group => {
-                                  const single = group.members.length === 1 ? group.members[0] : null;
+                                  const isBatch = group.members.length > 1;
+                                  const single = !isBatch ? group.members[0] : null;
                                   const target = single ? findRepayment(single) : null;
                                   return (
                                     <tr key={group.id}>
                                       <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(group.ts)}</td>
                                       <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                        {group.members.length > 1 ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : group.refs[0]}
+                                        {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : group.refs[0]}
                                       </td>
                                       <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(group.credit)}</td>
                                       <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
@@ -4567,6 +4235,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                           <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                                             <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingRepayment(target)}>{t('edit')}</button>
                                             <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(target)}>{t('delete')}</button>
+                                          </div>
+                                        )}
+                                        {!target && isBatch && (
+                                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                            <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
+                                            <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
                                           </div>
                                         )}
                                       </td>
