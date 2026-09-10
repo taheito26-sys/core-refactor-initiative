@@ -1056,7 +1056,7 @@ export default function OrdersPage() {
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
     const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
-    let qty = 0, vol = 0, netVal = 0;
+    let qty = 0, vol = 0, netVal = 0, egpTotal = 0, hasEgp = false;
     for (const tr of activeList) {
       const c = derived.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
@@ -1066,8 +1066,12 @@ export default function OrdersPage() {
       } else if (tr.manualBuyPrice) {
         netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
       }
+      if (tr.originalFiat === 'EGP') {
+        hasEgp = true;
+        egpTotal += tr.originalFiatAmount ?? 0;
+      }
     }
-    return { count: activeList.length, qty, vol, net: netVal };
+    return { count: activeList.length, qty, vol, net: netVal, egpTotal: hasEgp ? egpTotal : null };
   }, [subFilteredMy, derived]);
 
 
@@ -3554,7 +3558,7 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
-  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => {
+  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
@@ -3562,6 +3566,7 @@ export default function OrdersPage() {
       { label: 'VOLUME', value: fmtC(kpi.vol) },
       { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
       ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
+      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) + ' EGP' }] : []),
     ];
     return (
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -3760,7 +3765,7 @@ export default function OrdersPage() {
                 </button>
               </div>
 
-              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
+              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net, egpTotal: buyerFilter ? myKpi.egpTotal : null })}
 
 
               {filtered.length === 0 ? (
