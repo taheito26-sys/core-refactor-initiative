@@ -479,10 +479,19 @@ export default function CustomerWalletPage() {
     () => monthlyPaymentBreakdown.reduce((max, m) => Math.max(max, m.total), 0) || 1,
     [monthlyPaymentBreakdown],
   );
+  // "This month" must mean the real calendar month, not "the most recent
+  // month that happens to have a payment" -- for a buyer with no payment
+  // yet this month (e.g. all their September orders are still unpaid),
+  // that fallback silently mislabeled last month's total as this month's.
   const monthOverMonth = useMemo(() => {
     if (monthlyPaymentBreakdown.length === 0) return null;
-    const current = monthlyPaymentBreakdown[0];
-    const previous = monthlyPaymentBreakdown[1] ?? null;
+    const byKey = new Map(monthlyPaymentBreakdown.map(m => [m.key, m]));
+    const currentKey = localMonthKey(Date.now());
+    const [y, mo] = currentKey.split('-').map(Number);
+    const previousKey = localMonthKey(new Date(y, mo - 2, 1).getTime());
+    const currency = monthlyPaymentBreakdown[0].currency;
+    const current = byKey.get(currentKey) ?? { key: currentKey, total: 0, count: 0, currency };
+    const previous = byKey.get(previousKey) ?? null;
     const changePct = previous && previous.total > 0
       ? Math.round(((current.total - previous.total) / previous.total) * 100)
       : null;
