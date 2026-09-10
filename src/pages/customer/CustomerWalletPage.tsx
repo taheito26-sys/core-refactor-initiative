@@ -343,6 +343,7 @@ export default function CustomerWalletPage() {
       return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
+    refetchInterval: 20000,
   });
 
   // Stable per-payment key (content-based, not array position) so a
