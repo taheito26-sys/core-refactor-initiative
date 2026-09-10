@@ -18,7 +18,7 @@ import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery, monthKey } from '@/features/stock/utils/loanGrouping';
 import {
-  buildBuyerStatements, statementMatchesQuery, totalsByCurrency, groupPayments,
+  buildBuyerStatements, statementMatchesQuery, totalsByCurrency, groupPaymentsByDay,
   type StatementEntry, type BuyerStatement, type PaymentGroup,
 } from '@/features/stock/utils/loanStatement';
 import {
@@ -3377,7 +3377,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     : 0;
                   const overdue = stmt.oldestOpenDays > 30;
                   const payments = stmt.entries.filter(e => e.kind === 'payment');
-                  const paymentGroups = groupPayments(payments);
+                  const paymentGroups = groupPaymentsByDay(payments);
                   const isMergingHere = mergePaymentsKey === stmt.key;
                   return (
                     <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
