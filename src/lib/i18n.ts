@@ -1728,6 +1728,7 @@ const translations = {
   cashCounterCountedLbl: { en: 'You counted',                  ar: 'قمت بعدّ' },
   cashCounterActionPrompt: { en: 'What do you want to do with this cash?', ar: 'ماذا تريد أن تفعل بهذا المبلغ؟' },
   cashCounterAddToCash:  { en: 'Add to cash balance',          ar: 'إضافة إلى رصيد النقد' },
+  cashCounterAddToCashAutoHint: { en: 'Auto-calculated — the counted amount minus the loan repayments below.', ar: 'محسوب تلقائياً — المبلغ المعدود ناقص سداد القروض أدناه.' },
   cashCounterAddToCashDesc: { en: 'Deposit this into the selected account', ar: 'إيداع هذا المبلغ في الحساب المحدد' },
   cashCounterRepayLoan:  { en: 'Repay one loan',                ar: 'سداد قرض واحد' },
   cashCounterRepayLoanDesc: { en: 'Apply the full amount to a single customer', ar: 'تطبيق كامل المبلغ على عميل واحد' },

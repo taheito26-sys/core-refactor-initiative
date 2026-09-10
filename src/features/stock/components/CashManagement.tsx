@@ -1591,7 +1591,18 @@ function CashCounterModal({
             {actions.has('add') && (
               <div className="field2" style={{ marginBottom: 14 }}>
                 <div className="lbl">{t('cashCounterAddToCash') || 'Add to cash balance'} → {account.name}</div>
-                <div className="inputBox"><input inputMode="decimal" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="0.00" /></div>
+                {actions.has('repay') ? (
+                  <>
+                    <div className="inputBox">
+                      <input inputMode="decimal" value={cashAmount} readOnly style={{ opacity: 0.75, cursor: 'not-allowed' }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                      {t('cashCounterAddToCashAutoHint') || 'Auto-calculated — the counted amount minus the loan repayments below.'}
+                    </div>
+                  </>
+                ) : (
+                  <div className="inputBox"><input inputMode="decimal" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="0.00" /></div>
+                )}
               </div>
             )}
 
