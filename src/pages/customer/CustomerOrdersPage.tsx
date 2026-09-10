@@ -561,6 +561,10 @@ export default function CustomerOrdersPage() {
     loanCurrency: string | null;
     loanAmount: number | null;
     loanPaid: number | null;
+    /** EGP selling price per USDT for this order's trade, when linked to one. */
+    fiatPrice: number | null;
+    /** Average QAR→EGP cross-rate for this order's trade, when linked to one. */
+    qarToEgpRate: number | null;
   };
 
   const historyOrders = useMemo<HistoryOrderRow[]>(() => {
@@ -576,6 +580,9 @@ export default function CustomerOrdersPage() {
         // loan-linked row for the same order with an empty "fully paid"
         // card. Skip it; only loan-linked trades get a row.
         if (!loan) continue;
+        // EGP per QAR cross-rate — the two fiat legs never trade directly,
+        // so it's derived from each side's rate against the shared USDT leg.
+        const qarToEgpRate = b.qarRate ? (b.fiatPrice || 0) / b.qarRate : null;
         rows.push({
           key: b.orderNumber || b.tradeId,
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
@@ -586,6 +593,8 @@ export default function CustomerOrdersPage() {
           loanCurrency: s.currency,
           loanAmount: loan.amount,
           loanPaid: loan.paid,
+          fiatPrice: b.fiatPrice || null,
+          qarToEgpRate,
         });
       }
       // Loans with no linked Binance trade (manually recorded) still need a
@@ -601,6 +610,8 @@ export default function CustomerOrdersPage() {
           settled: o.settled,
           loanCurrency: s.currency,
           loanAmount: o.amount,
+          fiatPrice: null,
+          qarToEgpRate: null,
           loanPaid: o.paid,
         });
       }
@@ -1547,9 +1558,22 @@ export default function CustomerOrdersPage() {
                           <div className="prog" style={{ height: 8, maxWidth: 'none' }}>
                             <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
                           </div>
-                          <div className="mono" style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-                            {Math.round(o.loanPaid ?? 0).toLocaleString()} <span style={{ color: 'var(--muted)', fontWeight: 500 }}>/ {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}</span>
-                          </div>
+                          {(o.fiatPrice != null || o.qarToEgpRate != null) && (
+                            <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10 }}>
+                              {o.fiatPrice != null && (
+                                <span>
+                                  <span style={{ color: 'var(--muted)' }}>{L('EGP price', 'سعر البيع')}: </span>
+                                  <span className="mono" style={{ fontWeight: 700 }}>{o.fiatPrice.toFixed(2)}</span>
+                                </span>
+                              )}
+                              {o.qarToEgpRate != null && (
+                                <span>
+                                  <span style={{ color: 'var(--muted)' }}>{L('Avg QAR→EGP', 'متوسط ريال/جنيه')}: </span>
+                                  <span className="mono" style={{ fontWeight: 700 }}>{o.qarToEgpRate.toFixed(2)}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <span
                           className="mono"
@@ -1574,7 +1598,8 @@ export default function CustomerOrdersPage() {
                   <tr>
                     <th>{L('Date', 'التاريخ')}</th>
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
-                    <th className="r">{L('Total (QAR)', 'الإجمالي (ريال)')}</th>
+                    <th className="r">{L('EGP price', 'سعر البيع')}</th>
+                    <th className="r">{L('Avg QAR→EGP', 'متوسط ريال/جنيه')}</th>
                     <th>{L('Repayment', 'السداد')}</th>
                   </tr>
                 </thead>
@@ -1590,7 +1615,10 @@ export default function CustomerOrdersPage() {
                           {Math.round(o.totalAmount).toLocaleString()} {o.currency}
                         </td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
-                          {o.loanAmount != null ? `${Math.round(o.loanAmount).toLocaleString()} ${o.loanCurrency}` : '—'}
+                          {o.fiatPrice != null ? o.fiatPrice.toFixed(2) : '—'}
+                        </td>
+                        <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
+                          {o.qarToEgpRate != null ? o.qarToEgpRate.toFixed(2) : '—'}
                         </td>
                         <td>
                           {o.loaned && o.loanAmount != null && (
@@ -1598,9 +1626,6 @@ export default function CustomerOrdersPage() {
                               <div style={{ flex: 1 }}>
                                 <div className="prog" style={{ height: 7 }}>
                                   <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
-                                </div>
-                                <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3, whiteSpace: 'nowrap' }}>
-                                  {Math.round(o.loanPaid ?? 0).toLocaleString()} / {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}
                                 </div>
                               </div>
                               <span
