@@ -6,7 +6,7 @@ import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
-  type CustomerLoan, type CashCurrency, type MirrorStatus,
+  type CustomerLoan, type CashCurrency,
   getLoanRepaid, getLoanRemaining,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -599,7 +599,6 @@ export default function OrdersPage() {
   const [editDealFee, setEditDealFee] = useState('0');
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
-  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
 
   const linkedRelationship = useMemo(
     () => relationships.find(r => r.id === linkedRelId),
@@ -922,39 +921,6 @@ export default function OrdersPage() {
     if (!selected) return new Set([buyerFilter]);
     return new Set(customerIdsByCanonicalName.get(canonicalizeName(selected.name)) ?? [buyerFilter]);
   }, [buyerFilter, state.customers, customerIdsByCanonicalName]);
-
-  // The currently filtered buyer, when their name matches a connected
-  // customer but some of their trades were recorded under buyerType other
-  // than 'connected_customer' (e.g. auto-created from an exchange import).
-  // Those trades never mirror into customer_orders, so the buyer's own
-  // portal shows fewer orders than the merchant sees. Offer an explicit,
-  // merchant-confirmed action to relink them rather than inferring this
-  // silently — the mirror path intentionally never matches by name alone.
-  const buyerLinkCandidate = useMemo(() => {
-    if (!buyerFilter) return null;
-    const selected = state.customers.find(c => c.id === buyerFilter);
-    if (!selected) return null;
-    const key = canonicalizeName(selected.name);
-    const connected = connectedCustomers.find(c => canonicalizeName(c.name) === key);
-    if (!connected) return null;
-    const unlinkedCount = state.trades.filter(t => (
-      !t.voided && t.customerId === selected.id && t.buyerType !== 'connected_customer'
-    )).length;
-    if (unlinkedCount === 0) return null;
-    return { localCustomerId: selected.id, connectedCustomerId: connected.customerUserId, connectedName: connected.name, unlinkedCount };
-  }, [buyerFilter, state.customers, connectedCustomers, state.trades]);
-
-  const linkBuyerToPortal = useCallback(() => {
-    if (!buyerLinkCandidate) return;
-    const { localCustomerId, connectedCustomerId, unlinkedCount } = buyerLinkCandidate;
-    const nextTrades = state.trades.map(t => {
-      if (t.customerId !== localCustomerId || t.buyerType === 'connected_customer') return t;
-      const { mirrorStatus: _mirrorStatus, ...rest } = t;
-      return { ...rest, buyerType: 'connected_customer' as const, connectedCustomerId };
-    });
-    applyState({ ...state, trades: nextTrades });
-    toast.success(`Linking ${unlinkedCount} order${unlinkedCount === 1 ? '' : 's'} to ${buyerLinkCandidate.connectedName}'s portal…`);
-  }, [buyerLinkCandidate, state, applyState]);
 
   const filtered = useMemo(() => {
     return list.filter(t => {
@@ -1451,37 +1417,6 @@ export default function OrdersPage() {
   const isUuidLike = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
 
-  const resolveMirrorCustomerUserId = useCallback((trade: Trade) => {
-    // MIRRORING GATE: Only attempt to mirror if explicitly marked as connected_customer
-    // Do NOT use name-based matching or infer from customerId
-    if (trade.buyerType !== 'connected_customer') {
-      return null;
-    }
-
-    // Must have explicit connectedCustomerId
-    if (!trade.connectedCustomerId) {
-      return null;
-    }
-
-    // Validate UUID format
-    if (!isUuidLike(trade.connectedCustomerId)) {
-      return null;
-    }
-
-    // Find connected customer record to verify it exists
-    const connectedCustomer = connectedCustomers.find(
-      (customer) => customer.customerUserId === trade.connectedCustomerId,
-    );
-    if (!connectedCustomer) {
-      return null;
-    }
-
-    return {
-      customerUserId: connectedCustomer.customerUserId,
-      displayName: connectedCustomer.name,
-    };
-  }, [connectedCustomers]);
-
   // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number, tradeId?: string): TrackerState => {
     return applyOrderCashDeposit({
@@ -1547,294 +1482,6 @@ export default function OrdersPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ) as any,
     });
-  };
-
-  // ─── Sync helper: mirror a trade to customer_orders via the security-definer RPC ──
-  // Direct INSERT on customer_orders is blocked by RLS for merchant users.
-  // The mirror_merchant_customer_order RPC runs as security definer and handles auth.
-  const syncTradeToCustomerOrders = useCallback(async (trade: Trade) => {
-    try {
-      // GATING: Skip if not a connected customer trade
-      if (trade.buyerType !== 'connected_customer') {
-        console.log('Mirror skipped: trade is not a connected_customer buyer type', {
-          merchantId: merchantProfile?.merchant_id,
-          buyerType: trade.buyerType,
-          tradeId: trade.id,
-        });
-        return 'skipped_not_connected';
-      }
-
-      // GATING: Skip if already attempted and marked as failed
-      if (trade.mirrorStatus === 'skipped_not_connected' || trade.mirrorStatus === 'failed') {
-        console.log('Mirror skipped: trade has terminal mirror status', {
-          merchantId: merchantProfile?.merchant_id,
-          mirrorStatus: trade.mirrorStatus,
-          tradeId: trade.id,
-        });
-        return trade.mirrorStatus;
-      }
-
-      if (!merchantProfile?.merchant_id) {
-        const message = 'Customer order mirror failed: merchant session missing.';
-        console.error(message, { merchantId: merchantProfile?.merchant_id ?? null, tradeId: trade.id });
-        return 'failed';
-      }
-
-      // Resolve connected customer using explicit connectedCustomerId
-      const resolvedCustomer = resolveMirrorCustomerUserId(trade);
-      if (!resolvedCustomer) {
-        console.log('Mirror skipped: buyer is not a valid connected customer', {
-          merchantId: merchantProfile.merchant_id,
-          buyerType: trade.buyerType,
-          connectedCustomerId: trade.connectedCustomerId,
-          tradeId: trade.id,
-        });
-        return 'skipped_not_connected';
-      }
-
-      const { customerUserId } = resolvedCustomer;
-      if (!isUuidLike(customerUserId)) {
-        const message = 'Mirror failed: resolved customer id is not a valid UUID.';
-        console.error(message, {
-          merchantId: merchantProfile.merchant_id,
-          connectedCustomerId: trade.connectedCustomerId,
-          customerUserId,
-          tradeId: trade.id,
-        });
-        return 'failed';
-      }
-
-      // Exact match on the local trade's own id, not a fuzzy amount+rate+time
-      // window -- the row's created_at is always "now" at insert time, never
-      // close to the trade's own (often much older) sale date, so a window
-      // around trade.ts never actually caught an existing mirror and every
-      // reload re-inserted every trade again.
-      const { data: existingOrder, error: existingError } = await supabase
-        .from('customer_orders')
-        .select('id')
-        .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('source_trade_id', trade.id)
-        .maybeSingle();
-
-      if (existingError) {
-        const message = `Mirror failed: ${existingError.message}`;
-        console.error(message, existingError);
-        return 'failed';
-      }
-
-      if (existingOrder?.id) {
-        console.log('Mirror already exists for this trade', { tradeId: trade.id, orderId: existingOrder.id });
-        return 'mirrored';
-      }
-
-      const { data: connRow } = await supabase
-        .from('customer_merchant_connections')
-        .select('id')
-        .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('customer_user_id', customerUserId)
-        .in('status', ['active', 'pending'])
-        .maybeSingle();
-
-      const connectionId: string | null = connRow?.id ?? null;
-      if (!connectionId) {
-        console.log('Mirror skipped: no active or pending customer connection exists', {
-          merchantId: merchantProfile.merchant_id,
-          customerUserId,
-          tradeId: trade.id,
-        });
-        return 'skipped_not_connected';
-      }
-
-      const { error } = await supabase.rpc('mirror_merchant_customer_order', {
-        p_connection_id: connectionId,
-        p_status: 'completed',
-        p_order_type: 'buy',
-        p_amount: trade.amountUSDT,
-        p_currency: 'USDT',
-        p_rate: trade.sellPriceQAR,
-        p_total: trade.amountUSDT * trade.sellPriceQAR,
-        p_note: trade.note || null,
-        p_send_country: null,
-        p_receive_country: null,
-        p_send_currency: 'USDT',
-        p_receive_currency: settings.baseFiatCurrency || 'QAR',
-        p_payout_rail: null,
-        p_corridor_label: null,
-        p_pricing_mode: 'merchant_quote',
-        p_guide_rate: null,
-        p_guide_total: null,
-        p_guide_source: null,
-        p_guide_snapshot: null,
-        p_guide_generated_at: null,
-        p_final_rate: trade.sellPriceQAR,
-        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
-        p_final_quote_note: null,
-        p_quoted_by_user_id: null,
-        p_customer_accepted_quote_at: null,
-        p_customer_rejected_quote_at: null,
-        p_quote_rejection_reason: null,
-        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-        p_pricing_version: 'tracker-sync-v1',
-        p_source_trade_id: trade.id,
-      });
-
-      if (error) {
-        console.error(`Mirror failed: ${error.message}`, error);
-        return 'failed';
-      }
-      console.log('Mirror successful', { tradeId: trade.id, customerUserId });
-      return 'mirrored';
-    } catch (syncErr: any) {
-      console.error(`Mirror exception: ${syncErr?.message ?? 'unknown error'}`, syncErr);
-      return 'failed';
-    }
-  }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
-
-  useEffect(() => {
-    if (!merchantProfile?.merchant_id) return;
-    if (state.trades.length === 0) return;
-
-    let cancelled = false;
-
-    const restoreMissingMirrors = async () => {
-      let mirroredCount = 0;
-      // mirrorStatus was never written back onto state.trades after an
-      // attempt, so every reload reprocessed every trade from scratch --
-      // collect the outcomes here and persist them once at the end, so a
-      // trade this pass already resolved (mirrored or a terminal skip)
-      // won't be attempted again next time.
-      const statusUpdates = new Map<string, MirrorStatus>();
-
-      for (const trade of state.trades) {
-        if (cancelled) return;
-        if (trade.voided) continue;
-        if (!trade.customerId) continue;
-
-        // Skip if already processed with terminal status
-        if (trade.mirrorStatus === 'mirrored' || trade.mirrorStatus === 'skipped_not_connected' || trade.mirrorStatus === 'failed') {
-          continue;
-        }
-
-        // Prevent duplicate attempts in same session
-        if (backfillAttemptedTradeIdsRef.current.has(trade.id)) continue;
-        backfillAttemptedTradeIdsRef.current.add(trade.id);
-
-        const status = await syncTradeToCustomerOrders(trade);
-        statusUpdates.set(trade.id, status);
-        if (status === 'mirrored') {
-          mirroredCount += 1;
-        }
-      }
-
-      if (!cancelled && statusUpdates.size > 0) {
-        applyState({
-          ...state,
-          trades: state.trades.map((t) => (
-            statusUpdates.has(t.id) ? { ...t, mirrorStatus: statusUpdates.get(t.id) } : t
-          )),
-        });
-      }
-
-      if (!cancelled && mirroredCount > 0) {
-        toast.success(
-          mirroredCount === 1
-            ? 'Restored 1 missing customer order'
-            : `Restored ${mirroredCount} missing customer orders`,
-        );
-      }
-    };
-
-    void restoreMissingMirrors();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState]);
-
-  // ─── Manual backfill: push an existing trade to the client portal ──
-  const pushTradeToClient = async (trade: Trade) => {
-    try {
-      if (!merchantProfile?.merchant_id) {
-        toast.error('No connected customer found for this trade');
-        return;
-      }
-
-      // Manual backfill also requires explicit buyer type + connected customer ID
-      const resolvedBuyer = resolveMirrorCustomerUserId(trade);
-      if (!resolvedBuyer) {
-        toast.error('No connected customer found for this trade. Please verify buyer type and selection.');
-        return;
-      }
-      const { customerUserId } = resolvedBuyer;
-      if (!isUuidLike(customerUserId)) {
-        toast.error('Invalid connected customer ID');
-        return;
-      }
-
-      const { data: connRow } = await supabase
-        .from('customer_merchant_connections')
-        .select('id')
-        .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('customer_user_id', customerUserId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (!connRow?.id) {
-        toast.error('Active connection not found');
-        return;
-      }
-
-      // Check if already synced (avoid duplicates)
-      const { data: existing } = await supabase
-        .from('customer_orders')
-        .select('id')
-        .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('source_trade_id', trade.id)
-        .maybeSingle();
-
-      if (existing?.id) {
-        toast.info('Already synced to client portal');
-        return;
-      }
-
-      const { error: insertErr } = await supabase.rpc('mirror_merchant_customer_order', {
-        p_connection_id: connRow.id,
-        p_status: 'completed',
-        p_order_type: 'buy',
-        p_amount: trade.amountUSDT,
-        p_currency: 'USDT',
-        p_rate: trade.sellPriceQAR,
-        p_total: trade.amountUSDT * trade.sellPriceQAR,
-        p_note: trade.note || null,
-        p_send_country: null,
-        p_receive_country: null,
-        p_send_currency: 'USDT',
-        p_receive_currency: settings.baseFiatCurrency || 'QAR',
-        p_payout_rail: null,
-        p_corridor_label: null,
-        p_pricing_mode: 'merchant_quote',
-        p_guide_rate: null,
-        p_guide_total: null,
-        p_guide_source: null,
-        p_guide_snapshot: null,
-        p_guide_generated_at: null,
-        p_final_rate: trade.sellPriceQAR,
-        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
-        p_final_quote_note: null,
-        p_quoted_by_user_id: null,
-        p_customer_accepted_quote_at: null,
-        p_customer_rejected_quote_at: null,
-        p_quote_rejection_reason: null,
-        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-        p_pricing_version: 'tracker-sync-v1',
-        p_source_trade_id: trade.id,
-      });
-
-      if (insertErr) throw insertErr;
-      toast.success(`Order pushed to ${resolvedBuyer.displayName}'s portal`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to push order');
-    }
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
@@ -2155,11 +1802,6 @@ export default function OrdersPage() {
         const _allocPartner = allocations[0]?.merchantName || relationships.find(r => r.id === allocations[0]?.relationshipId)?.counterparty?.display_name;
         showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
 
-        // Sync to customer portal (only if buyer is a connected customer)
-        if (baseTrade.buyerType === 'connected_customer' && baseTrade.connectedCustomerId) {
-          await syncTradeToCustomerOrders(baseTrade);
-        }
-
         // Reset
         setSaleAmount('');
         setMerchantOrderEnabled(false);
@@ -2413,12 +2055,6 @@ export default function OrdersPage() {
         markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
-    }
-
-    // ─── Sync to customer_orders when buyer is a connected customer ──────────
-    // This makes the trade visible on the customer portal side.
-    if (baseTrade.buyerType === 'connected_customer' && baseTrade.connectedCustomerId) {
-      await syncTradeToCustomerOrders(baseTrade);
     }
 
     // Reset form
@@ -3377,17 +3013,12 @@ export default function OrdersPage() {
               {tr.approvalStatus === 'approved' && (
                 <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 34 }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
-              {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
-                <button className="rowBtn" style={{ minHeight: 34, color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
-                  📤 {t('pushToClientPortal')}
-                </button>
-              )}
             </div>
           </div>
         )}
       </div>
     );
-  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, pushTradeToClient, connectedCustomers, fmtC, fmtU, fmtP, loanByTradeId]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, connectedCustomers, fmtC, fmtU, fmtP, loanByTradeId]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -3728,16 +3359,6 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                {buyerLinkCandidate && (
-                  <button
-                    className="rowBtn"
-                    style={{ fontSize: 11 }}
-                    onClick={linkBuyerToPortal}
-                    title={`${buyerLinkCandidate.unlinkedCount} order(s) were never synced to ${buyerLinkCandidate.connectedName}'s portal`}
-                  >
-                    🔗 Sync {buyerLinkCandidate.unlinkedCount} order{buyerLinkCandidate.unlinkedCount === 1 ? '' : 's'} to portal
-                  </button>
-                )}
                 <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
                   <input
                     type="number"
