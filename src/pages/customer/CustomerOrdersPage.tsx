@@ -441,7 +441,7 @@ export default function CustomerOrdersPage() {
   // effect below availableMonths), so a buyer whose entire history
   // predates the current calendar month doesn't land on a silently empty page.
   const [selectedMonth, setSelectedMonth] = useState<string | null>(() => localMonthKey(Date.now()));
-  const selectedMonthInitialized = useRef(false);
+  const userPickedMonth = useRef(false);
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
@@ -780,11 +780,18 @@ export default function CustomerOrdersPage() {
     return months;
   }, [orders, historyOrders]);
 
+  // Re-evaluates every time availableMonths changes rather than once on
+  // mount: the history query (edge function) resolves slower than the live
+  // orders query, so the first non-empty availableMonths list can still be
+  // missing the current month. Locking the fallback in at that point (the
+  // old behavior) meant a buyer's most recent month stayed hidden behind an
+  // older one forever, even after the real data arrived on a later poll.
+  // Skipped once the buyer has picked a month themselves.
   useEffect(() => {
-    if (selectedMonthInitialized.current || availableMonths.length === 0) return;
-    selectedMonthInitialized.current = true;
+    if (userPickedMonth.current || availableMonths.length === 0) return;
     const currentMonth = localMonthKey(Date.now());
-    if (!availableMonths.includes(currentMonth)) setSelectedMonth(availableMonths[0]);
+    const next = availableMonths.includes(currentMonth) ? currentMonth : availableMonths[0];
+    setSelectedMonth(prev => (prev === next ? prev : next));
   }, [availableMonths]);
 
   const filteredOrders = useMemo(() =>
@@ -857,7 +864,7 @@ export default function CustomerOrdersPage() {
         {availableMonths.length > 0 && (
           <div className="month-filter-row mt-3">
             <button
-              onClick={() => setSelectedMonth(null)}
+              onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }}
               className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
             >
               {L('All Months', 'كل الأشهر')}
@@ -871,7 +878,7 @@ export default function CustomerOrdersPage() {
               return (
                 <button
                   key={m}
-                  onClick={() => setSelectedMonth(m)}
+                  onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }}
                   className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                 >
                   {label}

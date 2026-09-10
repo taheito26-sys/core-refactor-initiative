@@ -391,7 +391,7 @@ export default function CustomerWalletPage() {
   // month that actually has a payment, falling back to "All Months" only
   // once data has loaded and there's truly nothing.
   const [paymentsMonth, setPaymentsMonth] = useState<string | null>(null);
-  const paymentsMonthInitialized = useRef(false);
+  const userPickedPaymentsMonth = useRef(false);
   const paymentsMonths = useMemo(() => {
     const seen = new Set<string>();
     const months: string[] = [];
@@ -401,11 +401,17 @@ export default function CustomerWalletPage() {
     }
     return months;
   }, [loanPayments]);
+  // Re-evaluates every time paymentsMonths changes rather than once on
+  // mount: the loan-statement edge function can resolve after this first
+  // renders, so the first non-empty paymentsMonths list can still be
+  // missing the most recent month. Locking the fallback in at that point
+  // meant a newer month with a payment stayed hidden even after that data
+  // arrived on a later poll. Skipped once the buyer has picked a month.
   useEffect(() => {
-    if (paymentsMonthInitialized.current || paymentsMonths.length === 0) return;
-    paymentsMonthInitialized.current = true;
+    if (userPickedPaymentsMonth.current || paymentsMonths.length === 0) return;
     const currentMonth = localMonthKey(Date.now());
-    setPaymentsMonth(paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0]);
+    const next = paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0];
+    setPaymentsMonth(prev => (prev === next ? prev : next));
   }, [paymentsMonths]);
   const filteredLoanPayments = useMemo(() =>
     paymentsMonth
@@ -859,7 +865,7 @@ export default function CustomerWalletPage() {
                       return (
                         <button
                           key={m.key}
-                          onClick={() => setPaymentsMonth(m.key)}
+                          onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
                         >
                           <div className="w-20 shrink-0">
@@ -880,14 +886,14 @@ export default function CustomerWalletPage() {
               {/* Month filter — same convention as the Orders page */}
               {paymentsMonths.length > 0 && (
                 <div className="month-filter-row">
-                  <button onClick={() => setPaymentsMonth(null)} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
+                  <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
                     {L("All Months", "كل الأشهر")}
                   </button>
                   {paymentsMonths.map(m => {
                     const [y, mo] = m.split("-");
                     const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
                     return (
-                      <button key={m} onClick={() => setPaymentsMonth(m)} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
+                      <button key={m} onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m); }} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
                         {label}
                       </button>
                     );
