@@ -2440,6 +2440,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** The payment being corrected, with the loan it belongs to. */
   const [editingRepayment, setEditingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
   const [deletingRepayment, setDeletingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
+  /** A whole day's worth of grouped payments pending bulk deletion. */
+  const [deletingPaymentGroup, setDeletingPaymentGroup] = useState<PaymentGroup | null>(null);
+  /** Every payment on a buyer's statement, pending bulk deletion. */
+  const [deletingAllPayments, setDeletingAllPayments] = useState<BuyerStatement | null>(null);
+  const [bulkDeletingPayments, setBulkDeletingPayments] = useState(false);
   const [editingLoan, setEditingLoan] = useState<CustomerLoan | null>(null);
   const [deleteLoanConfirmId, setDeleteLoanConfirmId] = useState<string | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -2778,6 +2783,54 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       customerLoans: replaceLoan(next.loan),
     });
     if (ok) { setDeletingRepayment(null); toast.success(t('loanPaymentDeleted')); }
+  };
+
+  /**
+   * Drop several recorded payments (and the cash each credited) in one
+   * commit — a day's worth of independently recorded repayments, or every
+   * payment on a buyer's statement, rather than one confirm-and-save per
+   * order.
+   */
+  const deleteLoanRepayments = async (targets: Array<{ loan: CustomerLoan; repaymentId: string }>) => {
+    let workingLedger = ledger;
+    let newLoans = loans;
+    for (const { loan, repaymentId } of targets) {
+      const live = newLoans.find(l => l.id === loan.id) || loan;
+      const next = deleteRepayment(live, repaymentId, workingLedger);
+      if (!next) continue;
+      workingLedger = next.ledger;
+      newLoans = newLoans.map(l => (l.id === live.id ? next.loan : l));
+    }
+    const ok = await commit({
+      ...state,
+      cashLedger: workingLedger,
+      cashQAR: deriveCashQAR(accounts, workingLedger),
+      customerLoans: newLoans,
+    });
+    return ok;
+  };
+
+  const confirmDeletePaymentGroup = async () => {
+    if (!deletingPaymentGroup) return;
+    const targets = deletingPaymentGroup.members
+      .map(findRepayment)
+      .filter((x): x is { loan: CustomerLoan; repayment: LoanRepayment } => !!x)
+      .map(({ loan, repayment }) => ({ loan, repaymentId: repayment.id }));
+    setBulkDeletingPayments(true);
+    const ok = await deleteLoanRepayments(targets);
+    setBulkDeletingPayments(false);
+    if (ok) { setDeletingPaymentGroup(null); toast.success(t('loanPaymentDeleted')); }
+  };
+
+  const confirmDeleteAllPayments = async () => {
+    if (!deletingAllPayments) return;
+    const targets = deletingAllPayments.loans.flatMap(row => (
+      (row.loan.repayments || []).map(r => ({ loan: row.loan, repaymentId: r.id }))
+    ));
+    setBulkDeletingPayments(true);
+    const ok = await deleteLoanRepayments(targets);
+    setBulkDeletingPayments(false);
+    if (ok) { setDeletingAllPayments(null); toast.success(t('loanPaymentDeleted')); }
   };
 
   const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
@@ -3713,6 +3766,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                               <div className="acct-sec">{t('stmtPaymentsReceived')} · {payments.length}</div>
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                              {payments.length > 0 && !isMergingHere && (
+                                <button
+                                  className="rowBtn"
+                                  style={{ padding: '4px 10px', fontSize: 10, color: 'var(--bad)' }}
+                                  onClick={() => setDeletingAllPayments(stmt)}
+                                >
+                                  🗑 {t('loanDeleteAllPayments')}
+                                </button>
+                              )}
                               {paymentGroups.length > 1 && (
                                 isMergingHere ? (
                                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -3752,6 +3815,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                   </button>
                                 )
                               )}
+                              </div>
                             </div>
                             {isMobile ? (
                               payments.length === 0 ? (
@@ -3802,8 +3866,17 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         </div>
                                       )}
                                       {!isMergingHere && !target && isBatch && (
-                                        <div style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>
-                                          {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 6 }}>
+                                          <div style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
+                                            {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
+                                          </div>
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '3px 8px', fontSize: 9, color: 'var(--bad)' }}
+                                            onClick={() => setDeletingPaymentGroup(group)}
+                                          >
+                                            🗑 {t('loanDeleteDayPayments')}
+                                          </button>
                                         </div>
                                       )}
                                       {isBatch && isExpanded && (
@@ -3908,9 +3981,18 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                                 there's nothing here to edit as a single row. Point at the expand
                                                 toggle instead of leaving this cell looking broken/empty. */}
                                             {!isMergingHere && !target && isBatch && (
-                                              <span style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
-                                              </span>
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                                                <span style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                  {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
+                                                </span>
+                                                <button
+                                                  className="rowBtn"
+                                                  style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                                  onClick={() => setDeletingPaymentGroup(group)}
+                                                >
+                                                  🗑 {t('loanDeleteDayPayments')}
+                                                </button>
+                                              </div>
                                             )}
                                           </td>
                                         </tr>
@@ -4472,6 +4554,62 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 onClick={() => deleteLoanRepayment(deletingRepayment.loan, deletingRepayment.repayment.id)}
               >
                 {t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingPaymentGroup && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => { if (!bulkDeletingPayments) setDeletingPaymentGroup(null); }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('loanDeleteDayPayments')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              {formatMoney(deletingPaymentGroup.credit)}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {fmtTs(deletingPaymentGroup.ts)}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
+              {t('loanDeleteDayPaymentsConfirm').replace('{n}', String(deletingPaymentGroup.members.length))}
+            </div>
+            <div className="formActions">
+              <button className="btn secondary" disabled={bulkDeletingPayments} onClick={() => setDeletingPaymentGroup(null)}>{t('cancel')}</button>
+              <button
+                className="btn"
+                disabled={bulkDeletingPayments}
+                style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }}
+                onClick={confirmDeletePaymentGroup}
+              >
+                {bulkDeletingPayments ? '…' : t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingAllPayments && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => { if (!bulkDeletingPayments) setDeletingAllPayments(null); }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('loanDeleteAllPayments')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              {formatMoney(deletingAllPayments.totalRepaid)} {deletingAllPayments.currency}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {deletingAllPayments.customerName}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
+              {t('loanDeleteAllPaymentsConfirm')
+                .replace('{name}', deletingAllPayments.customerName)
+                .replace('{n}', String(deletingAllPayments.entries.filter(e => e.kind === 'payment').length))}
+            </div>
+            <div className="formActions">
+              <button className="btn secondary" disabled={bulkDeletingPayments} onClick={() => setDeletingAllPayments(null)}>{t('cancel')}</button>
+              <button
+                className="btn"
+                disabled={bulkDeletingPayments}
+                style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }}
+                onClick={confirmDeleteAllPayments}
+              >
+                {bulkDeletingPayments ? '…' : t('delete')}
               </button>
             </div>
           </div>

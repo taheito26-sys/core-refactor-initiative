@@ -1965,6 +1965,16 @@ const translations = {
     en: 'This removes the payment and the cash entry it created, and reopens the loan if this payment had settled it. This cannot be undone.',
     ar: 'سيؤدي هذا إلى حذف الدفعة والقيد النقدي الناتج عنها، وإعادة فتح القرض إذا كانت هذه الدفعة قد سوّته. لا يمكن التراجع عن هذا الإجراء.',
   },
+  loanDeleteDayPayments: { en: 'Delete day', ar: 'حذف اليوم' },
+  loanDeleteDayPaymentsConfirm: {
+    en: 'This removes every payment recorded on this day ({n} order(s)) and the cash entries they created, reopening any loan they had settled. This cannot be undone.',
+    ar: 'سيؤدي هذا إلى حذف جميع الدفعات المسجلة في هذا اليوم ({n} طلب) والقيود النقدية الناتجة عنها، وإعادة فتح أي قرض كانت قد سوّته. لا يمكن التراجع عن هذا الإجراء.',
+  },
+  loanDeleteAllPayments: { en: 'Delete all payments', ar: 'حذف كل الدفعات' },
+  loanDeleteAllPaymentsConfirm: {
+    en: 'This removes every payment ever recorded for {name} ({n} payment(s)) and the cash entries they created, reopening every loan they had settled. This cannot be undone.',
+    ar: 'سيؤدي هذا إلى حذف جميع الدفعات المسجلة على الإطلاق لـ {name} ({n} دفعة) والقيود النقدية الناتجة عنها، وإعادة فتح كل قرض كانت قد سوّته. لا يمكن التراجع عن هذا الإجراء.',
+  },
   loanPaymentCap: { en: 'Available to record', ar: 'المتاح للتسجيل' },
 
   // Account types
