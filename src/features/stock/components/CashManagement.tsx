@@ -1076,8 +1076,8 @@ interface CashCounterModalProps {
   customers: Customer[];
   getLoanRemaining: (loan: CustomerLoan) => number;
   onAddToCash: (entry: CashLedgerEntry) => void;
-  onRepayLoan: (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => void | Promise<void>;
-  onSplitRepay: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string, ts: number, note?: string) => Promise<boolean> | void;
+  onRepayLoan: (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string) => void | Promise<void>;
+  onSplitRepay: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => Promise<boolean> | void;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -1103,6 +1103,12 @@ function CashCounterModal({
   const [cashAmount, setCashAmount] = useState('');
   const [splitSelected, setSplitSelected] = useState<Set<string>>(new Set());
   const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
+  // Whether the loan(s) being repaid here also credit the cash account -- on
+  // by default (today's only behavior), turned off when the counted cash
+  // isn't actually going into this account (already accounted for
+  // elsewhere, handed over outside the tracker, etc.) and this pass should
+  // only mark the loan(s) repaid.
+  const [repayAddsCash, setRepayAddsCash] = useState(true);
   const [note, setNote] = useState('');
   const [dateStr, setDateStr] = useState(todayDateStr());
   const [err, setErr] = useState('');
@@ -1169,7 +1175,7 @@ function CashCounterModal({
 
   const resetForClose = () => {
     setCounts({}); setCountMode('notes'); setQuickAmount(''); setStep('count'); setActions(new Set()); setCashAmount('');
-    setSplitSelected(new Set()); setSplitAmounts({}); setNote(''); setDateStr(todayDateStr()); setErr('');
+    setSplitSelected(new Set()); setSplitAmounts({}); setRepayAddsCash(true); setNote(''); setDateStr(todayDateStr()); setErr('');
   };
   const closeAndReset = () => { resetForClose(); onClose(); };
 
@@ -1203,6 +1209,29 @@ function CashCounterModal({
   const setSplitAmount = (loanId: string, value: string) => {
     if (!/^\d*\.?\d*$/.test(value)) return;
     setSplitAmounts(prev => ({ ...prev, [loanId]: value }));
+  };
+
+  /**
+   * Selects and fills loans automatically instead of checking each one by
+   * hand — oldest debt first, until the counted cash runs out (or every
+   * relevant loan is settled). Replaces whatever was manually selected.
+   */
+  const autoAllocateLoans = () => {
+    const sorted = [...relevantLoans].sort((a, b) => a.ts - b.ts);
+    let budget = total;
+    const nextSelected = new Set<string>();
+    const nextAmounts: Record<string, string> = {};
+    for (const loan of sorted) {
+      if (budget <= 0) break;
+      const remaining = getLoanRemaining(loan);
+      const amt = Math.min(remaining, budget);
+      if (!(amt > 0)) continue;
+      nextSelected.add(loan.id);
+      nextAmounts[loan.id] = String(amt);
+      budget -= amt;
+    }
+    setSplitSelected(nextSelected);
+    setSplitAmounts(nextAmounts);
   };
 
   const handleConfirm = async () => {
@@ -1239,10 +1268,11 @@ function CashCounterModal({
         };
         onAddToCash(entry);
       }
+      const repayAccountId = repayAddsCash ? account.id : null;
       if (allocations.length === 1) {
-        await onRepayLoan(allocations[0].loan, account.id, allocations[0].amount, selectedTs, defaultNote());
+        await onRepayLoan(allocations[0].loan, repayAccountId, allocations[0].amount, selectedTs, defaultNote());
       } else if (allocations.length > 1) {
-        const ok = await onSplitRepay(allocations, account.id, selectedTs, defaultNote());
+        const ok = await onSplitRepay(allocations, repayAccountId, selectedTs, defaultNote());
         if (ok === false) { setErr(t('saveFailed') || 'Save failed'); setSaving(false); return; }
       }
       closeAndReset();
@@ -1471,9 +1501,21 @@ function CashCounterModal({
 
             {actions.has('repay') && (
               <>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-                  {t('cashCounterSplitHint') || 'Check off which customers this payment covers — the amount auto-fills up to what each owes.'}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', flex: 1, minWidth: 180 }}>
+                    {t('cashCounterSplitHint') || 'Check off which customers this payment covers — the amount auto-fills up to what each owes.'}
+                  </div>
+                  {relevantLoans.length > 1 && (
+                    <button className="rowBtn" style={{ fontSize: 10, padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={autoAllocateLoans}>
+                      🪄 {t('cashCounterAutoAllocate') || 'Auto repay oldest first'}
+                    </button>
+                  )}
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  <input type="checkbox" checked={repayAddsCash} onChange={e => setRepayAddsCash(e.target.checked)} />
+                  {t('loanAddCash')}
+                </label>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('loanAddCashHint')}</div>
                 <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 220, overflowY: 'auto' }}>
                   {relevantLoans.map(l => {
                     const checked = splitSelected.has(l.id);
@@ -1716,7 +1758,7 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
 interface SplitRepaymentModalProps {
   statement: BuyerStatement;
   accounts: CashAccount[];
-  onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string, ts: number, note?: string) => void;
+  onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -1738,6 +1780,7 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [addToCash, setAddToCash] = useState(true);
   const [err, setErr] = useState('');
 
   const selectStyle: React.CSSProperties = {
@@ -1772,7 +1815,7 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
   };
 
   const handle = () => {
-    if (!accountId) { setErr(t('loanRepaymentAccount')); return; }
+    if (addToCash && !accountId) { setErr(t('loanRepaymentAccount')); return; }
     if (!(receivedNum > 0)) { setErr(t('loanSplitPaymentEnterAmount')); return; }
     if (selected.size === 0) { setErr(t('loanSplitPaymentPickOne')); return; }
     if (Math.abs(unallocated) > 0.01) { setErr(t('loanSplitPaymentMustMatch')); return; }
@@ -1786,7 +1829,7 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
       if (amt > row.remaining + 0.005) { setErr(t('loanPaymentCap')); return; }
       allocations.push({ loan: row.loan, amount: amt });
     }
-    onSave(allocations, accountId, ts, note.trim() || undefined);
+    onSave(allocations, addToCash ? accountId : null, ts, note.trim() || undefined);
   };
 
   return (
@@ -1813,11 +1856,21 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">{t('loanRepaymentAccount')}</div>
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
-            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
-          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            <input type="checkbox" checked={addToCash} onChange={e => setAddToCash(e.target.checked)} />
+            {t('loanAddCash')}
+          </label>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{t('loanAddCashHint')}</div>
         </div>
+
+        {addToCash && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('loanRepaymentAccount')}</div>
+            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+              {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentDate')}</div>
@@ -2723,7 +2776,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    */
   const addSplitLoanRepayment = async (
     allocations: Array<{ loan: CustomerLoan; amount: number }>,
-    accountId: string,
+    accountId: string | null,
     ts: number,
     note?: string,
   ) => {
@@ -2731,15 +2784,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     let newLedger = ledger;
     let newLoans = loans;
     for (const { loan, amount } of allocations) {
-      const entry: CashLedgerEntry = {
+      const entry: CashLedgerEntry | null = accountId ? {
         id: uid(), ts, type: 'loan_repayment', accountId,
         direction: 'in', amount, currency: loan.currency,
         note: repaymentLedgerNote(loan, note), batchId,
-      };
+      } : null;
       const repayment: LoanRepayment = {
-        id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note, batchId,
+        id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note, batchId,
       };
-      newLedger = [...newLedger, entry];
+      newLedger = entry ? [...newLedger, entry] : newLedger;
       const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
       newLoans = newLoans.map(l => (l.id === updatedLoan.id ? updatedLoan : l));
     }

@@ -1741,6 +1741,7 @@ const translations = {
   cashCounterLeftoverHint: { en: 'Leftover',                   ar: 'المتبقي غير المخصص' },
   cashCounterSplitInstead: { en: 'split across loans instead?', ar: 'تقسيمه على عدة قروض بدلاً من ذلك؟' },
   cashCounterSplitHint:  { en: 'Check off which customers this payment covers — the amount auto-fills up to what each owes.', ar: 'حدّد العملاء الذين يغطيهم هذا المبلغ — سيُملأ المبلغ تلقائيًا حتى سقف المديونية لكل عميل.' },
+  cashCounterAutoAllocate: { en: 'Auto repay oldest first', ar: 'سداد تلقائي للأقدم أولاً' },
   cashCounterLeftToAllocate: { en: 'Left to allocate',         ar: 'المتبقي للتوزيع' },
   cashCounterOverAllocated: { en: 'Over-allocated',            ar: 'تم تجاوز المبلغ المتاح' },
   cashCounterFullyAllocated: { en: 'Fully allocated',          ar: 'تم توزيع كامل المبلغ' },
