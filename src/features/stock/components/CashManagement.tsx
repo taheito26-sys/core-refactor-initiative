@@ -4033,17 +4033,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         <span className="loan-num" style={{ color: 'var(--good)', marginInlineStart: 'auto' }}>+{formatMoney(group.credit)}</span>
                                       </div>
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                                        {isBatch ? (
-                                          <button
-                                            className="rowBtn"
-                                            style={{ padding: '3px 8px', fontSize: 9.5 }}
-                                            onClick={() => togglePaymentGroup(group.id)}
-                                          >
-                                            {isExpanded ? '▾' : '▸'} {t('loanSplitPaymentBadge').replace('{n}', String(group.members.length))}
-                                          </button>
-                                        ) : (
-                                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{group.refs[0]}</span>
-                                        )}
+                                        <button
+                                          className="rowBtn"
+                                          style={{ padding: '3px 8px', fontSize: 9.5 }}
+                                          onClick={() => togglePaymentGroup(group.id)}
+                                        >
+                                          {isExpanded ? '▾' : '▸'} {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : t('loanPaymentViewDetails')}
+                                        </button>
                                         {group.accountName && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{group.accountName}</span>}
                                       </div>
                                       {group.description && (
@@ -4069,7 +4065,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                           </button>
                                         </div>
                                       )}
-                                      {isBatch && isExpanded && (
+                                      {isExpanded && (
                                         <div style={{ display: 'grid', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
                                           {group.members.map(m => {
                                             const memberTarget = findRepayment(m);
@@ -4135,15 +4131,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                           )}
                                           <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(group.ts)}</td>
                                           <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                            {isBatch ? (
-                                              <button
-                                                className="rowBtn"
-                                                style={{ padding: '1px 6px', fontSize: 9, minHeight: 18 }}
-                                                onClick={() => togglePaymentGroup(group.id)}
-                                              >
-                                                {isExpanded ? '▾' : '▸'} {t('loanSplitPaymentBadge').replace('{n}', String(group.members.length))}
-                                              </button>
-                                            ) : group.refs[0]}
+                                            <button
+                                              className="rowBtn"
+                                              style={{ padding: '1px 6px', fontSize: 9, minHeight: 18 }}
+                                              onClick={() => togglePaymentGroup(group.id)}
+                                            >
+                                              {isExpanded ? '▾' : '▸'} {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : t('loanPaymentViewDetails')}
+                                            </button>
                                           </td>
                                           <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(group.credit)}</td>
                                           <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
@@ -4186,7 +4180,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                             )}
                                           </td>
                                         </tr>
-                                        {isBatch && isExpanded && group.members.map(m => {
+                                        {isExpanded && group.members.map(m => {
                                           const memberTarget = findRepayment(m);
                                           return (
                                             <tr key={m.id} style={{ background: 'var(--panel2)' }}>
