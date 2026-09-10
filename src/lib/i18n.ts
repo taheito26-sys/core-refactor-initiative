@@ -1924,6 +1924,8 @@ const translations = {
   stmtPeriod: { en: 'Period', ar: 'الفترة' },
   stmtSummary: { en: 'Total', ar: 'الإجمالي' },
   stmtLoanedOrders: { en: 'Loaned orders', ar: 'الطلبات بالدين' },
+  loanOfWordLbl: { en: 'of', ar: 'من' },
+  loanOpenWordLbl: { en: 'open', ar: 'مفتوح' },
   stmtClosedOrders: { en: 'Closed orders', ar: 'الطلبات المغلقة' },
   loanNoOpenOrders: { en: 'No open orders', ar: 'لا توجد طلبات مفتوحة' },
   stmtPaymentsReceived: { en: 'Payments received', ar: 'الدفعات المستلمة' },

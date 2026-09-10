@@ -2719,11 +2719,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     return counts;
   }, [accounts]);
 
-  const total24hMovement = useMemo(() => {
-    const since = Date.now() - 86400000;
-    return ledger.filter(e => e.ts >= since).reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
-  }, [ledger]);
-
   // Loans can be issued in several currencies, and the header must not sum
   // them into one meaningless number. Totals stay per-currency: the currency
   // with the most outstanding leads each KPI box, the rest ride along in the
@@ -3611,10 +3606,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             }}
           >
             {([
-              ['orders', t('loanTabOrders') || 'Loaned Orders', activeLoanCount],
-              ['payments', t('cashLoansPaymentsTab') || 'Payments', paymentBuyerStatements.reduce((s, x) => s + x.payments.length, 0)],
-              ['closed', t('loanTabClosed'), closedLoanCount],
-            ] as const).map(([view, label, count]) => {
+              ['orders', t('loanTabOrders') || 'Loaned Orders', activeLoanCount, 'var(--brand)'],
+              ['payments', t('cashLoansPaymentsTab') || 'Payments', paymentBuyerStatements.reduce((s, x) => s + x.payments.length, 0), 'var(--good)'],
+              ['closed', t('loanTabClosed'), closedLoanCount, 'var(--warn)'],
+            ] as const).map(([view, label, count, color]) => {
               const on = loanSubTab === view;
               return (
                 <button
@@ -3626,10 +3621,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     borderRadius: 9,
                     cursor: 'pointer',
                     border: 'none',
-                    background: on ? 'var(--panel)' : 'transparent',
-                    color: on ? 'var(--text)' : 'var(--muted)',
+                    background: on ? color : 'transparent',
+                    color: on ? '#fff' : 'var(--muted)',
                     fontSize: isMobile ? 11.5 : 12.5, fontWeight: 700,
-                    boxShadow: on ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    boxShadow: on ? `0 2px 8px color-mix(in srgb, ${color} 40%, transparent)` : 'none',
                     transition: 'background .15s, color .15s',
                   }}
                 >
@@ -3638,8 +3633,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     className="mono"
                     style={{
                       fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-                      background: on ? 'color-mix(in srgb, var(--brand) 16%, transparent)' : 'color-mix(in srgb, var(--muted) 16%, transparent)',
-                      color: on ? 'var(--brand)' : 'var(--muted)',
+                      background: on ? 'rgba(255,255,255,0.25)' : 'color-mix(in srgb, var(--muted) 16%, transparent)',
+                      color: on ? '#fff' : 'var(--muted)',
                     }}
                   >
                     {count}
@@ -3790,11 +3785,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             )}
                           </div>
 
-                          {/* Every open loaned order on this account. Once an order is closed it
-                              belongs on the dedicated Closed tab, not mixed in here — this list
-                              stays scoped to what the buyer still owes. */}
+                          {/* Every loaned order on this account, open and settled alike — a
+                              buyer's order history shouldn't shrink as orders get paid off.
+                              Settled loans still show here (marked Closed) as well as under
+                              the dedicated Closed tab. */}
                           {(() => {
-                            const openLoanRows = stmt.loans.filter(row => !row.settled);
+                            const openLoanRows = stmt.loans;
                             // Several orders loaned to the same buyer on one day collapse into a
                             // single summary row -- rows/day, not one row per order -- expandable
                             // to the underlying orders, the same pattern payments use.
@@ -4095,7 +4091,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             };
                             return (
                               <div>
-                                <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
+                                <div className="acct-sec">
+                                  {t('stmtLoanedOrders')} · {stmt.openCount} {t('loanOfWordLbl') || 'of'} {openLoanRows.length} {t('loanOpenWordLbl') || 'open'}
+                                </div>
                                 {isMobile ? (
                                   openLoanRows.length === 0 ? (
                                     <div className="empty" style={{ padding: '14px 0' }}>
@@ -4221,6 +4219,41 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               🗑 {t('loanDeleteAllPayments')}
                             </button>
                           </div>
+                          {isMobile ? (
+                            <div style={{ display: 'grid', gap: 8, padding: '0 10px 10px' }}>
+                              {groups.map(group => {
+                                const isBatch = group.members.length > 1;
+                                const single = !isBatch ? group.members[0] : null;
+                                const target = single ? findRepayment(single) : null;
+                                return (
+                                  <div key={group.id} className="panel loan-payment-card">
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                      <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{fmtTs(group.ts)}</span>
+                                      <span className="loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(group.credit)}</span>
+                                    </div>
+                                    <div style={{ fontSize: 10.5, marginTop: 4 }}>
+                                      {isBatch ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : group.refs[0]}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                                      {group.accountName || '—'}{group.description ? ` · ${group.description}` : ''}
+                                    </div>
+                                    {target && (
+                                      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                        <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, flex: 1 }} onClick={() => setEditingRepayment(target)}>{t('edit')}</button>
+                                        <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, flex: 1, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(target)}>{t('delete')}</button>
+                                      </div>
+                                    )}
+                                    {!target && isBatch && (
+                                      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                        <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, flex: 1 }} onClick={() => setEditingPaymentGroup(group)}>{t('loanEditDayPayments')}</button>
+                                        <button className="rowBtn" style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, flex: 1, color: 'var(--bad)' }} onClick={() => setDeletingPaymentGroup(group)}>🗑 {t('loanDeleteDayPayments')}</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
                           <div className="tableWrap">
                             <table className="acct-table">
                               <thead>
@@ -4267,6 +4300,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               </tbody>
                             </table>
                           </div>
+                          )}
                         </div>
                       );
                     })}
@@ -4478,44 +4512,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           )}
         </div>
       )}
-
-      {/* ── Summary bar: headline balance + primary actions ──
-           Sits at the foot of the page so the working content (KPIs, tabs,
-           accounts) leads and the totals close it out. */}
-      <div className="cash-hero cash-hero-bottom">
-        <div className="cash-hero-main">
-          <div className="cash-hero-label"><span className="cash-emoji">💰</span> {t('totalCashLbl')}</div>
-          <div className="cash-hero-value mono">
-            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
-          </div>
-          <div className="cash-hero-meta">
-            {total24hMovement === 0 ? (
-              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
-            ) : (
-              <>
-                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
-                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
-                </span>
-                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="cash-hero-actions">
-          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
-            <IconTransfer /> {t('transferLbl')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
-            <IconPlus /> {t('addAccountBtn')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
-            <span className="cash-emoji">🤝</span> {t('merchantCash')}
-            {pendingIncoming.length > 0 && (
-              <span className="cash-hero-badge">{pendingIncoming.length}</span>
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* ── Modals ── */}
       {(showAddAccount || editingAccount) && (
