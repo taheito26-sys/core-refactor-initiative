@@ -93,6 +93,14 @@ const IconMinus = () => (
     <line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
+const IconSpinner = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+    style={{ animation: 'cash-spin 0.8s linear infinite', color: 'var(--muted)' }}>
+    <style>{'@keyframes cash-spin { to { transform: rotate(360deg); } }'}</style>
+    <circle cx="12" cy="12" r="9" opacity="0.25" />
+    <path d="M21 12a9 9 0 0 0-9-9" />
+  </svg>
+);
 
 const ACCOUNT_TYPE_ICON: Record<CashAccountType, React.FC> = {
   hand: IconHand, 
@@ -2127,9 +2135,18 @@ interface CashManagementProps {
   applyStateAndCommit?: (next: TrackerState) => Promise<void>;
   /** Ref to the set of account IDs whose ledger was cleared — prevents sync from restoring them */
   clearedAccountIds?: MutableRefObject<Set<string>>;
+  /**
+   * False until the cloud tracker snapshot has been read (or cloud sync is
+   * disabled). Before that, `state` is still the empty seed state, so an
+   * "Accounts tab"/"Loans tab" empty-state render would otherwise flash
+   * "no accounts yet" / "no loans yet" ahead of the real data on every
+   * mount. Defaults to true so callers that don't pass it (tests, storybook)
+   * keep the old behavior.
+   */
+  cloudLoaded?: boolean;
 }
 
-export function CashManagement({ state, applyState, applyStateAndCommit, clearedAccountIds }: CashManagementProps) {
+export function CashManagement({ state, applyState, applyStateAndCommit, clearedAccountIds, cloudLoaded = true }: CashManagementProps) {
   const t = useT();
   const isMobile = useIsMobile();
   const { user, merchantProfile } = useAuth();
@@ -3373,7 +3390,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── ACCOUNTS TAB ── */}
       {innerTab === 'accounts' && (
         <div>
-          {accounts.length === 0 ? (
+          {!cloudLoaded ? (
+            <div className="empty" style={{ padding: '32px 0' }}>
+              <IconSpinner />
+            </div>
+          ) : accounts.length === 0 ? (
             <div className="empty" style={{ padding: '32px 0' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 36, height: 36 }}>
                 <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
@@ -3670,7 +3691,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </div>
           )}
 
-          {loans.length === 0 ? (
+          {!cloudLoaded ? (
+            <div className="empty" style={{ padding: '24px 0' }}>
+              <IconSpinner />
+            </div>
+          ) : loans.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
