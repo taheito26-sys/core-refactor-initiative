@@ -1338,7 +1338,11 @@ function CashCounterModal({
     if (!wantsAdd && !wantsRepay) { setErr(t('enterValidAmount') || 'Choose at least one action.'); return; }
 
     const addAmt = wantsAdd ? num(cashAmount, 0) : 0;
-    if (wantsAdd && !(addAmt > 0)) { setErr(t('enterValidAmount')); return; }
+    // When loans are also being repaid, the add-to-cash amount is the
+    // auto-computed leftover (read-only in the UI) and can legitimately be
+    // zero — the whole count went to loans. Only require a positive amount
+    // for a standalone "add cash" action.
+    if (wantsAdd && !wantsRepay && !(addAmt > 0)) { setErr(t('enterValidAmount')); return; }
 
     const allocations = wantsRepay
       ? Array.from(splitSelected)
