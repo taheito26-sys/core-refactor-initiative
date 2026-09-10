@@ -3405,7 +3405,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── ACCOUNTS TAB ── */}
       {innerTab === 'accounts' && (
         <div>
-          {!cloudLoaded ? (
+          {/* Only block on the cloud round-trip when there's nothing to show
+              yet — local-first: `accounts` already reflects localStorage's
+              cached copy synchronously on mount, so a returning merchant
+              with cached accounts sees them instantly instead of staring at
+              a spinner every time. The spinner only covers the genuine gap
+              (first-ever load on a device, or truly empty local storage). */}
+          {!cloudLoaded && accounts.length === 0 ? (
             <div className="empty" style={{ padding: '32px 0' }}>
               <IconSpinner />
             </div>
@@ -3706,7 +3712,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </div>
           )}
 
-          {!cloudLoaded ? (
+          {/* Same local-first gate as the Accounts tab above — don't hide
+              already-cached loans behind a spinner while the cloud
+              round-trip is still in flight. */}
+          {!cloudLoaded && loans.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
               <IconSpinner />
             </div>
