@@ -535,7 +535,7 @@ export default function CustomerOrdersPage() {
   // is no postgres_changes channel to subscribe to here the way 'c-orders'
   // below has. Poll instead so a merchant-side edit/cancellation shows up
   // without the buyer having to manually refresh the page.
-  const { data: historyStatements = [] } = useQuery({
+  const { data: historyStatements = [], isLoading: isHistoryQueryLoading } = useQuery({
     queryKey: ['c-order-history', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
@@ -545,6 +545,11 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
     refetchInterval: 20000,
   });
+  // This edge-function-backed query resolves slower than the live 'c-orders'
+  // query above, so without folding its own loading state in here, the page
+  // briefly shows "No orders yet" as soon as 'c-orders' settles but before
+  // this one has — even when the buyer has plenty of order history.
+  const isHistoryLoading = isHistoryQueryLoading || !userId;
 
   type HistoryOrderRow = {
     key: string;
@@ -899,7 +904,7 @@ export default function CustomerOrdersPage() {
         />
       )}
 
-      {isLoading ? (
+      {isLoading || isHistoryLoading ? (
         <div className="flex h-32 items-center justify-center px-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
