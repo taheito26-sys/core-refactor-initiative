@@ -3606,42 +3606,40 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           {/* Loaned Orders ↔ Payments ↔ Closed */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, minmax(0, 240px))',
-              gap: 10, marginBottom: 14,
+              display: 'flex', gap: 4, marginBottom: 12, padding: 4,
+              borderRadius: 12, background: 'var(--panel2)', border: '1px solid var(--line)',
             }}
           >
             {([
-              ['orders', '📦', t('loanTabOrders') || 'Loaned Orders', activeLoanCount],
-              ['payments', '💵', t('cashLoansPaymentsTab') || 'Payments', paymentBuyerStatements.reduce((s, x) => s + x.payments.length, 0)],
-              ['closed', '✅', t('loanTabClosed'), closedLoanCount],
-            ] as const).map(([view, icon, label, count]) => {
+              ['orders', t('loanTabOrders') || 'Loaned Orders', activeLoanCount],
+              ['payments', t('cashLoansPaymentsTab') || 'Payments', paymentBuyerStatements.reduce((s, x) => s + x.payments.length, 0)],
+              ['closed', t('loanTabClosed'), closedLoanCount],
+            ] as const).map(([view, label, count]) => {
               const on = loanSubTab === view;
               return (
                 <button
                   key={view}
                   onClick={() => setLoanSubTab(view)}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    padding: isMobile ? '14px 6px' : '16px 10px',
-                    minHeight: isMobile ? 68 : 76,
-                    borderRadius: 14,
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: isMobile ? '9px 6px' : '9px 10px',
+                    borderRadius: 9,
                     cursor: 'pointer',
-                    border: on ? '2px solid var(--brand)' : '1.5px solid var(--line)',
-                    background: on ? 'var(--brand)' : 'var(--panel2)',
-                    color: on ? '#fff' : 'var(--text)',
-                    boxShadow: on ? '0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent)' : 'none',
-                    transition: 'all .15s',
+                    border: 'none',
+                    background: on ? 'var(--panel)' : 'transparent',
+                    color: on ? 'var(--text)' : 'var(--muted)',
+                    fontSize: isMobile ? 11.5 : 12.5, fontWeight: 700,
+                    boxShadow: on ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    transition: 'background .15s, color .15s',
                   }}
                 >
-                  <span style={{ fontSize: isMobile ? 20 : 22, lineHeight: 1 }}>{icon}</span>
-                  <span style={{ fontSize: isMobile ? 12 : 13.5, fontWeight: 800, textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
                   <span
                     className="mono"
                     style={{
-                      fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
-                      background: on ? 'rgba(255,255,255,0.22)' : 'color-mix(in srgb, var(--brand) 14%, transparent)',
-                      color: on ? '#fff' : 'var(--brand)',
+                      fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+                      background: on ? 'color-mix(in srgb, var(--brand) 16%, transparent)' : 'color-mix(in srgb, var(--muted) 16%, transparent)',
+                      color: on ? 'var(--brand)' : 'var(--muted)',
                     }}
                   >
                     {count}
