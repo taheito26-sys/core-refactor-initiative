@@ -16,10 +16,14 @@ import {
  */
 
 export interface RepaymentPatch {
-  accountId: string;
+  /** Null/omitted means this payment isn't credited to any cash account. */
+  accountId?: string | null;
   amount: number;
   ts: number;
   note?: string;
+  /** Id for a newly created cash_ledger row, only used when this edit turns
+   * cash-linking on for a payment that didn't have one before. */
+  newLedgerEntryId?: string;
 }
 
 export interface RepaymentResult {
@@ -55,17 +59,35 @@ export function editRepayment(
   const existing = findRepayment(loan, repaymentId);
   if (!existing) return null;
 
-  const { accountId, amount, ts, note } = patch;
-  const nextLedger = existing.ledgerEntryId
-    ? ledger.map(e => (e.id === existing.ledgerEntryId
-      ? { ...e, ts, accountId, amount, currency: loan.currency, note: ledgerNote }
-      : e))
-    : ledger;
+  const { accountId, amount, ts, note, newLedgerEntryId } = patch;
+  let nextLedger = ledger;
+  let nextLedgerEntryId = existing.ledgerEntryId;
+
+  if (accountId) {
+    if (existing.ledgerEntryId) {
+      // Already cash-linked — move the existing row.
+      nextLedger = ledger.map(e => (e.id === existing.ledgerEntryId
+        ? { ...e, ts, accountId, amount, currency: loan.currency, note: ledgerNote }
+        : e));
+    } else if (newLedgerEntryId) {
+      // Was recorded with no cash account; this edit turns that on.
+      const entry: CashLedgerEntry = {
+        id: newLedgerEntryId, ts, type: 'loan_repayment', accountId,
+        direction: 'in', amount, currency: loan.currency, note: ledgerNote,
+      };
+      nextLedger = [...ledger, entry];
+      nextLedgerEntryId = entry.id;
+    }
+  } else if (existing.ledgerEntryId) {
+    // This edit turns cash-linking off — drop the row it created.
+    nextLedger = ledger.filter(e => e.id !== existing.ledgerEntryId);
+    nextLedgerEntryId = undefined;
+  }
 
   const nextLoan = withDerivedStatus({
     ...loan,
     repayments: (loan.repayments || []).map(r => (
-      r.id === repaymentId ? { ...r, ts, amount, accountId, note } : r
+      r.id === repaymentId ? { ...r, ts, amount, accountId: accountId || undefined, ledgerEntryId: nextLedgerEntryId, note } : r
     )),
   });
 

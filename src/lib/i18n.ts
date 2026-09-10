@@ -1797,6 +1797,11 @@ const translations = {
   loanMergeSelectedCount: { en: '{n} selected', ar: '{n} محدد' },
   loanMergeConfirm: { en: 'Merge {n} payments', ar: 'دمج {n} دفعات' },
   loanRepaymentAccount:  { en: 'Deposit To',                    ar: 'إيداع في' },
+  loanAddCash: { en: 'Add Cash', ar: 'إضافة نقد' },
+  loanAddCashHint: {
+    en: 'Credit this amount to a cash account. Turn off if the money is already accounted for elsewhere.',
+    ar: 'إضافة هذا المبلغ إلى حساب نقدي. أوقف هذا الخيار إذا كان المبلغ محتسباً بالفعل في مكان آخر.',
+  },
   loanRepaymentAmount:   { en: 'Repayment Amount',               ar: 'مبلغ السداد' },
   loanStatusOpen:        { en: 'Open',                          ar: 'مفتوح' },
   loanStatusClosed:      { en: 'Closed',                        ar: 'مغلق' },

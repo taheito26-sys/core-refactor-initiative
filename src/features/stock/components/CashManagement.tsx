@@ -929,13 +929,18 @@ interface RepayLoanModalProps {
    * it did nothing — the caller's own commit() already toasts on failure,
    * but a synchronous error thrown before that point had nowhere to land.
    */
-  onSave: (accountId: string, amount: number, ts: number, note?: string) => void | Promise<void>;
+  onSave: (accountId: string | null, amount: number, ts: number, note?: string) => void | Promise<void>;
   onClose: () => void;
   isMobile?: boolean;
 }
 function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
   const t = useT();
   const editing = !!existing;
+  // A repayment doesn't have to be credited to a cash account -- the money
+  // may already be accounted for elsewhere, or this is a write-off. Default
+  // to on (the common case, and what every payment used to do
+  // unconditionally) but let the merchant skip it.
+  const [addToCash, setAddToCash] = useState(editing ? !!existing?.accountId : true);
   const [accountId, setAccountId] = useState(
     existing?.accountId || accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || ''
   );
@@ -955,13 +960,12 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   const handle = async () => {
     if (saving) return;
     setErr('');
-    if (!accountId) { setErr(t('loanRepaymentAccount')); return; }
-    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (addToCash && !accountId) { setErr(t('loanRepaymentAccount')); return; }
     const ts = new Date(date).getTime();
     if (!Number.isFinite(ts)) { setErr(t('date')); return; }
     setSaving(true);
     try {
-      await onSave(accountId, amtNum, ts, note.trim() || undefined);
+      await onSave(addToCash ? accountId : null, amtNum, ts, note.trim() || undefined);
     } catch (error) {
       // A failure here is unexpected -- commit() itself already toasts on a
       // save failure and returns without throwing, so reaching this catch
@@ -987,11 +991,21 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">{t('loanRepaymentAccount')}</div>
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
-            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
-          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            <input type="checkbox" checked={addToCash} onChange={e => setAddToCash(e.target.checked)} />
+            {t('loanAddCash')}
+          </label>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{t('loanAddCashHint')}</div>
         </div>
+
+        {addToCash && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('loanRepaymentAccount')}</div>
+            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+              {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentAmount')}</div>
@@ -2427,6 +2441,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       return next;
     });
   };
+  /** Which grouped-loaned-order (per-day) rows are expanded to show their per-order breakdown. */
+  const [expandedLoanDayGroups, setExpandedLoanDayGroups] = useState<Set<string>>(new Set());
+  const toggleLoanDayGroup = (id: string) => {
+    setExpandedLoanDayGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   /** Buyer statement key currently picking payments to merge into one, and which rows are checked. */
   const [mergePaymentsKey, setMergePaymentsKey] = useState<string | null>(null);
   const [mergePaymentSelection, setMergePaymentSelection] = useState<Set<string>>(new Set());
@@ -2652,7 +2675,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** The loan list with `loan` swapped in. */
   const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string) => {
     // Wrapped end-to-end: a throw anywhere in here used to reject silently
     // (this runs from the modal's fire-and-forget onSave), leaving the click
     // looking like it did nothing. Now the modal awaits this and shows
@@ -2661,15 +2684,18 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       // The repayment itself is recorded ON the loan — the cash_ledger row is
       // only the money side. Deriving repaid totals from the ledger loses them:
       // its schema rejects loan-linked rows and strips the link column.
-      const entry: CashLedgerEntry = {
+      // accountId is null when the merchant skipped crediting cash for this
+      // payment (money already accounted for elsewhere, a write-off, etc.) —
+      // the loan balance still drops, there's just no cash_ledger row for it.
+      const entry: CashLedgerEntry | null = accountId ? {
         id: uid(), ts, type: 'loan_repayment', accountId,
         direction: 'in', amount, currency: loan.currency,
         note: repaymentLedgerNote(loan, note),
-      };
+      } : null;
       const repayment: LoanRepayment = {
-        id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note,
+        id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note,
       };
-      const newLedger = [...ledger, entry];
+      const newLedger = entry ? [...ledger, entry] : ledger;
       const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
       const newLoans = replaceLoan(updatedLoan);
       const newCashQAR = deriveCashQAR(accounts, newLedger);
@@ -2752,13 +2778,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    * dropped it) is not recreated: only the recorded payment changes.
    */
   const updateLoanRepayment = async (
-    loan: CustomerLoan, repaymentId: string, accountId: string, amount: number, ts: number, note?: string,
+    loan: CustomerLoan, repaymentId: string, accountId: string | null, amount: number, ts: number, note?: string,
   ) => {
     // The dialog holds a snapshot; a sync may have landed another payment on
     // this loan since it opened, so edit the loan as it stands now.
     const live = loans.find(l => l.id === loan.id) || loan;
     const next = editRepayment(
-      live, repaymentId, { accountId, amount, ts, note }, ledger, repaymentLedgerNote(live, note),
+      live, repaymentId, { accountId, amount, ts, note, newLedgerEntryId: uid() }, ledger, repaymentLedgerNote(live, note),
     );
     if (!next) { setEditingRepayment(null); return; }
 
@@ -3518,6 +3544,38 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               stays scoped to what the buyer still owes. */}
                           {(() => {
                             const openLoanRows = stmt.loans.filter(row => !row.settled);
+                            // Several orders loaned to the same buyer on one day collapse into a
+                            // single summary row -- rows/day, not one row per order -- expandable
+                            // to the underlying orders, the same pattern payments use.
+                            type LoanRow = typeof openLoanRows[number];
+                            interface LoanDayGroup {
+                              key: string; ts: number; rows: LoanRow[];
+                              principal: number; repaid: number; remaining: number; usdt: number; egp: number; hasEgp: boolean;
+                            }
+                            const loanDayGroups: LoanDayGroup[] = (() => {
+                              const round2 = (n: number) => Math.round(n * 100) / 100;
+                              const map = new Map<string, LoanDayGroup>();
+                              const order: string[] = [];
+                              for (const row of openLoanRows) {
+                                const d = new Date(row.loan.ts);
+                                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                let g = map.get(key);
+                                if (!g) {
+                                  g = { key, ts: row.loan.ts, rows: [], principal: 0, repaid: 0, remaining: 0, usdt: 0, egp: 0, hasEgp: false };
+                                  map.set(key, g);
+                                  order.push(key);
+                                }
+                                g.rows.push(row);
+                                g.principal = round2(g.principal + row.principal);
+                                g.repaid = round2(g.repaid + row.repaid);
+                                g.remaining = round2(g.remaining + row.remaining);
+                                g.ts = Math.min(g.ts, row.loan.ts);
+                                const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
+                                if (linkedTrade) g.usdt += linkedTrade.amountUSDT;
+                                if (linkedTrade?.originalFiat) { g.hasEgp = true; g.egp += linkedTrade.originalFiatAmount || 0; }
+                              }
+                              return order.map(k => map.get(k)!);
+                            })();
                             const loanRow = (row: typeof stmt.loans[number]) => {
                               const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
                               const isExchangeLoan = !!linkedTrade?.originalFiat;
@@ -3705,6 +3763,85 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 </div>
                               );
                             };
+                            const loanDayGroupCard = (group: LoanDayGroup) => {
+                              const isBatch = group.rows.length > 1;
+                              const isExpanded = expandedLoanDayGroups.has(group.key);
+                              if (!isBatch) return loanCard(group.rows[0]);
+                              return (
+                                <div key={group.key} className="panel loan-order-card">
+                                  <div className="loan-order-card-top">
+                                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{fmtDate(group.ts)}</span>
+                                    <button className="rowBtn" style={{ padding: '3px 8px', fontSize: 9.5 }} onClick={() => toggleLoanDayGroup(group.key)}>
+                                      {isExpanded ? '▾' : '▸'} {t('loanSplitPaymentBadge').replace('{n}', String(group.rows.length))}
+                                    </button>
+                                  </div>
+                                  <div className="loan-order-card-grid">
+                                    {group.hasEgp && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColEgpAmount')}</div>
+                                        <span className="loan-num">{fmtTotal(group.egp)}</span>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColQarAmount')}</div>
+                                      <span className="loan-num">{formatMoney(group.principal)}</span>
+                                    </div>
+                                    {group.usdt > 0 && (
+                                      <div>
+                                        <div className="loan-cell-lbl">{t('loanColUsdtAmount')}</div>
+                                        <span className="mono">{fmtU(group.usdt)}</span>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColPaid')}</div>
+                                      <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(group.repaid)}</span>
+                                    </div>
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColRemaining')}</div>
+                                      <span className="loan-num" style={{ color: group.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
+                                        {formatMoney(group.remaining)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {isExpanded && (
+                                    <div style={{ display: 'grid', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
+                                      {group.rows.map(loanCard)}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            };
+                            const loanDayGroupRow = (group: LoanDayGroup) => {
+                              const isBatch = group.rows.length > 1;
+                              const isExpanded = expandedLoanDayGroups.has(group.key);
+                              if (!isBatch) return loanRow(group.rows[0]);
+                              return (
+                                <Fragment key={group.key}>
+                                  <tr>
+                                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(group.ts)}</td>
+                                    <td className="r loan-num">{group.hasEgp ? fmtTotal(group.egp) : '—'}</td>
+                                    <td className="r loan-num">{formatMoney(group.principal)}</td>
+                                    <td className="r mono">{group.usdt > 0 ? fmtU(group.usdt) : '—'}</td>
+                                    <td className="r mono">—</td>
+                                    <td className="r mono">—</td>
+                                    <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(group.repaid)}</td>
+                                    <td className="r loan-num" style={{ color: group.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
+                                      {formatMoney(group.remaining)}
+                                    </td>
+                                    <td>
+                                      <button className="rowBtn" style={{ padding: '1px 6px', fontSize: 9, minHeight: 18 }} onClick={() => toggleLoanDayGroup(group.key)}>
+                                        {isExpanded ? '▾' : '▸'} {t('loanSplitPaymentBadge').replace('{n}', String(group.rows.length))}
+                                      </button>
+                                    </td>
+                                    <td className="r mono">—</td>
+                                    <td className="r mono">—</td>
+                                    <td className="r mono">—</td>
+                                    <td />
+                                  </tr>
+                                  {isExpanded && group.rows.map(loanRow)}
+                                </Fragment>
+                              );
+                            };
                             return (
                               <div>
                                 <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
@@ -3715,7 +3852,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </div>
                                   ) : (
                                     <div style={{ display: 'grid', gap: 8 }}>
-                                      {openLoanRows.map(loanCard)}
+                                      {loanDayGroups.map(loanDayGroupCard)}
                                     </div>
                                   )
                                 ) : (
@@ -3741,7 +3878,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     <tbody>
                                       {openLoanRows.length === 0 ? (
                                         <tr><td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
-                                      ) : openLoanRows.map(loanRow)}
+                                      ) : loanDayGroups.map(loanDayGroupRow)}
                                     </tbody>
                                     <tfoot>
                                       <tr>
