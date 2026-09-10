@@ -1,5 +1,5 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
-import { computeFIFO, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
+import { computeFIFO, mergeLoansByRecency, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
 import { getCurrentTrackerState, hasMeaningfulTrackerData, isTrackerDataCleared } from './tracker-backup';
 
 interface StateOverrides {
@@ -165,7 +165,7 @@ export function mergeLocalAndCloud(
       cashQAR: 0,
       cashOwner: '',
       customerLoans: withoutDeletedRepayments(
-        withoutDeletedLoans(unionById(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
+        withoutDeletedLoans(mergeLoansByRecency(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
         deletedRepaymentIds,
       ),
       deletedLoanIds,
@@ -188,7 +188,7 @@ export function mergeLocalAndCloud(
     cashLedger: unionById(local.cashLedger, cloud.cashLedger),
     cashHistory: unionById(local.cashHistory, cloud.cashHistory),
     customerLoans: withoutDeletedRepayments(
-      withoutDeletedLoans(unionById(local.customerLoans, cloud.customerLoans), deletedLoanIds),
+      withoutDeletedLoans(mergeLoansByRecency(local.customerLoans, cloud.customerLoans), deletedLoanIds),
       deletedRepaymentIds,
     ),
     deletedLoanIds,

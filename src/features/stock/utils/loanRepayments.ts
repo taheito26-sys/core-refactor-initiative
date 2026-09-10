@@ -31,9 +31,16 @@ export interface RepaymentResult {
   ledger: CashLedgerEntry[];
 }
 
-/** A loan flagged from what is left owed rather than from what it was before. */
+/**
+ * A loan flagged from what is left owed rather than from what it was before.
+ * Every real mutation to a loan or its repayments funnels through here, so
+ * this is also where `updatedAt` gets bumped -- see CustomerLoan.updatedAt
+ * and mergeLoansByRecency for why: customerLoans is always merged by id
+ * across devices, and a plain union lets a stale device's copy silently
+ * overwrite a newer edit just because it saves next.
+ */
 export function withDerivedStatus(loan: CustomerLoan): CustomerLoan {
-  return { ...loan, status: getLoanRemaining(loan) <= 0 ? 'closed' : 'open' };
+  return { ...loan, status: getLoanRemaining(loan) <= 0 ? 'closed' : 'open', updatedAt: Date.now() };
 }
 
 export function findRepayment(loan: CustomerLoan, repaymentId: string): LoanRepayment | undefined {

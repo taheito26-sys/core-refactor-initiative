@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
-import { withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
+import { mergeLoansByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -128,7 +128,7 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
       cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
       cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
-      customerLoans: mergeArrayById(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
+      customerLoans: mergeLoansByRecency(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
       // Union tombstones across every member's row too — a delete recorded
       // by any team member must stick for everyone, not just the deleter.
       deletedLoanIds: Array.from(new Set([
@@ -253,7 +253,7 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       ...(stripped.deletedRepaymentIds || []),
     ])).slice(-500);
     const mergedLoans = withoutDeletedRepayments(
-      mergeArrayById(latestState.customerLoans, stripped.customerLoans)
+      mergeLoansByRecency(latestState.customerLoans, stripped.customerLoans)
         .filter(l => !deletedLoanIds.includes(l.id)),
       deletedRepaymentIds,
     );

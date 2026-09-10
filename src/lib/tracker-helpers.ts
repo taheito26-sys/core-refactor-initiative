@@ -486,6 +486,16 @@ export interface CustomerLoan {
   sourceExchange?: string;
   /** exchange_p2p_orders.id this loan was created from, used to avoid re-linking the same order. */
   sourceOrderId?: string;
+  /**
+   * Bumped on every edit to this loan or its repayments (added, edited, or
+   * deleted). customerLoans is always merged by id across devices, never
+   * overwritten, and a plain union has no way to tell "this device's copy
+   * is stale" from "this device made the latest change" -- both look like
+   * "an object with this id exists." Comparing updatedAt at merge time
+   * (mergeLoansByRecency) is what lets the actually-latest edit win instead
+   * of whichever device happens to save next.
+   */
+  updatedAt?: number;
 }
 
 export function getLoanRepaid(loan: CustomerLoan): number {
@@ -515,6 +525,30 @@ export function withoutDeletedRepayments(
     const nextLoan = { ...loan, repayments: repayments.filter(r => !deleted.has(r.id)) };
     return { ...nextLoan, status: getLoanRemaining(nextLoan) <= 0 ? 'closed' : 'open' };
   });
+}
+
+/**
+ * Merges two customerLoans arrays by id, but — unlike a plain union where
+ * whichever side happens to be "incoming" always wins — keeps whichever
+ * side's copy of a shared id has the later `updatedAt`. A device with a
+ * stale in-memory loan (an edit or a repayment deletion made elsewhere
+ * since it last loaded) no longer overwrites the newer copy just because it
+ * saves next; a loan with no `updatedAt` at all (never touched by this
+ * logic) is treated as older than any timestamped copy.
+ */
+export function mergeLoansByRecency(
+  base: CustomerLoan[] | undefined,
+  incoming: CustomerLoan[] | undefined,
+): CustomerLoan[] {
+  const out = new Map<string, CustomerLoan>();
+  for (const loan of base || []) out.set(loan.id, loan);
+  for (const loan of incoming || []) {
+    const existing = out.get(loan.id);
+    if (!existing || (loan.updatedAt || 0) >= (existing.updatedAt || 0)) {
+      out.set(loan.id, loan);
+    }
+  }
+  return Array.from(out.values());
 }
 
 /** One customer payment (a loan repayment) landing on a calendar day. */
