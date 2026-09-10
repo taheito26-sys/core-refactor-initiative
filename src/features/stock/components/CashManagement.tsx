@@ -2709,15 +2709,30 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   useEffect(() => {
     if (!myMerchantId || !myUserId) return;
-    Promise.all([
-      supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id, status'),
-      supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname'),
-    ]).then(([relRes, profRes]) => {
-      const rels = relRes.data ?? [];
-      const profs = profRes.data ?? [];
-      const normalized = normalizeCounterparties(myMerchantId, myUserId, rels, profs);
-      setCounterparties(normalized);
-    });
+    let cancelled = false;
+    supabase
+      .from('merchant_relationships')
+      .select('id, merchant_a_id, merchant_b_id, status')
+      .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`)
+      .in('status', ['active', 'approved'])
+      .then(async relRes => {
+        const rels = relRes.data ?? [];
+        const counterpartyIds = Array.from(new Set(
+          rels.map(r => (r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id)),
+        ));
+        if (counterpartyIds.length === 0) {
+          if (!cancelled) setCounterparties([]);
+          return;
+        }
+        const profRes = await supabase
+          .from('merchant_profiles')
+          .select('merchant_id, user_id, display_name, nickname')
+          .in('merchant_id', counterpartyIds);
+        if (cancelled) return;
+        const normalized = normalizeCounterparties(myMerchantId, myUserId, rels, profRes.data ?? []);
+        setCounterparties(normalized);
+      });
+    return () => { cancelled = true; };
   }, [myMerchantId, myUserId]);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
