@@ -1719,6 +1719,7 @@ const translations = {
   cashLedgerTab:         { en: '📋 Ledger',                    ar: '📋 السجل المحاسبي' },
   cashInsightsTab:       { en: '📊 Insights',                  ar: '📊 التحليلات' },
   cashLoansTab:          { en: '🤝 Loans',                     ar: '🤝 القروض' },
+  cashLoansPaymentsTab:  { en: '💵 Payments',                  ar: '💵 المدفوعات' },
   cashStatementsTab:     { en: '🔗 Statements',                ar: '🔗 كشوفات عامة' },
   countCashBtn:          { en: '🧮 Add Cash',                  ar: '🧮 إضافة نقد' },
   continueBtn:           { en: 'Continue',                     ar: 'متابعة' },

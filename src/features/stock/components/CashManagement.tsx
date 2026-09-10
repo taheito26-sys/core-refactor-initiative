@@ -2132,8 +2132,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // ── Loans view: open loans by customer, closed loans by settlement month ──
   // A settled loan leaves the active list entirely — it belongs to the archive,
   // not to the "who still owes me" view.
-  const [loanView, setLoanView] = useState<'active' | 'closed'>('active');
+  const [loanSubTab, setLoanSubTab] = useState<'orders' | 'payments' | 'closed'>('orders');
   const [loanQuery, setLoanQuery] = useState('');
+  const [selectedPaymentMonth, setSelectedPaymentMonth] = useState<string>('all');
 
   const customerList = useMemo(() => state.customers || [], [state.customers]);
 
@@ -2231,6 +2232,36 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const receivableStatements = useMemo(() => (
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
   ), [buyerStatements, loanQuery]);
+
+  // ── Payments tab: every payment across every buyer, independent of the
+  // Loaned Orders tab — a settled buyer's payment history still belongs
+  // here even after they drop out of the receivables list above.
+  const paymentBuyerStatements = useMemo(() => (
+    buyerStatements
+      .filter(s => statementMatchesQuery(s, loanQuery))
+      .map(s => ({ stmt: s, payments: s.entries.filter(e => e.kind === 'payment') }))
+      .filter(x => x.payments.length > 0)
+  ), [buyerStatements, loanQuery]);
+
+  const availablePaymentMonths = useMemo(() => {
+    const keys = new Set<string>();
+    for (const { payments } of paymentBuyerStatements) {
+      for (const p of payments) keys.add(monthKey(p.ts));
+    }
+    return Array.from(keys).sort().reverse();
+  }, [paymentBuyerStatements]);
+
+  const visiblePaymentBuyers = useMemo(() => {
+    if (selectedPaymentMonth === 'all') return paymentBuyerStatements;
+    return paymentBuyerStatements
+      .map(({ stmt, payments }) => ({ stmt, payments: payments.filter(p => monthKey(p.ts) === selectedPaymentMonth) }))
+      .filter(x => x.payments.length > 0);
+  }, [paymentBuyerStatements, selectedPaymentMonth]);
+
+  const totalVisiblePayments = useMemo(
+    () => visiblePaymentBuyers.reduce((sum, x) => sum + x.payments.reduce((s, p) => s + p.credit, 0), 0),
+    [visiblePaymentBuyers],
+  );
 
   // Active receivables month filter — same pill row pattern as Orders/Stock.
   // Scoped at the loan level, not the buyer level: a buyer can carry loans
@@ -3572,17 +3603,18 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </div>
           )}
 
-          {/* Active ↔ Closed */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          {/* Loaned Orders ↔ Payments ↔ Closed */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
             {([
-              ['active', t('loanTabActive'), activeLoanCount],
+              ['orders', t('loanTabActive'), activeLoanCount],
+              ['payments', t('cashLoansPaymentsTab') || 'Payments', paymentBuyerStatements.reduce((s, x) => s + x.payments.length, 0)],
               ['closed', t('loanTabClosed'), closedLoanCount],
             ] as const).map(([view, label, count]) => {
-              const on = loanView === view;
+              const on = loanSubTab === view;
               return (
                 <button
                   key={view}
-                  onClick={() => setLoanView(view)}
+                  onClick={() => setLoanSubTab(view)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: isMobile ? '8px 12px' : '5px 12px', borderRadius: 999,
@@ -3615,7 +3647,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
-          ) : loanView === 'active' ? (
+          ) : loanSubTab === 'orders' ? (
             <>
               {availableLoanMonths.length > 0 && (
                 <div className="month-filter-row">
@@ -4447,6 +4479,108 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   );
                 })}
               </div>
+              )}
+            </>
+          ) : loanSubTab === 'payments' ? (
+            <>
+              {availablePaymentMonths.length > 0 && (
+                <div className="month-filter-row">
+                  <button
+                    onClick={() => setSelectedPaymentMonth('all')}
+                    className={`month-pill ${selectedPaymentMonth === 'all' ? 'active' : ''}`}
+                  >
+                    {t('allMonths')}
+                  </button>
+                  {availablePaymentMonths.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedPaymentMonth(m)}
+                      className={`month-pill ${selectedPaymentMonth === m ? 'active' : ''}`}
+                    >
+                      {monthPillLabel(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {visiblePaymentBuyers.length === 0 ? (
+                <div className="empty" style={{ padding: '24px 0' }}>
+                  <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoPaymentsYet')}</div>
+                </div>
+              ) : (
+                <>
+                  <div className="panel loan-totals" style={{ marginBottom: 10 }}>
+                    <div className="loan-totals-cur">
+                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                        {visiblePaymentBuyers.reduce((s, x) => s + x.payments.length, 0)} {t('cashLoansPaymentsTab') || 'Payments'}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="loan-totals-lbl">{t('loanColRepaid')}</div>
+                      <div className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(totalVisiblePayments)}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {visiblePaymentBuyers.map(({ stmt, payments }) => {
+                      const groups = [...groupPaymentsByDay(payments)].reverse();
+                      const buyerTotal = payments.reduce((s, p) => s + p.credit, 0);
+                      return (
+                        <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+                          <div className="loan-row loan-cols" style={{ cursor: 'default' }}>
+                            <div className="loan-cell-buyer">
+                              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{stmt.customerName}</div>
+                              <span className="pill" style={{ fontSize: 9 }}>{stmt.currency}</span>
+                            </div>
+                            <div className="r" style={{ gridColumn: 'span 2' }}>
+                              <div className="loan-cell-lbl">{t('cashLoansPaymentsTab') || 'Payments'}</div>
+                              <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(buyerTotal)}</span>
+                            </div>
+                          </div>
+                          <div className="tableWrap">
+                            <table className="acct-table">
+                              <thead>
+                                <tr>
+                                  <th>{t('loanColDate')}</th>
+                                  <th>{t('loanColRef')}</th>
+                                  <th className="r">{t('loanColAmount')}</th>
+                                  <th>{t('loanColAccount')}</th>
+                                  <th>{t('loanNoteLabel')}</th>
+                                  <th />
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {groups.map(group => {
+                                  const single = group.members.length === 1 ? group.members[0] : null;
+                                  const target = single ? findRepayment(single) : null;
+                                  return (
+                                    <tr key={group.id}>
+                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(group.ts)}</td>
+                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                                        {group.members.length > 1 ? t('loanSplitPaymentBadge').replace('{n}', String(group.members.length)) : group.refs[0]}
+                                      </td>
+                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(group.credit)}</td>
+                                      <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
+                                      <td style={{ color: 'var(--muted)', minWidth: 140 }}>{group.description || '—'}</td>
+                                      <td>
+                                        {target && (
+                                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                            <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingRepayment(target)}>{t('edit')}</button>
+                                            <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeletingRepayment(target)}>{t('delete')}</button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </>
           ) : closedLoanMonths.length === 0 ? (
