@@ -1720,7 +1720,7 @@ const translations = {
   cashInsightsTab:       { en: '📊 Insights',                  ar: '📊 التحليلات' },
   cashLoansTab:          { en: '🤝 Loans',                     ar: '🤝 القروض' },
   cashStatementsTab:     { en: '🔗 Statements',                ar: '🔗 كشوفات عامة' },
-  countCashBtn:          { en: '🧮 Count Cash',                ar: '🧮 عدّ النقد' },
+  countCashBtn:          { en: '🧮 Add Cash',                  ar: '🧮 إضافة نقد' },
   continueBtn:           { en: 'Continue',                     ar: 'متابعة' },
   noteCountLbl:          { en: 'Note count',                   ar: 'عدّ الأوراق النقدية' },
   cashCounterTotalLbl:   { en: 'Total counted',                ar: 'الإجمالي المعدود' },
