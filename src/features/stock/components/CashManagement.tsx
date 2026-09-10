@@ -18,7 +18,7 @@ import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery, monthKey } from '@/features/stock/utils/loanGrouping';
 import {
-  buildBuyerStatements, statementMatchesQuery, totalsByCurrency, groupPaymentsByDay,
+  buildBuyerStatements, statementMatchesQuery, totalsByCurrency, groupPaymentsByDay, groupPayments,
   type StatementEntry, type BuyerStatement, type PaymentGroup,
 } from '@/features/stock/utils/loanStatement';
 import {
@@ -4256,6 +4256,34 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                               </>
                                             );
                                           })()}
+                                          {(() => {
+                                            const subGroups = groupPayments(group.members);
+                                            if (subGroups.length <= 1) return null;
+                                            return (
+                                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line2)' }}>
+                                                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 4 }}>{t('loanPaymentsInDay')}</div>
+                                                {subGroups.map(sub => (
+                                                  <div key={sub.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 10, padding: '4px 0' }}>
+                                                    <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(sub.ts)}</span>
+                                                    <span className="loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(sub.credit)}</span>
+                                                    <span style={{ color: 'var(--muted)' }}>{sub.members.length} {t('loanPaymentOrderCount').toLowerCase()}</span>
+                                                    {!isMergingHere && (
+                                                      <div style={{ display: 'flex', gap: 4, marginInlineStart: 'auto' }}>
+                                                        <button
+                                                          className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                                          onClick={() => (sub.members.length > 1 ? setEditingPaymentGroup(sub) : (() => { const tgt = findRepayment(sub.members[0]); if (tgt) setEditingRepayment(tgt); })())}
+                                                        >{t('edit')}</button>
+                                                        <button
+                                                          className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                                          onClick={() => (sub.members.length > 1 ? setDeletingPaymentGroup(sub) : (() => { const tgt = findRepayment(sub.members[0]); if (tgt) setDeletingRepayment(tgt); })())}
+                                                        >{t('delete')}</button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       )}
                                     </div>
@@ -4359,6 +4387,43 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                             </tr>
                                           );
                                         })()}
+                                        {isExpanded && (() => {
+                                          const subGroups = groupPayments(group.members);
+                                          return subGroups.length > 1 ? subGroups : [];
+                                        })().map(sub => {
+                                          const subSingle = sub.members.length === 1 ? sub.members[0] : null;
+                                          const subTarget = subSingle ? findRepayment(subSingle) : null;
+                                          return (
+                                            <tr key={sub.id} style={{ background: 'var(--panel2)' }}>
+                                              {isMergingHere && <td />}
+                                              <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 36, color: 'var(--muted)' }}>{fmtTs(sub.ts)}</td>
+                                              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                                                {sub.members.length > 1 ? t('loanSplitPaymentBadge').replace('{n}', String(sub.members.length)) : sub.refs[0]}
+                                              </td>
+                                              <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(sub.credit)}</td>
+                                              <td style={{ color: 'var(--muted)' }}>{sub.accountName || '—'}</td>
+                                              <td style={{ color: 'var(--muted)', minWidth: 140 }}>{sub.description || '—'}</td>
+                                              <td>
+                                                {!isMergingHere && (
+                                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                                    <button
+                                                      className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                                      onClick={() => (subTarget ? setEditingRepayment(subTarget) : setEditingPaymentGroup(sub))}
+                                                    >
+                                                      {t('edit')}
+                                                    </button>
+                                                    <button
+                                                      className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                                      onClick={() => (subTarget ? setDeletingRepayment(subTarget) : setDeletingPaymentGroup(sub))}
+                                                    >
+                                                      {t('delete')}
+                                                    </button>
+                                                  </div>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
                                       </Fragment>
                                     );
                                   })}

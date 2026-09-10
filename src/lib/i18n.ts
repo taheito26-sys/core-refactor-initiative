@@ -1783,6 +1783,7 @@ const translations = {
   loanSplitPaymentBadge: { en: 'Split payment · {n} orders',    ar: 'دفعة مقسمة · {n} طلبات' },
   loanPaymentViewDetails: { en: 'Details', ar: 'التفاصيل' },
   loanPaymentOrderCount: { en: 'Orders', ar: 'الطلبات' },
+  loanPaymentsInDay: { en: 'Payments this day', ar: 'الدفعات في هذا اليوم' },
   loanSplitEditHint:         { en: 'Expand ▸ to edit',            ar: 'افتح ▸ للتعديل' },
   loanSplitEditHintExpanded: { en: 'Edit below',                  ar: 'التعديل بالأسفل' },
   loanSplitPaymentHint:  { en: 'Record one payment the buyer used to close several orders at once — it will show as a single payment, not one per order.', ar: 'سجّل دفعة واحدة استخدمها المشتري لإغلاق عدة طلبات دفعة واحدة — ستظهر كدفعة واحدة وليس دفعة لكل طلب.' },
