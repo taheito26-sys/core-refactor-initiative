@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet, Calculator, Clock, Users, Landmark } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users, Landmark } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -58,7 +58,6 @@ export default function CustomerHomePage() {
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
-  const [calcAmount, setCalcAmount] = useState('');
   const [showNewOrder, setShowNewOrder] = useState(false);
   const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
@@ -282,13 +281,9 @@ export default function CustomerHomePage() {
     };
   }, [orders, historyRows, lang]);
 
-  const calcResult = guideRate && calcAmount && parseFloat(calcAmount) > 0
-    ? parseFloat(calcAmount) * guideRate
-    : null;
-
   return (
     <div className="space-y-5">
-      {/* Hero: rates + calculator */}
+      {/* Hero: greeting + live rates */}
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
         <div>
           <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
@@ -310,37 +305,26 @@ export default function CustomerHomePage() {
             </p>
           </div>
         </div>
+      </div>
 
-        {/* Quick Calculator */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Calculator className="h-3.5 w-3.5 opacity-70" />
-            <p className="text-xs opacity-70 font-medium">{L('Quick Calculator', 'حاسبة سريعة')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                value={calcAmount}
-                onChange={e => setCalcAmount(e.target.value)}
-                type="number"
-                min="0"
-                placeholder="0"
-                className="h-10 w-full rounded-xl bg-white/20 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/40 outline-none focus:bg-white/25"
-              />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('QAR', lang)}</span>
-            </div>
-            <span className="text-white/60 font-bold">→</span>
-            <div className="relative flex-1">
-              <input
-                value={calcResult != null ? fmt(calcResult, 0) : ''}
-                readOnly
-                placeholder="0"
-                className="h-10 w-full rounded-xl bg-white/10 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/30 outline-none tabular-nums"
-              />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('EGP', lang)}</span>
-            </div>
-          </div>
-        </div>
+      {/* Quick actions — the main navigation surface for the page */}
+      <div className="grid grid-cols-5 gap-2">
+        {[
+          { icon: Plus, label: L('New Order', 'طلب جديد'), onClick: () => setShowNewOrder(true), tone: 'text-primary bg-primary/10' },
+          { icon: ListOrdered, label: L('Orders', 'الطلبات'), onClick: () => navigate('/c/orders'), tone: 'text-blue-600 bg-blue-500/10' },
+          { icon: Wallet, label: L('Wallet', 'المحفظة'), onClick: () => navigate('/c/wallet'), tone: 'text-emerald-600 bg-emerald-500/10' },
+          { icon: Users, label: L('Merchants', 'التجار'), onClick: () => navigate('/c/merchants'), tone: 'text-amber-600 bg-amber-500/10' },
+          { icon: MessageCircle, label: L('Chat', 'الدردشة'), onClick: () => navigate('/c/chat'), tone: 'text-violet-600 bg-violet-500/10' },
+        ].map(({ icon: Icon, label, onClick, tone }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-border/50 bg-card py-3 active:scale-[0.97] transition-transform"
+          >
+            <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}><Icon className="h-4.5 w-4.5" /></div>
+            <span className="text-[10.5px] font-semibold">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Action needed */}
@@ -662,12 +646,7 @@ export default function CustomerHomePage() {
         </button>
       )}
 
-      {/* New order CTA */}
-      <button onClick={() => setShowNewOrder(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground active:scale-[0.99]">
-        <Plus className="h-4 w-4" />{L('New QAR → EGP Order', 'طلب جديد QAR → EGP')}
-      </button>
-
-      {/* New Order Modal — opens inline without navigating away */}
+      {/* New Order Modal — opens inline without navigating away, triggered from Quick Actions above */}
       {showNewOrder && connections.length > 0 && (
         <NewOrderForm
           connections={connections}
