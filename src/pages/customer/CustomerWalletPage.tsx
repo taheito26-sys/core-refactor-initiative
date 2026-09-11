@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -453,6 +453,33 @@ export default function CustomerWalletPage() {
     });
   }, [filteredLoanPayments]);
 
+  // Search + sort controls for the Payments Received list — lets the buyer
+  // find a specific payment by its note instead of scrolling the whole
+  // month, and re-order it (newest/oldest/largest/smallest) rather than
+  // being stuck with insertion order.
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [paymentSort, setPaymentSort] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
+  const displayedLoanPayments = useMemo(() => {
+    const q = paymentSearch.trim().toLowerCase();
+    const filtered = q
+      ? groupedLoanPayments.filter(p => (p.note ?? "").toLowerCase().includes(q))
+      : groupedLoanPayments;
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (paymentSort) {
+        case "date_asc": return a.date - b.date;
+        case "amount_desc": return b.amount - a.amount;
+        case "amount_asc": return a.amount - b.amount;
+        default: return b.date - a.date;
+      }
+    });
+    return sorted;
+  }, [groupedLoanPayments, paymentSearch, paymentSort]);
+  const displayedLoanPaymentsTotal = useMemo(
+    () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
+    [displayedLoanPayments],
+  );
+
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
@@ -831,33 +858,6 @@ export default function CustomerWalletPage() {
                 </div>
               </div>
 
-              {/* Month-over-month — this month's total vs last month's, so a
-                  trend is visible without stepping through every pill. */}
-              {monthOverMonth && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl border-t-4 border-t-violet-500 border-x border-b border-border/50 bg-card p-3">
-                    <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="h-3.5 w-3.5 text-violet-500" /><p className="text-[9px] text-muted-foreground uppercase tracking-wide">{L("This Month", "هذا الشهر")}</p></div>
-                    <p className="text-base font-black tabular-nums">{fmtTotal(monthOverMonth.current.total)} <span className="text-[10px] font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{monthOverMonth.current.count} {monthOverMonth.current.count === 1 ? L("payment", "دفعة") : L("payments", "دفعات")}</p>
-                  </div>
-                  <div className="rounded-2xl border-t-4 border-t-sky-500 border-x border-b border-border/50 bg-card p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      {monthOverMonth.changePct == null ? <Minus className="h-3.5 w-3.5 text-muted-foreground" /> : monthOverMonth.changePct >= 0 ? <TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> : <TrendingDown className="h-3.5 w-3.5 text-rose-500" />}
-                      <p className="text-[9px] text-muted-foreground uppercase tracking-wide">{L("vs Last Month", "مقارنة بالشهر الماضي")}</p>
-                    </div>
-                    <p className={cn(
-                      "text-base font-black tabular-nums",
-                      monthOverMonth.changePct == null ? "" : monthOverMonth.changePct >= 0 ? "text-emerald-600" : "text-rose-600",
-                    )}>
-                      {monthOverMonth.changePct == null ? "—" : `${monthOverMonth.changePct >= 0 ? "+" : ""}${monthOverMonth.changePct}%`}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {monthOverMonth.previous ? `${fmtTotal(monthOverMonth.previous.total)} ${loanTotals.currency}` : L("No prior month", "لا يوجد شهر سابق")}
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Monthly breakdown — every month with a payment, newest
                   first, each bar scaled against that month's own peak. */}
               {monthlyPaymentBreakdown.length > 1 && (
@@ -910,19 +910,55 @@ export default function CustomerWalletPage() {
                 </div>
               )}
 
-              {/* Payments list */}
-              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
+              {/* Payments list — full-width card with search + sort so the
+                  buyer can locate or re-order payments instead of only
+                  scrolling the month's list top to bottom. */}
+              <div className="-mx-4 sm:mx-0 rounded-none sm:rounded-2xl border-y sm:border border-border/60 bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
-                  <span className="text-[10px] text-muted-foreground">{filteredLoanPayments.length} {L("payments", "دفعة")}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{displayedLoanPayments.length} {L("payments", "دفعة")}</span>
                 </div>
+
+                {groupedLoanPayments.length > 0 && (
+                  <div className="px-4 py-2.5 border-b border-border/40 flex items-center gap-2">
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        value={paymentSearch}
+                        onChange={e => setPaymentSearch(e.target.value)}
+                        placeholder={L("Search notes...", "بحث في الملاحظات...")}
+                        className="h-8 w-full rounded-lg border border-border/50 bg-background pl-8 pr-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setPaymentSort(s => {
+                        if (s === "date_desc") return "date_asc";
+                        if (s === "date_asc") return "amount_desc";
+                        if (s === "amount_desc") return "amount_asc";
+                        return "date_desc";
+                      })}
+                      className="h-8 shrink-0 flex items-center gap-1 rounded-lg border border-border/50 bg-background px-2.5 text-[10px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                    >
+                      <ArrowUpDown className="h-3 w-3" />
+                      {paymentSort === "date_desc" && L("Newest", "الأحدث")}
+                      {paymentSort === "date_asc" && L("Oldest", "الأقدم")}
+                      {paymentSort === "amount_desc" && L("Highest", "الأعلى")}
+                      {paymentSort === "amount_asc" && L("Lowest", "الأقل")}
+                    </button>
+                  </div>
+                )}
+
                 {groupedLoanPayments.length === 0 ? (
                   <div className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">{loanPayments.length === 0 ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد") : L("No payments this month", "لا توجد دفعات هذا الشهر")}</p>
                   </div>
+                ) : displayedLoanPayments.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">{L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}</p>
+                  </div>
                 ) : (
                   <div className="divide-y divide-border/40">
-                    {groupedLoanPayments.map(p => {
+                    {displayedLoanPayments.map(p => {
                       const myNote = paymentNoteByKey.get(p.key) ?? "";
                       const isEditingNote = editingNoteKey === p.key;
                       return (
@@ -984,6 +1020,13 @@ export default function CustomerWalletPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {displayedLoanPayments.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-border/40 flex items-center justify-between bg-muted/20">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{L("Total shown", "الإجمالي المعروض")}</span>
+                    <span className="text-xs font-black tabular-nums text-emerald-600">+{fmtTotal(displayedLoanPaymentsTotal)} {loanTotals.currency}</span>
                   </div>
                 )}
               </div>
