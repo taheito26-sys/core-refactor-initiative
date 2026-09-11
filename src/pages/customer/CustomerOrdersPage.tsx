@@ -854,6 +854,37 @@ export default function CustomerOrdersPage() {
     return { totalDebt, totalPaid, outstanding, currency };
   }, [historyStatements]);
 
+  // Repayment progress — month-scoped (from the currently filtered orders)
+  // and all-time (from debtKpi's running totals), plus a couple of
+  // secondary stats a buyer can act on: how many of their orders are fully
+  // settled, and what a typical order costs them.
+  const repaymentProgress = useMemo(() => {
+    let monthLoaned = 0;
+    let monthPaid = 0;
+    let monthLoanedCount = 0;
+    let monthSettledCount = 0;
+    for (const o of filteredHistoryOrders) {
+      if (!o.loaned || o.loanAmount == null) continue;
+      monthLoaned += o.loanAmount;
+      monthPaid += o.loanPaid ?? 0;
+      monthLoanedCount += 1;
+      if (o.settled) monthSettledCount += 1;
+    }
+    const monthPct = monthLoaned > 0 ? Math.min(100, Math.round((monthPaid / monthLoaned) * 100)) : null;
+    const allPct = debtKpi.totalDebt > 0 ? Math.min(100, Math.round((debtKpi.totalPaid / debtKpi.totalDebt) * 100)) : null;
+
+    let allLoanedCount = 0;
+    let allSettledCount = 0;
+    for (const o of historyOrders) {
+      if (!o.loaned) continue;
+      allLoanedCount += 1;
+      if (o.settled) allSettledCount += 1;
+    }
+    const avgOrderSize = monthLoanedCount > 0 ? monthLoaned / monthLoanedCount : null;
+
+    return { monthPct, allPct, monthLoanedCount, monthSettledCount, allLoanedCount, allSettledCount, avgOrderSize };
+  }, [filteredHistoryOrders, historyOrders, debtKpi]);
+
   const grouped = groupByDay(filteredOrders, lang);
 
   return (
@@ -1528,6 +1559,77 @@ export default function CustomerOrdersPage() {
                 <div className="mono" style={{ fontSize: 12, fontWeight: 800, overflowWrap: 'anywhere', color: k.color || 'var(--fg)' }}>{k.value}</div>
               </div>
             ))}
+          </div>
+
+          {/* Repayment progress — a bar reads faster than another number,
+              and pairing "this month" with "all time" shows whether the
+              buyer is catching up or falling behind on the running total. */}
+          <div style={{ display: 'grid', gap: 8, marginBottom: 4 }}>
+            {[
+              { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct },
+              { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct },
+            ].map(row => (
+              <div key={row.label} style={{
+                padding: '8px 10px', borderRadius: 8,
+                background: 'color-mix(in srgb, var(--brand) 4%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 12%, transparent)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{row.label}</span>
+                  <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: row.pct == null ? 'var(--muted)' : row.pct >= 100 ? 'var(--good)' : 'var(--warn)' }}>
+                    {row.pct != null ? `${row.pct}%` : '—'}
+                  </span>
+                </div>
+                <div className="prog" style={{ height: 7 }}>
+                  <span style={{ width: `${row.pct ?? 0}%`, background: row.pct != null && row.pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Two quick-read tiles alongside the bars: how many orders are
+              fully closed out (this month), and the typical order size —
+              context the raw totals above don't give at a glance. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6, marginBottom: 4 }}>
+            <div style={{
+              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
+              background: 'color-mix(in srgb, var(--good) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--good) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
+                {L('Orders Settled (Month)', 'الطلبات المسددة (الشهر)')}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+                {repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}
+              </div>
+            </div>
+            <div style={{
+              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
+              background: 'color-mix(in srgb, var(--good) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--good) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
+                {L('Orders Settled (All Time)', 'الطلبات المسددة (إجمالي)')}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+                {repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}
+              </div>
+            </div>
+            <div style={{
+              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
+              background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
+                {L('Avg Order (Month)', 'متوسط الطلب (الشهر)')} ({debtKpi.currency})
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+                {repaymentProgress.avgOrderSize != null ? Math.round(repaymentProgress.avgOrderSize).toLocaleString() : '—'}
+              </div>
+            </div>
           </div>
 
           {isMobile ? (
