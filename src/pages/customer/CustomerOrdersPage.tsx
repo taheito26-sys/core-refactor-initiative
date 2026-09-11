@@ -1617,19 +1617,6 @@ export default function CustomerOrdersPage() {
                 {repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}
               </div>
             </div>
-            <div style={{
-              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
-              background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
-              borderRadius: 8,
-            }}>
-              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
-                {L('Avg Order (Month)', 'متوسط الطلب (الشهر)')} ({debtKpi.currency})
-              </div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
-                {repaymentProgress.avgOrderSize != null ? Math.round(repaymentProgress.avgOrderSize).toLocaleString() : '—'}
-              </div>
-            </div>
           </div>
 
           {isMobile ? (
