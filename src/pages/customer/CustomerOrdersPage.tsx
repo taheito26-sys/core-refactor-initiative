@@ -1580,7 +1580,7 @@ export default function CustomerOrdersPage() {
                     {row.pct != null ? `${row.pct}%` : '—'}
                   </span>
                 </div>
-                <div className="prog" style={{ height: 7 }}>
+                <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
                   <span style={{ width: `${row.pct ?? 0}%`, background: row.pct != null && row.pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
                 </div>
               </div>
@@ -1726,7 +1726,7 @@ export default function CustomerOrdersPage() {
                           {o.loaned && o.loanAmount != null && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
                               <div style={{ flex: 1 }}>
-                                <div className="prog" style={{ height: 7 }}>
+                                <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
                                   <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
                                 </div>
                               </div>
