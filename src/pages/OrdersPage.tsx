@@ -2937,10 +2937,10 @@ export default function OrdersPage() {
     return (
       <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden', ...(isLoaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}>
         {/* ── Header: buyer name + edit/details + date ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, letterSpacing: '-0.01em', flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
             {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+            <span title={cn} style={{ minWidth: 40, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
             {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
             {loan && (
               <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
