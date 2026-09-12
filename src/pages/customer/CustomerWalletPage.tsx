@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { fmtTotal } from "@/lib/tracker-helpers";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
+import { buildMonthlyStatementHtml, monthlyStatementFileBase, type MonthlyStatementData } from "@/features/stock/utils/monthlyStatementExport";
+import { printHtmlDocument, downloadTextFile } from "@/features/stock/utils/loanStatementExport";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -480,6 +482,45 @@ export default function CustomerWalletPage() {
     [displayedLoanPayments],
   );
 
+  // Monthly statement export — pulls the branded, month-scoped statement
+  // (own cumulative totals + payment history, plus the merchant's month-wide
+  // EGP sell ledger) straight from the server, so a buyer can self-serve the
+  // same document a merchant would otherwise have to generate and send by hand.
+  const [exportingStatement, setExportingStatement] = useState(false);
+  const exportMonthlyStatement = async () => {
+    const month = paymentsMonth || paymentsMonths[0];
+    if (!month) {
+      toast.error(L("No activity to export yet", "لا يوجد نشاط لتصديره بعد"));
+      return;
+    }
+    setExportingStatement(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        `customer-monthly-statement?month=${encodeURIComponent(month)}&currency=${encodeURIComponent(loanTotals.currency)}`,
+        { method: "GET" },
+      );
+      if (error || !data || (data as { error?: string }).error) {
+        toast.error(L("Could not generate the statement", "تعذر إنشاء البيان"));
+        return;
+      }
+      const statements = (data as { statements: MonthlyStatementData[] }).statements;
+      const statement = statements[0];
+      if (!statement) {
+        toast.error(L("No statement found for this month", "لا يوجد بيان لهذا الشهر"));
+        return;
+      }
+      const html = buildMonthlyStatementHtml(statement);
+      if (!printHtmlDocument(html)) {
+        downloadTextFile(`${monthlyStatementFileBase(statement)}.html`, html, "text/html;charset=utf-8");
+        toast.info(L("Printing isn't available here — downloaded the statement instead", "الطباعة غير متاحة هنا — تم تنزيل البيان بدلاً من ذلك"));
+      }
+    } catch {
+      toast.error(L("Could not generate the statement", "تعذر إنشاء البيان"));
+    } finally {
+      setExportingStatement(false);
+    }
+  };
+
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
@@ -894,19 +935,29 @@ export default function CustomerWalletPage() {
 
               {/* Month filter — same convention as the Orders page */}
               {paymentsMonths.length > 0 && (
-                <div className="month-filter-row">
-                  <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
-                    {L("All Months", "كل الأشهر")}
+                <div className="flex items-center gap-2">
+                  <div className="month-filter-row flex-1 min-w-0">
+                    <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
+                      {L("All Months", "كل الأشهر")}
+                    </button>
+                    {paymentsMonths.map(m => {
+                      const [y, mo] = m.split("-");
+                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
+                      return (
+                        <button key={m} onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m); }} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={exportMonthlyStatement}
+                    disabled={exportingStatement}
+                    className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
+                  >
+                    {exportingStatement ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    {L("Export Statement", "تصدير البيان")}
                   </button>
-                  {paymentsMonths.map(m => {
-                    const [y, mo] = m.split("-");
-                    const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
-                    return (
-                      <button key={m} onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m); }} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
-                        {label}
-                      </button>
-                    );
-                  })}
                 </div>
               )}
 

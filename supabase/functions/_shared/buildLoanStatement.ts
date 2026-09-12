@@ -150,3 +150,122 @@ export async function buildLoanStatementResponse(
     )),
   };
 }
+
+export interface MonthlyBinanceRow {
+  orderNumber: string;
+  date: string | number | null;
+  counterparty: string | null;
+  fiat: string;
+  fiatAmount: number;
+  fiatPrice: number;
+}
+
+export interface MonthlyStatementResponse {
+  customerName: string;
+  currency: string;
+  totalLoaned: number;
+  totalRepaid: number;
+  outstanding: number;
+  issueDate: string;
+  month: string;
+  payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
+  /**
+   * Every EGP sell transaction the merchant made in the selected month, across
+   * ALL of their buyers — not scoped to this one customer. This mirrors the
+   * merchant's own monthly "sold against EGP" ledger, included on the buyer's
+   * statement as the FX-sourcing record behind that month's settlement.
+   * Deliberately never carries usdtAmount or a QAR conversion rate — a buyer
+   * only ever sees the EGP amount and the EGP/USDT price, same as every other
+   * buyer-facing statement in this app.
+   */
+  binanceOrders: MonthlyBinanceRow[];
+}
+
+/**
+ * One buyer's statement, re-scoped to a calendar month: the same cumulative
+ * totals and full payment history as {@link buildLoanStatementResponse} (the
+ * "up to issue date" figures a buyer expects to always see), plus the
+ * merchant's month-scoped, buyer-wide EGP sell ledger as a second section —
+ * the trail of trades that funded that month's settlements.
+ */
+export async function buildMonthlyStatementResponse(
+  // deno-lint-ignore no-explicit-any
+  supabase: AnySupabaseClient,
+  link: StatementLinkRow,
+  month: string,
+): Promise<MonthlyStatementResponse | null> {
+  const base = await buildLoanStatementResponse(supabase, link, false);
+  if (!base) return null;
+
+  const { data: snapshot, error: snapshotError } = await supabase
+    .from("tracker_snapshots")
+    .select("state")
+    .eq("user_id", link.user_id)
+    .maybeSingle();
+  if (snapshotError) throw snapshotError;
+
+  const state = (snapshot?.state ?? {}) as { trades?: AnyTrade[] };
+  const allTrades = state.trades ?? [];
+
+  const [y, m] = month.split("-").map((n: string) => parseInt(n, 10));
+  const monthStart = new Date(y, m - 1, 1).getTime();
+  const monthEnd = new Date(y, m, 1).getTime();
+  const inMonth = (ts: number) => ts >= monthStart && ts < monthEnd;
+
+  const rows: MonthlyBinanceRow[] = [];
+  const tradesNeedingFallback: AnyTrade[] = [];
+
+  for (const trade of allTrades) {
+    if (trade.voided) continue;
+    if (trade.originalFiat === "EGP" && trade.originalFiatAmount != null) {
+      if (!inMonth(Number(trade.ts) || 0)) continue;
+      rows.push({
+        orderNumber: trade.exchangeOrderNumber ?? "",
+        date: trade.ts ?? null,
+        counterparty: trade.exchangeCounterparty ?? null,
+        fiat: trade.originalFiat,
+        fiatAmount: Math.round(Number(trade.originalFiatAmount) || 0),
+        fiatPrice: Number(trade.originalFiatPriceUSDT) || 0,
+      });
+    } else if (trade.importedFrom && inMonth(Number(trade.ts) || 0)) {
+      tradesNeedingFallback.push(trade);
+    }
+  }
+
+  if (tradesNeedingFallback.length > 0) {
+    const tradeById = new Map(tradesNeedingFallback.map((tr) => [tr.id, tr]));
+    const { data: exchangeOrders } = await supabase
+      .from("exchange_p2p_orders")
+      .select("order_number, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+      .eq("user_id", link.user_id)
+      .eq("linked_entity_type", "trade")
+      .eq("fiat", "EGP");
+
+    for (const o of exchangeOrders ?? []) {
+      const trade = tradeById.get(o.linked_entity_id);
+      if (!trade) continue;
+      rows.push({
+        orderNumber: o.order_number,
+        date: o.order_time ?? trade.ts ?? null,
+        counterparty: o.counterparty,
+        fiat: o.fiat,
+        fiatAmount: Math.round(Number(o.total) || 0),
+        fiatPrice: Number(o.price) || 0,
+      });
+    }
+  }
+
+  rows.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
+
+  return {
+    customerName: base.customerName,
+    currency: base.currency,
+    totalLoaned: base.totalLoaned,
+    totalRepaid: base.totalRepaid,
+    outstanding: base.outstanding,
+    issueDate: base.issueDate,
+    month,
+    payments: base.payments,
+    binanceOrders: rows,
+  };
+}
