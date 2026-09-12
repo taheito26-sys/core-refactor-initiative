@@ -1535,10 +1535,17 @@ function CashCounterModal({
     setSaving(true);
     try {
       if (addAmt > 0) {
+        // The breakdown describes the whole physical count, so it only
+        // attaches to this entry when the full counted amount is going onto
+        // the cash account (nothing carved off to a loan repayment).
+        const banknoteBreakdown = countMode === 'notes' && Math.abs(addAmt - total) < 0.005 && noteCountEntries.length > 0
+          ? Object.fromEntries(noteCountEntries.map(({ d, n }) => [d, n]))
+          : undefined;
         const entry: CashLedgerEntry = {
           id: uid(), ts: selectedTs, type: 'deposit', accountId: account.id,
           direction: 'in', amount: addAmt, currency: account.currency,
           note: defaultNote(),
+          ...(banknoteBreakdown ? { banknoteBreakdown } : {}),
         };
         onAddToCash(entry);
       }
