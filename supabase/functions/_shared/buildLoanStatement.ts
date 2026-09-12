@@ -274,21 +274,23 @@ export async function buildMonthlyStatementResponse(
   const totalLoaned = Math.round(monthOrders.reduce((sum, o) => sum + o.amount, 0));
   const totalRepaid = Math.round(monthPayments.reduce((sum, p) => sum + p.amount, 0));
 
-  // Everything before this month's 1st, netted to a single carried-forward
-  // balance — a buyer opening September's statement needs to see August's
-  // (and earlier) unpaid debt included, not just September's own orders.
-  const priorOrders = base.orders.filter((o) => (Number(o.date) || 0) < monthStart);
-  const priorPayments = base.payments.filter((p) => (Number(p.date) || 0) < monthStart);
-  const previousBalance = Math.round(
-    priorOrders.reduce((sum, o) => sum + o.amount, 0) - priorPayments.reduce((sum, p) => sum + p.amount, 0),
-  );
+  // Derived from the same all-time outstanding balance the tracker itself
+  // shows (base.outstanding), not by re-filtering individual orders/payments
+  // by date: a loan or payment with a missing/malformed timestamp would
+  // silently drop out of both the "this month" and "prior" buckets under a
+  // per-row filter, understating (or zeroing) the carried-forward balance
+  // without ever throwing an error. Defining it algebraically instead —
+  // whatever is left after backing out this month's own net movement —
+  // guarantees outstanding always reconciles to base.outstanding exactly,
+  // the same number the merchant's tracker displays for this buyer.
+  const previousBalance = Math.round(base.outstanding - totalLoaned + totalRepaid);
 
   return {
     customerName: base.customerName,
     currency: base.currency,
     totalLoaned,
     totalRepaid,
-    outstanding: previousBalance + totalLoaned - totalRepaid,
+    outstanding: base.outstanding,
     previousBalance,
     issueDate: base.issueDate,
     month,

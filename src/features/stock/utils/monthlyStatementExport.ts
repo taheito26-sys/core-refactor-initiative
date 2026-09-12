@@ -184,21 +184,21 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 
   .banner {
     background: var(--navy);
-    color: #fff; padding: 28px 34px 24px; border-radius: 24px;
-    position: relative; overflow: hidden; margin-bottom: 30px;
+    color: #fff; padding: 16px 22px 14px; border-radius: 16px;
+    position: relative; overflow: hidden; margin-bottom: 22px;
   }
   .banner::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--coral);
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--coral);
   }
-  .banner-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+  .banner-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .brand-en { text-align: left; direction: ltr; }
-  .brand-en .name { font-size: 18px; font-weight: 800; letter-spacing: .3px; }
-  .brand-en .tagline { font-size: 9.5px; color: #C9D6DF; font-weight: 700; letter-spacing: .4px; margin-top: 3px; }
-  .banner .month { font-size: 13px; font-weight: 800; color: #FCD9D2; }
-  .hero { margin-top: 20px; }
-  .hero .account-label { font-size: 9.5px; font-weight: 800; color: #C9D6DF; letter-spacing: .6px; direction: ltr; text-align: left; }
-  .hero .name { font-size: 24px; font-weight: 800; margin-top: 8px; color: #fff; }
-  .hero .note { font-size: 11px; color: #C9D6DF; margin-top: 8px; max-width: 560px; line-height: 1.6; }
+  .brand-en .name { font-size: 14px; font-weight: 800; letter-spacing: .3px; }
+  .brand-en .tagline { font-size: 8px; color: #C9D6DF; font-weight: 700; letter-spacing: .4px; margin-top: 2px; }
+  .banner .month { font-size: 11.5px; font-weight: 800; color: #FCD9D2; }
+  .hero { margin-top: 10px; }
+  .hero .account-label { font-size: 8.5px; font-weight: 800; color: #C9D6DF; letter-spacing: .6px; direction: ltr; text-align: left; }
+  .hero .name { font-size: 18px; font-weight: 800; margin-top: 5px; color: #fff; }
+  .hero .note { font-size: 10px; color: #C9D6DF; margin-top: 5px; max-width: 560px; line-height: 1.5; }
 
   .cards { display: flex; gap: 14px; margin-bottom: 24px; }
   .card {
