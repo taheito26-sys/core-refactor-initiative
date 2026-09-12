@@ -193,17 +193,17 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
 
   .banner {
     background: var(--navy);
-    color: #fff; padding: 6px 14px 5px; border-radius: 8px;
-    position: relative; overflow: hidden; margin-bottom: 10px;
+    color: #fff; padding: 12px 28px 10px; border-radius: 12px;
+    position: relative; overflow: hidden; margin-bottom: 14px;
   }
   .banner::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--coral);
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--coral);
   }
-  .banner-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .banner .month { font-size: 9px; font-weight: 800; color: #FCD9D2; }
-  .hero { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
-  .hero .name { font-size: 12px; font-weight: 800; color: #fff; }
-  .hero .note { font-size: 7.5px; color: #C9D6DF; line-height: 1.3; flex: 1; }
+  .banner-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .banner .month { font-size: 18px; font-weight: 800; color: #FCD9D2; }
+  .hero { display: flex; align-items: baseline; gap: 12px; margin-top: 3px; }
+  .hero .name { font-size: 24px; font-weight: 800; color: #fff; }
+  .hero .note { font-size: 12px; color: #C9D6DF; line-height: 1.3; flex: 1; }
 
   .cards { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .card {
@@ -212,9 +212,9 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
     position: relative; overflow: hidden;
   }
   .card::after { content: ""; position: absolute; inset-block: 0; inset-inline-end: 0; width: 3px; background: var(--accent, var(--navy)); }
-  .card .k { font-size: 7px; font-weight: 700; letter-spacing: 0; color: var(--muted); line-height: 1.25; }
-  .card .v { font-size: 13px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); white-space: nowrap; }
-  .card .u { font-size: 7px; font-weight: 600; color: var(--muted); margin-top: 1px; }
+  .card .k { font-size: 10.5px; font-weight: 700; letter-spacing: 0; color: var(--muted); line-height: 1.25; }
+  .card .v { font-size: 19.5px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); white-space: nowrap; }
+  .card .u { font-size: 10.5px; font-weight: 600; color: var(--muted); margin-top: 1px; }
 
   .settlement {
     display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 9px 12px;
