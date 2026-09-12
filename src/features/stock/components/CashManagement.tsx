@@ -336,6 +336,13 @@ interface DepositWithdrawModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
+const BANKNOTE_DENOMS: Record<string, number[]> = {
+  QAR: [500, 200, 100, 50, 10, 5, 1],
+  EGP: [200, 100, 50, 20, 10, 5],
+  USD: [100, 50, 20, 10, 5, 1],
+  USDT: [100, 50, 20, 10, 5, 1],
+};
+
 function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, isMobile = false }: DepositWithdrawModalProps) {
   const t = useT();
   const [amount, setAmount] = useState('');
@@ -343,7 +350,12 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const [err, setErr] = useState('');
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [showBanknotes, setShowBanknotes] = useState(false);
+  const [banknoteCounts, setBanknoteCounts] = useState<Record<number, string>>({});
   const amtNum = num(amount, 0);
+  const denoms = BANKNOTE_DENOMS[account.currency] || BANKNOTE_DENOMS.QAR;
+  const banknoteTotal = denoms.reduce((sum, d) => sum + d * num(banknoteCounts[d], 0), 0);
+  const hasBanknoteCounts = denoms.some(d => num(banknoteCounts[d], 0) > 0);
 
   const MODE_LABELS: Record<string, string> = {
     deposit: t('depositTitle'),
@@ -392,6 +404,13 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       setErr(`${t('insufficientBalMsg' as any)} ${fmtTotal(currentBalance)} ${account.currency}`);
       return;
     }
+    const banknoteBreakdown: Record<number, number> = {};
+    if (hasBanknoteCounts) {
+      for (const d of denoms) {
+        const c = num(banknoteCounts[d], 0);
+        if (c > 0) banknoteBreakdown[d] = c;
+      }
+    }
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(),
       type: LEDGER_TYPES[mode],
@@ -402,6 +421,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       note: note.trim() || undefined,
       merchantId: account.merchantId,
       relationshipId: account.relationshipId,
+      ...(hasBanknoteCounts ? { banknoteBreakdown } : {}),
     };
     onSave(entry);
   };
@@ -429,6 +449,47 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
             {t('balanceAfterLbl')}: <strong style={{ color: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)' }}>
               {fmtTotal(currentBalance + (DIRECTIONS[mode] === 'in' ? amtNum : -amtNum))} {account.currency}
             </strong>
+          </div>
+        )}
+        {(mode === 'deposit' || mode === 'funding' || mode === 'proceeds') && (
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              onClick={() => setShowBanknotes(s => !s)}
+              style={{ background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--muted)', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <span>💵 {t('banknoteBreakdownTitle')}</span>
+              <span>{showBanknotes ? '▲' : '▼'}</span>
+            </button>
+            {showBanknotes && (
+              <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--panel)' }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('banknoteBreakdownHint')}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8 }}>
+                  {denoms.map(d => (
+                    <div key={d} className="field2">
+                      <div className="lbl">{d} {account.currency}</div>
+                      <div className="inputBox">
+                        <input
+                          inputMode="numeric"
+                          value={banknoteCounts[d] || ''}
+                          onChange={e => setBanknoteCounts(prev => ({ ...prev, [d]: e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {hasBanknoteCounts && (
+                  <div style={{ marginTop: 10, fontSize: 11 }}>
+                    <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
+                    <span className="mono" style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtTotal(banknoteTotal)} {account.currency}</span>
+                    {amtNum > 0 && Math.abs(banknoteTotal - amtNum) > 0.0001 && (
+                      <div style={{ color: 'var(--warn)', marginTop: 4 }}>⚠ {t('banknoteMismatchWarn')}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>
@@ -1815,6 +1876,14 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                     <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
                     {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
                     {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                    {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && (
+                      <div style={{ gridColumn: 'span 2', color: 'var(--muted)', fontSize: 10 }}>
+                        💵 {Object.entries(entry.banknoteBreakdown)
+                          .sort((a, b) => Number(b[0]) - Number(a[0]))
+                          .map(([denom, count]) => `${count}×${denom}`)
+                          .join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1859,8 +1928,9 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                           <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : undefined}>
                         {entry.note || '—'}
+                        {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
                       </td>
                     </tr>
                   );

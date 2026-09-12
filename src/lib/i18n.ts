@@ -2052,6 +2052,10 @@ const translations = {
   confirmWithdrawal:     { en: 'I confirm this withdrawal amount and account', ar: 'أؤكد مبلغ السحب والحساب' },
   confirmBeforeSubmit:   { en: 'Please confirm before submitting', ar: 'يرجى التأكيد قبل الإرسال' },
   enterValidAmount:      { en: 'Enter a valid amount',         ar: 'أدخل مبلغاً صحيحاً' },
+  banknoteBreakdownTitle: { en: 'Banknote breakdown (optional)', ar: 'تفصيل الفئات النقدية (اختياري)' },
+  banknoteBreakdownHint:  { en: 'Record how many notes of each denomination make up this amount', ar: 'سجّل عدد الأوراق النقدية لكل فئة تُكوّن هذا المبلغ' },
+  banknoteCountedTotal:   { en: 'Counted total',               ar: 'إجمالي العد' },
+  banknoteMismatchWarn:   { en: 'Counted total does not match the entered amount', ar: 'إجمالي العد لا يطابق المبلغ المُدخل' },
   insufficientBalMsg:    { en: 'Insufficient balance. Available:', ar: 'الرصيد غير كافٍ. المتاح:' },
 
   // Transfer modal
