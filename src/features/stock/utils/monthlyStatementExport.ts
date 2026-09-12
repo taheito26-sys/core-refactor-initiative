@@ -136,13 +136,14 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   // funded the settlement (amount, price, order), never who else the
   // merchant traded with.
   const binanceRows = data.binanceOrders.length === 0
-    ? `<tr><td colspan="4" class="empty">لا توجد معاملات بيع هذا الشهر</td></tr>`
+    ? `<tr><td colspan="5" class="empty">لا توجد معاملات بيع هذا الشهر</td></tr>`
     : data.binanceOrders.map((o, i) => `
       <tr class="${i % 2 === 1 ? 'alt' : ''}">
         <td class="num">${i + 1}</td>
+        <td>${escapeHtml(fmtDate(o.date ?? ''))}</td>
         <td class="num strong">${fmtAmount(o.fiatAmount)}</td>
         <td class="num">${o.fiatPrice.toFixed(2)}</td>
-        <td>${escapeHtml(fmtDate(o.date ?? ''))}</td>
+        <td class="num">${escapeHtml(o.orderNumber)}</td>
       </tr>`).join('');
 
   return `<!doctype html>
@@ -363,15 +364,16 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     <thead>
       <tr>
         <th class="num">#</th>
-        <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
-        <th class="num">السعر</th>
         <th>التاريخ</th>
+        <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
+        <th class="num">سعر البيع</th>
+        <th class="num">رقم الطلب (Binance)</th>
       </tr>
     </thead>
     <tbody>${binanceRows}</tbody>
     ${data.binanceOrders.length > 0 ? `<tfoot>
       <tr>
-        <td>الإجمالي</td>
+        <td colspan="2">الإجمالي</td>
         <td class="num">${fmtAmount(binanceTotal)}</td>
         <td colspan="2"></td>
       </tr>
@@ -474,24 +476,26 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   const binanceFiat = data.binanceOrders[0]?.fiat || 'EGP';
   fxSheet.columns = [
     { header: '#', key: 'seq', width: 6 },
-    { header: `المبلغ (${binanceFiat})`, key: 'amount', width: 16 },
-    { header: 'السعر', key: 'price', width: 12 },
     { header: 'التاريخ', key: 'date', width: 16 },
+    { header: `المبلغ (${binanceFiat})`, key: 'amount', width: 16 },
+    { header: 'سعر البيع', key: 'price', width: 12 },
+    { header: 'رقم الطلب (Binance)', key: 'orderNumber', width: 22 },
   ];
   fxSheet.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = headerFill; });
   data.binanceOrders.forEach((o, i) => {
     const row = fxSheet.addRow({
       seq: i + 1,
+      date: fmtDate(o.date ?? ''),
       amount: o.fiatAmount,
       price: o.fiatPrice,
-      date: fmtDate(o.date ?? ''),
+      orderNumber: o.orderNumber,
     });
     row.getCell('amount').numFmt = '#,##0';
     row.getCell('price').numFmt = '0.00';
     if (i % 2 === 1) row.eachCell(cell => { cell.fill = altFill; });
   });
   if (data.binanceOrders.length > 0) {
-    const total = fxSheet.addRow({ seq: '', amount: Math.round(data.binanceOrders.reduce((s, o) => s + o.fiatAmount, 0)), price: '', date: 'الإجمالي' });
+    const total = fxSheet.addRow({ seq: '', date: 'الإجمالي', amount: Math.round(data.binanceOrders.reduce((s, o) => s + o.fiatAmount, 0)), price: '', orderNumber: '' });
     total.font = { bold: true };
     total.getCell('amount').numFmt = '#,##0';
   }

@@ -103,7 +103,7 @@ export async function renderHtmlReportToPdf(
   // A page-edge margin — the image used to be stretched flush to every
   // edge of the page, which read as a raw screenshot rather than a
   // printed document.
-  const margin = 24;
+  const margin = 12;
   const usableWidth = pageWidth - margin * 2;
   const usableHeight = pageHeight - margin * 2;
 
