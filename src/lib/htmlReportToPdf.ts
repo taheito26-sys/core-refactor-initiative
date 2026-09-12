@@ -23,25 +23,45 @@ export function extractReportSheets(html: string): { styles: string; sheets: str
   };
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+
+/**
+ * Builds the `<svg><foreignObject>` wrapper through real DOM nodes and lets
+ * the browser's own XMLSerializer produce the XML text, rather than
+ * hand-concatenating a string. A statement can carry text pasted or
+ * imported from elsewhere (WhatsApp, Excel, exchange data) that contains
+ * characters our own `escapeHtml` — which only covers `& < > " '` — doesn't
+ * account for; building through the DOM means whatever ends up in `html`
+ * gets serialized back out correctly no matter what's in it, instead of
+ * silently producing invalid XML that Chrome then refuses to decode as an
+ * image ("EncodingError: The source image cannot be decoded").
+ */
 async function svgImageFromHtml(html: string, width: number, height: number): Promise<HTMLImageElement> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`
-    + `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${html}</div></foreignObject></svg>`;
+  const svgEl = document.createElementNS(SVG_NS, 'svg');
+  svgEl.setAttribute('width', String(width));
+  svgEl.setAttribute('height', String(height));
+  const foreignObject = document.createElementNS(SVG_NS, 'foreignObject');
+  foreignObject.setAttribute('width', '100%');
+  foreignObject.setAttribute('height', '100%');
+  const container = document.createElementNS(XHTML_NS, 'div');
+  container.innerHTML = html;
+  foreignObject.appendChild(container);
+  svgEl.appendChild(foreignObject);
+
+  const svgString = new XMLSerializer().serializeToString(svgEl);
+  const blobUrl = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' }));
   const img = new Image();
-  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  img.src = blobUrl;
   try {
     await img.decode();
   } catch (err) {
-    // Temporary diagnostic: "EncodingError: The source image cannot be
-    // decoded" gives no hint on its own whether the SVG is malformed,
-    // zero-sized, or just too large — these numbers pin it down without
-    // needing devtools access on the machine that hits it.
-    console.error('svgImageFromHtml decode failed', {
-      width, height, svgLength: svg.length, htmlLength: html.length,
-      svgHead: svg.slice(0, 200), svgTail: svg.slice(-200),
-    });
+    console.error('svgImageFromHtml decode failed', { width, height, svgLength: svgString.length });
     throw new Error(
-      `${err instanceof Error ? err.message : String(err)} (w=${width} h=${height} svgLen=${svg.length})`,
+      `${err instanceof Error ? err.message : String(err)} (w=${width} h=${height} svgLen=${svgString.length})`,
     );
+  } finally {
+    URL.revokeObjectURL(blobUrl);
   }
   return img;
 }
