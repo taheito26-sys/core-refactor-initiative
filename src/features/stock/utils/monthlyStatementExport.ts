@@ -280,7 +280,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     </div>
   </div>
 
-  ${previousBalance > 0 ? `<div class="cards">
+  <div class="cards">
     <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
       <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
       <div class="v">${fmtAmount(data.totalLoaned)}</div>
@@ -291,7 +291,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       <div class="v">${fmtAmount(previousBalance)}</div>
       <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
     </div>
-  </div>` : ''}
+  </div>
   <div class="cards">
     <div class="card" style="--accent:var(--coral);--tint:var(--coral-soft);">
       <div class="k">إجمالي المستحقات</div>
@@ -360,6 +360,14 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     </div>
   </div>
 
+  <div class="cards">
+    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+      <div class="k">إجمالي مبلغ ${escapeHtml(binanceFiat)} المباع</div>
+      <div class="v">${fmtAmount(binanceTotal)}</div>
+      <div class="u">${escapeHtml(binanceFiat)} · ${data.binanceOrders.length} معاملة</div>
+    </div>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -379,6 +387,8 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       </tr>
     </tfoot>` : ''}
   </table>
+
+  <div class="legal">إجمالي مبلغ ${escapeHtml(binanceFiat)} المباع خلال ${escapeHtml(label)}: <strong>${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</strong></div>
 
   <div class="page-footer">
     <span>الصفحة 2 · Taheito — Statement of Account</span>
