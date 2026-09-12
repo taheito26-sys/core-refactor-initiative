@@ -108,8 +108,7 @@ export function monthlyStatementFileBase(data: MonthlyStatementData): string {
 
 // ── Printable / rasterized document ─────────────────────────────────
 
-export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): string {
-  const { businessName = 'TAHEITO', businessTagline = 'P2P TRADING & CAPITAL MANAGEMENT' } = options;
+export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: MonthlyStatementOptions = {}): string {
   const cur = currencySuffix(data.currency);
   // Coalesced defensively: a not-yet-redeployed edge function won't send
   // this field at all, and undefined + totalLoaned is NaN, not a missing
@@ -194,32 +193,28 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 
   .banner {
     background: var(--navy);
-    color: #fff; padding: 11px 16px 9px; border-radius: 10px;
-    position: relative; overflow: hidden; margin-bottom: 12px;
+    color: #fff; padding: 6px 14px 5px; border-radius: 8px;
+    position: relative; overflow: hidden; margin-bottom: 10px;
   }
   .banner::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--coral);
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--coral);
   }
-  .banner-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .brand-en { text-align: left; direction: ltr; }
-  .brand-en .name { font-size: 11.5px; font-weight: 800; letter-spacing: .3px; }
-  .brand-en .tagline { font-size: 6.5px; color: #C9D6DF; font-weight: 700; letter-spacing: .3px; margin-top: 1px; }
-  .banner .month { font-size: 10px; font-weight: 800; color: #FCD9D2; }
-  .hero { margin-top: 6px; }
-  .hero .account-label { font-size: 7px; font-weight: 800; color: #C9D6DF; letter-spacing: .5px; direction: ltr; text-align: left; }
-  .hero .name { font-size: 14px; font-weight: 800; margin-top: 3px; color: #fff; }
-  .hero .note { font-size: 8.5px; color: #C9D6DF; margin-top: 3px; max-width: 560px; line-height: 1.4; }
+  .banner-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .banner .month { font-size: 9px; font-weight: 800; color: #FCD9D2; }
+  .hero { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
+  .hero .name { font-size: 12px; font-weight: 800; color: #fff; }
+  .hero .note { font-size: 7.5px; color: #C9D6DF; line-height: 1.3; flex: 1; }
 
-  .cards { display: flex; gap: 6px; margin-bottom: 10px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .card {
-    flex: 1; min-width: 0; border-radius: 8px; padding: 7px 6px; text-align: center;
+    flex: 1 1 calc(33.333% - 4px); min-width: 0; border-radius: 8px; padding: 7px 6px; text-align: center;
     border: 1px solid var(--border); background: var(--tint, var(--blue-soft));
     position: relative; overflow: hidden;
   }
   .card::after { content: ""; position: absolute; inset-block: 0; inset-inline-end: 0; width: 3px; background: var(--accent, var(--navy)); }
-  .card .k { font-size: 6.5px; font-weight: 700; letter-spacing: 0; color: var(--muted); line-height: 1.25; }
-  .card .v { font-size: 11.5px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); white-space: nowrap; }
-  .card .u { font-size: 6.5px; font-weight: 600; color: var(--muted); margin-top: 1px; }
+  .card .k { font-size: 7px; font-weight: 700; letter-spacing: 0; color: var(--muted); line-height: 1.25; }
+  .card .v { font-size: 13px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); white-space: nowrap; }
+  .card .u { font-size: 7px; font-weight: 600; color: var(--muted); margin-top: 1px; }
 
   .settlement {
     display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 9px 12px;
@@ -275,18 +270,13 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 <div class="sheet">
   <div class="banner">
     <div class="banner-row">
-      <div class="brand-en">
-        <div class="name">${escapeHtml(businessName)}</div>
-        <div class="tagline">${escapeHtml(businessTagline)}</div>
-      </div>
       <div class="month">${escapeHtml(label)}</div>
-    </div>
-    <div class="hero">
-      <div class="account-label">${escapeHtml(data.currency)} ACCOUNT</div>
-      <div class="name">${escapeHtml(data.customerName)}</div>
-      <div class="note">${previousBalance > 0
-        ? `بيان شهري — يبدأ برصيد شهر ${escapeHtml(prevLabel)} المرحّل، ويضيف طلبات ودفعات ${escapeHtml(label)} فقط`
-        : `بيان شهر ${escapeHtml(label)} فقط — جميع الطلبات والدفعات حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}`}</div>
+      <div class="hero">
+        <div class="name">${escapeHtml(data.customerName)}</div>
+        <div class="note">${previousBalance > 0
+          ? `يبدأ برصيد شهر ${escapeHtml(prevLabel)} المرحّل، ويضيف طلبات ودفعات ${escapeHtml(label)} فقط`
+          : `بيان شهر ${escapeHtml(label)} فقط — حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}`}</div>
+      </div>
     </div>
   </div>
 
@@ -355,20 +345,16 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   <div class="legal">هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.</div>
 
   <div class="page-footer">
-    <span>الصفحة 1 · Taheito — Statement of Account</span>
+    <span>الصفحة 1</span>
   </div>
 </div>
 
 <div class="sheet">
   <div class="banner">
     <div class="banner-row">
-      <div class="brand-en">
-        <div class="name">${escapeHtml(businessName)}</div>
-        <div class="tagline">${escapeHtml(businessTagline)}</div>
-      </div>
-      <div style="text-align: left;">
-        <div class="month">سجل معاملات البيع مقابل الجنيه المصري</div>
-        <div class="account-label" style="margin-top: 6px;">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
+      <div class="month">سجل معاملات البيع مقابل الجنيه المصري</div>
+      <div class="hero">
+        <div class="note">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
       </div>
     </div>
   </div>
@@ -404,7 +390,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   <div class="legal">إجمالي مبلغ ${escapeHtml(binanceFiat)} المباع خلال ${escapeHtml(label)}: <strong>${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</strong></div>
 
   <div class="page-footer">
-    <span>الصفحة 2 · Taheito — Statement of Account</span>
+    <span>الصفحة 2</span>
   </div>
 </div>
 
