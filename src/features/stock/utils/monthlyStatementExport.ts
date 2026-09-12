@@ -5,10 +5,10 @@ import { renderHtmlReportToPdf, triggerBlobDownload } from '@/lib/htmlReportToPd
  * The monthly Taheito buyer statement — a pixel match of the branded
  * two-part document merchants have been hand-exporting and sending to
  * buyers: a "QAR ACCOUNT"-style statement page (cumulative totals, full
- * payment history) followed by that month's EGP sell ledger (the merchant's
- * FX-sourcing trail across ALL their buyers, not just this one). Buyers get
- * this self-service from the customer portal instead of waiting on the
- * merchant to generate and send it by hand.
+ * payment history) followed by that month's EGP sell ledger (this buyer's
+ * own FX-sourcing trail — the same scope the tracker uses for their order
+ * count). Buyers get this self-service from the customer portal instead of
+ * waiting on the merchant to generate and send it by hand.
  *
  * This intentionally does not reuse {@link buildStatementHtml} or
  * {@link PublicStatementReport} — neither matches this specific letterhead,

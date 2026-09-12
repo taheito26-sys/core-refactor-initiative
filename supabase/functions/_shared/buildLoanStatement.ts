@@ -186,13 +186,12 @@ export interface MonthlyStatementResponse {
   month: string;
   payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
   /**
-   * Every EGP sell transaction the merchant made in the selected month, across
-   * ALL of their buyers — not scoped to this one customer. This mirrors the
-   * merchant's own monthly "sold against EGP" ledger, included on the buyer's
-   * statement as the FX-sourcing record behind that month's settlement.
-   * Deliberately never carries usdtAmount or a QAR conversion rate — a buyer
-   * only ever sees the EGP amount and the EGP/USDT price, same as every other
-   * buyer-facing statement in this app.
+   * This buyer's own EGP sell transactions in the selected month — the
+   * FX-sourcing trail behind their settlements, scoped the same way the
+   * tracker itself scopes a buyer's order count. Deliberately never carries
+   * usdtAmount or a QAR conversion rate — a buyer only ever sees the EGP
+   * amount and the EGP/USDT price, same as every other buyer-facing
+   * statement in this app.
    */
   binanceOrders: MonthlyBinanceRow[];
 }
@@ -200,9 +199,11 @@ export interface MonthlyStatementResponse {
 /**
  * One buyer's statement, re-scoped to a calendar month: the same cumulative
  * totals and full payment history as {@link buildLoanStatementResponse} (the
- * "up to issue date" figures a buyer expects to always see), plus the
- * merchant's month-scoped, buyer-wide EGP sell ledger as a second section —
- * the trail of trades that funded that month's settlements.
+ * "up to issue date" figures a buyer expects to always see), plus that same
+ * buyer's month-scoped EGP sell ledger as a second section — the trail of
+ * their own trades that funded that month's settlements. Scoped to this one
+ * buyer so the order count here always matches what the tracker shows for
+ * them; it must never silently include another buyer's trades.
  */
 export async function buildMonthlyStatementResponse(
   // deno-lint-ignore no-explicit-any
@@ -233,6 +234,7 @@ export async function buildMonthlyStatementResponse(
 
   for (const trade of allTrades) {
     if (trade.voided) continue;
+    if (trade.customerId !== link.customer_id) continue;
     if (trade.originalFiat === "EGP" && trade.originalFiatAmount != null) {
       if (!inMonth(Number(trade.ts) || 0)) continue;
       rows.push({
