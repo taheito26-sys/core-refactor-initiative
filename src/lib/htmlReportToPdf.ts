@@ -100,6 +100,12 @@ export async function renderHtmlReportToPdf(
   const doc = new jsPDF({ orientation, unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  // A page-edge margin — the image used to be stretched flush to every
+  // edge of the page, which read as a raw screenshot rather than a
+  // printed document.
+  const margin = 24;
+  const usableWidth = pageWidth - margin * 2;
+  const usableHeight = pageHeight - margin * 2;
 
   for (let i = 0; i < sheets.length; i++) {
     const sheetHtml = sheets[i];
@@ -125,19 +131,19 @@ export async function renderHtmlReportToPdf(
     ctx.drawImage(img, 0, 0, renderWidth, renderHeight);
 
     const imgData = canvas.toDataURL('image/png');
-    const imgWidth = pageWidth;
+    const imgWidth = usableWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
     if (i > 0) doc.addPage();
     let heightLeft = imgHeight;
-    let position = 0;
-    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    let position = margin;
+    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+    heightLeft -= usableHeight;
     while (heightLeft > 0) {
-      position -= pageHeight;
+      position -= usableHeight;
       doc.addPage();
-      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+      heightLeft -= usableHeight;
     }
   }
 
