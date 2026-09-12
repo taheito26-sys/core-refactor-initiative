@@ -209,7 +209,11 @@
 
 /* ── PROGRESS BARS ── */
 .tracker-root .prog { width: 100%; max-width: 120px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid var(--line); overflow: hidden; position: relative; }
-.tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
+/* inset-inline-start (not left) so the fill grows from the reading-start
+   edge in both directions — right-to-left in the app's default Arabic RTL,
+   left-to-right in English — instead of always anchoring to the physical
+   left regardless of text direction. */
+.tracker-root .prog > span { position: absolute; top: 0; inset-inline-start: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
 
 /* ── ROW BUTTONS ── */
 .tracker-root .rowBtn {
