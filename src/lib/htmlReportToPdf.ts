@@ -36,6 +36,12 @@ const XHTML_NS = 'http://www.w3.org/1999/xhtml';
  * gets serialized back out correctly no matter what's in it, instead of
  * silently producing invalid XML that Chrome then refuses to decode as an
  * image ("EncodingError: The source image cannot be decoded").
+ *
+ * Deliberately a `data:` URI, not a `blob:` one — Chrome taints the canvas
+ * ("SecurityError: Tainted canvases may not be exported" on the later
+ * `toDataURL()`) for an SVG-with-foreignObject image loaded from a `blob:`
+ * URL, even same-origin and with no external resources involved, but not
+ * for the same content loaded from a `data:` URI.
  */
 async function svgImageFromHtml(html: string, width: number, height: number): Promise<HTMLImageElement> {
   const svgEl = document.createElementNS(SVG_NS, 'svg');
@@ -50,9 +56,8 @@ async function svgImageFromHtml(html: string, width: number, height: number): Pr
   svgEl.appendChild(foreignObject);
 
   const svgString = new XMLSerializer().serializeToString(svgEl);
-  const blobUrl = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' }));
   const img = new Image();
-  img.src = blobUrl;
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
   try {
     await img.decode();
   } catch (err) {
@@ -60,8 +65,6 @@ async function svgImageFromHtml(html: string, width: number, height: number): Pr
     throw new Error(
       `${err instanceof Error ? err.message : String(err)} (w=${width} h=${height} svgLen=${svgString.length})`,
     );
-  } finally {
-    URL.revokeObjectURL(blobUrl);
   }
   return img;
 }
