@@ -155,73 +155,101 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: #F3F1EE; color: #24211D;
+    margin: 0; background: #F7F9FA; color: #243746;
     font-family: 'Tahoma', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    font-size: 11px; line-height: 1.5;
+    font-size: 12px; line-height: 1.5;
   }
-  /* Palette lifted from the reference swatch: deep navy, warm brown, taupe,
-     pale ice-blue, and a coral red — used consistently instead of the
-     generic blue/green/amber report colors elsewhere in the app. Scoped to
-     .sheet (not :root) since this stylesheet also runs inside an SVG
-     foreignObject during PDF rasterization, where :root resolves to the
-     <svg> element rather than the rendered subtree. */
+  /* Tokens from the statement design spec: deep navy, restrained coral,
+     ice-blue and warm-sand tints. Scoped to .sheet (not :root) since this
+     stylesheet also runs inside an SVG foreignObject during PDF
+     rasterization, where :root resolves to the <svg> element rather than
+     the rendered subtree. */
   .sheet {
-    --navy: #1C3D5A;
-    --brown: #7A5240;
-    --taupe: #A89684;
-    --ice: #E9F2F5;
-    --red: #E1503C;
-    direction: rtl; max-width: 800px; margin: 0 auto 24px; background: #fff; padding: 0 0 22px;
-    border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(28,61,90,.14);
+    --navy: #214562;
+    --navy-dark: #17384f;
+    --coral: #ef5a48;
+    --coral-soft: #fff0ed;
+    --blue-soft: #eaf3f6;
+    --blue-border: #c8dce4;
+    --sand-soft: #f5f1ed;
+    --ink: #243746;
+    --muted: #71808b;
+    --border: #dbe3e7;
+    --border-soft: #eceff1;
+    direction: rtl; max-width: 820px; margin: 0 auto 28px; background: #fff; padding: 34px 40px 30px;
+    border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(33,69,98,.10);
   }
   .sheet + .sheet { page-break-before: always; }
+
   .banner {
     background: var(--navy);
-    color: #fff; padding: 22px 28px 18px;
-    border-bottom: 3px solid var(--red);
+    color: #fff; padding: 28px 34px 24px; border-radius: 24px;
+    position: relative; overflow: hidden; margin-bottom: 30px;
+  }
+  .banner::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--coral);
   }
   .banner-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
   .brand-en { text-align: left; direction: ltr; }
-  .brand-en .name { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
-  .brand-en .tagline { font-size: 9px; color: #C9D6DF; font-weight: 700; letter-spacing: .3px; margin-top: 2px; }
-  .banner .month { font-size: 13px; font-weight: 800; color: #F0A898; }
-  .hero { margin-top: 16px; }
-  .hero .account-label { font-size: 9px; font-weight: 800; color: #C9D6DF; letter-spacing: .6px; direction: ltr; text-align: left; }
-  .hero .name { font-size: 21px; font-weight: 800; margin-top: 6px; color: #fff; }
-  .hero .note { font-size: 10.5px; color: #C9D6DF; margin-top: 6px; max-width: 500px; }
-  .body { padding: 22px 28px 0; }
-  .cards { display: flex; gap: 10px; margin-bottom: 20px; }
-  .card { flex: 1; border-radius: 10px; padding: 13px 14px; text-align: center;
-          border: 1px solid #E3DDD5; border-inline-start: 4px solid var(--accent); background: var(--tint); }
-  .card .k { font-size: 9px; font-weight: 700; letter-spacing: .3px; color: #8A7F73; }
-  .card .v { font-size: 19px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; color: var(--accent); }
-  .card .u { font-size: 9.5px; font-weight: 600; color: #8A7F73; margin-top: 2px; }
-  .settlement { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; padding: 14px 16px;
-                border-radius: 10px; background: var(--ice); border: 1px solid #CFE0E6; }
-  .settlement .pct { font-size: 28px; font-weight: 800; color: var(--navy); min-width: 64px; }
+  .brand-en .name { font-size: 18px; font-weight: 800; letter-spacing: .3px; }
+  .brand-en .tagline { font-size: 9.5px; color: #C9D6DF; font-weight: 700; letter-spacing: .4px; margin-top: 3px; }
+  .banner .month { font-size: 13px; font-weight: 800; color: #FCD9D2; }
+  .hero { margin-top: 20px; }
+  .hero .account-label { font-size: 9.5px; font-weight: 800; color: #C9D6DF; letter-spacing: .6px; direction: ltr; text-align: left; }
+  .hero .name { font-size: 24px; font-weight: 800; margin-top: 8px; color: #fff; }
+  .hero .note { font-size: 11px; color: #C9D6DF; margin-top: 8px; max-width: 560px; line-height: 1.6; }
+
+  .cards { display: flex; gap: 14px; margin-bottom: 24px; }
+  .card {
+    flex: 1; border-radius: 16px; padding: 18px 18px; text-align: center;
+    border: 1px solid var(--border); background: var(--tint, var(--blue-soft));
+    position: relative; overflow: hidden;
+  }
+  .card::after { content: ""; position: absolute; inset-block: 0; inset-inline-end: 0; width: 6px; background: var(--accent, var(--navy)); }
+  .card .k { font-size: 10px; font-weight: 700; letter-spacing: .3px; color: var(--muted); }
+  .card .v { font-size: 22px; font-weight: 800; margin-top: 8px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); }
+  .card .u { font-size: 10px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+
+  .settlement {
+    display: flex; align-items: center; gap: 20px; margin-bottom: 26px; padding: 18px 22px;
+    border-radius: 18px; background: var(--blue-soft); border: 1px solid var(--blue-border);
+  }
+  .settlement .pct { font-size: 30px; font-weight: 800; color: var(--navy); min-width: 68px; font-variant-numeric: tabular-nums; }
   .settlement .body2 { flex: 1; }
-  .settlement .title { font-size: 10px; font-weight: 800; color: var(--navy); letter-spacing: .3px; margin-bottom: 6px; }
-  .settlement .bar { height: 8px; border-radius: 4px; background: #D3E3E9; overflow: hidden; }
-  .settlement .bar > span { display: block; height: 100%; background: var(--navy); border-radius: 4px; }
-  .settlement .desc { font-size: 10.5px; color: #4A6273; margin-top: 6px; }
-  h2 { font-size: 12.5px; font-weight: 800; color: var(--navy); margin: 4px 0 9px; padding-inline-start: 9px;
-       border-inline-start: 4px solid var(--red); }
-  h2 .count { font-weight: 600; color: #8A7F73; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; border-radius: 8px; overflow: hidden; }
-  th { font-size: 8.5px; letter-spacing: .5px; text-transform: uppercase; color: #fff;
-       text-align: right; padding: 8px; background: var(--navy); font-weight: 700; }
-  td { padding: 7px 8px; border-bottom: 1px solid #EFECE8; vertical-align: top; }
-  tr.alt td { background: #F7F4F1; }
-  th.num, td.num { text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.desc { color: #5C554D; }
+  .settlement .title { font-size: 11px; font-weight: 800; color: var(--navy); letter-spacing: .3px; margin-bottom: 8px; }
+  .settlement .bar { height: 9px; border-radius: 5px; background: var(--blue-border); overflow: hidden; }
+  .settlement .bar > span { display: block; height: 100%; background: var(--navy); border-radius: 5px; }
+  .settlement .desc { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  h2 {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 800; color: var(--navy); margin: 6px 0 12px;
+  }
+  h2::before { content: ""; width: 6px; height: 26px; border-radius: 6px; background: var(--coral); flex-shrink: 0; }
+  h2 .count { font-weight: 600; color: var(--muted); }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 6px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  th {
+    font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase; color: #fff;
+    text-align: right; padding: 11px 12px; background: var(--navy); font-weight: 700;
+  }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tr.alt td { background: var(--sand-soft); }
+  th.num, td.num { text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+  td.desc { color: var(--muted); }
   td.strong { font-weight: 800; color: var(--navy); }
-  td.empty { text-align: center; color: #A89684; padding: 16px; }
-  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 800; font-size: 10.5px; }
-  .pill.good { color: #4A3327; background: #EFE7E0; }
-  tfoot td { border-top: 2px solid var(--navy); border-bottom: none; font-weight: 800; background: #EEF4F6 !important; color: var(--navy); }
-  .legal { font-size: 9.5px; color: #A89684; margin-top: 16px; text-align: center; }
-  .page-footer { display: flex; justify-content: space-between; margin-top: 14px; padding: 10px 28px 0;
-                 border-top: 1px solid #E3DDD5; font-size: 9px; color: #8A7F73; }
+  td.empty { text-align: center; color: var(--muted); padding: 20px; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 800; font-size: 11px; background: var(--sand-soft); color: var(--ink); }
+
+  tfoot td { border-top: 2px solid var(--navy); border-bottom: none; font-weight: 800; background: var(--blue-soft) !important; color: var(--navy); }
+  .legal {
+    font-size: 10.5px; color: var(--muted); margin-top: 20px; text-align: center;
+    background: #f8fafb; border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px;
+  }
+  .page-footer {
+    display: flex; justify-content: center; margin-top: 22px; padding-top: 14px;
+    border-top: 1px solid var(--border-soft); font-size: 9.5px; color: var(--muted);
+  }
   @media print {
     body { background: #fff; }
     .sheet { max-width: none; margin: 0; box-shadow: none; border-radius: 0; }
@@ -251,72 +279,69 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     </div>
   </div>
 
-  <div class="body">
-    ${previousBalance > 0 ? `<div class="cards">
-      <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
-        <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
-        <div class="v">${fmtAmount(data.totalLoaned)}</div>
-        <div class="u">${cur}</div>
-      </div>
-      <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
-        <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
-        <div class="v">${fmtAmount(previousBalance)}</div>
-        <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
-      </div>
-    </div>` : ''}
-    <div class="cards">
-      <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
-        <div class="k">إجمالي المستحقات</div>
-        <div class="v">${fmtAmount(grandTotalDue)}</div>
-        <div class="u">${cur}</div>
-      </div>
-      <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
-        <div class="k">مدفوعات ${escapeHtml(label)}</div>
-        <div class="v">${fmtAmount(data.totalRepaid)}</div>
-        <div class="u">${cur}</div>
-      </div>
-      <div class="card" style="--accent:${data.outstanding > 0 ? '#E1503C' : '#7A5240'};--tint:${data.outstanding > 0 ? '#FBEAE7' : '#F3EDE8'};">
-        <div class="k">الرصيد المتبقي</div>
-        <div class="v">${fmtAmount(data.outstanding)}</div>
-        <div class="u">${cur}</div>
-      </div>
+  ${previousBalance > 0 ? `<div class="cards">
+    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+      <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
+      <div class="v">${fmtAmount(data.totalLoaned)}</div>
+      <div class="u">${cur}</div>
     </div>
-
-    <div class="settlement">
-      <div class="pct">${repaidPct}%</div>
-      <div class="body2">
-        <div class="title">ملخص التسوية</div>
-        <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
-        <div class="desc">${repaidPct}% من إجمالي المستحقات تم سدادها</div>
-      </div>
+    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
+      <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
+      <div class="v">${fmtAmount(previousBalance)}</div>
+      <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
     </div>
-
-    <h2>سجل الدفعات المستلمة <span class="count">(${data.payments.length} دفعة)</span></h2>
-    <table>
-      <thead>
-        <tr>
-          <th class="num">#</th>
-          <th>التاريخ</th>
-          <th class="num">المبلغ (${cur})</th>
-          <th>مقابل</th>
-        </tr>
-      </thead>
-      <tbody>${paymentRows}</tbody>
-      ${data.payments.length > 0 ? `<tfoot>
-        <tr>
-          <td colspan="2">الإجمالي</td>
-          <td class="num">${cur} ${fmtAmount(paymentsTotal)}</td>
-          <td></td>
-        </tr>
-      </tfoot>` : ''}
-    </table>
-
-    <div class="legal">هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.</div>
+  </div>` : ''}
+  <div class="cards">
+    <div class="card" style="--accent:var(--coral);--tint:var(--coral-soft);">
+      <div class="k">إجمالي المستحقات</div>
+      <div class="v">${fmtAmount(grandTotalDue)}</div>
+      <div class="u">${cur}</div>
+    </div>
+    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
+      <div class="k">مدفوعات ${escapeHtml(label)}</div>
+      <div class="v">${fmtAmount(data.totalRepaid)}</div>
+      <div class="u">${cur}</div>
+    </div>
+    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+      <div class="k">الرصيد المتبقي</div>
+      <div class="v">${fmtAmount(data.outstanding)}</div>
+      <div class="u">${cur}</div>
+    </div>
   </div>
 
+  <div class="settlement">
+    <div class="pct">${repaidPct}%</div>
+    <div class="body2">
+      <div class="title">ملخص التسوية</div>
+      <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
+      <div class="desc">${repaidPct}% من إجمالي المستحقات تم سدادها</div>
+    </div>
+  </div>
+
+  <h2>سجل الدفعات المستلمة <span class="count">(${data.payments.length} دفعة)</span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th>التاريخ</th>
+        <th class="num">المبلغ (${cur})</th>
+        <th>مقابل</th>
+      </tr>
+    </thead>
+    <tbody>${paymentRows}</tbody>
+    ${data.payments.length > 0 ? `<tfoot>
+      <tr>
+        <td colspan="2">الإجمالي</td>
+        <td class="num">${cur} ${fmtAmount(paymentsTotal)}</td>
+        <td></td>
+      </tr>
+    </tfoot>` : ''}
+  </table>
+
+  <div class="legal">هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.</div>
+
   <div class="page-footer">
-    <span>الصفحة 1</span>
-    <span>Taheito — Statement of Account</span>
+    <span>الصفحة 1 · Taheito — Statement of Account</span>
   </div>
 </div>
 
@@ -329,35 +354,32 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       </div>
       <div style="text-align: left;">
         <div class="month">سجل معاملات البيع مقابل الجنيه المصري</div>
-        <div class="account-label" style="margin-top: 4px;">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
+        <div class="account-label" style="margin-top: 6px;">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
       </div>
     </div>
   </div>
 
-  <div class="body">
-    <table>
-      <thead>
-        <tr>
-          <th class="num">#</th>
-          <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
-          <th class="num">السعر</th>
-          <th>التاريخ</th>
-        </tr>
-      </thead>
-      <tbody>${binanceRows}</tbody>
-      ${data.binanceOrders.length > 0 ? `<tfoot>
-        <tr>
-          <td>الإجمالي</td>
-          <td class="num">${fmtAmount(binanceTotal)}</td>
-          <td colspan="2"></td>
-        </tr>
-      </tfoot>` : ''}
-    </table>
-  </div>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
+        <th class="num">السعر</th>
+        <th>التاريخ</th>
+      </tr>
+    </thead>
+    <tbody>${binanceRows}</tbody>
+    ${data.binanceOrders.length > 0 ? `<tfoot>
+      <tr>
+        <td>الإجمالي</td>
+        <td class="num">${fmtAmount(binanceTotal)}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>` : ''}
+  </table>
 
   <div class="page-footer">
-    <span>الصفحة 2</span>
-    <span>Taheito — Statement of Account</span>
+    <span>الصفحة 2 · Taheito — Statement of Account</span>
   </div>
 </div>
 
