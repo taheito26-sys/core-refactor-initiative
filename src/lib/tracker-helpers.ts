@@ -210,6 +210,8 @@ export interface CashLedgerEntry {
   orderId?: string;
   batchId?: string;
   settlementId?: string;
+  /** Optional physical banknote breakdown for this entry, denomination -> count */
+  banknoteBreakdown?: Record<number, number>;
 }
 
 export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {

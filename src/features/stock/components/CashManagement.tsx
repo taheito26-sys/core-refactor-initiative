@@ -127,6 +127,20 @@ function get24hMovement(accountId: string, ledger: CashLedgerEntry[]): number {
     .reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
 }
 
+/** Net banknote counts currently on hand for an account, denomination -> count, derived from every ledger entry that recorded a breakdown. */
+function getAccountNoteTotals(accountId: string, ledger: CashLedgerEntry[]): Record<number, number> {
+  const totals: Record<number, number> = {};
+  for (const e of ledger || []) {
+    if (e.accountId !== accountId || !e.banknoteBreakdown) continue;
+    const sign = e.direction === 'in' ? 1 : -1;
+    for (const [denomStr, count] of Object.entries(e.banknoteBreakdown)) {
+      const denom = Number(denomStr);
+      totals[denom] = (totals[denom] || 0) + sign * count;
+    }
+  }
+  return totals;
+}
+
 // ── Sub-components ─────────────────────────────────────────────────
 
 interface KpiBoxProps {
@@ -336,6 +350,13 @@ interface DepositWithdrawModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
+const BANKNOTE_DENOMS: Record<string, number[]> = {
+  QAR: [500, 200, 100, 50, 10, 5, 1],
+  EGP: [200, 100, 50, 20, 10, 5],
+  USD: [100, 50, 20, 10, 5, 1],
+  USDT: [100, 50, 20, 10, 5, 1],
+};
+
 function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, isMobile = false }: DepositWithdrawModalProps) {
   const t = useT();
   const [amount, setAmount] = useState('');
@@ -343,7 +364,27 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const [err, setErr] = useState('');
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [showBanknotes, setShowBanknotes] = useState(false);
+  const [banknoteCounts, setBanknoteCounts] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
   const amtNum = num(amount, 0);
+  const denoms = BANKNOTE_DENOMS[account.currency] || BANKNOTE_DENOMS.QAR;
+  const banknoteTotal = denoms.reduce((sum, d) => sum + d * num(banknoteCounts[d], 0), 0);
+  const hasBanknoteCounts = denoms.some(d => num(banknoteCounts[d], 0) > 0);
+
+  useEffect(() => {
+    if (!hasBanknoteCounts) return;
+    setAmount(banknoteTotal > 0 ? String(banknoteTotal) : '');
+  }, [banknoteTotal, hasBanknoteCounts]);
+
+  const setBanknoteCount = (denom: number, value: string) => {
+    setBanknoteCounts(prev => ({ ...prev, [denom]: value }));
+  };
+
+  const clearBanknoteCounts = () => {
+    setBanknoteCounts({});
+    setAmount('');
+  };
 
   const MODE_LABELS: Record<string, string> = {
     deposit: t('depositTitle'),
@@ -384,6 +425,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   }, [isMobile]);
 
   const handle = () => {
+    if (submitting) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit' as any)); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
@@ -391,6 +433,13 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setErr(`${t('insufficientBalMsg' as any)} ${fmtTotal(currentBalance)} ${account.currency}`);
       return;
+    }
+    const banknoteBreakdown: Record<number, number> = {};
+    if (hasBanknoteCounts) {
+      for (const d of denoms) {
+        const c = num(banknoteCounts[d], 0);
+        if (c > 0) banknoteBreakdown[d] = c;
+      }
     }
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(),
@@ -402,8 +451,10 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       note: note.trim() || undefined,
       merchantId: account.merchantId,
       relationshipId: account.relationshipId,
+      ...(hasBanknoteCounts ? { banknoteBreakdown } : {}),
     };
-    onSave(entry);
+    setSubmitting(true);
+    Promise.resolve(onSave(entry)).finally(() => setSubmitting(false));
   };
 
   return (
@@ -422,13 +473,69 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         </div>
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('amount')} ({account.currency})</div>
-          <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
+          <div className="inputBox">
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              autoFocus={!hasBanknoteCounts}
+              readOnly={hasBanknoteCounts}
+              style={hasBanknoteCounts ? { color: 'var(--muted)' } : undefined}
+            />
+          </div>
+          {hasBanknoteCounts && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('amountFromNotesHint')}</div>
+          )}
         </div>
         {amtNum > 0 && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
             {t('balanceAfterLbl')}: <strong style={{ color: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)' }}>
               {fmtTotal(currentBalance + (DIRECTIONS[mode] === 'in' ? amtNum : -amtNum))} {account.currency}
             </strong>
+          </div>
+        )}
+        {(
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              onClick={() => setShowBanknotes(s => !s)}
+              style={{ background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--muted)', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <span>💵 {t('banknoteBreakdownTitle')}</span>
+              <span>{showBanknotes ? '▲' : '▼'}</span>
+            </button>
+            {showBanknotes && (
+              <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--panel)' }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('banknoteBreakdownHint')}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8 }}>
+                  {denoms.map(d => (
+                    <div key={d} className="field2">
+                      <div className="lbl">{d} {account.currency}</div>
+                      <div className="inputBox">
+                        <input
+                          inputMode="numeric"
+                          value={banknoteCounts[d] || ''}
+                          onChange={e => setBanknoteCount(d, e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {hasBanknoteCounts && (
+                  <div style={{ marginTop: 10, fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
+                      <span className="mono" style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtTotal(banknoteTotal)} {account.currency}</span>
+                    </div>
+                    <button type="button" onClick={clearBanknoteCounts} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, textDecoration: 'underline' }}>
+                      {t('clearAll')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>
@@ -444,8 +551,8 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
-          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
+          <button className="btn secondary" onClick={onClose} disabled={submitting}>{t('cancel')}</button>
+          <button className="btn" disabled={submitting} style={{ minHeight: isMobile ? 42 : undefined, background: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)', color: '#000', opacity: submitting ? 0.6 : 1 }} onClick={handle}>
             {MODE_LABELS[mode]}
           </button>
         </div>
@@ -590,6 +697,65 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={handle}>{t('transferFundsBtn' as any)}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface NotesDetailsModalProps {
+  account: CashAccount;
+  ledger: CashLedgerEntry[];
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function NotesDetailsModal({ account, ledger, onClose, isMobile = false }: NotesDetailsModalProps) {
+  const t = useT();
+  const denoms = BANKNOTE_DENOMS[account.currency] || BANKNOTE_DENOMS.QAR;
+  const totals = useMemo(() => getAccountNoteTotals(account.id, ledger), [account.id, ledger]);
+  const rows = denoms
+    .map(d => ({ denom: d, count: totals[d] || 0 }))
+    .filter(r => r.count !== 0);
+  const grandTotal = rows.reduce((sum, r) => sum + r.denom * r.count, 0);
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '80vh' : '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>💵 {t('notesDetailsTitle')} — {account.name}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+        {rows.length === 0 ? (
+          <div className="empty" style={{ padding: '24px 0' }}>
+            <div className="empty-t">{t('noNotesRecorded')}</div>
+            <div className="empty-s">{t('banknoteBreakdownHint')}</div>
+          </div>
+        ) : (
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('denominationLbl')}</th>
+                  <th className="r">{t('noteCountLbl')}</th>
+                  <th className="r">{t('subtotalLbl')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.denom}>
+                    <td>{r.denom} {account.currency}</td>
+                    <td className="mono r">{r.count}</td>
+                    <td className="mono r">{fmtTotal(r.denom * r.count)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div style={{ marginTop: 14, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', fontSize: 11 }}>
+          <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
+          <span className="mono" style={{ fontWeight: 800, color: 'var(--brand)', fontSize: 13 }}>{fmtTotal(grandTotal)} {account.currency}</span>
         </div>
       </div>
     </div>
@@ -1369,10 +1535,17 @@ function CashCounterModal({
     setSaving(true);
     try {
       if (addAmt > 0) {
+        // The breakdown describes the whole physical count, so it only
+        // attaches to this entry when the full counted amount is going onto
+        // the cash account (nothing carved off to a loan repayment).
+        const banknoteBreakdown = countMode === 'notes' && Math.abs(addAmt - total) < 0.005 && noteCountEntries.length > 0
+          ? Object.fromEntries(noteCountEntries.map(({ d, n }) => [d, n]))
+          : undefined;
         const entry: CashLedgerEntry = {
           id: uid(), ts: selectedTs, type: 'deposit', accountId: account.id,
           direction: 'in', amount: addAmt, currency: account.currency,
           note: defaultNote(),
+          ...(banknoteBreakdown ? { banknoteBreakdown } : {}),
         };
         onAddToCash(entry);
       }
@@ -1815,6 +1988,14 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                     <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
                     {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
                     {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                    {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && (
+                      <div style={{ gridColumn: 'span 2', color: 'var(--muted)', fontSize: 10 }}>
+                        💵 {Object.entries(entry.banknoteBreakdown)
+                          .sort((a, b) => Number(b[0]) - Number(a[0]))
+                          .map(([denom, count]) => `${count}×${denom}`)
+                          .join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1859,8 +2040,9 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                           <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : undefined}>
                         {entry.note || '—'}
+                        {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
                       </td>
                     </tr>
                   );
@@ -2689,6 +2871,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
+  const [showNotesDetails, setShowNotesDetails] = useState<CashAccount | null>(null);
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
   const [showCashCounter, setShowCashCounter] = useState(false);
   const [deleteAccountPromptId, setDeleteAccountPromptId] = useState<string | null>(null);
@@ -3512,6 +3695,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
+                        </button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => setShowNotesDetails(acc)}>
+                          <span className="cash-emoji">💵</span> {t('notesDetailsBtn')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}><span className="cash-emoji">✏️</span> {t('edit')}</button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
@@ -4640,6 +4827,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           isMobile={isMobile}
           onSave={addLedgerEntry}
           onClose={() => setShowDeposit(null)}
+        />
+      )}
+      {showNotesDetails && (
+        <NotesDetailsModal
+          account={showNotesDetails}
+          ledger={ledger}
+          isMobile={isMobile}
+          onClose={() => setShowNotesDetails(null)}
         />
       )}
       {clearLedgerPromptId && (
