@@ -39,6 +39,8 @@ export interface MonthlyStatementData {
   totalLoaned: number;
   totalRepaid: number;
   outstanding: number;
+  /** Unpaid balance carried forward from before this month started. */
+  previousBalance: number;
   issueDate: string;
   /** 'YYYY-MM' — the month this statement covers. */
   month: string;
@@ -73,6 +75,14 @@ function monthLabel(month: string): string {
   return `${ARABIC_MONTHS[(m - 1 + 12) % 12]} ${y}`;
 }
 
+/** 'YYYY-MM' → the label for the calendar month right before it. */
+function previousMonthLabel(month: string): string {
+  const [y, m] = month.split('-').map(n => parseInt(n, 10));
+  const prevMonth = m === 1 ? 12 : m - 1;
+  const prevYear = m === 1 ? y - 1 : y;
+  return `${ARABIC_MONTHS[(prevMonth - 1 + 12) % 12]} ${prevYear}`;
+}
+
 function fmtAmount(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
@@ -98,8 +108,10 @@ export function monthlyStatementFileBase(data: MonthlyStatementData): string {
 export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): string {
   const { businessName = 'TAHEITO', businessTagline = 'P2P TRADING & CAPITAL MANAGEMENT' } = options;
   const cur = currencySuffix(data.currency);
-  const repaidPct = data.totalLoaned > 0 ? Math.min(100, Math.round((data.totalRepaid / data.totalLoaned) * 100)) : 0;
+  const grandTotalDue = data.previousBalance + data.totalLoaned;
+  const repaidPct = grandTotalDue > 0 ? Math.min(100, Math.round((data.totalRepaid / grandTotalDue) * 100)) : 0;
   const label = monthLabel(data.month);
+  const prevLabel = previousMonthLabel(data.month);
   const paymentsTotal = data.payments.reduce((sum, p) => sum + p.amount, 0);
   const binanceTotal = data.binanceOrders.reduce((sum, o) => sum + o.fiatAmount, 0);
   const binanceFiat = data.binanceOrders[0]?.fiat || 'EGP';
@@ -229,19 +241,33 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     <div class="hero">
       <div class="account-label">${escapeHtml(data.currency)} ACCOUNT</div>
       <div class="name">${escapeHtml(data.customerName)}</div>
-      <div class="note">بيان شهر ${escapeHtml(label)} فقط — جميع الطلبات والدفعات حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}</div>
+      <div class="note">${data.previousBalance > 0
+        ? `بيان شهري — يبدأ برصيد شهر ${escapeHtml(prevLabel)} المرحّل، ويضيف طلبات ودفعات ${escapeHtml(label)} فقط`
+        : `بيان شهر ${escapeHtml(label)} فقط — جميع الطلبات والدفعات حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}`}</div>
     </div>
   </div>
 
   <div class="body">
-    <div class="cards">
+    ${data.previousBalance > 0 ? `<div class="cards">
       <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
-        <div class="k">إجمالي المستحقات</div>
+        <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
         <div class="v">${fmtAmount(data.totalLoaned)}</div>
         <div class="u">${cur}</div>
       </div>
       <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
-        <div class="k">إجمالي الدفعات المستلمة</div>
+        <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
+        <div class="v">${fmtAmount(data.previousBalance)}</div>
+        <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
+      </div>
+    </div>` : ''}
+    <div class="cards">
+      <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
+        <div class="k">إجمالي المستحقات</div>
+        <div class="v">${fmtAmount(grandTotalDue)}</div>
+        <div class="u">${cur}</div>
+      </div>
+      <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
+        <div class="k">مدفوعات ${escapeHtml(label)}</div>
         <div class="v">${fmtAmount(data.totalRepaid)}</div>
         <div class="u">${cur}</div>
       </div>
@@ -379,8 +405,12 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
     if (typeof value === 'number') row.getCell(2).numFmt = '#,##0';
     if (fill) { row.getCell(1).fill = fill; row.getCell(2).fill = fill; }
   };
-  addRow(`إجمالي المستحقات (${cur})`, data.totalLoaned);
-  addRow(`إجمالي الدفعات المستلمة (${cur})`, data.totalRepaid, goodFill);
+  if (data.previousBalance > 0) {
+    addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
+    addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, data.previousBalance);
+  }
+  addRow(`إجمالي المستحقات (${cur})`, data.previousBalance + data.totalLoaned);
+  addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
   addRow('عدد الدفعات', data.payments.length);
   addRow('تاريخ الإصدار', data.issueDate);

@@ -166,6 +166,13 @@ export interface MonthlyStatementResponse {
   totalLoaned: number;
   totalRepaid: number;
   outstanding: number;
+  /**
+   * Whatever was still unpaid from before this month started — every order
+   * placed and payment received prior to the 1st of this month, netted
+   * out. A buyer who owed money going into the month must see that debt
+   * carried forward, not just this month's own new orders.
+   */
+  previousBalance: number;
   issueDate: string;
   month: string;
   payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
@@ -267,12 +274,22 @@ export async function buildMonthlyStatementResponse(
   const totalLoaned = Math.round(monthOrders.reduce((sum, o) => sum + o.amount, 0));
   const totalRepaid = Math.round(monthPayments.reduce((sum, p) => sum + p.amount, 0));
 
+  // Everything before this month's 1st, netted to a single carried-forward
+  // balance — a buyer opening September's statement needs to see August's
+  // (and earlier) unpaid debt included, not just September's own orders.
+  const priorOrders = base.orders.filter((o) => (Number(o.date) || 0) < monthStart);
+  const priorPayments = base.payments.filter((p) => (Number(p.date) || 0) < monthStart);
+  const previousBalance = Math.round(
+    priorOrders.reduce((sum, o) => sum + o.amount, 0) - priorPayments.reduce((sum, p) => sum + p.amount, 0),
+  );
+
   return {
     customerName: base.customerName,
     currency: base.currency,
     totalLoaned,
     totalRepaid,
-    outstanding: totalLoaned - totalRepaid,
+    outstanding: previousBalance + totalLoaned - totalRepaid,
+    previousBalance,
     issueDate: base.issueDate,
     month,
     payments: monthPayments,
