@@ -257,15 +257,25 @@ export async function buildMonthlyStatementResponse(
 
   rows.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
+  // Strictly month-scoped, per the buyer's expectation of "September's
+  // statement" — only orders placed and payments received in that calendar
+  // month, not the cumulative to-date figures. base.orders/base.payments are
+  // both timestamped, so this filters and re-sums rather than reusing the
+  // running totals from buildLoanStatementResponse.
+  const monthPayments = base.payments.filter((p) => inMonth(Number(p.date) || 0));
+  const monthOrders = base.orders.filter((o) => inMonth(Number(o.date) || 0));
+  const totalLoaned = Math.round(monthOrders.reduce((sum, o) => sum + o.amount, 0));
+  const totalRepaid = Math.round(monthPayments.reduce((sum, p) => sum + p.amount, 0));
+
   return {
     customerName: base.customerName,
     currency: base.currency,
-    totalLoaned: base.totalLoaned,
-    totalRepaid: base.totalRepaid,
-    outstanding: base.outstanding,
+    totalLoaned,
+    totalRepaid,
+    outstanding: totalLoaned - totalRepaid,
     issueDate: base.issueDate,
     month,
-    payments: base.payments,
+    payments: monthPayments,
     binanceOrders: rows,
   };
 }

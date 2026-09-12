@@ -902,8 +902,8 @@ export default function CustomerWalletPage() {
 
               {/* Month filter — same convention as the Orders page */}
               {paymentsMonths.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="month-filter-row flex-1 min-w-0">
+                <div className="space-y-2">
+                  <div className="month-filter-row">
                     <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
                       {L("All Months", "كل الأشهر")}
                     </button>
@@ -917,7 +917,8 @@ export default function CustomerWalletPage() {
                       );
                     })}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
                     <button
                       onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
                       disabled={exportingFormat !== null}
