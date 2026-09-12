@@ -108,7 +108,11 @@ export function monthlyStatementFileBase(data: MonthlyStatementData): string {
 export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): string {
   const { businessName = 'TAHEITO', businessTagline = 'P2P TRADING & CAPITAL MANAGEMENT' } = options;
   const cur = currencySuffix(data.currency);
-  const grandTotalDue = data.previousBalance + data.totalLoaned;
+  // Coalesced defensively: a not-yet-redeployed edge function won't send
+  // this field at all, and undefined + totalLoaned is NaN, not a missing
+  // carryover — that must never leak into the customer-facing total.
+  const previousBalance = data.previousBalance || 0;
+  const grandTotalDue = previousBalance + data.totalLoaned;
   const repaidPct = grandTotalDue > 0 ? Math.min(100, Math.round((data.totalRepaid / grandTotalDue) * 100)) : 0;
   const label = monthLabel(data.month);
   const prevLabel = previousMonthLabel(data.month);
@@ -241,14 +245,14 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     <div class="hero">
       <div class="account-label">${escapeHtml(data.currency)} ACCOUNT</div>
       <div class="name">${escapeHtml(data.customerName)}</div>
-      <div class="note">${data.previousBalance > 0
+      <div class="note">${previousBalance > 0
         ? `بيان شهري — يبدأ برصيد شهر ${escapeHtml(prevLabel)} المرحّل، ويضيف طلبات ودفعات ${escapeHtml(label)} فقط`
         : `بيان شهر ${escapeHtml(label)} فقط — جميع الطلبات والدفعات حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}`}</div>
     </div>
   </div>
 
   <div class="body">
-    ${data.previousBalance > 0 ? `<div class="cards">
+    ${previousBalance > 0 ? `<div class="cards">
       <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
         <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
         <div class="v">${fmtAmount(data.totalLoaned)}</div>
@@ -256,7 +260,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       </div>
       <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
         <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
-        <div class="v">${fmtAmount(data.previousBalance)}</div>
+        <div class="v">${fmtAmount(previousBalance)}</div>
         <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
       </div>
     </div>` : ''}
@@ -405,11 +409,12 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
     if (typeof value === 'number') row.getCell(2).numFmt = '#,##0';
     if (fill) { row.getCell(1).fill = fill; row.getCell(2).fill = fill; }
   };
-  if (data.previousBalance > 0) {
+  const previousBalance = data.previousBalance || 0;
+  if (previousBalance > 0) {
     addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
-    addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, data.previousBalance);
+    addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, previousBalance);
   }
-  addRow(`إجمالي المستحقات (${cur})`, data.previousBalance + data.totalLoaned);
+  addRow(`إجمالي المستحقات (${cur})`, previousBalance + data.totalLoaned);
   addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
   addRow('عدد الدفعات', data.payments.length);
