@@ -28,7 +28,21 @@ async function svgImageFromHtml(html: string, width: number, height: number): Pr
     + `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${html}</div></foreignObject></svg>`;
   const img = new Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  await img.decode();
+  try {
+    await img.decode();
+  } catch (err) {
+    // Temporary diagnostic: "EncodingError: The source image cannot be
+    // decoded" gives no hint on its own whether the SVG is malformed,
+    // zero-sized, or just too large — these numbers pin it down without
+    // needing devtools access on the machine that hits it.
+    console.error('svgImageFromHtml decode failed', {
+      width, height, svgLength: svg.length, htmlLength: html.length,
+      svgHead: svg.slice(0, 200), svgTail: svg.slice(-200),
+    });
+    throw new Error(
+      `${err instanceof Error ? err.message : String(err)} (w=${width} h=${height} svgLen=${svg.length})`,
+    );
+  }
   return img;
 }
 
