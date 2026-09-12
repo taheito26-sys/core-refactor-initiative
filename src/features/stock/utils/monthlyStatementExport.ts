@@ -210,16 +210,16 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   .hero .name { font-size: 14px; font-weight: 800; margin-top: 3px; color: #fff; }
   .hero .note { font-size: 8.5px; color: #C9D6DF; margin-top: 3px; max-width: 560px; line-height: 1.4; }
 
-  .cards { display: flex; gap: 8px; margin-bottom: 10px; }
+  .cards { display: flex; gap: 6px; margin-bottom: 10px; }
   .card {
-    flex: 1; border-radius: 8px; padding: 8px 10px; text-align: center;
+    flex: 1; min-width: 0; border-radius: 8px; padding: 7px 6px; text-align: center;
     border: 1px solid var(--border); background: var(--tint, var(--blue-soft));
     position: relative; overflow: hidden;
   }
-  .card::after { content: ""; position: absolute; inset-block: 0; inset-inline-end: 0; width: 4px; background: var(--accent, var(--navy)); }
-  .card .k { font-size: 7.5px; font-weight: 700; letter-spacing: .2px; color: var(--muted); }
-  .card .v { font-size: 14px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); }
-  .card .u { font-size: 7.5px; font-weight: 600; color: var(--muted); margin-top: 1px; }
+  .card::after { content: ""; position: absolute; inset-block: 0; inset-inline-end: 0; width: 3px; background: var(--accent, var(--navy)); }
+  .card .k { font-size: 6.5px; font-weight: 700; letter-spacing: 0; color: var(--muted); line-height: 1.25; }
+  .card .v { font-size: 11.5px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; color: var(--accent, var(--navy)); white-space: nowrap; }
+  .card .u { font-size: 6.5px; font-weight: 600; color: var(--muted); margin-top: 1px; }
 
   .settlement {
     display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 9px 12px;
@@ -299,10 +299,8 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
     <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
       <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
       <div class="v">${fmtAmount(previousBalance)}</div>
-      <div class="u">رصيد متبقٍ من ${escapeHtml(prevLabel)}</div>
+      <div class="u">${cur}</div>
     </div>
-  </div>
-  <div class="cards">
     <div class="card" style="--accent:var(--coral);--tint:var(--coral-soft);">
       <div class="k">إجمالي المستحقات</div>
       <div class="v">${fmtAmount(grandTotalDue)}</div>
@@ -318,6 +316,11 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       <div class="v">${fmtAmount(data.outstanding)}</div>
       <div class="u">${cur}</div>
     </div>
+    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+      <div class="k">حجم البيع (${escapeHtml(binanceFiat)})</div>
+      <div class="v">${fmtAmount(binanceTotal)}</div>
+      <div class="u">${escapeHtml(binanceFiat)}</div>
+    </div>
   </div>
 
   <div class="settlement">
@@ -326,14 +329,6 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       <div class="title">ملخص التسوية الإجمالي</div>
       <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
       <div class="desc">${repaidPct}% من إجمالي المديونية منذ بداية التعامل تم سدادها</div>
-    </div>
-  </div>
-
-  <div class="cards">
-    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
-      <div class="k">إجمالي حجم البيع (${escapeHtml(binanceFiat)})</div>
-      <div class="v">${fmtAmount(binanceTotal)}</div>
-      <div class="u">${escapeHtml(binanceFiat)} · ${data.binanceOrders.length} معاملة هذا الشهر</div>
     </div>
   </div>
 
