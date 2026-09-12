@@ -41,6 +41,9 @@ export interface MonthlyStatementData {
   outstanding: number;
   /** Unpaid balance carried forward from before this month started. */
   previousBalance: number;
+  /** Lifetime totals (every order/payment ever recorded), used for the settlement percentage. */
+  totalLoanedAllTime: number;
+  totalRepaidAllTime: number;
   issueDate: string;
   /** 'YYYY-MM' — the month this statement covers. */
   month: string;
@@ -113,7 +116,12 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   // carryover — that must never leak into the customer-facing total.
   const previousBalance = data.previousBalance || 0;
   const grandTotalDue = previousBalance + data.totalLoaned;
-  const repaidPct = grandTotalDue > 0 ? Math.min(100, Math.round((data.totalRepaid / grandTotalDue) * 100)) : 0;
+  // Against lifetime totals, matching the tracker's own "المسدد إجمالي" — not
+  // this month's totalRepaid over grandTotalDue, which covers only a few
+  // weeks of activity and produces a very different, misleading ratio.
+  const totalLoanedAllTime = data.totalLoanedAllTime || 0;
+  const totalRepaidAllTime = data.totalRepaidAllTime || 0;
+  const repaidPct = totalLoanedAllTime > 0 ? Math.min(100, Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100)) : 0;
   const label = monthLabel(data.month);
   const prevLabel = previousMonthLabel(data.month);
   const paymentsTotal = data.payments.reduce((sum, p) => sum + p.amount, 0);
@@ -315,9 +323,17 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   <div class="settlement">
     <div class="pct">${repaidPct}%</div>
     <div class="body2">
-      <div class="title">ملخص التسوية</div>
+      <div class="title">ملخص التسوية الإجمالي</div>
       <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
-      <div class="desc">${repaidPct}% من إجمالي المستحقات تم سدادها</div>
+      <div class="desc">${repaidPct}% من إجمالي المديونية منذ بداية التعامل تم سدادها</div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+      <div class="k">إجمالي حجم البيع (${escapeHtml(binanceFiat)})</div>
+      <div class="v">${fmtAmount(binanceTotal)}</div>
+      <div class="u">${escapeHtml(binanceFiat)} · ${data.binanceOrders.length} معاملة هذا الشهر</div>
     </div>
   </div>
 
@@ -446,13 +462,17 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
     if (fill) { row.getCell(1).fill = fill; row.getCell(2).fill = fill; }
   };
   const previousBalance = data.previousBalance || 0;
-  if (previousBalance > 0) {
-    addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
-    addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, previousBalance);
-  }
+  const totalLoanedAllTime = data.totalLoanedAllTime || 0;
+  const totalRepaidAllTime = data.totalRepaidAllTime || 0;
+  const binanceFiatXlsx = data.binanceOrders[0]?.fiat || 'EGP';
+  const binanceTotalXlsx = data.binanceOrders.reduce((sum, o) => sum + o.fiatAmount, 0);
+  addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
+  addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, previousBalance);
   addRow(`إجمالي المستحقات (${cur})`, previousBalance + data.totalLoaned);
   addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
+  addRow(`نسبة التسوية الإجمالية %`, totalLoanedAllTime > 0 ? Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100) : 0);
+  addRow(`إجمالي حجم البيع (${binanceFiatXlsx})`, binanceTotalXlsx);
   addRow('عدد الدفعات', data.payments.length);
   addRow('تاريخ الإصدار', data.issueDate);
 

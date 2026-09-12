@@ -173,6 +173,15 @@ export interface MonthlyStatementResponse {
    * carried forward, not just this month's own new orders.
    */
   previousBalance: number;
+  /**
+   * Lifetime totals — every order and payment ever recorded for this buyer,
+   * not scoped to this month. The settlement percentage must be computed
+   * against these (matching the tracker's own "المسدد إجمالي" figure), not
+   * against this month's own totalLoaned/totalRepaid, which cover only a
+   * few weeks of activity and produce a very different, misleading ratio.
+   */
+  totalLoanedAllTime: number;
+  totalRepaidAllTime: number;
   issueDate: string;
   month: string;
   payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
@@ -292,6 +301,8 @@ export async function buildMonthlyStatementResponse(
     totalRepaid,
     outstanding: base.outstanding,
     previousBalance,
+    totalLoanedAllTime: base.totalLoaned,
+    totalRepaidAllTime: base.totalRepaid,
     issueDate: base.issueDate,
     month,
     payments: monthPayments,
