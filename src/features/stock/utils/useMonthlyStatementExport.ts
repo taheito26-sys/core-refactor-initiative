@@ -47,12 +47,13 @@ export function useMonthlyStatementExport(currency: string, L: (en: string, ar: 
       if (format === "pdf") await exportMonthlyStatementPdf(statement);
       else await exportMonthlyStatementXlsx(statement);
     } catch (err) {
-      // Logged rather than swallowed: the toast alone gives no way to tell
-      // a PDF-rasterization failure apart from a network error, and past
-      // reports of "PDF export not working" had no way to be diagnosed
-      // without this surfacing in the console.
+      // Temporary diagnostic: the real error message is put on-screen,
+      // not just the console, because the person hitting this bug has no
+      // way to open devtools. Revert to the plain toast once the export
+      // pipeline's real-world failure mode is found and fixed.
       console.error("Monthly statement export failed", format, err);
-      toast.error(L("Could not generate the statement", "تعذر إنشاء البيان"));
+      const detail = err instanceof Error ? err.message : String(err);
+      toast.error(`${L("Could not generate the statement", "تعذر إنشاء البيان")}: ${detail}`, { duration: 15000 });
     } finally {
       setExportingFormat(null);
     }
