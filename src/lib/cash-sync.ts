@@ -99,6 +99,43 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
   };
 }
 
+/**
+ * cash_ledger has no column for banknote breakdowns, and adding one requires
+ * a migration this client cannot apply to the live database. Instead the
+ * breakdown rides inside the existing `note` TEXT column as a trailing
+ * machine-readable marker, and is split back out on read — round-tripping
+ * losslessly through the relational table without a schema change. Every
+ * consumer of CashLedgerEntry.note only ever sees the decoded, clean note.
+ */
+export function encodeNoteWithBreakdown(note: string | undefined, breakdown: Record<number, number> | undefined): string | null {
+  const base = (note ?? '').trim();
+  const parts = Object.entries(breakdown ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([denom, count]) => `${denom}x${count}`)
+    .join(',');
+  if (!parts) return base || null;
+  const marker = `[[bn:${parts}]]`;
+  return base ? `${base} ${marker}` : marker;
+}
+
+export function decodeNoteWithBreakdown(raw: string | null | undefined): { note?: string; banknoteBreakdown?: Record<number, number> } {
+  if (!raw) return {};
+  const match = raw.match(/\[\[bn:([^\]]*)\]\]\s*$/);
+  if (!match) return { note: raw };
+  const cleaned = raw.slice(0, match.index).trim();
+  const breakdown: Record<number, number> = {};
+  for (const pair of match[1].split(',')) {
+    const [denomStr, countStr] = pair.split('x');
+    const denom = Number(denomStr);
+    const count = Number(countStr);
+    if (denom > 0 && count > 0) breakdown[denom] = count;
+  }
+  return {
+    note: cleaned || undefined,
+    banknoteBreakdown: Object.keys(breakdown).length > 0 ? breakdown : undefined,
+  };
+}
+
 function entryToRow(e: CashLedgerEntry, userId: string) {
   const mappedType = LEGACY_LEDGER_TYPE_MAP[e.type] ?? e.type;
   // Never send a value the CHECK constraint would reject — a single rejected
@@ -120,7 +157,7 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
     direction: e.direction,
     amount: e.amount,
     currency: e.currency,
-    note: e.note ?? null,
+    note: encodeNoteWithBreakdown(e.note, e.banknoteBreakdown),
     linked_entity_id: linkedEntityType ? e.linkedEntityId ?? null : null,
     linked_entity_type: linkedEntityType,
     batch_id: e.batchId ?? null,
@@ -128,6 +165,7 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
 }
 
 function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
+  const { note, banknoteBreakdown } = decodeNoteWithBreakdown(row.note as string | null);
   return {
     id: row.id as string,
     ts: row.ts as number,
@@ -137,7 +175,8 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
     direction: row.direction as 'in' | 'out',
     amount: Number(row.amount),
     currency: row.currency as CashLedgerEntry['currency'],
-    note: (row.note as string | null) ?? undefined,
+    note,
+    banknoteBreakdown,
     linkedEntityId: (row.linked_entity_id as string | null) ?? undefined,
     linkedEntityType: (row.linked_entity_type as CashLedgerEntry['linkedEntityType']) ?? undefined,
     merchantId: (row.merchant_id as string | null) ?? undefined,
