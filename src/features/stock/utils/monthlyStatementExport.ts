@@ -1,4 +1,5 @@
 import { escapeHtml } from './loanStatementExport';
+import { renderHtmlReportToPdf, triggerBlobDownload } from '@/lib/htmlReportToPdf';
 
 /**
  * The monthly Taheito buyer statement — a pixel match of the branded
@@ -12,7 +13,8 @@ import { escapeHtml } from './loanStatementExport';
  * This intentionally does not reuse {@link buildStatementHtml} or
  * {@link PublicStatementReport} — neither matches this specific letterhead,
  * hero card, or the narrower EGP-ledger column set (no USDT quantity, no QAR
- * equivalent — a buyer only ever sees the EGP amount and the EGP/USDT price).
+ * equivalent, no counterparty — a buyer only ever sees the EGP amount and
+ * the EGP/USDT price).
  */
 
 export interface MonthlyStatementPayment {
@@ -91,6 +93,8 @@ export function monthlyStatementFileBase(data: MonthlyStatementData): string {
   return `${name}-statement-${data.month}`;
 }
 
+// ── Printable / rasterized document ─────────────────────────────────
+
 export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): string {
   const { businessName = 'TAHEITO', businessTagline = 'P2P TRADING & CAPITAL MANAGEMENT' } = options;
   const cur = currencySuffix(data.currency);
@@ -100,27 +104,29 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   const binanceTotal = data.binanceOrders.reduce((sum, o) => sum + o.fiatAmount, 0);
   const binanceFiat = data.binanceOrders[0]?.fiat || 'EGP';
 
+  // No "المرجع" column — a buyer only needs to know when and how much,
+  // never the internal order reference a payment was filed against.
   const paymentRows = data.payments.length === 0
-    ? `<tr><td colspan="5" class="empty">لا توجد دفعات مسجلة هذا الشهر</td></tr>`
+    ? `<tr><td colspan="4" class="empty">لا توجد دفعات مسجلة هذا الشهر</td></tr>`
     : data.payments.map((p, i) => `
-      <tr>
+      <tr class="${i % 2 === 1 ? 'alt' : ''}">
         <td class="num">${i + 1}</td>
         <td>${escapeHtml(fmtDate(p.date))}</td>
-        <td class="num strong">${fmtAmount(p.amount)}</td>
-        <td>${p.note ? escapeHtml(p.note) : '—'}</td>
-        <td class="ref">${p.ref ? escapeHtml(p.ref) : '—'}</td>
+        <td class="num"><span class="pill good">${fmtAmount(p.amount)}</span></td>
+        <td class="desc">${p.note ? escapeHtml(p.note) : '—'}</td>
       </tr>`).join('');
 
+  // No "الطرف الآخر" (counterparty) column — the buyer sees only what
+  // funded the settlement (amount, price, order), never who else the
+  // merchant traded with.
   const binanceRows = data.binanceOrders.length === 0
-    ? `<tr><td colspan="6" class="empty">لا توجد معاملات بيع هذا الشهر</td></tr>`
+    ? `<tr><td colspan="4" class="empty">لا توجد معاملات بيع هذا الشهر</td></tr>`
     : data.binanceOrders.map((o, i) => `
-      <tr>
+      <tr class="${i % 2 === 1 ? 'alt' : ''}">
         <td class="num">${i + 1}</td>
-        <td>${o.counterparty ? escapeHtml(o.counterparty) : '—'}</td>
         <td class="num strong">${fmtAmount(o.fiatAmount)}</td>
         <td class="num">${o.fiatPrice.toFixed(2)}</td>
         <td>${escapeHtml(fmtDate(o.date ?? ''))}</td>
-        <td class="ref">${escapeHtml(o.orderNumber || '—')}</td>
       </tr>`).join('');
 
   return `<!doctype html>
@@ -133,56 +139,70 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: #f4f5f7; color: #14161c;
+    margin: 0; background: #EEF1F8; color: #14161c;
     font-family: 'Tahoma', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
     font-size: 11px; line-height: 1.5;
   }
-  .sheet { max-width: 820px; margin: 0 auto 24px; background: #fff; padding: 28px 30px 22px; }
+  .sheet { direction: rtl; max-width: 800px; margin: 0 auto 24px; background: #fff; padding: 0 0 22px;
+           border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15,42,68,.18); }
   .sheet + .sheet { page-break-before: always; }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 18px; }
+  .banner {
+    position: relative; overflow: hidden;
+    background: linear-gradient(120deg, #0B1E36 0%, #123A63 45%, #1E5F91 100%);
+    color: #fff; padding: 22px 28px 18px;
+  }
+  .banner::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(124,58,237,.45), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(34,197,94,.35), transparent 45%),
+      radial-gradient(circle at 60% 100%, rgba(14,165,233,.35), transparent 45%);
+  }
+  .banner-row { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
   .brand-en { text-align: left; direction: ltr; }
-  .brand-en .name { font-size: 16px; font-weight: 800; letter-spacing: .3px; }
-  .brand-en .tagline { font-size: 9px; color: #6b7280; font-weight: 700; letter-spacing: .3px; margin-top: 2px; }
-  .head-title { font-size: 13px; font-weight: 800; color: #14161c; }
-  .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
-          padding-bottom: 14px; margin-bottom: 16px; border-bottom: 2px solid #14161c; }
-  .hero .account-label { font-size: 9px; font-weight: 800; color: #6b7280; letter-spacing: .6px; direction: ltr; text-align: left; }
-  .hero .name { font-size: 20px; font-weight: 800; margin-top: 6px; }
-  .hero .note { font-size: 10.5px; color: #6b7280; margin-top: 6px; max-width: 480px; }
+  .brand-en .name { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+  .brand-en .tagline { font-size: 9px; color: #D6E4F5; font-weight: 700; letter-spacing: .3px; margin-top: 2px; }
+  .banner .month { font-size: 13px; font-weight: 800; color: #FBD98E; }
+  .hero { position: relative; margin-top: 16px; }
+  .hero .account-label { font-size: 9px; font-weight: 800; color: #D6E4F5; letter-spacing: .6px; direction: ltr; text-align: left; }
+  .hero .name { font-size: 21px; font-weight: 800; margin-top: 6px; color: #fff; }
+  .hero .note { font-size: 10.5px; color: #C7D6EA; margin-top: 6px; max-width: 500px; }
+  .body { padding: 22px 28px 0; }
   .cards { display: flex; gap: 10px; margin-bottom: 20px; }
-  .card { flex: 1; border: 1px solid #dfe3ea; border-radius: 10px; padding: 12px 14px; background: #fbfcfd; text-align: center; }
-  .card .k { font-size: 9px; font-weight: 700; color: #6b7280; letter-spacing: .3px; }
+  .card { flex: 1; border-radius: 12px; padding: 13px 14px; text-align: center; color: #fff;
+          box-shadow: 0 6px 14px rgba(15,23,42,.16); }
+  .card .k { font-size: 9px; font-weight: 700; letter-spacing: .3px; color: rgba(255,255,255,.85); }
   .card .v { font-size: 20px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .card .u { font-size: 10px; font-weight: 600; color: #6b7280; margin-inline-start: 4px; }
-  .card.paid .v { color: #157347; }
-  .card.due .v { color: #A6332A; }
-  .settlement { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; padding: 14px 16px;
-                border: 1px solid #dfe3ea; border-radius: 10px; background: #fbfcfd; }
+  .card .u { font-size: 9.5px; font-weight: 600; color: rgba(255,255,255,.85); margin-top: 2px; }
+  .settlement { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; padding: 14px 16px;
+                border-radius: 12px; background: linear-gradient(120deg, #ECFDF3, #F0FDFA); border: 1px solid #C8EEDA; }
   .settlement .pct { font-size: 28px; font-weight: 800; color: #157347; min-width: 64px; }
-  .settlement .body { flex: 1; }
-  .settlement .title { font-size: 10px; font-weight: 800; color: #6b7280; letter-spacing: .3px; margin-bottom: 6px; }
-  .settlement .bar { height: 8px; border-radius: 4px; background: #eceef2; overflow: hidden; }
-  .settlement .bar > span { display: block; height: 100%; background: #157347; border-radius: 4px; }
-  .settlement .desc { font-size: 10.5px; color: #6b7280; margin-top: 6px; }
-  h2 { font-size: 12px; font-weight: 800; margin: 0 0 8px; }
+  .settlement .body2 { flex: 1; }
+  .settlement .title { font-size: 10px; font-weight: 800; color: #157347; letter-spacing: .3px; margin-bottom: 6px; }
+  .settlement .bar { height: 8px; border-radius: 4px; background: #D7ECE0; overflow: hidden; }
+  .settlement .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #22C55E, #157347); border-radius: 4px; }
+  .settlement .desc { font-size: 10.5px; color: #3B6350; margin-top: 6px; }
+  h2 { font-size: 12.5px; font-weight: 800; color: #0F2A44; margin: 4px 0 9px; padding-inline-start: 9px;
+       border-inline-start: 4px solid #2563EB; }
   h2 .count { font-weight: 600; color: #6b7280; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-  th { font-size: 8.5px; letter-spacing: .5px; text-transform: uppercase; color: #6b7280;
-       text-align: right; padding: 6px 8px; background: #f2f4f7; border-bottom: 1px solid #d6dbe3; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; border-radius: 8px; overflow: hidden; }
+  th { font-size: 8.5px; letter-spacing: .5px; text-transform: uppercase; color: #fff;
+       text-align: right; padding: 8px; background: linear-gradient(120deg, #0F2A44, #1E5F91); font-weight: 700; }
   td { padding: 7px 8px; border-bottom: 1px solid #eceef2; vertical-align: top; }
-  tbody tr:nth-child(even) td { background: #fafbfc; }
+  tr.alt td { background: #F4F7FD; }
   th.num, td.num { text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.ref { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 9.5px; color: #6b7280; white-space: nowrap; }
-  td.strong { font-weight: 700; }
+  td.desc { color: #454b57; }
+  td.strong { font-weight: 800; color: #0F2A44; }
   td.empty { text-align: center; color: #8b91a0; padding: 16px; }
-  tfoot td { border-top: 1.5px solid #14161c; border-bottom: none; font-weight: 800; background: #fff !important; }
-  .fx-note { font-size: 9.5px; color: #8b91a0; margin-top: 14px; text-align: center; }
-  .legal { font-size: 9.5px; color: #aaa; margin-top: 18px; text-align: center; }
-  .page-footer { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 10px;
-                 border-top: 1px solid #dfe3ea; font-size: 9px; color: #6b7280; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 800; font-size: 10.5px; }
+  .pill.good { color: #0F5132; background: #D9F5E3; }
+  tfoot td { border-top: 2px solid #0F2A44; border-bottom: none; font-weight: 800; background: #EAF0FB !important; color: #0F2A44; }
+  .legal { font-size: 9.5px; color: #9aa1ae; margin-top: 16px; text-align: center; }
+  .page-footer { display: flex; justify-content: space-between; margin-top: 14px; padding: 10px 28px 0;
+                 border-top: 1px solid #e5e9f2; font-size: 9px; color: #6b7280; }
   @media print {
     body { background: #fff; }
-    .sheet { max-width: none; margin: 0; }
+    .sheet { max-width: none; margin: 0; box-shadow: none; border-radius: 0; }
     thead { display: table-header-group; }
     tr { break-inside: avoid; }
     h2 { break-after: avoid; }
@@ -192,71 +212,71 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 <body>
 
 <div class="sheet">
-  <div class="head">
-    <div class="brand-en">
-      <div class="name">${escapeHtml(businessName)}</div>
-      <div class="tagline">${escapeHtml(businessTagline)}</div>
+  <div class="banner">
+    <div class="banner-row">
+      <div class="brand-en">
+        <div class="name">${escapeHtml(businessName)}</div>
+        <div class="tagline">${escapeHtml(businessTagline)}</div>
+      </div>
+      <div class="month">${escapeHtml(label)}</div>
     </div>
-    <div class="head-title">${escapeHtml(label)}</div>
-  </div>
-
-  <div class="hero">
-    <div>
+    <div class="hero">
       <div class="account-label">${escapeHtml(data.currency)} ACCOUNT</div>
       <div class="name">${escapeHtml(data.customerName)}</div>
       <div class="note">بيان شهر ${escapeHtml(label)} فقط — جميع الطلبات والدفعات حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}</div>
     </div>
   </div>
 
-  <div class="cards">
-    <div class="card">
-      <div class="k">إجمالي المستحقات</div>
-      <div class="v">${fmtAmount(data.totalLoaned)}</div>
-      <div class="k">${cur}</div>
+  <div class="body">
+    <div class="cards">
+      <div class="card" style="background:linear-gradient(135deg,#2563EB,#0EA5E9)">
+        <div class="k">إجمالي المستحقات</div>
+        <div class="v">${fmtAmount(data.totalLoaned)}</div>
+        <div class="u">${cur}</div>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,#15803D,#22C55E)">
+        <div class="k">إجمالي الدفعات المستلمة</div>
+        <div class="v">${fmtAmount(data.totalRepaid)}</div>
+        <div class="u">${cur}</div>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,${data.outstanding > 0 ? '#B45309,#F59E0B' : '#15803D,#22C55E'})">
+        <div class="k">الرصيد المتبقي</div>
+        <div class="v">${fmtAmount(data.outstanding)}</div>
+        <div class="u">${cur}</div>
+      </div>
     </div>
-    <div class="card paid">
-      <div class="k">إجمالي الدفعات المستلمة</div>
-      <div class="v">${fmtAmount(data.totalRepaid)}</div>
-      <div class="k">${cur}</div>
+
+    <div class="settlement">
+      <div class="pct">${repaidPct}%</div>
+      <div class="body2">
+        <div class="title">ملخص التسوية</div>
+        <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
+        <div class="desc">${repaidPct}% من إجمالي المستحقات تم سدادها</div>
+      </div>
     </div>
-    <div class="card due">
-      <div class="k">الرصيد المتبقي</div>
-      <div class="v">${fmtAmount(data.outstanding)}</div>
-      <div class="k">${cur}</div>
-    </div>
+
+    <h2>سجل الدفعات المستلمة <span class="count">(${data.payments.length} دفعة)</span></h2>
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th>
+          <th>التاريخ</th>
+          <th class="num">المبلغ (${cur})</th>
+          <th>مقابل</th>
+        </tr>
+      </thead>
+      <tbody>${paymentRows}</tbody>
+      ${data.payments.length > 0 ? `<tfoot>
+        <tr>
+          <td colspan="2">الإجمالي</td>
+          <td class="num">${cur} ${fmtAmount(paymentsTotal)}</td>
+          <td></td>
+        </tr>
+      </tfoot>` : ''}
+    </table>
+
+    <div class="legal">هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.</div>
   </div>
-
-  <div class="settlement">
-    <div class="pct">${repaidPct}%</div>
-    <div class="body">
-      <div class="title">ملخص التسوية</div>
-      <div class="bar"><span style="width: ${repaidPct}%;"></span></div>
-      <div class="desc">${repaidPct}% من إجمالي المستحقات تم سدادها</div>
-    </div>
-  </div>
-
-  <h2>سجل الدفعات المستلمة <span class="count">(${data.payments.length} دفعة)</span></h2>
-  <table>
-    <thead>
-      <tr>
-        <th class="num">#</th>
-        <th>التاريخ</th>
-        <th class="num">المبلغ (${cur})</th>
-        <th>مقابل</th>
-        <th>المرجع</th>
-      </tr>
-    </thead>
-    <tbody>${paymentRows}</tbody>
-    ${data.payments.length > 0 ? `<tfoot>
-      <tr>
-        <td colspan="2">الإجمالي</td>
-        <td class="num">${cur} ${fmtAmount(paymentsTotal)}</td>
-        <td colspan="2"></td>
-      </tr>
-    </tfoot>` : ''}
-  </table>
-
-  <div class="legal">هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.</div>
 
   <div class="page-footer">
     <span>الصفحة 1</span>
@@ -265,37 +285,39 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 </div>
 
 <div class="sheet">
-  <div class="head">
-    <div class="brand-en">
-      <div class="name">${escapeHtml(businessName)}</div>
-      <div class="tagline">${escapeHtml(businessTagline)}</div>
-    </div>
-    <div style="text-align: left;">
-      <div class="head-title">سجل معاملات البيع مقابل الجنيه المصري</div>
-      <div class="account-label" style="margin-top: 4px;">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
+  <div class="banner">
+    <div class="banner-row">
+      <div class="brand-en">
+        <div class="name">${escapeHtml(businessName)}</div>
+        <div class="tagline">${escapeHtml(businessTagline)}</div>
+      </div>
+      <div style="text-align: left;">
+        <div class="month">سجل معاملات البيع مقابل الجنيه المصري</div>
+        <div class="account-label" style="margin-top: 4px;">${data.binanceOrders.length} معاملة · إجمالي ${escapeHtml(binanceFiat)} ${fmtAmount(binanceTotal)}</div>
+      </div>
     </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th class="num">#</th>
-        <th>الطرف الآخر</th>
-        <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
-        <th class="num">السعر</th>
-        <th>التاريخ</th>
-        <th>رقم الطلب</th>
-      </tr>
-    </thead>
-    <tbody>${binanceRows}</tbody>
-    ${data.binanceOrders.length > 0 ? `<tfoot>
-      <tr>
-        <td colspan="2">الإجمالي</td>
-        <td class="num">${fmtAmount(binanceTotal)}</td>
-        <td colspan="3"></td>
-      </tr>
-    </tfoot>` : ''}
-  </table>
+  <div class="body">
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th>
+          <th class="num">المبلغ (${escapeHtml(binanceFiat)})</th>
+          <th class="num">السعر</th>
+          <th>التاريخ</th>
+        </tr>
+      </thead>
+      <tbody>${binanceRows}</tbody>
+      ${data.binanceOrders.length > 0 ? `<tfoot>
+        <tr>
+          <td>الإجمالي</td>
+          <td class="num">${fmtAmount(binanceTotal)}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>` : ''}
+    </table>
+  </div>
 
   <div class="page-footer">
     <span>الصفحة 2</span>
@@ -305,4 +327,115 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 
 </body>
 </html>`;
+}
+
+/** Saves the statement as an actual PDF file, downloaded directly — no print dialog. */
+export async function exportMonthlyStatementPdf(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): Promise<void> {
+  const html = buildMonthlyStatementHtml(data, options);
+  await renderHtmlReportToPdf(html, `${monthlyStatementFileBase(data)}.pdf`, { orientation: 'portrait', renderWidth: 800 });
+}
+
+// ── XLSX ───────────────────────────────────────────────────────────
+
+/** Saves the statement as a colored, formula-free XLSX workbook — a summary sheet, a payments sheet, and an EGP-ledger sheet. */
+export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): Promise<void> {
+  const { businessName = 'TAHEITO' } = options;
+  const cur = currencySuffix(data.currency);
+  const label = monthLabel(data.month);
+
+  // Dynamically imported so exceljs (large) only loads into a device's
+  // bundle when an export is actually triggered.
+  const { default: ExcelJSLib } = await import('exceljs');
+  const workbook = new ExcelJSLib.Workbook();
+  workbook.creator = businessName;
+  workbook.created = new Date();
+
+  const headerFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
+  const goodFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5EC' } };
+  const dueFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDEAEA' } };
+  const altFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F7FD' } };
+
+  // ── Summary ──
+  const summary = workbook.addWorksheet('Summary');
+  summary.views = [{ rightToLeft: true }];
+  summary.columns = [{ width: 30 }, { width: 22 }];
+  summary.mergeCells('A1:B1');
+  summary.getCell('A1').value = `${businessName} — ${label}`;
+  summary.getCell('A1').font = { bold: true, size: 15, color: { argb: 'FF0F2A44' } };
+  summary.mergeCells('A2:B2');
+  summary.getCell('A2').value = data.customerName;
+  summary.getCell('A2').font = { bold: true, size: 12 };
+  summary.addRow([]);
+
+  const addRow = (label2: string, value: number | string, fill?: import('exceljs').Fill) => {
+    const row = summary.addRow([label2, value]);
+    row.getCell(1).font = { bold: true };
+    if (typeof value === 'number') row.getCell(2).numFmt = '#,##0';
+    if (fill) { row.getCell(1).fill = fill; row.getCell(2).fill = fill; }
+  };
+  addRow(`إجمالي المستحقات (${cur})`, data.totalLoaned);
+  addRow(`إجمالي الدفعات المستلمة (${cur})`, data.totalRepaid, goodFill);
+  addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
+  addRow('عدد الدفعات', data.payments.length);
+  addRow('تاريخ الإصدار', data.issueDate);
+
+  // ── Payments Received (no reference column) ──
+  const paySheet = workbook.addWorksheet('Payments');
+  paySheet.views = [{ rightToLeft: true }];
+  paySheet.columns = [
+    { header: '#', key: 'seq', width: 6 },
+    { header: 'التاريخ', key: 'date', width: 16 },
+    { header: `المبلغ (${cur})`, key: 'amount', width: 16 },
+    { header: 'مقابل', key: 'note', width: 30 },
+  ];
+  paySheet.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = headerFill; });
+  data.payments.forEach((p, i) => {
+    const row = paySheet.addRow({
+      seq: i + 1,
+      date: fmtDate(p.date),
+      amount: Math.round(p.amount),
+      note: p.note || '—',
+    });
+    row.getCell('amount').numFmt = '#,##0';
+    if (i % 2 === 1) row.eachCell(cell => { cell.fill = altFill; });
+  });
+  if (data.payments.length > 0) {
+    const total = paySheet.addRow({ seq: '', date: 'الإجمالي', amount: Math.round(data.payments.reduce((s, p) => s + p.amount, 0)), note: '' });
+    total.font = { bold: true };
+    total.getCell('amount').numFmt = '#,##0';
+  }
+
+  // ── EGP Sell Ledger (no counterparty column) ──
+  const fxSheet = workbook.addWorksheet('EGP Ledger');
+  fxSheet.views = [{ rightToLeft: true }];
+  const binanceFiat = data.binanceOrders[0]?.fiat || 'EGP';
+  fxSheet.columns = [
+    { header: '#', key: 'seq', width: 6 },
+    { header: `المبلغ (${binanceFiat})`, key: 'amount', width: 16 },
+    { header: 'السعر', key: 'price', width: 12 },
+    { header: 'التاريخ', key: 'date', width: 16 },
+  ];
+  fxSheet.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = headerFill; });
+  data.binanceOrders.forEach((o, i) => {
+    const row = fxSheet.addRow({
+      seq: i + 1,
+      amount: o.fiatAmount,
+      price: o.fiatPrice,
+      date: fmtDate(o.date ?? ''),
+    });
+    row.getCell('amount').numFmt = '#,##0';
+    row.getCell('price').numFmt = '0.00';
+    if (i % 2 === 1) row.eachCell(cell => { cell.fill = altFill; });
+  });
+  if (data.binanceOrders.length > 0) {
+    const total = fxSheet.addRow({ seq: '', amount: Math.round(data.binanceOrders.reduce((s, o) => s + o.fiatAmount, 0)), price: '', date: 'الإجمالي' });
+    total.font = { bold: true };
+    total.getCell('amount').numFmt = '#,##0';
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerBlobDownload(
+    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `${monthlyStatementFileBase(data)}.xlsx`,
+  );
 }

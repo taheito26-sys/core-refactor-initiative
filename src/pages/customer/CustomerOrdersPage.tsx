@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useMonthlyStatementExport } from '@/features/stock/utils/useMonthlyStatementExport';
 import {
   createSharedOrderRequest,
   respondSharedOrder,
@@ -885,6 +886,10 @@ export default function CustomerOrdersPage() {
     return { monthPct, allPct, monthLoanedCount, monthSettledCount, allLoanedCount, allSettledCount, avgOrderSize };
   }, [filteredHistoryOrders, historyOrders, debtKpi]);
 
+  // Same branded monthly statement export the Cash page offers — saves a
+  // real PDF or XLSX file directly, no print dialog.
+  const { exportingFormat, exportStatement } = useMonthlyStatementExport(debtKpi.currency, L);
+
   const grouped = groupByDay(filteredOrders, lang);
 
   return (
@@ -909,29 +914,51 @@ export default function CustomerOrdersPage() {
         {/* Month filter pills — same .month-filter-row/.month-pill classes
             (src/styles/tracker.css) the merchant Orders page uses. */}
         {availableMonths.length > 0 && (
-          <div className="month-filter-row mt-3">
-            <button
-              onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }}
-              className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
-            >
-              {L('All Months', 'كل الأشهر')}
-            </button>
-            {availableMonths.map(m => {
-              const [y, mo] = m.split('-');
-              const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
-                lang === 'ar' ? 'ar-EG' : 'en-US',
-                { month: 'short', year: '2-digit' },
-              );
-              return (
-                <button
-                  key={m}
-                  onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }}
-                  className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className="mt-3 flex items-center gap-2">
+            <div className="month-filter-row flex-1 min-w-0">
+              <button
+                onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }}
+                className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
+              >
+                {L('All Months', 'كل الأشهر')}
+              </button>
+              {availableMonths.map(m => {
+                const [y, mo] = m.split('-');
+                const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
+                  lang === 'ar' ? 'ar-EG' : 'en-US',
+                  { month: 'short', year: '2-digit' },
+                );
+                return (
+                  <button
+                    key={m}
+                    onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }}
+                    className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
+                disabled={exportingFormat !== null}
+                title={L('Export PDF', 'تصدير PDF')}
+                className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
+              >
+                {exportingFormat === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                PDF
+              </button>
+              <button
+                onClick={() => exportStatement(selectedMonth, availableMonths, 'xlsx')}
+                disabled={exportingFormat !== null}
+                title={L('Export XLSX', 'تصدير XLSX')}
+                className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/5 px-3 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-60"
+              >
+                {exportingFormat === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+                XLSX
+              </button>
+            </div>
           </div>
         )}
       </div>
