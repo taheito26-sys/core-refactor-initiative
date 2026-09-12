@@ -127,6 +127,20 @@ function get24hMovement(accountId: string, ledger: CashLedgerEntry[]): number {
     .reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
 }
 
+/** Net banknote counts currently on hand for an account, denomination -> count, derived from every ledger entry that recorded a breakdown. */
+function getAccountNoteTotals(accountId: string, ledger: CashLedgerEntry[]): Record<number, number> {
+  const totals: Record<number, number> = {};
+  for (const e of ledger || []) {
+    if (e.accountId !== accountId || !e.banknoteBreakdown) continue;
+    const sign = e.direction === 'in' ? 1 : -1;
+    for (const [denomStr, count] of Object.entries(e.banknoteBreakdown)) {
+      const denom = Number(denomStr);
+      totals[denom] = (totals[denom] || 0) + sign * count;
+    }
+  }
+  return totals;
+}
+
 // ── Sub-components ─────────────────────────────────────────────────
 
 interface KpiBoxProps {
@@ -352,6 +366,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [showBanknotes, setShowBanknotes] = useState(false);
   const [banknoteCounts, setBanknoteCounts] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
   const amtNum = num(amount, 0);
   const denoms = BANKNOTE_DENOMS[account.currency] || BANKNOTE_DENOMS.QAR;
   const banknoteTotal = denoms.reduce((sum, d) => sum + d * num(banknoteCounts[d], 0), 0);
@@ -396,6 +411,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   }, [isMobile]);
 
   const handle = () => {
+    if (submitting) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit' as any)); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
@@ -423,7 +439,8 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       relationshipId: account.relationshipId,
       ...(hasBanknoteCounts ? { banknoteBreakdown } : {}),
     };
-    onSave(entry);
+    setSubmitting(true);
+    Promise.resolve(onSave(entry)).finally(() => setSubmitting(false));
   };
 
   return (
@@ -451,7 +468,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
             </strong>
           </div>
         )}
-        {(mode === 'deposit' || mode === 'funding' || mode === 'proceeds') && (
+        {(
           <div style={{ marginBottom: 14 }}>
             <button
               type="button"
@@ -505,8 +522,8 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
-          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
+          <button className="btn secondary" onClick={onClose} disabled={submitting}>{t('cancel')}</button>
+          <button className="btn" disabled={submitting} style={{ minHeight: isMobile ? 42 : undefined, background: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)', color: '#000', opacity: submitting ? 0.6 : 1 }} onClick={handle}>
             {MODE_LABELS[mode]}
           </button>
         </div>
@@ -651,6 +668,65 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={handle}>{t('transferFundsBtn' as any)}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface NotesDetailsModalProps {
+  account: CashAccount;
+  ledger: CashLedgerEntry[];
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function NotesDetailsModal({ account, ledger, onClose, isMobile = false }: NotesDetailsModalProps) {
+  const t = useT();
+  const denoms = BANKNOTE_DENOMS[account.currency] || BANKNOTE_DENOMS.QAR;
+  const totals = useMemo(() => getAccountNoteTotals(account.id, ledger), [account.id, ledger]);
+  const rows = denoms
+    .map(d => ({ denom: d, count: totals[d] || 0 }))
+    .filter(r => r.count !== 0);
+  const grandTotal = rows.reduce((sum, r) => sum + r.denom * r.count, 0);
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '80vh' : '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>💵 {t('notesDetailsTitle')} — {account.name}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+        {rows.length === 0 ? (
+          <div className="empty" style={{ padding: '24px 0' }}>
+            <div className="empty-t">{t('noNotesRecorded')}</div>
+            <div className="empty-s">{t('banknoteBreakdownHint')}</div>
+          </div>
+        ) : (
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('denominationLbl')}</th>
+                  <th className="r">{t('noteCountLbl')}</th>
+                  <th className="r">{t('subtotalLbl')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.denom}>
+                    <td>{r.denom} {account.currency}</td>
+                    <td className="mono r">{r.count}</td>
+                    <td className="mono r">{fmtTotal(r.denom * r.count)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div style={{ marginTop: 14, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', fontSize: 11 }}>
+          <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
+          <span className="mono" style={{ fontWeight: 800, color: 'var(--brand)', fontSize: 13 }}>{fmtTotal(grandTotal)} {account.currency}</span>
         </div>
       </div>
     </div>
@@ -2759,6 +2835,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
+  const [showNotesDetails, setShowNotesDetails] = useState<CashAccount | null>(null);
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
   const [showCashCounter, setShowCashCounter] = useState(false);
   const [deleteAccountPromptId, setDeleteAccountPromptId] = useState<string | null>(null);
@@ -3582,6 +3659,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
+                        </button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => setShowNotesDetails(acc)}>
+                          <span className="cash-emoji">💵</span> {t('notesDetailsBtn')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}><span className="cash-emoji">✏️</span> {t('edit')}</button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
@@ -4710,6 +4791,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           isMobile={isMobile}
           onSave={addLedgerEntry}
           onClose={() => setShowDeposit(null)}
+        />
+      )}
+      {showNotesDetails && (
+        <NotesDetailsModal
+          account={showNotesDetails}
+          ledger={ledger}
+          isMobile={isMobile}
+          onClose={() => setShowNotesDetails(null)}
         />
       )}
       {clearLedgerPromptId && (
