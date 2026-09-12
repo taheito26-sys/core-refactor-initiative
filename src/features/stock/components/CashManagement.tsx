@@ -372,6 +372,20 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const banknoteTotal = denoms.reduce((sum, d) => sum + d * num(banknoteCounts[d], 0), 0);
   const hasBanknoteCounts = denoms.some(d => num(banknoteCounts[d], 0) > 0);
 
+  useEffect(() => {
+    if (!hasBanknoteCounts) return;
+    setAmount(banknoteTotal > 0 ? String(banknoteTotal) : '');
+  }, [banknoteTotal, hasBanknoteCounts]);
+
+  const setBanknoteCount = (denom: number, value: string) => {
+    setBanknoteCounts(prev => ({ ...prev, [denom]: value }));
+  };
+
+  const clearBanknoteCounts = () => {
+    setBanknoteCounts({});
+    setAmount('');
+  };
+
   const MODE_LABELS: Record<string, string> = {
     deposit: t('depositTitle'),
     withdrawal: t('withdrawTitle'),
@@ -459,7 +473,20 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         </div>
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('amount')} ({account.currency})</div>
-          <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
+          <div className="inputBox">
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              autoFocus={!hasBanknoteCounts}
+              readOnly={hasBanknoteCounts}
+              style={hasBanknoteCounts ? { color: 'var(--muted)' } : undefined}
+            />
+          </div>
+          {hasBanknoteCounts && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('amountFromNotesHint')}</div>
+          )}
         </div>
         {amtNum > 0 && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
@@ -489,7 +516,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
                         <input
                           inputMode="numeric"
                           value={banknoteCounts[d] || ''}
-                          onChange={e => setBanknoteCounts(prev => ({ ...prev, [d]: e.target.value }))}
+                          onChange={e => setBanknoteCount(d, e.target.value)}
                           placeholder="0"
                         />
                       </div>
@@ -497,12 +524,14 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
                   ))}
                 </div>
                 {hasBanknoteCounts && (
-                  <div style={{ marginTop: 10, fontSize: 11 }}>
-                    <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
-                    <span className="mono" style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtTotal(banknoteTotal)} {account.currency}</span>
-                    {amtNum > 0 && Math.abs(banknoteTotal - amtNum) > 0.0001 && (
-                      <div style={{ color: 'var(--warn)', marginTop: 4 }}>⚠ {t('banknoteMismatchWarn')}</div>
-                    )}
+                  <div style={{ marginTop: 10, fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>{t('banknoteCountedTotal')}: </span>
+                      <span className="mono" style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtTotal(banknoteTotal)} {account.currency}</span>
+                    </div>
+                    <button type="button" onClick={clearBanknoteCounts} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, textDecoration: 'underline' }}>
+                      {t('clearAll')}
+                    </button>
                   </div>
                 )}
               </div>

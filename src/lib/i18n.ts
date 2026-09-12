@@ -2055,7 +2055,7 @@ const translations = {
   banknoteBreakdownTitle: { en: 'Banknote breakdown (optional)', ar: 'تفصيل الفئات النقدية (اختياري)' },
   banknoteBreakdownHint:  { en: 'Record how many notes of each denomination make up this amount', ar: 'سجّل عدد الأوراق النقدية لكل فئة تُكوّن هذا المبلغ' },
   banknoteCountedTotal:   { en: 'Counted total',               ar: 'إجمالي العد' },
-  banknoteMismatchWarn:   { en: 'Counted total does not match the entered amount', ar: 'إجمالي العد لا يطابق المبلغ المُدخل' },
+  amountFromNotesHint:    { en: 'Calculated from the banknote breakdown below', ar: 'محسوب من تفصيل الفئات النقدية أدناه' },
   notesDetailsBtn:        { en: 'Notes Details',                ar: 'تفاصيل الفئات' },
   notesDetailsTitle:      { en: 'Notes Details',                ar: 'تفاصيل الفئات النقدية' },
   noNotesRecorded:        { en: 'No banknote counts recorded for this account yet', ar: 'لا يوجد تفصيل فئات نقدية مسجّل لهذا الحساب بعد' },
