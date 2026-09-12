@@ -139,60 +139,73 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: #EEF1F8; color: #14161c;
+    margin: 0; background: #F3F1EE; color: #24211D;
     font-family: 'Tahoma', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
     font-size: 11px; line-height: 1.5;
   }
-  .sheet { direction: rtl; max-width: 800px; margin: 0 auto 24px; background: #fff; padding: 0 0 22px;
-           border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15,42,68,.12); }
+  /* Palette lifted from the reference swatch: deep navy, warm brown, taupe,
+     pale ice-blue, and a coral red — used consistently instead of the
+     generic blue/green/amber report colors elsewhere in the app. Scoped to
+     .sheet (not :root) since this stylesheet also runs inside an SVG
+     foreignObject during PDF rasterization, where :root resolves to the
+     <svg> element rather than the rendered subtree. */
+  .sheet {
+    --navy: #1C3D5A;
+    --brown: #7A5240;
+    --taupe: #A89684;
+    --ice: #E9F2F5;
+    --red: #E1503C;
+    direction: rtl; max-width: 800px; margin: 0 auto 24px; background: #fff; padding: 0 0 22px;
+    border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(28,61,90,.14);
+  }
   .sheet + .sheet { page-break-before: always; }
   .banner {
-    background: #0F2A44;
+    background: var(--navy);
     color: #fff; padding: 22px 28px 18px;
-    border-bottom: 3px solid #C9A227;
+    border-bottom: 3px solid var(--red);
   }
   .banner-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
   .brand-en { text-align: left; direction: ltr; }
   .brand-en .name { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
-  .brand-en .tagline { font-size: 9px; color: #A9BBD1; font-weight: 700; letter-spacing: .3px; margin-top: 2px; }
-  .banner .month { font-size: 13px; font-weight: 800; color: #E9C863; }
+  .brand-en .tagline { font-size: 9px; color: #C9D6DF; font-weight: 700; letter-spacing: .3px; margin-top: 2px; }
+  .banner .month { font-size: 13px; font-weight: 800; color: #F0A898; }
   .hero { margin-top: 16px; }
-  .hero .account-label { font-size: 9px; font-weight: 800; color: #A9BBD1; letter-spacing: .6px; direction: ltr; text-align: left; }
+  .hero .account-label { font-size: 9px; font-weight: 800; color: #C9D6DF; letter-spacing: .6px; direction: ltr; text-align: left; }
   .hero .name { font-size: 21px; font-weight: 800; margin-top: 6px; color: #fff; }
-  .hero .note { font-size: 10.5px; color: #A9BBD1; margin-top: 6px; max-width: 500px; }
+  .hero .note { font-size: 10.5px; color: #C9D6DF; margin-top: 6px; max-width: 500px; }
   .body { padding: 22px 28px 0; }
   .cards { display: flex; gap: 10px; margin-bottom: 20px; }
   .card { flex: 1; border-radius: 10px; padding: 13px 14px; text-align: center;
-          border: 1px solid #dfe3ea; border-inline-start: 4px solid var(--accent); background: var(--tint); }
-  .card .k { font-size: 9px; font-weight: 700; letter-spacing: .3px; color: #6b7280; }
+          border: 1px solid #E3DDD5; border-inline-start: 4px solid var(--accent); background: var(--tint); }
+  .card .k { font-size: 9px; font-weight: 700; letter-spacing: .3px; color: #8A7F73; }
   .card .v { font-size: 19px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; color: var(--accent); }
-  .card .u { font-size: 9.5px; font-weight: 600; color: #6b7280; margin-top: 2px; }
+  .card .u { font-size: 9.5px; font-weight: 600; color: #8A7F73; margin-top: 2px; }
   .settlement { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; padding: 14px 16px;
-                border-radius: 10px; background: #ECFDF3; border: 1px solid #B8E8C9; }
-  .settlement .pct { font-size: 28px; font-weight: 800; color: #157347; min-width: 64px; }
+                border-radius: 10px; background: var(--ice); border: 1px solid #CFE0E6; }
+  .settlement .pct { font-size: 28px; font-weight: 800; color: var(--navy); min-width: 64px; }
   .settlement .body2 { flex: 1; }
-  .settlement .title { font-size: 10px; font-weight: 800; color: #157347; letter-spacing: .3px; margin-bottom: 6px; }
-  .settlement .bar { height: 8px; border-radius: 4px; background: #D7ECE0; overflow: hidden; }
-  .settlement .bar > span { display: block; height: 100%; background: #22C55E; border-radius: 4px; }
-  .settlement .desc { font-size: 10.5px; color: #3B6350; margin-top: 6px; }
-  h2 { font-size: 12.5px; font-weight: 800; color: #0F2A44; margin: 4px 0 9px; padding-inline-start: 9px;
-       border-inline-start: 4px solid #C9A227; }
-  h2 .count { font-weight: 600; color: #6b7280; }
+  .settlement .title { font-size: 10px; font-weight: 800; color: var(--navy); letter-spacing: .3px; margin-bottom: 6px; }
+  .settlement .bar { height: 8px; border-radius: 4px; background: #D3E3E9; overflow: hidden; }
+  .settlement .bar > span { display: block; height: 100%; background: var(--navy); border-radius: 4px; }
+  .settlement .desc { font-size: 10.5px; color: #4A6273; margin-top: 6px; }
+  h2 { font-size: 12.5px; font-weight: 800; color: var(--navy); margin: 4px 0 9px; padding-inline-start: 9px;
+       border-inline-start: 4px solid var(--red); }
+  h2 .count { font-weight: 600; color: #8A7F73; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 4px; border-radius: 8px; overflow: hidden; }
   th { font-size: 8.5px; letter-spacing: .5px; text-transform: uppercase; color: #fff;
-       text-align: right; padding: 8px; background: #0F2A44; font-weight: 700; }
-  td { padding: 7px 8px; border-bottom: 1px solid #eceef2; vertical-align: top; }
-  tr.alt td { background: #F4F7FD; }
+       text-align: right; padding: 8px; background: var(--navy); font-weight: 700; }
+  td { padding: 7px 8px; border-bottom: 1px solid #EFECE8; vertical-align: top; }
+  tr.alt td { background: #F7F4F1; }
   th.num, td.num { text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.desc { color: #454b57; }
-  td.strong { font-weight: 800; color: #0F2A44; }
-  td.empty { text-align: center; color: #8b91a0; padding: 16px; }
+  td.desc { color: #5C554D; }
+  td.strong { font-weight: 800; color: var(--navy); }
+  td.empty { text-align: center; color: #A89684; padding: 16px; }
   .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 800; font-size: 10.5px; }
-  .pill.good { color: #0F5132; background: #D9F5E3; }
-  tfoot td { border-top: 2px solid #0F2A44; border-bottom: none; font-weight: 800; background: #F2F4F7 !important; color: #0F2A44; }
-  .legal { font-size: 9.5px; color: #9aa1ae; margin-top: 16px; text-align: center; }
+  .pill.good { color: #4A3327; background: #EFE7E0; }
+  tfoot td { border-top: 2px solid var(--navy); border-bottom: none; font-weight: 800; background: #EEF4F6 !important; color: var(--navy); }
+  .legal { font-size: 9.5px; color: #A89684; margin-top: 16px; text-align: center; }
   .page-footer { display: flex; justify-content: space-between; margin-top: 14px; padding: 10px 28px 0;
-                 border-top: 1px solid #e5e9f2; font-size: 9px; color: #6b7280; }
+                 border-top: 1px solid #E3DDD5; font-size: 9px; color: #8A7F73; }
   @media print {
     body { background: #fff; }
     .sheet { max-width: none; margin: 0; box-shadow: none; border-radius: 0; }
@@ -222,17 +235,17 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
 
   <div class="body">
     <div class="cards">
-      <div class="card" style="--accent:#2563EB;--tint:#EFF4FE;">
+      <div class="card" style="--accent:#1C3D5A;--tint:#E9F2F5;">
         <div class="k">إجمالي المستحقات</div>
         <div class="v">${fmtAmount(data.totalLoaned)}</div>
         <div class="u">${cur}</div>
       </div>
-      <div class="card" style="--accent:#157347;--tint:#EDFBF3;">
+      <div class="card" style="--accent:#7A5240;--tint:#F3EDE8;">
         <div class="k">إجمالي الدفعات المستلمة</div>
         <div class="v">${fmtAmount(data.totalRepaid)}</div>
         <div class="u">${cur}</div>
       </div>
-      <div class="card" style="--accent:${data.outstanding > 0 ? '#B45309' : '#157347'};--tint:${data.outstanding > 0 ? '#FEF6EA' : '#EDFBF3'};">
+      <div class="card" style="--accent:${data.outstanding > 0 ? '#E1503C' : '#7A5240'};--tint:${data.outstanding > 0 ? '#FBEAE7' : '#F3EDE8'};">
         <div class="k">الرصيد المتبقي</div>
         <div class="v">${fmtAmount(data.outstanding)}</div>
         <div class="u">${cur}</div>
@@ -343,10 +356,10 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   workbook.creator = businessName;
   workbook.created = new Date();
 
-  const headerFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
-  const goodFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5EC' } };
-  const dueFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDEAEA' } };
-  const altFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F7FD' } };
+  const headerFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1C3D5A' } };
+  const goodFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EDE8' } };
+  const dueFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBEAE7' } };
+  const altFill: import('exceljs').Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F4F1' } };
 
   // ── Summary ──
   const summary = workbook.addWorksheet('Summary');
@@ -354,7 +367,7 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   summary.columns = [{ width: 30 }, { width: 22 }];
   summary.mergeCells('A1:B1');
   summary.getCell('A1').value = `${businessName} — ${label}`;
-  summary.getCell('A1').font = { bold: true, size: 15, color: { argb: 'FF0F2A44' } };
+  summary.getCell('A1').font = { bold: true, size: 15, color: { argb: 'FF1C3D5A' } };
   summary.mergeCells('A2:B2');
   summary.getCell('A2').value = data.customerName;
   summary.getCell('A2').font = { bold: true, size: 12 };
