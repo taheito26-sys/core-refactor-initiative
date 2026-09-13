@@ -6,6 +6,7 @@ import {
   exportMonthlyStatementXlsx,
   type MonthlyStatementData,
 } from "@/features/stock/utils/monthlyStatementExport";
+import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunkRecovery";
 
 /**
  * Fetches the branded, month-scoped buyer statement from the
@@ -47,11 +48,17 @@ export function useMonthlyStatementExport(currency: string, L: (en: string, ar: 
       if (format === "pdf") await exportMonthlyStatementPdf(statement);
       else await exportMonthlyStatementXlsx(statement);
     } catch (err) {
-      // Temporary diagnostic: the real error message is put on-screen,
-      // not just the console, because the person hitting this bug has no
-      // way to open devtools. Revert to the plain toast once the export
-      // pipeline's real-world failure mode is found and fixed.
       console.error("Monthly statement export failed", format, err);
+      // jsPDF/exceljs are dynamically imported by hashed chunk URL; if a new
+      // deploy landed since this page loaded, that exact file is gone from
+      // the server and the import rejects. Retrying in the same page can't
+      // fix it — recover the way RouteErrorBoundary does for render-time
+      // chunk failures: clear the stale cache/service worker and reload.
+      if (isStaleChunkError(err)) {
+        toast.error(L("Updating the app, please try again in a moment…", "جارٍ تحديث التطبيق، حاول مرة أخرى بعد قليل…"));
+        await recoverFromStaleChunk();
+        return;
+      }
       const detail = err instanceof Error ? err.message : String(err);
       toast.error(`${L("Could not generate the statement", "تعذر إنشاء البيان")}: ${detail}`, { duration: 15000 });
     } finally {
