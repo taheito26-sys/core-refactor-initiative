@@ -15,6 +15,8 @@ import {
   uid,
   getAccountBalance,
   getAllAccountBalances,
+  getAccountNoteTotals,
+  allocateBanknoteWithdrawal,
   deriveCashQAR,
   totalStock,
   type TrackerState,
@@ -439,6 +441,13 @@ export default function StockPage() {
         return;
       }
       const entryId = uid();
+      // Auto-deduct the physical notes largest-first so the Notes Details
+      // tally moves with the balance instead of staying stuck at whatever
+      // was last manually counted/deposited.
+      const noteTotals = getAccountNoteTotals(fundingAccountId, state.cashLedger || []);
+      const withdrawnBreakdown = selectedAcc.currency === 'QAR'
+        ? allocateBanknoteWithdrawal(noteTotals, batchCostQAR)
+        : undefined;
       const purchaseEntry: CashLedgerEntry = {
         id: entryId,
         ts: Date.now(),
@@ -450,6 +459,7 @@ export default function StockPage() {
         linkedEntityType: 'batch',
         linkedEntityId: batchId,
         note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
+        ...(withdrawnBreakdown ? { banknoteBreakdown: withdrawnBreakdown } : {}),
       };
       nextCashLedger = [...nextCashLedger, purchaseEntry];
       fundingLedgerEntryId = entryId;

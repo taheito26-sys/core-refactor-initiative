@@ -214,6 +214,53 @@ export interface CashLedgerEntry {
   banknoteBreakdown?: Record<number, number>;
 }
 
+/** The merchant only ever handles 500/200/100/50 QAR notes — fixed set, no per-currency variation. */
+export const CASH_NOTE_DENOMINATIONS = [500, 200, 100, 50];
+
+/** Net banknote counts on hand for an account, denomination -> count, derived from every ledger entry that recorded a breakdown. */
+export function getAccountNoteTotals(accountId: string, ledger: CashLedgerEntry[]): Record<number, number> {
+  const totals: Record<number, number> = {};
+  for (const e of ledger || []) {
+    if (e.accountId !== accountId || !e.banknoteBreakdown) continue;
+    const sign = e.direction === 'in' ? 1 : -1;
+    for (const [denomStr, count] of Object.entries(e.banknoteBreakdown)) {
+      const denom = Number(denomStr);
+      totals[denom] = (totals[denom] || 0) + sign * count;
+    }
+  }
+  return totals;
+}
+
+/**
+ * Greedily allocates a withdrawal across the largest denominations first,
+ * constrained to what's actually on hand — a merchant hands over their
+ * biggest notes before breaking into smaller ones. Used to auto-attach a
+ * banknote breakdown to cash withdrawals (like a stock purchase) that don't
+ * collect one interactively, so the Notes Details tally stays in sync with
+ * the account balance instead of only moving on manual deposits/counts.
+ * Any remainder that can't be matched to a note actually on hand is left
+ * unallocated rather than invented.
+ */
+export function allocateBanknoteWithdrawal(
+  available: Record<number, number>,
+  amount: number,
+  denominations: number[] = CASH_NOTE_DENOMINATIONS,
+): Record<number, number> | undefined {
+  let remaining = Math.round(amount);
+  const breakdown: Record<number, number> = {};
+  const sorted = [...denominations].sort((a, b) => b - a);
+  for (const denom of sorted) {
+    const have = Math.max(0, Math.floor(available[denom] || 0));
+    if (have <= 0 || remaining < denom) continue;
+    const take = Math.min(have, Math.floor(remaining / denom));
+    if (take > 0) {
+      breakdown[denom] = take;
+      remaining -= take * denom;
+    }
+  }
+  return Object.keys(breakdown).length > 0 ? breakdown : undefined;
+}
+
 export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {
   const raw = (ledger || [])
     .filter(e => e.accountId === accountId)
