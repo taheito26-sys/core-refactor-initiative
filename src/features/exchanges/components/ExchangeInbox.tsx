@@ -35,14 +35,8 @@ export interface ExchangeOrderPayload {
 
 export interface ExchangeTransferPayload {
   exchange: ExchangeId;
-  /** Representative id -- the first one when several transfers were combined into one pick. */
   transferId: string;
-  /** Every transfer folded into this pick, transferId included. Always at least one entry. */
-  transferIds: string[];
-  /** Representative reference -- the first one when several transfers were combined into one pick. */
   reference: string;
-  /** Every transfer's reference, in the same order as transferIds. */
-  references: string[];
   kind: 'pay' | 'network';
   amountUSDT: number;
   buyPrice: number;
@@ -143,19 +137,6 @@ export function ExchangeInbox({
   const [collapsed, setCollapsed] = useState(false);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  // Multiple transfers from the same sender (e.g. several Pay top-ups before
-  // a single physical handover) can be folded into one batch/trade pick
-  // instead of importing each row separately.
-  const [selectedTransferIds, setSelectedTransferIds] = useState<Set<string>>(new Set());
-
-  const toggleTransferSelected = (id: string) => {
-    setSelectedTransferIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const handleDismissTransfer = async (transferId: string) => {
     setDismissingId(transferId);
@@ -237,36 +218,6 @@ export function ExchangeInbox({
     allOrders.filter((o) => !orderCoverage(o).isFull).length +
     allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).length;
 
-  // Drop a selection once its transfer is no longer pending (already
-  // imported elsewhere, dismissed, or scrolled out of the current month).
-  const pendingTransferIds = new Set(
-    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).map((tr) => tr.id),
-  );
-  const selectedTransfers = allTransfers.filter((tr) => selectedTransferIds.has(tr.id) && pendingTransferIds.has(tr.id));
-  const selectedCounterparties = new Set(selectedTransfers.map((tr) => tr.counterparty ?? ''));
-  const selectedKinds = new Set(selectedTransfers.map((tr) => tr.kind));
-  const canCombine = selectedTransfers.length >= 2 && selectedCounterparties.size === 1 && selectedKinds.size === 1;
-  const combineMismatch = selectedTransfers.length >= 2 && !canCombine;
-
-  const handleCombineSelected = () => {
-    if (!canCombine || !onPickTransfer) return;
-    const sorted = [...selectedTransfers].sort((a, b) => (a.transfer_time ? new Date(a.transfer_time).getTime() : 0) - (b.transfer_time ? new Date(b.transfer_time).getTime() : 0));
-    const latest = sorted[sorted.length - 1];
-    onPickTransfer({
-      exchange: latest.exchange,
-      transferId: latest.id,
-      transferIds: sorted.map((tr) => tr.id),
-      reference: latest.reference,
-      references: sorted.map((tr) => tr.reference),
-      kind: latest.kind,
-      amountUSDT: sorted.reduce((sum, tr) => sum + tr.amount, 0),
-      buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
-      ts: latest.transfer_time ? new Date(latest.transfer_time).getTime() : Date.now(),
-      assigneeName: latest.counterparty ?? undefined,
-    });
-    setSelectedTransferIds(new Set());
-  };
-
   // One chronological feed -- orders and transfers interleaved by date/time,
   // not grouped by type, so the list matches the exchange's own history.
   type Row =
@@ -306,32 +257,6 @@ export function ExchangeInbox({
         </span>
       </button>
 
-      {!collapsed && selectedTransfers.length > 0 && (
-        <div className="flex items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-2 py-1">
-          <span className="min-w-0 truncate text-[10px] text-muted-foreground">
-            {combineMismatch
-              ? 'Select transfers from the same sender to combine'
-              : `${selectedTransfers.length} selected — ${fmtNum(selectedTransfers.reduce((sum, tr) => sum + tr.amount, 0), 8)} ${selectedTransfers[0]?.asset ?? 'USDT'} total`}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSelectedTransferIds(new Set())}
-              className="rounded border border-muted-foreground/30 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-destructive/60 hover:text-destructive"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              disabled={!canCombine}
-              onClick={handleCombineSelected}
-              className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {side === 'buy' ? 'Combine into one batch' : 'Combine into one sale'}
-            </button>
-          </span>
-        </div>
-      )}
       {!collapsed && (
         <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
           {rows.map((row) => row.kind === 'order' ? (() => {
@@ -408,55 +333,27 @@ export function ExchangeInbox({
             const tr = row.data;
             const imported = isImported(tr.linked_at, tr.linked_entity_id, tr.reference);
             const kind = KIND_CHIP[tr.kind];
-            const selected = selectedTransferIds.has(tr.id);
             return (
               <div key={tr.id} className="flex w-full max-w-full items-stretch gap-1">
-              {!imported && (
-                <button
-                  type="button"
-                  title={selected ? 'Deselect' : 'Select to combine with other transfers from the same sender'}
-                  onClick={() => toggleTransferSelected(tr.id)}
-                  className={cn(
-                    'flex shrink-0 items-center justify-center rounded border px-1.5',
-                    selected ? 'border-primary bg-primary/20 text-primary' : 'border-dashed border-muted-foreground/30 text-transparent hover:border-primary/50 hover:text-muted-foreground/60',
-                  )}
-                >
-                  <Check className="h-3 w-3" />
-                </button>
-              )}
               <button
                 type="button"
                 disabled={imported}
-                title={
-                  imported
-                    ? 'Already in the tracker'
-                    : selectedTransferIds.size > 0
-                    ? (selected ? 'Deselect' : 'Add to the current selection')
-                    : 'Fill the form with this transfer'
-                }
-                onClick={() => {
-                  // With a selection already in progress, tapping the row
-                  // itself also just toggles it -- otherwise this would
-                  // silently abandon the in-progress combine and single-import
-                  // whichever row got tapped, discarding the other selections.
-                  if (selectedTransferIds.size > 0) { toggleTransferSelected(tr.id); return; }
+                title={imported ? 'Already in the tracker' : 'Fill the form with this transfer'}
+                onClick={() =>
                   onPickTransfer!({
                     exchange: tr.exchange,
                     transferId: tr.id,
-                    transferIds: [tr.id],
                     reference: tr.reference,
-                    references: [tr.reference],
                     kind: tr.kind,
                     amountUSDT: tr.amount,
                     buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
                     ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
                     assigneeName: tr.counterparty ?? undefined,
-                  });
-                }}
+                  })
+                }
                 className={cn(
                   'flex min-w-0 flex-1 overflow-hidden rounded border border-dashed text-left',
                   imported ? 'cursor-default bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
-                  selected && 'border-primary/60 bg-primary/10',
                 )}
               >
                 <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : ACCENT.transfer.bar)} />
