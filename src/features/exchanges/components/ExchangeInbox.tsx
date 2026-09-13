@@ -427,8 +427,19 @@ export function ExchangeInbox({
               <button
                 type="button"
                 disabled={imported}
-                title={imported ? 'Already in the tracker' : 'Fill the form with this transfer'}
-                onClick={() =>
+                title={
+                  imported
+                    ? 'Already in the tracker'
+                    : selectedTransferIds.size > 0
+                    ? (selected ? 'Deselect' : 'Add to the current selection')
+                    : 'Fill the form with this transfer'
+                }
+                onClick={() => {
+                  // With a selection already in progress, tapping the row
+                  // itself also just toggles it -- otherwise this would
+                  // silently abandon the in-progress combine and single-import
+                  // whichever row got tapped, discarding the other selections.
+                  if (selectedTransferIds.size > 0) { toggleTransferSelected(tr.id); return; }
                   onPickTransfer!({
                     exchange: tr.exchange,
                     transferId: tr.id,
@@ -440,11 +451,12 @@ export function ExchangeInbox({
                     buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
                     ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
                     assigneeName: tr.counterparty ?? undefined,
-                  })
-                }
+                  });
+                }}
                 className={cn(
                   'flex min-w-0 flex-1 overflow-hidden rounded border border-dashed text-left',
                   imported ? 'cursor-default bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
+                  selected && 'border-primary/60 bg-primary/10',
                 )}
               >
                 <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : ACCENT.transfer.bar)} />
