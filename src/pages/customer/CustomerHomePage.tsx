@@ -94,23 +94,31 @@ export default function CustomerHomePage() {
     enabled: !!userId,
   });
 
+  // `paired` marks rows where the QAR and EGP figures come from the same
+  // trade (a loan matched to its binance order by tradeId) — only these can
+  // be divided against each other to get a real FX rate. Unmatched rows
+  // (an order with no counterpart yet, or a binance leg with no loan) carry
+  // a QAR or EGP flow with nothing to pair it to, and mixing them into a
+  // rate calculation produces a number that isn't a rate at all.
   const historyRows = useMemo(() => {
-    const rows: { ts: number; qar: number; egp: number }[] = [];
+    const rows: { ts: number; qar: number; egp: number; paired: boolean }[] = [];
     for (const s of historyStatements) {
       const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
       const seenTradeIds = new Set<string>();
       for (const b of s.binanceOrders ?? []) {
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
+        const qar = loan ? loan.amount : 0;
+        const egp = b.fiat === 'EGP' ? b.fiatAmount : 0;
         rows.push({
           ts: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
-          qar: loan ? loan.amount : 0,
-          egp: b.fiat === 'EGP' ? b.fiatAmount : 0,
+          qar, egp,
+          paired: qar > 0 && egp > 0,
         });
       }
       for (const o of s.orders) {
         if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
-        rows.push({ ts: o.date, qar: s.currency === 'QAR' ? o.amount : 0, egp: 0 });
+        rows.push({ ts: o.date, qar: s.currency === 'QAR' ? o.amount : 0, egp: 0, paired: false });
       }
     }
     return rows;
@@ -245,11 +253,38 @@ export default function CustomerHomePage() {
     const histThisMonthQar = histThisMonth.reduce((s, r) => s + r.qar, 0);
     const histThisMonthEgp = histThisMonth.reduce((s, r) => s + r.egp, 0);
 
-    // Current month completed received orders for summary
+    // Current month completed received orders for summary. Received/Delivered
+    // are flow totals and don't need to line up 1:1 (a QAR receipt this
+    // month can settle in EGP next month), so they're summed independently.
     const thisMonthCompleted = receivedCompleted.filter(o => new Date(o.created_at).getTime() >= monthStart);
     const monthQar = thisMonthCompleted.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonthQar;
     const monthEgp = thisMonthCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0) + histThisMonthEgp;
-    const monthAvgFx = monthQar > 0 ? monthEgp / monthQar : null;
+
+    // Avg Rate must come only from trades where both legs are known — dividing
+    // the two flow totals above produces a meaningless number whenever
+    // received/delivered volumes drift apart for timing reasons.
+    const ratedOrders = thisMonthCompleted.filter(o => (o.fx_rate ?? 0) > 0 && (o.amount ?? 0) > 0);
+    const pairedQar = ratedOrders.reduce((s, o) => s + (o.amount ?? 0), 0)
+      + histThisMonth.filter(r => r.paired).reduce((s, r) => s + r.qar, 0);
+    const pairedEgp = ratedOrders.reduce((s, o) => s + (o.amount ?? 0) * (o.fx_rate ?? 0), 0)
+      + histThisMonth.filter(r => r.paired).reduce((s, r) => s + r.egp, 0);
+    const monthAvgFx = pairedQar > 0 ? pairedEgp / pairedQar : null;
+
+    // EGP-equivalent volume, since the corridor customer cares about what
+    // lands in EGP, not the QAR leg. Each order converts at its own
+    // fx_rate; only orders/rows with no rate of their own fall back to the
+    // best rate estimate available (this month's paired average, else the
+    // live market guide rate).
+    const fallbackRate = monthAvgFx ?? guideRate ?? egyptBuyAvg ?? null;
+    const toEgp = (qar: number, rate: number | null | undefined) => {
+      const r = (rate && rate > 0) ? rate : fallbackRate;
+      return r ? qar * r : 0;
+    };
+    const histRangeEgp = (rows: typeof historyRows) =>
+      rows.reduce((s, r) => s + (r.paired ? r.egp : toEgp(r.qar, null)), 0);
+    const thisMonthVolEgp = thisMonth.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histThisMonth);
+    const lastMonthVolEgp = lastMonth.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histLastMonth);
+    const thisWeekVolEgp  = thisWeek.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histThisWeek);
 
     // Order activity stats (replaces 14-day trend)
     const totalOrders = orders.length + historyRows.length;
@@ -275,11 +310,12 @@ export default function CustomerHomePage() {
       thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonth.reduce((s, r) => s + r.qar, 0),
       lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histLastMonth.reduce((s, r) => s + r.qar, 0),
       thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisWeek.reduce((s, r) => s + r.qar, 0),
+      thisMonthVolEgp, lastMonthVolEgp, thisWeekVolEgp,
       monthQar, monthEgp, monthAvgFx,
       totalOrders, approvedOrders, pendingOrders, thisMonthOrders,
       active, completed, needsAction, trend, maxTrend,
     };
-  }, [orders, historyRows, lang]);
+  }, [orders, historyRows, lang, guideRate, egyptBuyAvg]);
 
   return (
     <div className="space-y-5">
@@ -530,35 +566,55 @@ export default function CustomerHomePage() {
         </div>
       )}
 
-      {/* KPI row: volume periods */}
+      {/* KPI row: volume periods — led by EGP, the currency the customer actually
+          receives at the end of the corridor; QAR rides along underneath. */}
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume', 'الحجم')} ({getLocalizedCurrencyName('QAR', lang === 'ar' ? 'ar' : 'en')})</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume', 'الحجم')} ({getLocalizedCurrencyName('EGP', lang === 'ar' ? 'ar' : 'en')})</p>
         <div className="grid grid-cols-3 gap-2">
-          <KpiCard label={L('This month', 'هذا الشهر')} value={fmt(metrics.thisMonthVol)} />
-          <KpiCard label={L('Last month', 'الشهر الماضي')} value={fmt(metrics.lastMonthVol)} />
-          <KpiCard label={L('This week', 'هذا الأسبوع')} value={fmt(metrics.thisWeekVol)} />
+          <KpiCard
+            label={L('This month', 'هذا الشهر')}
+            value={fmt(metrics.thisMonthVolEgp)}
+            sub={`${fmt(metrics.thisMonthVol)} ${getLocalizedCurrencyName('QAR', lang)}`}
+            highlight
+          />
+          <KpiCard
+            label={L('Last month', 'الشهر الماضي')}
+            value={fmt(metrics.lastMonthVolEgp)}
+            sub={`${fmt(metrics.lastMonthVol)} ${getLocalizedCurrencyName('QAR', lang)}`}
+          />
+          <KpiCard
+            label={L('This week', 'هذا الأسبوع')}
+            value={fmt(metrics.thisWeekVolEgp)}
+            sub={`${fmt(metrics.thisWeekVol)} ${getLocalizedCurrencyName('QAR', lang)}`}
+          />
         </div>
       </div>
 
-      {/* FX summary — current month */}
-      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border/40">
+      {/* FX summary — current month, EGP-forward: the delivered EGP figure is
+          the headline, QAR received is the secondary/reference figure. */}
+      <div className="rounded-2xl border border-emerald-500/20 bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
           </p>
+          {metrics.monthAvgFx != null && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
+              <TrendingUp className="h-3 w-3" /> {fmt(metrics.monthAvgFx, 2)}
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-3 divide-x divide-border/40">
+        <div className="p-4 border-b border-border/40">
+          <div className="flex items-center gap-1 mb-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" /><p className="text-[11px] font-semibold text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم (جنيه)')}</p></div>
+          <p className="text-2xl font-black tabular-nums text-emerald-600">{fmt(metrics.monthEgp)}</p>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-border/40">
           <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground">{L('Received (QAR)', 'مُستلَم')}</p></div>
-            <p className="text-lg font-black tabular-nums">{fmt(metrics.monthQar)}</p>
-          </div>
-          <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" /><p className="text-[10px] text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم')}</p></div>
-            <p className="text-lg font-black tabular-nums text-emerald-600">{fmt(metrics.monthEgp)}</p>
+            <div className="flex items-center gap-1 mb-1"><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground">{L('Received (QAR)', 'مُستلَم (ريال)')}</p></div>
+            <p className="text-base font-bold tabular-nums text-muted-foreground">{fmt(metrics.monthQar)}</p>
           </div>
           <div className="p-4">
             <div className="flex items-center gap-1 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><p className="text-[10px] text-muted-foreground">{L('Avg Rate', 'متوسط السعر')}</p></div>
-            <p className="text-lg font-black tabular-nums">{metrics.monthAvgFx != null ? fmt(metrics.monthAvgFx, 2) : '—'}</p>
+            <p className="text-base font-bold tabular-nums">{metrics.monthAvgFx != null ? fmt(metrics.monthAvgFx, 2) : '—'}</p>
           </div>
         </div>
       </div>
