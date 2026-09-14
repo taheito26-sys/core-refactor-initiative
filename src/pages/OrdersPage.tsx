@@ -153,7 +153,7 @@ export default function OrdersPage() {
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
       }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
   >(null);
 
@@ -255,7 +255,7 @@ export default function OrdersPage() {
     setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'transfer',
-      transferId: prefill.transferId,
+      transferIds: prefill.transferIds,
       exchange: prefill.exchange,
       exchangeCounterparty: prefill.assigneeName,
       note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
@@ -2018,7 +2018,7 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: primaryTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: primaryTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     } else {
@@ -2052,7 +2052,7 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: baseTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     }
