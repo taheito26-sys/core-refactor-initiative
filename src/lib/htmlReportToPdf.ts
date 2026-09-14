@@ -95,19 +95,28 @@ function measureUnbreakableRanges(measurer: HTMLElement): Array<[number, number]
   });
 }
 
+// Generous on purpose: the off-screen measurer div and the actual
+// foreignObject-rasterized image are two separate layout passes, and even
+// on one device their row positions can disagree by a few px (subpixel
+// font hinting, foreignObject's own nested viewport). A tight tolerance
+// here was still letting a row's last couple of pixels peek through onto
+// the wrong page instead of moving the whole row.
+const ROW_SAFETY_PX = 6;
+
 /**
  * Splits `totalHeight` px of content into page-sized slices (each capped at
  * `budget` px), nudging any slice boundary that would fall inside one of
- * `ranges` back to that range's start so a row/card/heading always moves to
- * the next page whole rather than being cut across the page break.
+ * `ranges` — expanded by `ROW_SAFETY_PX` on each side — back to that range's
+ * start so a row/card/heading always moves to the next page whole rather
+ * than being cut across the page break.
  */
 function computePageSlices(totalHeight: number, budget: number, ranges: Array<[number, number]>): number[] {
   const slices: number[] = [];
   let cursor = 0;
   while (cursor < totalHeight - 0.5) {
     let end = Math.min(cursor + budget, totalHeight);
-    const collision = ranges.find(([top, bottom]) => end > top + 0.5 && end < bottom - 0.5);
-    if (collision) end = collision[0];
+    const collision = ranges.find(([top, bottom]) => end > top - ROW_SAFETY_PX && end < bottom + ROW_SAFETY_PX);
+    if (collision) end = Math.max(cursor, collision[0] - ROW_SAFETY_PX);
     // A single element taller than the whole page budget (shouldn't happen
     // for a table row, but guards against an infinite loop either way).
     if (end <= cursor) end = Math.min(cursor + budget, totalHeight);
