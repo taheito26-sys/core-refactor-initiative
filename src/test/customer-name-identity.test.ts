@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { customerNameVariants, resolveCustomerName, type Customer } from '@/lib/tracker-helpers';
 import { canonicalizeName } from '@/lib/text-normalize';
+import { resolveCustomerIdGroup } from '../../supabase/functions/_shared/buildLoanStatement.ts';
 
 const buyer = (over: Partial<Customer> = {}): Customer => ({
   id: 'c1',
@@ -53,6 +54,38 @@ describe('buyer identity lookup by typed name', () => {
   it('does not match an unrelated buyer', () => {
     const customers = [buyer({ nameEn: 'Mohamed Al-Damrawy', nameAr: 'محمد الدمراوي' })];
     expect(findByTypedName(customers, 'Ahmed Al-Rashid')).toBeUndefined();
+  });
+});
+
+/** The real helper the statement edge function uses, not a copy of it. */
+const resolveIdGroup = (customers: Customer[], customerId: string) =>
+  resolveCustomerIdGroup(customers, customerId);
+
+describe('buyer identity group', () => {
+  it('unions the duplicate record a split buyer accumulated', () => {
+    const customers = [
+      buyer({ id: 'orig', name: 'Mohamed Al-Damrawy' }),
+      buyer({ id: 'dupe', name: 'Mohamed Al-Damrawy' }),
+      buyer({ id: 'other', name: 'Ahmed Al-Rashid' }),
+    ];
+    expect([...resolveIdGroup(customers, 'orig')].sort()).toEqual(['dupe', 'orig']);
+  });
+
+  it('unions records that match on the other language name', () => {
+    const customers = [
+      buyer({ id: 'orig', name: 'محمد الدمراوي', nameEn: 'Mohamed Al-Damrawy', nameAr: 'محمد الدمراوي' }),
+      buyer({ id: 'dupe', name: 'Mohamed Al-Damrawy' }),
+    ];
+    expect([...resolveIdGroup(customers, 'orig')].sort()).toEqual(['dupe', 'orig']);
+  });
+
+  it('falls back to just the linked id when the record is unknown', () => {
+    expect([...resolveIdGroup([], 'ghost')]).toEqual(['ghost']);
+  });
+
+  it('never pulls in an unrelated buyer', () => {
+    const customers = [buyer({ id: 'orig' }), buyer({ id: 'other', name: 'Ahmed Al-Rashid' })];
+    expect([...resolveIdGroup(customers, 'orig')]).toEqual(['orig']);
   });
 });
 
