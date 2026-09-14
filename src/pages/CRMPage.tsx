@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTrackerState } from '@/lib/useTrackerState';
-import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, resolveCustomerName, type Customer, type Supplier } from '@/lib/tracker-helpers';
+import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, resolveCustomerName, customerNameVariants, type Customer, type Supplier } from '@/lib/tracker-helpers';
+import { canonicalizeName } from '@/lib/text-normalize';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
@@ -403,12 +404,19 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
     const nameEn = custForm.nameEn?.trim() || '';
     const nameAr = custForm.nameAr?.trim() || '';
     if (!nameEn && !nameAr) { setCustError('At least one name (English or Arabic) is required.'); return; }
-    // The legacy single `name` field is kept in sync so every existing read
-    // site that hasn't been migrated to language-aware lookup still works —
-    // preferring whichever language the merchant is currently using.
-    const name = (t.lang === 'ar' ? nameAr || nameEn : nameEn || nameAr);
+    // `name` is this buyer's identity key — trades and loans are matched back
+    // to them by it — so an edit must never repoint it. Deriving it from the
+    // merchant's current UI language (as this did briefly) flipped it to the
+    // Arabic spelling the moment an Arabic name was filled in, after which
+    // every new order failed to match and silently started a second customer
+    // record the buyer's statement link didn't cover. Only a brand-new
+    // customer gets one assigned, and from English first so it never depends
+    // on which language the merchant happened to be using.
+    const name = editingCust ? editingCust.name : (nameEn || nameAr);
+    const entered = [nameEn, nameAr].filter(Boolean).map(canonicalizeName);
     const existing = customers.find(
-      c => c.name.toLowerCase() === name.toLowerCase() && c.id !== editingCust?.id
+      c => c.id !== editingCust?.id
+        && customerNameVariants(c).some(v => entered.includes(canonicalizeName(v))),
     );
     if (existing) { setCustError('A customer with this name already exists.'); return; }
 

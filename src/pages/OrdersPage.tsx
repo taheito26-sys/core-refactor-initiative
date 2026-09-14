@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances, resolveCustomerName,
+  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances, resolveCustomerName, customerNameVariants,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
   getLoanRepaid, getLoanRemaining,
@@ -1151,7 +1151,9 @@ export default function OrdersPage() {
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return allBuyerOptions;
-    return allBuyerOptions.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
+    return allBuyerOptions.filter(
+      c => customerNameVariants(c).some(v => normalizeName(v).includes(q)) || c.phone.includes(buyerName),
+    );
   }, [allBuyerOptions, buyerName]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
@@ -1394,7 +1396,11 @@ export default function OrdersPage() {
     // disconnected identity (keyed by their connectedCustomerId) that the
     // buyer's own statement link never covers -- their order history then
     // silently splits across two ids with no error anywhere.
-    const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
+    // Matched against every name variant, not just the legacy `name`: a buyer
+    // with both an English and an Arabic name on file must resolve to the same
+    // record whichever one the merchant typed here.
+    const target = normalizeName(nm);
+    const existing = state.customers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
     if (existing) return { id: existing.id, customers: state.customers };
     const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
     if (connected) return materializeListedCustomer(connected, state.customers);

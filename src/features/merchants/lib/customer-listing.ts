@@ -77,6 +77,11 @@ export function materializeListedCustomer(
   const normalizedCustomer: Customer = {
     id: normalizedId,
     name: customer.name,
+    // Carried through rather than dropped — losing these would strip the
+    // buyer's other-language name off the record and break name matching for
+    // whichever language wasn't kept.
+    ...('nameEn' in customer && customer.nameEn ? { nameEn: customer.nameEn } : {}),
+    ...('nameAr' in customer && customer.nameAr ? { nameAr: customer.nameAr } : {}),
     phone: customer.phone,
     tier: customer.tier,
     dailyLimitUSDT: customer.dailyLimitUSDT,

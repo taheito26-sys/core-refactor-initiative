@@ -391,7 +391,14 @@ export interface Trade {
 
 export interface Customer {
   id: string;
-  /** Legacy single name, kept as the fallback every existing read site still uses. */
+  /**
+   * The buyer's identity key. Trades, loans and statement links are all matched
+   * back to a customer by name, so this must stay stable for the life of the
+   * record — repointing it (to the other language's spelling, say) makes the
+   * next order fail to match and silently start a second customer record,
+   * splitting the buyer's history in a way nothing surfaces as an error.
+   * Per-language display names go in nameEn/nameAr instead.
+   */
   name: string;
   /** Optional per-language names — when set, UI should show whichever matches the active language. */
   nameEn?: string;
@@ -408,6 +415,18 @@ export function resolveCustomerName(customer: Pick<Customer, 'name' | 'nameEn' |
   const primary = lang === 'ar' ? customer.nameAr : customer.nameEn;
   const secondary = lang === 'ar' ? customer.nameEn : customer.nameAr;
   return primary || secondary || customer.name;
+}
+
+/**
+ * Every name this buyer may be known by. Name-based identity lookups must
+ * check all of them: a buyer whose Arabic name was typed on the order form
+ * has to resolve to the same record as one typed in English, or the order
+ * lands on a brand-new customer the buyer's own statement link doesn't cover.
+ */
+export function customerNameVariants(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>): string[] {
+  return [customer.name, customer.nameEn, customer.nameAr].filter(
+    (n): n is string => typeof n === 'string' && n.trim() !== '',
+  );
 }
 
 export interface DerivedBatch {
