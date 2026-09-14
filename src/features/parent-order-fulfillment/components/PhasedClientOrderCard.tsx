@@ -103,6 +103,7 @@ export function PhasedClientOrderCard({
   const totalEgp = summary?.total_egp_received ?? 0;
   const fulfilledQar = summary?.fulfilled_qar ?? 0;
   const progressPct = summary?.progress_percent ?? 0;
+  const weightedAvgFx = summary?.weighted_avg_fx ?? null;
   const fulfillmentStatus = summary?.fulfillment_status ?? 'unfulfilled';
   const isFull = fulfillmentStatus === 'fully_fulfilled';
   const hasPhases = executions.length > 0;
@@ -137,9 +138,10 @@ export function PhasedClientOrderCard({
           <span className="text-[10px] font-medium text-slate-300">{dateLabel}</span>
         </div>
 
-        {/* 2-column amounts: Received | Delivered — the exchange rate
-            between them is deliberately not shown to the buyer. */}
-        <div className={cn('mt-2 grid grid-cols-2 gap-1.5')}>
+        {/* 3-column amounts: Received | Rate | Delivered — this order's own
+            confirmed rate, not a cross-order merchant average, so the buyer
+            legitimately needs to see it. */}
+        <div className={cn('mt-2 grid grid-cols-3 gap-1.5')}>
           {/* Received */}
           <div className="rounded-xl bg-white/[0.04] px-2 py-1.5">
             <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{L('Received', 'المستلم')}</div>
@@ -147,6 +149,17 @@ export function PhasedClientOrderCard({
               {fmtAmt(parentQarAmount, lang)}
             </div>
             <div className="mt-0.5 text-[10px] font-semibold text-slate-300">{currencyLabel(sendCurrency, lang)}</div>
+          </div>
+
+          {/* Rate */}
+          <div className="rounded-xl bg-white/[0.04] px-2 py-1.5 text-center">
+            <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{L('Rate', 'السعر')}</div>
+            <div className="mt-1 text-[13px] font-black leading-none text-sky-300">
+              {summaryLoading ? '...' : weightedAvgFx ? (isRtl ? weightedAvgFx.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : weightedAvgFx.toFixed(2)) : '—'}
+            </div>
+            <div className="mt-0.5 text-[9px] text-slate-400">
+              1 {currencyLabel(sendCurrency, lang)} = ? {currencyLabel(receiveCurrency, lang)}
+            </div>
           </div>
 
           {/* Delivered */}
@@ -252,6 +265,20 @@ export function PhasedClientOrderCard({
             );
           })}
 
+          {/* Weighted avg FX footer */}
+          {weightedAvgFx && (
+            <div
+              dir={isRtl ? 'rtl' : 'ltr'}
+              className="flex items-center justify-between px-3 py-2 border-t border-white/8"
+            >
+              <span className="text-[9px] text-slate-500">{L('Avg Rate', 'متوسط السعر')}</span>
+              <span className="text-[11px] font-bold text-sky-300 tabular-nums">
+                {isRtl
+                  ? weightedAvgFx.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : weightedAvgFx.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

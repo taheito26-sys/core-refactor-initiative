@@ -299,20 +299,13 @@ export default function CustomerHomePage() {
           <h1 className="mt-0.5 text-xl font-bold">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
         </div>
 
-        {/* Rate row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{getLocalizedCurrencyName('QAR', lang)}/{getLocalizedCurrencyName('EGP', lang)} {L('Guide', 'دليل')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {guideRate != null ? fmt(guideRate, 4) : '—'}
-            </p>
-          </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{L('Egypt Buy Avg', 'متوسط شراء مصر')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
-            </p>
-          </div>
+        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
+            not shown here; only the market's average selling price. */}
+        <div className="rounded-xl bg-white/10 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
+          <p className="text-2xl font-black tabular-nums">
+            {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
+          </p>
         </div>
       </div>
 
