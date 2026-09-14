@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { claimLocalScope, releaseLocalScope } from '@/lib/session-scope';
+import { resetTrackerSyncSession } from '@/lib/tracker-sync';
 import type { User, Session } from '@supabase/supabase-js';
 import {
   getAuthFlowContext,
@@ -203,6 +205,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
+        // Hand the device-local tracker caches to this user before anything
+        // reads them. A different account's cached state is wiped here, so it
+        // can neither be shown to this user nor merged into their snapshot.
+        if (claimLocalScope(newSession.user.id)) {
+          resetTrackerSyncSession();
+        }
+
         // Only show loading spinner on the very first load —
         // subsequent token refreshes keep existing profile data visible.
         if (!profilesLoadedRef.current) {
@@ -349,6 +358,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    // Drop this user's device-local caches and in-memory sync state so the
+    // next account to sign in on this device starts from their own data.
+    releaseLocalScope();
+    resetTrackerSyncSession();
     appActivityStopRef.current?.();
     appActivityStopRef.current = null;
     setProfile(null);
