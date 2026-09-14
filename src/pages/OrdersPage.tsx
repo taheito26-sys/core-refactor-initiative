@@ -1402,7 +1402,7 @@ export default function OrdersPage() {
     const target = normalizeName(nm);
     const existing = state.customers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
     if (existing) return { id: existing.id, customers: state.customers };
-    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
+    const connected = connectedCustomers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
     if (connected) return materializeListedCustomer(connected, state.customers);
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
     return { id: nextCustomer.id, customers: [...state.customers, nextCustomer] };

@@ -53,6 +53,7 @@ matching whatever tool you use, and do not regenerate the others.
 | `npm run validate` | Source-integrity guard over `OrdersPage`, `MerchantsPage`, `src/components/**` |
 | `npm run guard:generated -- <files>` | Same guard, arbitrary files |
 | `npm run guard:precommit` | Guard staged files; also typechecks + dry-run builds if critical UI files are staged |
+| `npm run guard:invariants` | Invariant guard over buyer-identity + PDF-export code (see §3a) |
 | `npm run cap:sync` / `cap:android` / `cap:ios` | Build web, copy into native projects, open IDE |
 
 There is **no CI workflow in this repo** (`.github/` does not exist). Verification is whatever you
@@ -61,6 +62,45 @@ run locally, so run it. `node_modules` is not committed — install before runni
 Playwright (`playwright.config.ts`) imports `lovable-agent-playwright-config`, which is not a
 declared dependency. E2E is driven by the Lovable agent environment, not by local scripts; do not
 assume `npx playwright test` works here.
+
+## 3a. Invariant guard — buyer identity and PDF export
+
+`scripts/guard-invariants.mjs` (`npm run guard:invariants`, and automatically inside
+`build:preflight` and `guard:precommit`) pins a handful of invariants in two subsystems that have
+each regressed in production more than once. Every rule encodes a bug that actually shipped and was
+reported by the merchant. They are guarded because **they break silently** — no type error, no
+failing render, no failing test; just a buyer who quietly stops seeing their orders, or a PDF table
+row quietly sliced in half.
+
+**Buyer identity.** One buyer can be spread across several `Customer` records — a rename or a
+near-miss name match on the order form starts a second one, and nothing surfaces it.
+
+- `Customer.name` is the **identity key**. Trades, loans and statement links are matched back to a
+  buyer by it, so it must never be repointed on an existing record. Per-language spellings go in
+  `nameEn` / `nameAr`. (Deriving `name` from the active UI language unlinked every subsequent order
+  for a buyer the moment an Arabic name was filled in.)
+- Name lookups go through `customerNameVariants()`, never `c.name` alone, so either language
+  resolves to the same record.
+- Anything buyer-facing resolves the whole identity group via `resolveCustomerIdGroup()` — the
+  merchant's order list has always unioned duplicates (`customerIdsByCanonicalName` in
+  `OrdersPage`), and a statement that filters on a single `customer_id` shows the buyer fewer
+  orders than the merchant sees.
+
+**PDF export** (`src/lib/htmlReportToPdf.ts`). Three separate shipped breakages:
+
+- Build the SVG wrapper through DOM nodes + `XMLSerializer`, never string concatenation —
+  real-world text produces invalid XML that Chrome refuses to decode (`EncodingError`).
+- Load that SVG from a `data:` URI, never a `blob:` one — a blob URL taints the canvas and
+  `toDataURL()` throws (`SecurityError`).
+- Pad the rasterized height past `measurer.scrollHeight`, and compute page breaks with
+  `computePageSlices()` against measured unbreakable boxes. A fixed per-page pixel budget cuts
+  whichever row straddles it in half, and an unpadded SVG silently clips its own bottom row.
+- Statement CSS custom properties live on `.sheet`, never `:root` — inside the `foreignObject`
+  used for rasterization, `:root` is the `<svg>` element and the variables never reach the sheet.
+
+Behaviour is covered by `src/test/customer-name-identity.test.ts` and
+`src/test/pdf-pagination.test.ts`. If you are deliberately changing one of these, update the rule
+**and** the tests so the new intent is recorded rather than lost.
 
 ## 3. Source-integrity guard — read this before writing source files
 

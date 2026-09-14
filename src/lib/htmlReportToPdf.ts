@@ -110,16 +110,33 @@ const ROW_SAFETY_PX = 6;
  * start so a row/card/heading always moves to the next page whole rather
  * than being cut across the page break.
  */
-function computePageSlices(totalHeight: number, budget: number, ranges: Array<[number, number]>): number[] {
+export function computePageSlices(totalHeight: number, budget: number, ranges: Array<[number, number]>): number[] {
   const slices: number[] = [];
   let cursor = 0;
   while (cursor < totalHeight - 0.5) {
-    let end = Math.min(cursor + budget, totalHeight);
-    const collision = ranges.find(([top, bottom]) => end > top - ROW_SAFETY_PX && end < bottom + ROW_SAFETY_PX);
-    if (collision) end = Math.max(cursor, collision[0] - ROW_SAFETY_PX);
-    // A single element taller than the whole page budget (shouldn't happen
-    // for a table row, but guards against an infinite loop either way).
-    if (end <= cursor) end = Math.min(cursor + budget, totalHeight);
+    const hardEnd = Math.min(cursor + budget, totalHeight);
+    let end = hardEnd;
+    // Nothing follows the last slice, so it needs no boundary adjustment.
+    if (end < totalHeight) {
+      // Repeated, not a single adjustment: pulling the boundary off one row
+      // routinely lands it inside the row above (rows sit back to back, and
+      // the pull is a whole row height plus the safety margin), which would
+      // cut that row in half instead — the very thing being prevented.
+      for (;;) {
+        const hit = ranges.find(([top, bottom]) => end > top - ROW_SAFETY_PX && end < bottom + ROW_SAFETY_PX);
+        if (!hit) break;
+        const pulled = hit[0] - ROW_SAFETY_PX;
+        if (pulled <= cursor) {
+          // This element is taller than a whole page (or starts at the very
+          // top of it), so it cannot be kept whole. Take the hard cut rather
+          // than emitting an empty page and never advancing.
+          end = hardEnd;
+          break;
+        }
+        end = pulled;
+      }
+    }
+    if (end <= cursor) end = hardEnd;
     slices.push(end - cursor);
     cursor = end;
   }

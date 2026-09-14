@@ -14,12 +14,10 @@ const buyer = (over: Partial<Customer> = {}): Customer => ({
   ...over,
 });
 
-/**
- * Stands in for the lookup `ensureCustomer` does when a merchant types a buyer
- * name on the order form: whichever spelling is typed has to land on the
- * buyer's existing record, because a miss silently creates a second customer
- * whose orders the buyer's own portal statement link never covers.
- */
+// Stands in for the lookup `ensureCustomer` does when a merchant types a buyer
+// name on the order form: whichever spelling is typed has to land on the
+// buyer's existing record, because a miss silently creates a second customer
+// whose orders the buyer's own portal statement link never covers.
 const findByTypedName = (customers: Customer[], typed: string) =>
   customers.find(c => customerNameVariants(c).some(v => canonicalizeName(v) === canonicalizeName(typed)));
 
