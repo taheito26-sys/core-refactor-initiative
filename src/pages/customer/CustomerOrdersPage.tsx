@@ -570,21 +570,17 @@ export default function CustomerOrdersPage() {
 
   const historyOrders = useMemo<HistoryOrderRow[]>(() => {
     const rows: HistoryOrderRow[] = [];
-    // A buyer can have more than one statement link (one per currency), and
-    // buildLoanStatementResponse attaches this buyer's full binanceOrders
-    // list to every one of them — so the same trade shows up once per
-    // statement unless it's deduped globally, not just within one
-    // statement's own loop. This previously stayed hidden by accident: the
-    // "no matching loan" skip below silently dropped every duplicate copy
-    // (a trade's loan only exists in the one statement that financed it),
-    // which is also what was wrongly hiding genuine cash-sale trades.
-    const seenTradeIds = new Set<string>();
     for (const s of historyStatements) {
       const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
+      const seenTradeIds = new Set<string>();
       for (const b of s.binanceOrders ?? []) {
-        if (seenTradeIds.has(b.tradeId)) continue;
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
+        // A trade with no matching loan was already settled at the time of
+        // the trade — nothing to track here, and showing it duplicated the
+        // loan-linked row for the same order with an empty "fully paid"
+        // card. Skip it; only loan-linked trades get a row.
+        if (!loan) continue;
         // EGP per QAR cross-rate — the two fiat legs never trade directly,
         // so it's derived from each side's rate against the shared USDT leg.
         const qarToEgpRate = b.qarRate ? (b.fiatPrice || 0) / b.qarRate : null;
@@ -593,15 +589,11 @@ export default function CustomerOrdersPage() {
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
-          // A trade with no matching loan was paid upfront (cash sale, not
-          // financed) — still a real order the buyer placed, so it gets a
-          // row here too; it just has no repayment progress to show, the
-          // same as any other already-settled order.
-          loaned: !!loan,
-          settled: loan ? loan.settled : true,
+          loaned: true,
+          settled: loan.settled,
           loanCurrency: s.currency,
-          loanAmount: loan?.amount ?? null,
-          loanPaid: loan?.paid ?? null,
+          loanAmount: loan.amount,
+          loanPaid: loan.paid,
           fiatPrice: b.fiatPrice || null,
           qarToEgpRate,
         });
