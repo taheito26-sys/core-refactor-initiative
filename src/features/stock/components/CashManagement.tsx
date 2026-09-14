@@ -1084,6 +1084,10 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
 }
 
 /** `datetime-local` wants local wall-clock time, not the UTC ISO string. */
+/** Money rounding used across the loan tables, kept out of render so the
+    running totals and the per-row figures never drift apart. */
+const round2Loan = (n: number): number => Math.round(n * 100) / 100;
+
 function toLocalInput(ts: number): string {
   const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -2061,6 +2065,9 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
 
 interface SplitRepaymentModalProps {
   statement: BuyerStatement;
+  /** Limits the pickable orders to these ids — used by the per-day payment
+      button so one day's orders can be settled without scrolling the rest. */
+  restrictToLoanIds?: string[];
   accounts: CashAccount[];
   onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => void;
   onClose: () => void;
@@ -2073,9 +2080,14 @@ interface SplitRepaymentModalProps {
  * as it's checked (capped at what that order still owes) — any leftover
  * is easy to see and nudge by hand before saving.
  */
-function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = false }: SplitRepaymentModalProps) {
+function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, onClose, isMobile = false }: SplitRepaymentModalProps) {
   const t = useT();
-  const openLoans = useMemo(() => statement.loans.filter(r => !r.settled), [statement]);
+  const openLoans = useMemo(() => {
+    const rows = statement.loans.filter(r => !r.settled);
+    if (!restrictToLoanIds) return rows;
+    const allowed = new Set(restrictToLoanIds);
+    return rows.filter(r => allowed.has(r.loan.id));
+  }, [statement, restrictToLoanIds]);
   const [accountId, setAccountId] = useState(
     accounts.find(a => a.currency === statement.currency)?.id || accounts[0]?.id || ''
   );
@@ -2828,7 +2840,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
   /** Buyer statement whose open orders can be closed with one split payment. */
-  const [splitPaymentStatement, setSplitPaymentStatement] = useState<BuyerStatement | null>(null);
+  /* A split payment is normally spread over everything a buyer still owes, but
+     the day rows open the same dialog scoped to just that day's orders. */
+  const [splitPaymentStatement, setSplitPaymentStatement] = useState<{ statement: BuyerStatement; loanIds?: string[] } | null>(null);
   /** Which grouped-payment rows are expanded to show their per-order breakdown. */
   const [expandedPaymentGroups, setExpandedPaymentGroups] = useState<Set<string>>(new Set());
   const togglePaymentGroup = (id: string) => {
@@ -4029,7 +4043,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               <button
                                 className="rowBtn"
                                 style={{ padding: '6px 14px', fontSize: 11 }}
-                                onClick={() => setSplitPaymentStatement(stmt)}
+                                onClick={() => setSplitPaymentStatement({ statement: stmt })}
                               >
                                 🔗 {t('loanSplitPayment')}
                               </button>
@@ -4047,12 +4061,47 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             )}
                           </div>
 
-                          {/* Every loaned order on this account, open and settled alike — a
-                              buyer's order history shouldn't shrink as orders get paid off.
-                              Settled loans still show here (marked Closed) as well as under
-                              the dedicated Closed tab. */}
+                          {/* Only orders that still owe something. A settled order belongs to
+                              the Closed Loans tab, not here -- carrying it in both places made
+                              this list grow without bound and buried the orders still needing
+                              a payment. The header keeps the full order count as its
+                              denominator so the history is still visible at a glance. */}
                           {(() => {
-                            const openLoanRows = stmt.loans;
+                            const openLoanRows = stmt.loans.filter(r => !r.settled);
+                            const visibleLoaned = round2Loan(openLoanRows.reduce((s, r) => s + r.principal, 0));
+                            const visibleRepaid = round2Loan(openLoanRows.reduce((s, r) => s + r.repaid, 0));
+                            const visibleRemaining = round2Loan(openLoanRows.reduce((s, r) => s + r.remaining, 0));
+                            /*
+                             * Realised profit on one loaned order: what the buyer was charged,
+                             * less the cost of the FIFO layers the order drew from, less the
+                             * order's fee. Null when the order has no linked trade or its FIFO
+                             * calc didn't resolve, so an unknown never reads as a zero profit.
+                             */
+                            const netOfLoanRow = (row: typeof stmt.loans[number]): number | null => {
+                              const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
+                              if (!linkedTrade) return null;
+                              const calc = derivedFifo.tradeCalc.get(linkedTrade.id);
+                              if (!calc?.ok) return null;
+                              const buyCost = calc.slices.reduce((sum, sl) => sum + sl.cost, 0);
+                              const revenue = linkedTrade.amountUSDT * linkedTrade.sellPriceQAR;
+                              return revenue - buyCost - (linkedTrade.feeQAR || 0);
+                            };
+                            /*
+                             * Total of the nets that could be computed. A day or a statement with
+                             * no resolvable order stays null rather than collapsing to 0.00.
+                             */
+                            const sumNets = (rows: Array<typeof stmt.loans[number]>): number | null => {
+                              let total = 0;
+                              let any = false;
+                              for (const row of rows) {
+                                const n = netOfLoanRow(row);
+                                if (n == null) continue;
+                                total += n;
+                                any = true;
+                              }
+                              return any ? round2Loan(total) : null;
+                            };
+                            const visibleNet = sumNets(openLoanRows);
                             // Several orders loaned to the same buyer on one day collapse into a
                             // single summary row -- rows/day, not one row per order -- expandable
                             // to the underlying orders, the same pattern payments use.
@@ -4060,6 +4109,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             interface LoanDayGroup {
                               key: string; ts: number; rows: LoanRow[];
                               principal: number; repaid: number; remaining: number; usdt: number; egp: number; hasEgp: boolean;
+                              net: number | null;
                             }
                             const loanDayGroups: LoanDayGroup[] = (() => {
                               const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -4070,7 +4120,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                                 let g = map.get(key);
                                 if (!g) {
-                                  g = { key, ts: row.loan.ts, rows: [], principal: 0, repaid: 0, remaining: 0, usdt: 0, egp: 0, hasEgp: false };
+                                  g = { key, ts: row.loan.ts, rows: [], principal: 0, repaid: 0, remaining: 0, usdt: 0, egp: 0, hasEgp: false, net: null };
                                   map.set(key, g);
                                   order.push(key);
                                 }
@@ -4083,7 +4133,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 if (linkedTrade) g.usdt += linkedTrade.amountUSDT;
                                 if (linkedTrade?.originalFiat) { g.hasEgp = true; g.egp += linkedTrade.originalFiatAmount || 0; }
                               }
-                              return order.map(k => map.get(k)!);
+                              const groups = order.map(k => map.get(k)!);
+                              // The collapsed day row stands in for its orders, so it has to
+                              // carry their combined profit -- otherwise a day that collapsed
+                              // showed a dash where the only Net figure for those orders was.
+                              for (const g of groups) g.net = sumNets(g.rows);
+                              return groups;
                             })();
                             const loanRow = (row: typeof stmt.loans[number]) => {
                               const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
@@ -4311,7 +4366,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         {formatMoney(group.remaining)}
                                       </span>
                                     </div>
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColNet')}</div>
+                                      <span className="loan-num" style={{ color: group.net == null ? undefined : group.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                        {group.net != null ? `${group.net >= 0 ? '+' : ''}${formatMoney(group.net)}` : '—'}
+                                      </span>
+                                    </div>
                                   </div>
+                                  {group.remaining > 0 && (
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, marginTop: 8, width: '100%' }}
+                                      onClick={() => setSplitPaymentStatement({ statement: stmt, loanIds: group.rows.map(r => r.loan.id) })}
+                                    >
+                                      + {t('loanAddDayPayment')}
+                                    </button>
+                                  )}
                                   {isExpanded && (
                                     <div style={{ display: 'grid', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
                                       {group.rows.map(loanCard)}
@@ -4344,8 +4414,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </td>
                                     <td className="r mono">—</td>
                                     <td className="r mono">—</td>
-                                    <td className="r mono">—</td>
-                                    <td />
+                                    <td className="r loan-num" style={{ color: group.net == null ? undefined : group.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                      {group.net != null ? `${group.net >= 0 ? '+' : ''}${formatMoney(group.net)}` : '—'}
+                                    </td>
+                                    <td>
+                                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                        {group.remaining > 0 && (
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, whiteSpace: 'nowrap' }}
+                                            onClick={() => setSplitPaymentStatement({ statement: stmt, loanIds: group.rows.map(r => r.loan.id) })}
+                                          >
+                                            + {t('loanAddDayPayment')}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
                                   </tr>
                                   {isExpanded && group.rows.map(loanRow)}
                                 </Fragment>
@@ -4354,7 +4438,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             return (
                               <div>
                                 <div className="acct-sec">
-                                  {t('stmtLoanedOrders')} · {stmt.openCount} {t('loanOfWordLbl') || 'of'} {openLoanRows.length} {t('loanOpenWordLbl') || 'open'}
+                                  {t('stmtLoanedOrders')} · {openLoanRows.length} {t('loanOfWordLbl') || 'of'} {stmt.loans.length} {t('loanOpenWordLbl') || 'open'}
                                 </div>
                                 {isMobile ? (
                                   openLoanRows.length === 0 ? (
@@ -4394,11 +4478,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     <tfoot>
                                       <tr>
                                         <td colSpan={2} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
-                                        <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                        <td className="r loan-num">{formatMoney(visibleLoaned)}</td>
                                         <td colSpan={3} />
-                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                        <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                        <td colSpan={5} />
+                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(visibleRepaid)}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(visibleRemaining)}</td>
+                                        <td colSpan={3} />
+                                        <td className="r loan-num" style={{ color: visibleNet == null ? undefined : visibleNet >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                          {visibleNet != null ? `${visibleNet >= 0 ? '+' : ''}${formatMoney(visibleNet)}` : '—'}
+                                        </td>
+                                        <td />
                                       </tr>
                                     </tfoot>
                                   </table>
@@ -4998,7 +5086,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {splitPaymentStatement && (
         <SplitRepaymentModal
-          statement={splitPaymentStatement}
+          statement={splitPaymentStatement.statement}
+          restrictToLoanIds={splitPaymentStatement.loanIds}
           accounts={activeAccounts}
           isMobile={isMobile}
           onSave={(allocations, accountId, ts, note) => addSplitLoanRepayment(allocations, accountId, ts, note)}

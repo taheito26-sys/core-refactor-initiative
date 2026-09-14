@@ -1783,6 +1783,7 @@ const translations = {
   loanFundingSource:     { en: 'Funding Source',                ar: 'مصدر التمويل' },
   loanLinkedOrder:       { en: 'Linked Order (optional)',       ar: 'الطلب المرتبط (اختياري)' },
   loanAddRepayment:      { en: 'Add Repayment',                 ar: 'إضافة دفعة سداد' },
+  loanAddDayPayment:     { en: 'Payment for day',               ar: 'دفعة لهذا اليوم' },
   loanSplitPayment:      { en: 'Split payment across orders',   ar: 'تقسيم دفعة على عدة طلبات' },
   loanSplitPaymentBadge: { en: 'Split payment · {n} orders',    ar: 'دفعة مقسمة · {n} طلبات' },
   loanPaymentViewDetails: { en: 'Details', ar: 'التفاصيل' },
