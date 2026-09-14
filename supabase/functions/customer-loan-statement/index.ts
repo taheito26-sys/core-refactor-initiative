@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
     if (linksError) throw linksError;
     if (!links || links.length === 0) return json({ statements: [] });
 
+    // Not clientSafe: unlike the shareable /statements/:token link (which can
+    // end up in anyone's hands), this is the buyer's own authenticated
+    // portal, so their own order's USDT quantity and QAR rate aren't
+    // stripped here.
     const statements = [];
     for (const link of links) {
-      const statement = await buildLoanStatementResponse(supabase, link, true);
+      const statement = await buildLoanStatementResponse(supabase, link, false);
       if (statement) statements.push(statement);
     }
 

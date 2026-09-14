@@ -138,7 +138,9 @@ export function PhasedClientOrderCard({
           <span className="text-[10px] font-medium text-slate-300">{dateLabel}</span>
         </div>
 
-        {/* 3-column amounts: Received | Rate | Delivered */}
+        {/* 3-column amounts: Received | Rate | Delivered — this order's own
+            confirmed rate, not a cross-order merchant average, so the buyer
+            legitimately needs to see it. */}
         <div className={cn('mt-2 grid grid-cols-3 gap-1.5')}>
           {/* Received */}
           <div className="rounded-xl bg-white/[0.04] px-2 py-1.5">

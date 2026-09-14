@@ -341,6 +341,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
     };
 
+    // Cash is loaded from its own dedicated tables (cash_accounts /
+    // cash_ledger), entirely independent of the tracker_snapshots blob —
+    // applyCashFromCloud only ever merges into whatever `prev` state exists
+    // via a functional setState, so it doesn't need to wait for the
+    // snapshot fetch below to resolve first. Firing it here, in parallel,
+    // means a cash-focused page (Cash Management) isn't stuck waiting on a
+    // potentially large, multi-merchant-member snapshot fetch it barely
+    // needs before its own accounts/ledger can even start loading.
+    applyCashFromCloud();
+
     loadTrackerStateFromCloud().then((cloudState) => {
       if (cancelled) return;
       setCloudLoaded(true);
@@ -357,10 +367,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           (s.cashAccounts?.length ?? 0) > 0 ||
           (s.cashLedger?.length ?? 0) > 0;
         if (hasData) saveTrackerState(s);
-        // Still load cash from dedicated tables — they may have data even
-        // when tracker_snapshots is empty (e.g. first-time user who only
-        // added cash, or snapshot was cleared).
-        applyCashFromCloud();
         return;
       }
 
@@ -375,8 +381,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // cash arrays go empty for the ~500ms that loadCashFromCloud takes —
       // the user sees their cash hide and reappear on every page mount.
       // Preserve the in-memory cash arrays through the snapshot rebuild;
-      // applyCashFromCloud below will replace them with the authoritative
-      // cash-table data the moment that load returns.
+      // the applyCashFromCloud() call fired in parallel above will replace
+      // them with the authoritative cash-table data the moment it returns,
+      // whether that happens before or after this snapshot rebuild.
       const cloudStateWithCash: Partial<TrackerState> = {
         ...cloudState,
         cashAccounts: stateRef.current.cashAccounts ?? [],
@@ -393,14 +400,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       stateRef.current = rebuilt.state;
       setDerived(rebuilt.derived);
       saveTrackerState(rebuilt.state);
-
-      // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
-      applyCashFromCloud();
     }).catch((err) => {
       console.error('[useTrackerState] cloud load failed:', err);
       setCloudLoaded(true);
-      // Even if tracker snapshot load fails, try loading cash from dedicated tables
-      applyCashFromCloud();
     });
 
     return () => { cancelled = true; };

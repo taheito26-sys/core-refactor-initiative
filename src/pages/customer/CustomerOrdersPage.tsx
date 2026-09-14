@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useMonthlyStatementExport } from '@/features/stock/utils/useMonthlyStatementExport';
 import {
   createSharedOrderRequest,
   respondSharedOrder,
@@ -441,7 +442,7 @@ export default function CustomerOrdersPage() {
   // effect below availableMonths), so a buyer whose entire history
   // predates the current calendar month doesn't land on a silently empty page.
   const [selectedMonth, setSelectedMonth] = useState<string | null>(() => localMonthKey(Date.now()));
-  const selectedMonthInitialized = useRef(false);
+  const userPickedMonth = useRef(false);
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
@@ -513,7 +514,7 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading: isOrdersQueryLoading } = useQuery({
     queryKey: ['c-orders', userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -521,12 +522,21 @@ export default function CustomerOrdersPage() {
     },
     enabled: !!userId,
   });
+  // react-query's own isLoading is false while the query is disabled (i.e.
+  // before `userId` resolves from auth), so without `!userId` this briefly
+  // renders "No orders yet" on every load, before flashing to the real list.
+  const isLoading = isOrdersQueryLoading || !userId;
 
   // Historical EGP-side orders a merchant has recorded for this buyer before
   // the portal order workflow existed, shared via customer-loan-statement —
   // the same server-redacted data (no USDT quantity, no QAR conversion
   // rate) the old /c/loan page showed, now folded into this page.
-  const { data: historyStatements = [] } = useQuery({
+  // This data comes from the merchant's raw tracker state via an edge
+  // function, not a table the customer's client can read directly, so there
+  // is no postgres_changes channel to subscribe to here the way 'c-orders'
+  // below has. Poll instead so a merchant-side edit/cancellation shows up
+  // without the buyer having to manually refresh the page.
+  const { data: historyStatements = [], isLoading: isHistoryQueryLoading } = useQuery({
     queryKey: ['c-order-history', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
@@ -534,19 +544,28 @@ export default function CustomerOrdersPage() {
       return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
+    refetchInterval: 20000,
   });
+  // This edge-function-backed query resolves slower than the live 'c-orders'
+  // query above, so without folding its own loading state in here, the page
+  // briefly shows "No orders yet" as soon as 'c-orders' settles but before
+  // this one has — even when the buyer has plenty of order history.
+  const isHistoryLoading = isHistoryQueryLoading || !userId;
 
   type HistoryOrderRow = {
     key: string;
     date: number;
     currency: string;
     totalAmount: number;
-    sellPrice: number | null;
     loaned: boolean;
     settled: boolean;
     loanCurrency: string | null;
     loanAmount: number | null;
     loanPaid: number | null;
+    /** EGP selling price per USDT for this order's trade, when linked to one. */
+    fiatPrice: number | null;
+    /** Average QAR→EGP cross-rate for this order's trade, when linked to one. */
+    qarToEgpRate: number | null;
   };
 
   const historyOrders = useMemo<HistoryOrderRow[]>(() => {
@@ -557,21 +576,30 @@ export default function CustomerOrdersPage() {
       for (const b of s.binanceOrders ?? []) {
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
+        // A trade with no matching loan was already settled at the time of
+        // the trade — nothing to track here, and showing it duplicated the
+        // loan-linked row for the same order with an empty "fully paid"
+        // card. Skip it; only loan-linked trades get a row.
+        if (!loan) continue;
+        // EGP per QAR cross-rate — the two fiat legs never trade directly,
+        // so it's derived from each side's rate against the shared USDT leg.
+        const qarToEgpRate = b.qarRate ? (b.fiatPrice || 0) / b.qarRate : null;
         rows.push({
           key: b.orderNumber || b.tradeId,
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
-          sellPrice: b.fiatPrice,
-          loaned: !!loan,
-          settled: loan?.settled ?? false,
-          loanCurrency: loan ? s.currency : null,
-          loanAmount: loan?.amount ?? null,
-          loanPaid: loan?.paid ?? null,
+          loaned: true,
+          settled: loan.settled,
+          loanCurrency: s.currency,
+          loanAmount: loan.amount,
+          loanPaid: loan.paid,
+          fiatPrice: b.fiatPrice || null,
+          qarToEgpRate,
         });
       }
       // Loans with no linked Binance trade (manually recorded) still need a
-      // row — same currency as the statement, no sell price.
+      // row — same currency as the statement.
       for (const o of s.orders) {
         if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
         rows.push({
@@ -579,11 +607,12 @@ export default function CustomerOrdersPage() {
           date: o.date,
           currency: s.currency,
           totalAmount: o.amount,
-          sellPrice: null,
           loaned: true,
           settled: o.settled,
           loanCurrency: s.currency,
           loanAmount: o.amount,
+          fiatPrice: null,
+          qarToEgpRate: null,
           loanPaid: o.paid,
         });
       }
@@ -768,11 +797,18 @@ export default function CustomerOrdersPage() {
     return months;
   }, [orders, historyOrders]);
 
+  // Re-evaluates every time availableMonths changes rather than once on
+  // mount: the history query (edge function) resolves slower than the live
+  // orders query, so the first non-empty availableMonths list can still be
+  // missing the current month. Locking the fallback in at that point (the
+  // old behavior) meant a buyer's most recent month stayed hidden behind an
+  // older one forever, even after the real data arrived on a later poll.
+  // Skipped once the buyer has picked a month themselves.
   useEffect(() => {
-    if (selectedMonthInitialized.current || availableMonths.length === 0) return;
-    selectedMonthInitialized.current = true;
+    if (userPickedMonth.current || availableMonths.length === 0) return;
     const currentMonth = localMonthKey(Date.now());
-    if (!availableMonths.includes(currentMonth)) setSelectedMonth(availableMonths[0]);
+    const next = availableMonths.includes(currentMonth) ? currentMonth : availableMonths[0];
+    setSelectedMonth(prev => (prev === next ? prev : next));
   }, [availableMonths]);
 
   const filteredOrders = useMemo(() =>
@@ -796,7 +832,12 @@ export default function CustomerOrdersPage() {
       if (o.currency === 'EGP') volumeEgp += o.totalAmount;
       if (o.loanAmount != null && o.loanCurrency === 'QAR') totalQar += o.loanAmount;
     }
-    return { count: filteredHistoryOrders.length, volumeEgp, totalQar };
+    // Effective EGP received per QAR across every order in view — the rate
+    // that actually matters to the customer, not the merchant's own
+    // USDT-leg sell price (which used to sit on every mobile card and told
+    // the customer nothing they could act on).
+    const avgRate = totalQar > 0 ? volumeEgp / totalQar : null;
+    return { count: filteredHistoryOrders.length, volumeEgp, totalQar, avgRate };
   }, [filteredHistoryOrders]);
 
   // Debt/payment totals — these are running balances, not scoped to the
@@ -813,6 +854,41 @@ export default function CustomerOrdersPage() {
     const currency = historyStatements[0]?.currency ?? 'QAR';
     return { totalDebt, totalPaid, outstanding, currency };
   }, [historyStatements]);
+
+  // Repayment progress — month-scoped (from the currently filtered orders)
+  // and all-time (from debtKpi's running totals), plus a couple of
+  // secondary stats a buyer can act on: how many of their orders are fully
+  // settled, and what a typical order costs them.
+  const repaymentProgress = useMemo(() => {
+    let monthLoaned = 0;
+    let monthPaid = 0;
+    let monthLoanedCount = 0;
+    let monthSettledCount = 0;
+    for (const o of filteredHistoryOrders) {
+      if (!o.loaned || o.loanAmount == null) continue;
+      monthLoaned += o.loanAmount;
+      monthPaid += o.loanPaid ?? 0;
+      monthLoanedCount += 1;
+      if (o.settled) monthSettledCount += 1;
+    }
+    const monthPct = monthLoaned > 0 ? Math.min(100, Math.round((monthPaid / monthLoaned) * 100)) : null;
+    const allPct = debtKpi.totalDebt > 0 ? Math.min(100, Math.round((debtKpi.totalPaid / debtKpi.totalDebt) * 100)) : null;
+
+    let allLoanedCount = 0;
+    let allSettledCount = 0;
+    for (const o of historyOrders) {
+      if (!o.loaned) continue;
+      allLoanedCount += 1;
+      if (o.settled) allSettledCount += 1;
+    }
+    const avgOrderSize = monthLoanedCount > 0 ? monthLoaned / monthLoanedCount : null;
+
+    return { monthPct, allPct, monthLoanedCount, monthSettledCount, allLoanedCount, allSettledCount, avgOrderSize };
+  }, [filteredHistoryOrders, historyOrders, debtKpi]);
+
+  // Same branded monthly statement export the Cash page offers — saves a
+  // real PDF or XLSX file directly, no print dialog.
+  const { exportingFormat, exportStatement } = useMonthlyStatementExport(debtKpi.currency, L);
 
   const grouped = groupByDay(filteredOrders, lang);
 
@@ -838,29 +914,52 @@ export default function CustomerOrdersPage() {
         {/* Month filter pills — same .month-filter-row/.month-pill classes
             (src/styles/tracker.css) the merchant Orders page uses. */}
         {availableMonths.length > 0 && (
-          <div className="month-filter-row mt-3">
-            <button
-              onClick={() => setSelectedMonth(null)}
-              className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
-            >
-              {L('All Months', 'كل الأشهر')}
-            </button>
-            {availableMonths.map(m => {
-              const [y, mo] = m.split('-');
-              const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
-                lang === 'ar' ? 'ar-EG' : 'en-US',
-                { month: 'short', year: '2-digit' },
-              );
-              return (
-                <button
-                  key={m}
-                  onClick={() => setSelectedMonth(m)}
-                  className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className="mt-3 space-y-2">
+            <div className="month-filter-row">
+              <button
+                onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }}
+                className={`month-pill ${selectedMonth === null ? 'active' : ''}`}
+              >
+                {L('All Months', 'كل الأشهر')}
+              </button>
+              {availableMonths.map(m => {
+                const [y, mo] = m.split('-');
+                const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
+                  lang === 'ar' ? 'ar-EG' : 'en-US',
+                  { month: 'short', year: '2-digit' },
+                );
+                return (
+                  <button
+                    key={m}
+                    onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }}
+                    className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L('Export', 'تصدير')}</span>
+              <button
+                onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
+                disabled={exportingFormat !== null}
+                title={L('Export PDF', 'تصدير PDF')}
+                className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
+              >
+                {exportingFormat === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                PDF
+              </button>
+              <button
+                onClick={() => exportStatement(selectedMonth, availableMonths, 'xlsx')}
+                disabled={exportingFormat !== null}
+                title={L('Export XLSX', 'تصدير XLSX')}
+                className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/5 px-3 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-60"
+              >
+                {exportingFormat === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+                XLSX
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -875,7 +974,7 @@ export default function CustomerOrdersPage() {
         />
       )}
 
-      {isLoading ? (
+      {isLoading || isHistoryLoading ? (
         <div className="flex h-32 items-center justify-center px-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -1437,9 +1536,9 @@ export default function CustomerOrdersPage() {
 
       {/* Historical EGP-side order records the merchant kept before the
           portal order workflow — same USDT-free data /c/loan used to show,
-          now folded into "My Orders". Title is date + EGP amount; sell
-          price and the QAR total sit underneath, plus a repayment progress
-          bar for loaned orders — no counterparty, no exchange badge. */}
+          now folded into "My Orders". Title is date + EGP amount; the QAR
+          total sits underneath, plus a repayment progress bar for loaned
+          orders — no counterparty, no exchange badge. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1489,6 +1588,64 @@ export default function CustomerOrdersPage() {
             ))}
           </div>
 
+          {/* Repayment progress — a bar reads faster than another number,
+              and pairing "this month" with "all time" shows whether the
+              buyer is catching up or falling behind on the running total. */}
+          <div style={{ display: 'grid', gap: 8, marginBottom: 4 }}>
+            {[
+              { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct },
+              { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct },
+            ].map(row => (
+              <div key={row.label} style={{
+                padding: '8px 10px', borderRadius: 8,
+                background: 'color-mix(in srgb, var(--brand) 4%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 12%, transparent)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{row.label}</span>
+                  <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: row.pct == null ? 'var(--muted)' : row.pct >= 100 ? 'var(--good)' : 'var(--warn)' }}>
+                    {row.pct != null ? `${row.pct}%` : '—'}
+                  </span>
+                </div>
+                <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
+                  <span style={{ width: `${row.pct ?? 0}%`, background: row.pct != null && row.pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Two quick-read tiles alongside the bars: how many orders are
+              fully closed out (this month), and the typical order size —
+              context the raw totals above don't give at a glance. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6, marginBottom: 4 }}>
+            <div style={{
+              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
+              background: 'color-mix(in srgb, var(--good) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--good) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
+                {L('Orders Settled (Month)', 'الطلبات المسددة (الشهر)')}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+                {repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}
+              </div>
+            </div>
+            <div style={{
+              minWidth: 0, boxSizing: 'border-box', padding: '6px 8px',
+              background: 'color-mix(in srgb, var(--good) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--good) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2 }}>
+                {L('Orders Settled (All Time)', 'الطلبات المسددة (إجمالي)')}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+                {repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}
+              </div>
+            </div>
+          </div>
+
           {isMobile ? (
             <div>
               {filteredHistoryOrders.map((o, i) => {
@@ -1508,14 +1665,7 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
-                      <span>{L('Sell Price', 'سعر البيع')}: <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</span></span>
-                      {o.loanAmount != null && (
-                        <span>{L('Total', 'الإجمالي')} (QAR): <span className="mono" style={{ color: 'var(--fg)', fontWeight: 700 }}>{Math.round(o.loanAmount).toLocaleString()}</span></span>
-                      )}
-                    </div>
-
-                    {o.loaned && o.loanAmount != null ? (
+                    {o.loaned && o.loanAmount != null && (
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
@@ -1524,9 +1674,14 @@ export default function CustomerOrdersPage() {
                           <div className="prog" style={{ height: 8, maxWidth: 'none' }}>
                             <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
                           </div>
-                          <div className="mono" style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-                            {Math.round(o.loanPaid ?? 0).toLocaleString()} <span style={{ color: 'var(--muted)', fontWeight: 500 }}>/ {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}</span>
-                          </div>
+                          {o.fiatPrice != null && (
+                            <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10 }}>
+                              <span>
+                                <span style={{ color: 'var(--muted)' }}>{L('EGP price', 'سعر البيع')}: </span>
+                                <span className="mono" style={{ fontWeight: 700 }}>{o.fiatPrice.toFixed(2)}</span>
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <span
                           className="mono"
@@ -1538,10 +1693,6 @@ export default function CustomerOrdersPage() {
                         >
                           {settledPct ?? 0}%
                         </span>
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 10 }}>
-                        <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                       </div>
                     )}
                   </div>
@@ -1555,8 +1706,7 @@ export default function CustomerOrdersPage() {
                   <tr>
                     <th>{L('Date', 'التاريخ')}</th>
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
-                    <th className="r">{L('Sell Price', 'سعر البيع')}</th>
-                    <th className="r">{L('Total (QAR)', 'الإجمالي (ريال)')}</th>
+                    <th className="r">{L('EGP price', 'سعر البيع')}</th>
                     <th>{L('Repayment', 'السداد')}</th>
                   </tr>
                 </thead>
@@ -1571,19 +1721,15 @@ export default function CustomerOrdersPage() {
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {Math.round(o.totalAmount).toLocaleString()} {o.currency}
                         </td>
-                        <td className="mono r">{o.sellPrice != null ? o.sellPrice.toFixed(2) : '—'}</td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
-                          {o.loanAmount != null ? `${Math.round(o.loanAmount).toLocaleString()} ${o.loanCurrency}` : '—'}
+                          {o.fiatPrice != null ? o.fiatPrice.toFixed(2) : '—'}
                         </td>
                         <td>
-                          {o.loaned && o.loanAmount != null ? (
+                          {o.loaned && o.loanAmount != null && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
                               <div style={{ flex: 1 }}>
-                                <div className="prog" style={{ height: 7 }}>
+                                <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
                                   <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
-                                </div>
-                                <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3, whiteSpace: 'nowrap' }}>
-                                  {Math.round(o.loanPaid ?? 0).toLocaleString()} / {Math.round(o.loanAmount).toLocaleString()} {o.loanCurrency}
                                 </div>
                               </div>
                               <span
@@ -1597,8 +1743,6 @@ export default function CustomerOrdersPage() {
                                 {settledPct ?? 0}%
                               </span>
                             </div>
-                          ) : (
-                            <span className="pill good">✓ {L('Fully Paid', 'مدفوع بالكامل')}</span>
                           )}
                         </td>
                       </tr>

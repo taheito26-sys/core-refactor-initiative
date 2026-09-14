@@ -1,5 +1,5 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
-import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
+import { computeFIFO, mergeLoansByRecency, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
 import { getCurrentTrackerState, hasMeaningfulTrackerData, isTrackerDataCleared } from './tracker-backup';
 
 interface StateOverrides {
@@ -26,6 +26,26 @@ function withoutDeletedLoans(
   if (!Array.isArray(loans) || loans.length === 0) return [];
   const deleted = new Set(deletedLoanIds || []);
   return deleted.size === 0 ? loans : loans.filter(l => !deleted.has(l.id));
+}
+
+/** Union deleted-repayment tombstones from two sources, capped to a sane size. */
+function unionDeletedRepaymentIds(a: string[] | undefined, b: string[] | undefined): string[] {
+  return Array.from(new Set([...(a || []), ...(b || [])])).slice(-500);
+}
+
+/** Union deleted-batch tombstones from two sources, capped to a sane size. */
+function unionDeletedBatchIds(a: string[] | undefined, b: string[] | undefined): string[] {
+  return Array.from(new Set([...(a || []), ...(b || [])])).slice(-500);
+}
+
+/** Drop any batch whose id has been tombstoned — see TrackerState.deletedBatchIds. */
+function withoutDeletedBatches(
+  batches: import('./tracker-helpers').Batch[] | undefined,
+  deletedBatchIds: string[] | undefined,
+): import('./tracker-helpers').Batch[] {
+  if (!Array.isArray(batches) || batches.length === 0) return [];
+  const deleted = new Set(deletedBatchIds || []);
+  return deleted.size === 0 ? batches : batches.filter(b => !deleted.has(b.id));
 }
 
 function stripCashState(stored: Partial<TrackerState> | null): Partial<TrackerState> | null {
@@ -65,7 +85,7 @@ export function buildStateFrom(
   const state: TrackerState = {
     currency: overrides?.currency ?? (stored?.currency === 'USDT' ? 'USDT' : 'QAR'),
     range: overrides?.range ?? (typeof stored?.range === 'string' ? stored.range : '7d'),
-    batches: Array.isArray(stored?.batches) ? stored.batches : [],
+    batches: withoutDeletedBatches(stored?.batches, stored?.deletedBatchIds),
     trades: Array.isArray(stored?.trades) ? stored.trades : [],
     customers: Array.isArray(stored?.customers) ? stored.customers : [],
     suppliers: Array.isArray(stored?.suppliers) ? stored.suppliers : [],
@@ -74,8 +94,13 @@ export function buildStateFrom(
     cashHistory: Array.isArray(stored?.cashHistory) ? stored.cashHistory : [],
     cashAccounts: Array.isArray(stored?.cashAccounts) ? stored.cashAccounts : [],
     cashLedger: Array.isArray(stored?.cashLedger) ? stored.cashLedger : [],
-    customerLoans: withoutDeletedLoans(stored?.customerLoans, stored?.deletedLoanIds),
+    customerLoans: withoutDeletedRepayments(
+      withoutDeletedLoans(stored?.customerLoans, stored?.deletedLoanIds),
+      stored?.deletedRepaymentIds,
+    ),
     deletedLoanIds: Array.isArray(stored?.deletedLoanIds) ? stored.deletedLoanIds : [],
+    deletedBatchIds: Array.isArray(stored?.deletedBatchIds) ? stored.deletedBatchIds : [],
+    deletedRepaymentIds: Array.isArray(stored?.deletedRepaymentIds) ? stored.deletedRepaymentIds : [],
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? asNumber(stored?.settings?.lowStockThreshold, 5000),
       priceAlertThreshold: overrides?.priceAlertThreshold ?? asNumber(stored?.settings?.priceAlertThreshold, 2),
@@ -125,10 +150,12 @@ export function mergeLocalAndCloud(
     const cleanLocal = stripCashState(local) ?? {};
     const cleanCloud = stripCashState(cloud) ?? {};
     const deletedLoanIds = unionDeletedLoanIds(cleanLocal.deletedLoanIds, cleanCloud.deletedLoanIds);
+    const deletedBatchIds = unionDeletedBatchIds(cleanLocal.deletedBatchIds, cleanCloud.deletedBatchIds);
+    const deletedRepaymentIds = unionDeletedRepaymentIds(cleanLocal.deletedRepaymentIds, cleanCloud.deletedRepaymentIds);
     return {
       ...cleanLocal,
       ...cleanCloud,
-      batches: unionById(cleanLocal.batches, cleanCloud.batches),
+      batches: withoutDeletedBatches(unionById(cleanLocal.batches, cleanCloud.batches), deletedBatchIds),
       trades: unionById(cleanLocal.trades, cleanCloud.trades),
       customers: unionById(cleanLocal.customers, cleanCloud.customers),
       suppliers: unionById(cleanLocal.suppliers, cleanCloud.suppliers),
@@ -137,24 +164,36 @@ export function mergeLocalAndCloud(
       cashHistory: [],
       cashQAR: 0,
       cashOwner: '',
-      customerLoans: withoutDeletedLoans(unionById(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
+      customerLoans: withoutDeletedRepayments(
+        withoutDeletedLoans(mergeLoansByRecency(cleanLocal.customerLoans, cleanCloud.customerLoans), deletedLoanIds),
+        deletedRepaymentIds,
+      ),
       deletedLoanIds,
+      deletedBatchIds,
+      deletedRepaymentIds,
     };
   }
 
   const deletedLoanIds = unionDeletedLoanIds(local.deletedLoanIds, cloud.deletedLoanIds);
+  const deletedBatchIds = unionDeletedBatchIds(local.deletedBatchIds, cloud.deletedBatchIds);
+  const deletedRepaymentIds = unionDeletedRepaymentIds(local.deletedRepaymentIds, cloud.deletedRepaymentIds);
   return {
     ...local,
     ...cloud,
-    batches: unionById(local.batches, cloud.batches),
+    batches: withoutDeletedBatches(unionById(local.batches, cloud.batches), deletedBatchIds),
     trades: unionById(local.trades, cloud.trades),
     customers: unionById(local.customers, cloud.customers),
     suppliers: unionById(local.suppliers, cloud.suppliers),
     cashAccounts: unionById(local.cashAccounts, cloud.cashAccounts),
     cashLedger: unionById(local.cashLedger, cloud.cashLedger),
     cashHistory: unionById(local.cashHistory, cloud.cashHistory),
-    customerLoans: withoutDeletedLoans(unionById(local.customerLoans, cloud.customerLoans), deletedLoanIds),
+    customerLoans: withoutDeletedRepayments(
+      withoutDeletedLoans(mergeLoansByRecency(local.customerLoans, cloud.customerLoans), deletedLoanIds),
+      deletedRepaymentIds,
+    ),
     deletedLoanIds,
+    deletedBatchIds,
+    deletedRepaymentIds,
   };
 }
 

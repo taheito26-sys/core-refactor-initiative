@@ -36,7 +36,7 @@ export function BanqueMisrInstaPayKPI() {
 
   return (
     <div className="kpi-card">
-      <div className="kpi-lbl">QAR//EGP</div>
+      <div className="kpi-lbl">QAR/EGP</div>
       <div className="kpi-val">
         {loading ? '…' : kpi ? kpi.instaPayV1BanqueMisr.toFixed(4) : '—'}
       </div>

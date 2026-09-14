@@ -210,6 +210,55 @@ export interface CashLedgerEntry {
   orderId?: string;
   batchId?: string;
   settlementId?: string;
+  /** Optional physical banknote breakdown for this entry, denomination -> count */
+  banknoteBreakdown?: Record<number, number>;
+}
+
+/** The merchant only ever handles 500/200/100/50 QAR notes — fixed set, no per-currency variation. */
+export const CASH_NOTE_DENOMINATIONS = [500, 200, 100, 50];
+
+/** Net banknote counts on hand for an account, denomination -> count, derived from every ledger entry that recorded a breakdown. */
+export function getAccountNoteTotals(accountId: string, ledger: CashLedgerEntry[]): Record<number, number> {
+  const totals: Record<number, number> = {};
+  for (const e of ledger || []) {
+    if (e.accountId !== accountId || !e.banknoteBreakdown) continue;
+    const sign = e.direction === 'in' ? 1 : -1;
+    for (const [denomStr, count] of Object.entries(e.banknoteBreakdown)) {
+      const denom = Number(denomStr);
+      totals[denom] = (totals[denom] || 0) + sign * count;
+    }
+  }
+  return totals;
+}
+
+/**
+ * Greedily allocates a withdrawal across the largest denominations first,
+ * constrained to what's actually on hand — a merchant hands over their
+ * biggest notes before breaking into smaller ones. Used to auto-attach a
+ * banknote breakdown to cash withdrawals (like a stock purchase) that don't
+ * collect one interactively, so the Notes Details tally stays in sync with
+ * the account balance instead of only moving on manual deposits/counts.
+ * Any remainder that can't be matched to a note actually on hand is left
+ * unallocated rather than invented.
+ */
+export function allocateBanknoteWithdrawal(
+  available: Record<number, number>,
+  amount: number,
+  denominations: number[] = CASH_NOTE_DENOMINATIONS,
+): Record<number, number> | undefined {
+  let remaining = Math.round(amount);
+  const breakdown: Record<number, number> = {};
+  const sorted = [...denominations].sort((a, b) => b - a);
+  for (const denom of sorted) {
+    const have = Math.max(0, Math.floor(available[denom] || 0));
+    if (have <= 0 || remaining < denom) continue;
+    const take = Math.min(have, Math.floor(remaining / denom));
+    if (take > 0) {
+      breakdown[denom] = take;
+      remaining -= take * denom;
+    }
+  }
+  return Object.keys(breakdown).length > 0 ? breakdown : undefined;
 }
 
 export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {
@@ -342,12 +391,42 @@ export interface Trade {
 
 export interface Customer {
   id: string;
+  /**
+   * The buyer's identity key. Trades, loans and statement links are all matched
+   * back to a customer by name, so this must stay stable for the life of the
+   * record — repointing it (to the other language's spelling, say) makes the
+   * next order fail to match and silently start a second customer record,
+   * splitting the buyer's history in a way nothing surfaces as an error.
+   * Per-language display names go in nameEn/nameAr instead.
+   */
   name: string;
+  /** Optional per-language names — when set, UI should show whichever matches the active language. */
+  nameEn?: string;
+  nameAr?: string;
   phone: string;
   tier: string;
   dailyLimitUSDT: number;
   notes: string;
   createdAt: number;
+}
+
+/** Picks the name matching the active language, falling back to the other language then the legacy `name`. */
+export function resolveCustomerName(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>, lang: 'en' | 'ar'): string {
+  const primary = lang === 'ar' ? customer.nameAr : customer.nameEn;
+  const secondary = lang === 'ar' ? customer.nameEn : customer.nameAr;
+  return primary || secondary || customer.name;
+}
+
+/**
+ * Every name this buyer may be known by. Name-based identity lookups must
+ * check all of them: a buyer whose Arabic name was typed on the order form
+ * has to resolve to the same record as one typed in English, or the order
+ * lands on a brand-new customer the buyer's own statement link doesn't cover.
+ */
+export function customerNameVariants(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>): string[] {
+  return [customer.name, customer.nameEn, customer.nameAr].filter(
+    (n): n is string => typeof n === 'string' && n.trim() !== '',
+  );
 }
 
 export interface DerivedBatch {
@@ -486,6 +565,16 @@ export interface CustomerLoan {
   sourceExchange?: string;
   /** exchange_p2p_orders.id this loan was created from, used to avoid re-linking the same order. */
   sourceOrderId?: string;
+  /**
+   * Bumped on every edit to this loan or its repayments (added, edited, or
+   * deleted). customerLoans is always merged by id across devices, never
+   * overwritten, and a plain union has no way to tell "this device's copy
+   * is stale" from "this device made the latest change" -- both look like
+   * "an object with this id exists." Comparing updatedAt at merge time
+   * (mergeLoansByRecency) is what lets the actually-latest edit win instead
+   * of whichever device happens to save next.
+   */
+  updatedAt?: number;
 }
 
 export function getLoanRepaid(loan: CustomerLoan): number {
@@ -515,6 +604,50 @@ export function mergeCustomerRecords(
     trades: state.trades.map(t => (t.customerId === fromId ? { ...t, customerId: intoId } : t)),
     customerLoans: (state.customerLoans || []).map(l => (l.customerId === fromId ? { ...l, customerId: intoId } : l)),
   };
+}
+
+/**
+ * Strips any tombstoned repayment out of every loan's own repayments array
+ * and re-derives status (a loan a deleted repayment had settled reopens) --
+ * see TrackerState.deletedRepaymentIds for why a plain merge can't do this.
+ */
+export function withoutDeletedRepayments(
+  loans: CustomerLoan[] | undefined,
+  deletedRepaymentIds: string[] | undefined,
+): CustomerLoan[] {
+  if (!Array.isArray(loans) || loans.length === 0) return [];
+  const deleted = new Set(deletedRepaymentIds || []);
+  if (deleted.size === 0) return loans;
+  return loans.map(loan => {
+    const repayments = loan.repayments || [];
+    if (!repayments.some(r => deleted.has(r.id))) return loan;
+    const nextLoan = { ...loan, repayments: repayments.filter(r => !deleted.has(r.id)) };
+    return { ...nextLoan, status: getLoanRemaining(nextLoan) <= 0 ? 'closed' : 'open' };
+  });
+}
+
+/**
+ * Merges two customerLoans arrays by id, but — unlike a plain union where
+ * whichever side happens to be "incoming" always wins — keeps whichever
+ * side's copy of a shared id has the later `updatedAt`. A device with a
+ * stale in-memory loan (an edit or a repayment deletion made elsewhere
+ * since it last loaded) no longer overwrites the newer copy just because it
+ * saves next; a loan with no `updatedAt` at all (never touched by this
+ * logic) is treated as older than any timestamped copy.
+ */
+export function mergeLoansByRecency(
+  base: CustomerLoan[] | undefined,
+  incoming: CustomerLoan[] | undefined,
+): CustomerLoan[] {
+  const out = new Map<string, CustomerLoan>();
+  for (const loan of base || []) out.set(loan.id, loan);
+  for (const loan of incoming || []) {
+    const existing = out.get(loan.id);
+    if (!existing || (loan.updatedAt || 0) >= (existing.updatedAt || 0)) {
+      out.set(loan.id, loan);
+    }
+  }
+  return Array.from(out.values());
 }
 
 /** One customer payment (a loan repayment) landing on a calendar day. */
@@ -599,6 +732,47 @@ export interface TrackerState {
    * what makes the deletion stick.
    */
   deletedLoanIds?: string[];
+  /**
+   * Ids of stock batches deleted locally. Batches, unlike trades (which only
+   * get `voided: true`), are truly removed from the `batches` array on
+   * delete — so every save always merges (unions) this device's batches with
+   * whatever the cloud row currently has, rather than overwriting it wholesale,
+   * to stop one device/tab whose in-memory batch list is momentarily behind
+   * another device's from wiping out batches it simply doesn't know about yet
+   * (the "imported batches show, then disappear" failure). A plain union
+   * alone would then make a real delete un-doable — the deleted id is
+   * tombstoned here and filtered out of every merge so the delete still
+   * sticks. See deletedLoanIds for the identical pattern applied to loans.
+   */
+  deletedBatchIds?: string[];
+  /**
+   * Ids of trades removed outright (not merely voided) locally, or by a
+   * direct out-of-band correction to the cloud row. The normal UI delete
+   * path only ever sets `voided: true` and leaves the record in place — see
+   * deletedBatchIds above for why an in-place flag flip still needs this:
+   * mergeArrayById lets the incoming (often stale) copy win over cloud for
+   * any id present in both, so a device whose local trade array predates a
+   * voided:true flip, or a genuine removal, will silently reintroduce the
+   * old row — with the old voided state, amounts, and customer — the next
+   * time it saves anything at all. Any code path that actually drops a
+   * trade from the array (rather than voiding it) must add its id here so
+   * every subsequent merge filters it back out. See deletedLoanIds for the
+   * identical pattern applied to loans.
+   */
+  deletedTradeIds?: string[];
+  /**
+   * Ids of individual loan repayments removed outright (a repayment deleted
+   * off an otherwise-still-open loan, not the whole loan). The loan itself
+   * survives, so deletedLoanIds doesn't cover this — mergeArrayById/unionById
+   * still merge customerLoans by loan id, and whichever side's copy of that
+   * loan object wins carries its own `repayments` array wholesale. A stale
+   * device that still has the deleted repayment in its in-memory copy of the
+   * loan resurrects it the next time it saves anything at all. Tombstoning
+   * the repayment id here, and filtering every loan's repayments array by it
+   * on every merge, is what makes the deletion stick. See deletedLoanIds for
+   * the identical pattern applied one level up.
+   */
+  deletedRepaymentIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }

@@ -65,8 +65,9 @@
 .tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 /* Dashboard KPI band: one continuous grid with a fixed column count so the
    tiles always pack next to each other instead of orphaning a half-empty row.
-   The tile count (10) divides evenly by both 5 (wide) and 2 (mobile). */
-.tracker-root .kpis.kpis-dashboard { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+   The column count matches the tile count (7) so the band stays on one line on
+   a wide screen; the mobile overrides below drop it back to two per row. */
+.tracker-root .kpis.kpis-dashboard { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
   padding: 6px; box-shadow: var(--lt-shadow2); position: relative; overflow: hidden;
@@ -180,6 +181,17 @@
   padding: 8px 10px; font-size: 11px; background: var(--panel2);
 }
 
+/* Mobile card fallback for the per-order and per-payment tables inside an
+   expanded buyer's detail — the desktop <table> there runs 13 columns wide
+   and forces heavy horizontal scrolling on a phone, so isMobile renders
+   these cards instead. */
+.tracker-root .loan-order-card,
+.tracker-root .loan-payment-card { padding: 10px; }
+.tracker-root .loan-order-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.tracker-root .loan-order-card-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px;
+}
+
 @media (max-width: 900px) {
   .tracker-root .loan-book-head { display: none; }
   .tracker-root .loan-cols { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -198,7 +210,11 @@
 
 /* ── PROGRESS BARS ── */
 .tracker-root .prog { width: 100%; max-width: 120px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid var(--line); overflow: hidden; position: relative; }
-.tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
+/* inset-inline-start (not left) so the fill grows from the reading-start
+   edge in both directions — right-to-left in the app's default Arabic RTL,
+   left-to-right in English — instead of always anchoring to the physical
+   left regardless of text direction. */
+.tracker-root .prog > span { position: absolute; top: 0; inset-inline-start: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
 
 /* ── ROW BUTTONS ── */
 .tracker-root .rowBtn {

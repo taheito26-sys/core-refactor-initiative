@@ -49,6 +49,11 @@ if (hasErrors) {
   process.exit(1);
 }
 
+// Always run, regardless of which files are staged: the invariant guard is
+// cheap (a handful of regex reads, no build) and the regressions it catches
+// are the kind that reach production precisely because nothing else complains.
+run('npm run guard:invariants');
+
 const criticalTouched = stagedFiles.some(isCritical);
 if (criticalTouched) {
   run('npm run typecheck');

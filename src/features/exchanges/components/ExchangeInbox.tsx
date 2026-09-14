@@ -1,12 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Inbox, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
+import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, type ExchangeId } from '../types';
 import { dismissTransfer } from '../api';
+
+/** Amounts within this margin of each other are treated as fully matched (floating-point/rounding noise from the exchange). */
+const AMOUNT_EPSILON = 0.01;
 
 export interface ExchangeOrderPayload {
   exchange: ExchangeId;
@@ -31,7 +35,11 @@ export interface ExchangeOrderPayload {
 
 export interface ExchangeTransferPayload {
   exchange: ExchangeId;
+  /** Representative id -- the most recent one when several transfers were combined into one pick. */
   transferId: string;
+  /** Every transfer folded into this pick, so all of them get marked linked to the one saved record. Always at least one entry. */
+  transferIds: string[];
+  /** Reference of the picked transfer, or all of them joined when combined. */
   reference: string;
   kind: 'pay' | 'network';
   amountUSDT: number;
@@ -129,9 +137,21 @@ export function ExchangeInbox({
 }) {
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
+  const { data: linksByOrder } = useExchangeOrderLinks();
   const [collapsed, setCollapsed] = useState(false);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  /** Transfers ticked for a combined pick -- several top-ups from one sender folded into a single record. */
+  const [selectedTransferIds, setSelectedTransferIds] = useState<Set<string>>(new Set());
+
+  const toggleTransferSelected = (id: string) => {
+    setSelectedTransferIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleDismissTransfer = async (transferId: string) => {
     setDismissingId(transferId);
@@ -164,6 +184,30 @@ export function ExchangeInbox({
     };
   }, [activeEntityIds, importedReferences]);
 
+  /**
+   * One order can be split across multiple customers/suppliers, so "imported"
+   * is really "how much of it is registered so far" -- full, partial, or none.
+   * Falls back to the legacy full/boolean signal (isImported above) for an
+   * order predating the split-links table or whose link insert never landed.
+   */
+  const orderCoverage = useMemo(() => {
+    return (o: NonNullable<typeof allOrders>[number]) => {
+      const links = (linksByOrder?.get(o.id) ?? []).filter(
+        (l) => !activeEntityIds || activeEntityIds.has(l.entity_id),
+      );
+      let linkedAmount = sumLinkedAmount(links);
+      if (linkedAmount <= AMOUNT_EPSILON && isImported(o.linked_at, o.linked_entity_id, o.order_number)) {
+        linkedAmount = o.amount;
+      }
+      const remaining = Math.max(0, o.amount - linkedAmount);
+      return {
+        remaining,
+        isFull: remaining <= AMOUNT_EPSILON,
+        isPartial: linkedAmount > AMOUNT_EPSILON && remaining > AMOUNT_EPSILON,
+      };
+    };
+  }, [linksByOrder, activeEntityIds, isImported]);
+
   const allOrders = useMemo(
     () =>
       (orders ?? [])
@@ -182,11 +226,57 @@ export function ExchangeInbox({
     [transfers, onPickTransfer, transferDirection, inSelectedMonth],
   );
 
+  // A tick only counts while its row is still pending and still listed --
+  // one imported elsewhere, dismissed, or filtered out by the month pill
+  // drops out of the selection on its own.
+  const selectedTransfers = allTransfers.filter(
+    (tr) => selectedTransferIds.has(tr.id) && !isImported(tr.linked_at, tr.linked_entity_id, tr.reference),
+  );
+  const selectedTotal = selectedTransfers.reduce((sum, tr) => sum + tr.amount, 0);
+  const sameSender = new Set(selectedTransfers.map((tr) => tr.counterparty ?? '')).size === 1;
+  const sameKind = new Set(selectedTransfers.map((tr) => tr.kind)).size === 1;
+  // One tick fills the form with that transfer; each further tick adds to
+  // the total, as long as they all came from the same sender the same way.
+  const canCombine = selectedTransfers.length >= 1 && sameSender && sameKind;
+
+  const pickSelection = () => {
+    if (!onPickTransfer || !canCombine) return;
+    const oldestFirst = [...selectedTransfers].sort(
+      (a, b) => (a.transfer_time ? new Date(a.transfer_time).getTime() : 0) - (b.transfer_time ? new Date(b.transfer_time).getTime() : 0),
+    );
+    const latest = oldestFirst[oldestFirst.length - 1];
+    onPickTransfer({
+      exchange: latest.exchange,
+      transferId: latest.id,
+      transferIds: oldestFirst.map((tr) => tr.id),
+      reference: oldestFirst.map((tr) => tr.reference).join(', '),
+      kind: latest.kind,
+      amountUSDT: selectedTotal,
+      buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
+      ts: latest.transfer_time ? new Date(latest.transfer_time).getTime() : Date.now(),
+      assigneeName: latest.counterparty ?? undefined,
+    });
+  };
+
+  // Ticking IS the combine: every change to the selection refills the form
+  // with the running total, exactly as tapping a single row fills it with
+  // that row. Keyed on the ticked ids so a background refresh of the
+  // transfer list doesn't re-fire it and stomp on edits mid-form.
+  const selectionKey = selectedTransfers.map((tr) => tr.id).sort().join(',');
+  const pickSelectionRef = useRef(pickSelection);
+  useEffect(() => {
+    pickSelectionRef.current = pickSelection;
+  });
+  useEffect(() => {
+    if (!selectionKey) return;
+    pickSelectionRef.current();
+  }, [selectionKey]);
+
   const total = allOrders.length + allTransfers.length;
   if (total === 0) return null;
 
   const pendingCount =
-    allOrders.filter((o) => !isImported(o.linked_at, o.linked_entity_id, o.order_number)).length +
+    allOrders.filter((o) => !orderCoverage(o).isFull).length +
     allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).length;
 
   // One chronological feed -- orders and transfers interleaved by date/time,
@@ -228,27 +318,56 @@ export function ExchangeInbox({
         </span>
       </button>
 
+      {!collapsed && selectedTransfers.length > 0 && (
+        <div className="flex items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-2 py-1">
+          <span className="min-w-0 truncate text-[10px]">
+            {!canCombine ? (
+              <span className="font-semibold text-amber-500">Tick transfers from the same sender only</span>
+            ) : (
+              <>
+                <span className="text-muted-foreground">{selectedTransfers.length} combined — </span>
+                <span className="font-bold text-primary">
+                  {fmtNum(selectedTotal, 8)} {selectedTransfers[0]?.asset ?? 'USDT'}
+                </span>
+                <span className="text-muted-foreground"> in the form</span>
+              </>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedTransferIds(new Set())}
+            className="shrink-0 rounded border border-muted-foreground/30 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-destructive/60 hover:text-destructive"
+          >
+            Clear
+          </button>
+        </div>
+      )}
       {!collapsed && (
         <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
           {rows.map((row) => row.kind === 'order' ? (() => {
             const o = row.data;
-            const imported = isImported(o.linked_at, o.linked_entity_id, o.order_number);
+            const { remaining, isFull, isPartial } = orderCoverage(o);
+            const imported = isFull;
             const accent = ACCENT[side];
             const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
+            // A split continuation targets a different customer/supplier than
+            // the exchange's own counterparty, and only asks for the amount
+            // still outstanding rather than the order's full amount.
+            const pickAmount = isPartial ? remaining : o.amount;
             return (
               <button
                 key={o.id}
                 type="button"
                 disabled={imported}
-                title={imported ? 'Already in the tracker' : 'Fill the form with this order'}
+                title={imported ? 'Already in the tracker' : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
                 onClick={() =>
                   onPick({
                     exchange: o.exchange,
                     orderId: o.id,
                     orderNumber: o.order_number,
-                    amountUSDT: o.amount,
+                    amountUSDT: pickAmount,
                     ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
-                    assigneeName: o.counterparty ?? undefined,
+                    assigneeName: isPartial ? undefined : (o.counterparty ?? undefined),
                     priceFiat: needsQarRate ? 0 : o.price,
                     needsQarRate,
                     ...(needsQarRate
@@ -265,7 +384,7 @@ export function ExchangeInbox({
                   imported ? 'cursor-default border-dashed bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
                 )}
               >
-                <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : accent.bar)} />
+                <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : isPartial ? 'bg-amber-500' : accent.bar)} />
                 <div className="min-w-0 flex-1 px-1.5 py-1">
                   <div className="flex items-center justify-between gap-1.5">
                     <div className="flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-bold leading-tight">
@@ -284,6 +403,11 @@ export function ExchangeInbox({
                     {!imported && needsQarRate && (
                       <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs QAR rate</Chip>
                     )}
+                    {isPartial && (
+                      <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">
+                        {fmtNum(remaining)} {o.asset} left — split across customers
+                      </Chip>
+                    )}
                     {o.counterparty && <span className="truncate">{o.counterparty}</span>}
                     <span className="truncate">{fmtWhen(o.order_time)}</span>
                   </div>
@@ -294,27 +418,49 @@ export function ExchangeInbox({
             const tr = row.data;
             const imported = isImported(tr.linked_at, tr.linked_entity_id, tr.reference);
             const kind = KIND_CHIP[tr.kind];
+            const selected = selectedTransferIds.has(tr.id);
             return (
               <div key={tr.id} className="flex w-full max-w-full items-stretch gap-1">
+              {!imported && (
+                <button
+                  type="button"
+                  title={selected ? 'Deselect' : 'Tick to combine with other transfers from the same sender'}
+                  onClick={() => toggleTransferSelected(tr.id)}
+                  className={cn(
+                    'flex shrink-0 items-center justify-center rounded border px-1.5',
+                    selected
+                      ? 'border-primary bg-primary/20 text-primary'
+                      : 'border-dashed border-muted-foreground/40 text-muted-foreground/30 hover:border-primary/50 hover:text-muted-foreground/60',
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+              )}
               <button
                 type="button"
                 disabled={imported}
                 title={imported ? 'Already in the tracker' : 'Fill the form with this transfer'}
-                onClick={() =>
+                onClick={() => {
                   onPickTransfer!({
                     exchange: tr.exchange,
                     transferId: tr.id,
+                    transferIds: [tr.id],
                     reference: tr.reference,
                     kind: tr.kind,
                     amountUSDT: tr.amount,
                     buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
                     ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
                     assigneeName: tr.counterparty ?? undefined,
-                  })
-                }
+                  });
+                  // This row alone now fills the form, so any half-made
+                  // selection is moot -- drop it rather than leave the
+                  // combine bar standing over a form it didn't fill.
+                  setSelectedTransferIds(new Set());
+                }}
                 className={cn(
                   'flex min-w-0 flex-1 overflow-hidden rounded border border-dashed text-left',
                   imported ? 'cursor-default bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
+                  selected && 'border-primary/60 bg-primary/10',
                 )}
               >
                 <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : ACCENT.transfer.bar)} />

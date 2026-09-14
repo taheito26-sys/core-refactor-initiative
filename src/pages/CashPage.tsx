@@ -14,7 +14,7 @@ export default function CashPage({ adminTrackerState, isAdminView }: CashPagePro
   const { settings } = useTheme();
   const isMobile = useIsMobile();
   const t = useT();
-  const { state, applyState, applyStateAndCommit, clearedAccountIds } = useTrackerState({
+  const { state, applyState, applyStateAndCommit, clearedAccountIds, cloudLoaded } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -33,7 +33,7 @@ export default function CashPage({ adminTrackerState, isAdminView }: CashPagePro
       dir={t.isRTL ? 'rtl' : 'ltr'}
       style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 8 }}
     >
-      <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} />
+      <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} cloudLoaded={cloudLoaded} />
     </div>
   );
 }

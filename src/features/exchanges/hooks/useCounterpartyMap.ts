@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { canonicalizeName } from '@/lib/text-normalize';
 import type { ExchangeId } from '../types';
 
 export type CounterpartyEntityType = 'customer' | 'supplier';
@@ -14,7 +15,7 @@ export interface CounterpartyMapping {
   entityName: string;
 }
 
-const normalizeCounterparty = (name: string) => name.trim().toLowerCase();
+const normalizeCounterparty = (name: string) => canonicalizeName(name);
 
 export function useCounterpartyMap() {
   return useQuery({

@@ -90,6 +90,34 @@ export function groupPayments(payments: StatementEntry[]): PaymentGroup[] {
   return order.map(key => groups.get(key)!);
 }
 
+/**
+ * Group payment entries by calendar day (viewer's local time), regardless of
+ * `batchId` -- several independent repayments recorded separately across
+ * different orders on the same day still collapse into one summed row. Used
+ * where a per-order or per-batch list would otherwise run long: a buyer
+ * statement reads as "you paid X on this day", not one row per order touched.
+ */
+export function groupPaymentsByDay(payments: StatementEntry[]): PaymentGroup[] {
+  const groups = new Map<string, PaymentGroup>();
+  const order: string[] = [];
+  for (const p of payments) {
+    const d = new Date(p.ts);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, description: p.description, members: [] };
+      groups.set(key, group);
+      order.push(key);
+    }
+    group.members.push(p);
+    group.refs.push(p.ref);
+    group.credit = round2(group.credit + p.credit);
+    group.ts = Math.min(group.ts, p.ts);
+    if (!group.description && p.description) group.description = p.description;
+  }
+  return order.map(key => groups.get(key)!);
+}
+
 export interface StatementLoanRow {
   loan: CustomerLoan;
   /** Order ref when the loan is linked to one, otherwise the loan's own ref. */

@@ -739,7 +739,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="kpis kpis-dashboard">
         <div className="kpi-card">
-          <div className="kpi-lbl">{t('netProfitLabel')}</div>
+          <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
           <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
@@ -770,7 +770,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-sub">{t('liquidUsdt')}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">Average Stock Price + Spread</div>
+          <div className="kpi-lbl">{t('kpiAvgCostShort')}</div>
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtDashboardPrice(averageStockPrice) : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
@@ -798,43 +798,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
-        <div className="kpi-card">
-          <div className="kpi-lbl" style={{ color: 'var(--t5)' }}>{t('buyingPower')}</div>
-          {(() => {
-            const cash = num(state.cashQAR, 0);
-            const refPrice = averageStockPrice || p2pAvgs.avgBuy;
-            const isFallback = !averageStockPrice && !!p2pAvgs.avgBuy;
-            return (
-              <>
-                <div className="kpi-val" style={{ color: 'var(--t5)' }}>
-                  {refPrice && cash > 0
-                    ? fmtU(cash / refPrice, 0) + ' ' + localCur('USDT', t.lang)
-                    : cash > 0
-                      ? fmtDashboardAmount(cash)
-                      : t('setCash')}
-                </div>
-                <div className="kpi-sub">
-                  {refPrice
-                    ? `@ Avg ${fmtDashboardPrice(refPrice)}${isFallback ? ` ${t('mktAvg')}` : ''}`
-                    : cash > 0
-                      ? t('addBatchesFirst')
-                      : t('addBatchesFirst')}
-                </div>
-              </>
-            );
-          })()}
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl" style={{ color: 'var(--good)' }}>{t('netPosition')}</div>
-          <div className="kpi-val good">{fmtDashboardAmount(stCost + liveCashQAR)}</div>
-          <div className="kpi-sub">{t('stock')} {fmtDashboardAmount(stCost)} + {t('cash')} {fmtDashboardAmount(liveCashQAR)}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t('stockCostEst')}</div>
-          <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtDashboardAmount(stCost)}</div>
-          <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtDashboardPrice(averageStockPrice) : '—'}</div>
-        </div>
-
         {(() => {
           const roiData = roiPeriod === '7d' ? d7 : d30;
           const roiVal = stCost > 0 ? (roiData.net / stCost) * 100 : 0;

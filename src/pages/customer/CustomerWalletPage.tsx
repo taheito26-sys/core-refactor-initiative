@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { fmtTotal } from "@/lib/tracker-helpers";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
+import { useMonthlyStatementExport } from "@/features/stock/utils/useMonthlyStatementExport";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -50,6 +51,15 @@ interface LedgerRow {
 function localMonthKey(date: number | string): string {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Same local-timezone reasoning as localMonthKey, one level finer: several
+// payments recorded on the same calendar day (a merchant splitting one
+// physical handover into separate entries) should read as one payment to
+// the customer, not a wall of near-identical rows.
+function localDayKey(date: number | string): string {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function uid(): string {
@@ -334,6 +344,7 @@ export default function CustomerWalletPage() {
       return (data as { statements: PublicStatement[] }).statements;
     },
     enabled: !!userId,
+    refetchInterval: 20000,
   });
 
   // Stable per-payment key (content-based, not array position) so a
@@ -380,8 +391,8 @@ export default function CustomerWalletPage() {
   // anyone with no payment this month. Default instead to the most recent
   // month that actually has a payment, falling back to "All Months" only
   // once data has loaded and there's truly nothing.
-  const [paymentsMonth, setPaymentsMonth] = useState<string | null>(null);
-  const paymentsMonthInitialized = useRef(false);
+  const [paymentsMonth, setPaymentsMonth] = useState<string | null>(() => localMonthKey(Date.now()));
+  const userPickedPaymentsMonth = useRef(false);
   const paymentsMonths = useMemo(() => {
     const seen = new Set<string>();
     const months: string[] = [];
@@ -391,11 +402,17 @@ export default function CustomerWalletPage() {
     }
     return months;
   }, [loanPayments]);
+  // Re-evaluates every time paymentsMonths changes rather than once on
+  // mount: the loan-statement edge function can resolve after this first
+  // renders, so the first non-empty paymentsMonths list can still be
+  // missing the most recent month. Locking the fallback in at that point
+  // meant a newer month with a payment stayed hidden even after that data
+  // arrived on a later poll. Skipped once the buyer has picked a month.
   useEffect(() => {
-    if (paymentsMonthInitialized.current || paymentsMonths.length === 0) return;
-    paymentsMonthInitialized.current = true;
+    if (userPickedPaymentsMonth.current || paymentsMonths.length === 0) return;
     const currentMonth = localMonthKey(Date.now());
-    setPaymentsMonth(paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0]);
+    const next = paymentsMonths.includes(currentMonth) ? currentMonth : paymentsMonths[0];
+    setPaymentsMonth(prev => (prev === next ? prev : next));
   }, [paymentsMonths]);
   const filteredLoanPayments = useMemo(() =>
     paymentsMonth
@@ -404,12 +421,117 @@ export default function CustomerWalletPage() {
     [loanPayments, paymentsMonth],
   );
 
+  // Club same-day payments into one row. Grouped by day + currency (not by
+  // the merchant's account, which the customer never sees) — the amounts
+  // sum, and the group's key stays content-based so a note attached to it
+  // survives a refetch the same way a single payment's does.
+  const groupedLoanPayments = useMemo(() => {
+    const groups = new Map<string, { date: number; amount: number; currency: string; notes: string[]; count: number }>();
+    const order: string[] = [];
+    for (const p of filteredLoanPayments) {
+      const gkey = `${p.currency}:${localDayKey(p.date)}`;
+      let g = groups.get(gkey);
+      if (!g) {
+        g = { date: p.date, amount: 0, currency: p.currency, notes: [], count: 0 };
+        groups.set(gkey, g);
+        order.push(gkey);
+      }
+      g.amount = Math.round((g.amount + p.amount) * 100) / 100;
+      g.date = Math.max(g.date, p.date);
+      g.count += 1;
+      if (p.note && !g.notes.includes(p.note)) g.notes.push(p.note);
+    }
+    return order.map(gkey => {
+      const g = groups.get(gkey)!;
+      return {
+        key: `${gkey}:${g.amount}`,
+        date: g.date,
+        amount: g.amount,
+        currency: g.currency,
+        note: g.notes.join(' · ') || null,
+        count: g.count,
+      };
+    });
+  }, [filteredLoanPayments]);
+
+  // Search + sort controls for the Payments Received list — lets the buyer
+  // find a specific payment by its note instead of scrolling the whole
+  // month, and re-order it (newest/oldest/largest/smallest) rather than
+  // being stuck with insertion order.
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [paymentSort, setPaymentSort] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
+  const displayedLoanPayments = useMemo(() => {
+    const q = paymentSearch.trim().toLowerCase();
+    const filtered = q
+      ? groupedLoanPayments.filter(p => (p.note ?? "").toLowerCase().includes(q))
+      : groupedLoanPayments;
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (paymentSort) {
+        case "date_asc": return a.date - b.date;
+        case "amount_desc": return b.amount - a.amount;
+        case "amount_asc": return a.amount - b.amount;
+        default: return b.date - a.date;
+      }
+    });
+    return sorted;
+  }, [groupedLoanPayments, paymentSearch, paymentSort]);
+  const displayedLoanPaymentsTotal = useMemo(
+    () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
+    [displayedLoanPayments],
+  );
+
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
     for (const s of loanStatements) { totalDebt += s.totalLoaned; totalPaid += s.totalRepaid; outstanding += s.outstanding; }
     const currency = loanStatements[0]?.currency ?? "QAR";
-    return { totalDebt, totalPaid, outstanding, currency };
+    const settledPct = totalDebt > 0 ? Math.min(100, Math.round((totalPaid / totalDebt) * 100)) : 0;
+    return { totalDebt, totalPaid, outstanding, currency, settledPct };
   }, [loanStatements]);
+
+  // Monthly statement export — pulls the branded, month-scoped statement
+  // (own cumulative totals + payment history, plus the merchant's month-wide
+  // EGP sell ledger) straight from the server, so a buyer can self-serve the
+  // same document a merchant would otherwise have to generate and send by
+  // hand. Saves a real PDF or XLSX file directly — no print dialog.
+  const { exportingFormat, exportStatement } = useMonthlyStatementExport(loanTotals.currency, L);
+
+  // Per-month totals — every month that has ever had a payment, newest
+  // first, so "how am I doing this month vs last" is visible without
+  // stepping through the month filter one pill at a time.
+  const monthlyPaymentBreakdown = useMemo(() => {
+    const map = new Map<string, { key: string; total: number; count: number; currency: string }>();
+    for (const p of loanPayments) {
+      const mk = localMonthKey(p.date);
+      let m = map.get(mk);
+      if (!m) { m = { key: mk, total: 0, count: 0, currency: p.currency }; map.set(mk, m); }
+      m.total = Math.round((m.total + p.amount) * 100) / 100;
+      m.count += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+  }, [loanPayments]);
+  const maxMonthlyTotal = useMemo(
+    () => monthlyPaymentBreakdown.reduce((max, m) => Math.max(max, m.total), 0) || 1,
+    [monthlyPaymentBreakdown],
+  );
+  // "This month" must mean the real calendar month, not "the most recent
+  // month that happens to have a payment" -- for a buyer with no payment
+  // yet this month (e.g. all their September orders are still unpaid),
+  // that fallback silently mislabeled last month's total as this month's.
+  const monthOverMonth = useMemo(() => {
+    if (monthlyPaymentBreakdown.length === 0) return null;
+    const byKey = new Map(monthlyPaymentBreakdown.map(m => [m.key, m]));
+    const currentKey = localMonthKey(Date.now());
+    const [y, mo] = currentKey.split('-').map(Number);
+    const previousKey = localMonthKey(new Date(y, mo - 2, 1).getTime());
+    const currency = monthlyPaymentBreakdown[0].currency;
+    const current = byKey.get(currentKey) ?? { key: currentKey, total: 0, count: 0, currency };
+    const previous = byKey.get(previousKey) ?? null;
+    const changePct = previous && previous.total > 0
+      ? Math.round(((current.total - previous.total) / previous.total) * 100)
+      : null;
+    return { current, previous, changePct };
+  }, [monthlyPaymentBreakdown]);
 
   const { data: ledger = [], isLoading: ledgerLoading } = useQuery({
     queryKey: ["customer-cash-ledger", userId],
@@ -508,7 +630,10 @@ export default function CustomerWalletPage() {
     return result.reverse();
   };
 
-  const isLoading = accLoading || ledgerLoading;
+  // react-query's own isLoading is false while a query is disabled — i.e.
+  // before `userId` resolves from auth — so without `!userId` this briefly
+  // renders "No accounts yet" on every load, before flashing to the real list.
+  const isLoading = accLoading || ledgerLoading || !userId;
 
   return (
     <div className="space-y-0 pb-16">
@@ -712,55 +837,159 @@ export default function CustomerWalletPage() {
               minus the account/edit/delete/merge actions (merchant-only). ── */}
           {tab === "payments" && (
             <div className="space-y-3">
-              {/* Debt summary */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Total Debt", "إجمالي المديونية")}</p>
-                  <p className="text-lg font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+              {/* Hero — gradient summary + settlement ring, same figures the
+                  flat cards used to show, now the page's visual anchor. */}
+              <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-4 text-primary-foreground">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15"><Wallet2 className="h-4 w-4" /></div>
+                    <p className="text-sm font-bold">{L("Payments Overview", "نظرة عامة على الدفعات")}</p>
+                  </div>
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-black tabular-nums">{loanTotals.settledPct}%</span>
                 </div>
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
-                  <p className="text-lg font-black tabular-nums mt-0.5 text-emerald-600">{fmtTotal(loanTotals.totalPaid)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span></p>
+                <div className="mt-1.5 h-2 rounded-full bg-white/20 overflow-hidden">
+                  <div className="h-full rounded-full bg-white transition-all" style={{ width: `${loanTotals.settledPct}%` }} />
                 </div>
-                <div className="rounded-2xl border border-border/50 bg-card p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
-                  <p className={cn("text-lg font-black tabular-nums mt-0.5", loanTotals.outstanding > 0 ? "text-amber-600" : "text-emerald-600")}>
-                    {fmtTotal(loanTotals.outstanding)} <span className="text-xs font-semibold text-muted-foreground">{loanTotals.currency}</span>
-                  </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Total Debt", "إجمالي المديونية")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalPaid)}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
+                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
+                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.outstanding)}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Month filter — same convention as the Orders page */}
-              {paymentsMonths.length > 0 && (
-                <div className="month-filter-row">
-                  <button onClick={() => setPaymentsMonth(null)} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
-                    {L("All Months", "كل الأشهر")}
-                  </button>
-                  {paymentsMonths.map(m => {
-                    const [y, mo] = m.split("-");
-                    const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
-                    return (
-                      <button key={m} onClick={() => setPaymentsMonth(m)} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
-                        {label}
-                      </button>
-                    );
-                  })}
+              {/* Monthly breakdown — every month with a payment, newest
+                  first, each bar scaled against that month's own peak. */}
+              {monthlyPaymentBreakdown.length > 1 && (
+                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border/40 flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Monthly Breakdown", "التوزيع الشهري")}</p>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {monthlyPaymentBreakdown.slice(0, 6).map(m => {
+                      const [y, mo] = m.key.split("-");
+                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
+                      const pct = Math.max(4, Math.round((m.total / maxMonthlyTotal) * 100));
+                      return (
+                        <button
+                          key={m.key}
+                          onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="w-20 shrink-0">
+                            <p className="text-xs font-semibold truncate">{label}</p>
+                            <p className="text-[10px] text-muted-foreground">{m.count} {m.count === 1 ? L("payment", "دفعة") : L("payments", "دفعات")}</p>
+                          </div>
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="w-20 shrink-0 text-right text-xs font-black tabular-nums">{fmtTotal(m.total)}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* Payments list */}
-              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
-                  <span className="text-[10px] text-muted-foreground">{filteredLoanPayments.length} {L("payments", "دفعة")}</span>
+              {/* Month filter — same convention as the Orders page */}
+              {paymentsMonths.length > 0 && (
+                <div className="space-y-2">
+                  <div className="month-filter-row">
+                    <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
+                      {L("All Months", "كل الأشهر")}
+                    </button>
+                    {paymentsMonths.map(m => {
+                      const [y, mo] = m.split("-");
+                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
+                      return (
+                        <button key={m} onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m); }} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
+                    <button
+                      onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
+                      disabled={exportingFormat !== null}
+                      title={L("Export PDF", "تصدير PDF")}
+                      className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
+                    >
+                      {exportingFormat === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                      PDF
+                    </button>
+                    <button
+                      onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}
+                      disabled={exportingFormat !== null}
+                      title={L("Export XLSX", "تصدير XLSX")}
+                      className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/5 px-3 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-60"
+                    >
+                      {exportingFormat === "xlsx" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+                      XLSX
+                    </button>
+                  </div>
                 </div>
-                {filteredLoanPayments.length === 0 ? (
+              )}
+
+              {/* Payments list — full-width card with search + sort so the
+                  buyer can locate or re-order payments instead of only
+                  scrolling the month's list top to bottom. */}
+              <div className="-mx-4 sm:mx-0 rounded-none sm:rounded-2xl border-y sm:border border-border/60 bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{displayedLoanPayments.length} {L("payments", "دفعة")}</span>
+                </div>
+
+                {groupedLoanPayments.length > 0 && (
+                  <div className="px-4 py-2.5 border-b border-border/40 flex items-center gap-2">
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        value={paymentSearch}
+                        onChange={e => setPaymentSearch(e.target.value)}
+                        placeholder={L("Search notes...", "بحث في الملاحظات...")}
+                        className="h-8 w-full rounded-lg border border-border/50 bg-background pl-8 pr-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setPaymentSort(s => {
+                        if (s === "date_desc") return "date_asc";
+                        if (s === "date_asc") return "amount_desc";
+                        if (s === "amount_desc") return "amount_asc";
+                        return "date_desc";
+                      })}
+                      className="h-8 shrink-0 flex items-center gap-1 rounded-lg border border-border/50 bg-background px-2.5 text-[10px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                    >
+                      <ArrowUpDown className="h-3 w-3" />
+                      {paymentSort === "date_desc" && L("Newest", "الأحدث")}
+                      {paymentSort === "date_asc" && L("Oldest", "الأقدم")}
+                      {paymentSort === "amount_desc" && L("Highest", "الأعلى")}
+                      {paymentSort === "amount_asc" && L("Lowest", "الأقل")}
+                    </button>
+                  </div>
+                )}
+
+                {groupedLoanPayments.length === 0 ? (
                   <div className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">{loanPayments.length === 0 ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد") : L("No payments this month", "لا توجد دفعات هذا الشهر")}</p>
                   </div>
+                ) : displayedLoanPayments.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">{L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}</p>
+                  </div>
                 ) : (
                   <div className="divide-y divide-border/40">
-                    {filteredLoanPayments.map(p => {
+                    {displayedLoanPayments.map(p => {
                       const myNote = paymentNoteByKey.get(p.key) ?? "";
                       const isEditingNote = editingNoteKey === p.key;
                       return (
@@ -768,7 +997,14 @@ export default function CustomerWalletPage() {
                           <div className="flex items-center gap-3">
                             <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">{new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
+                              <p className="text-xs font-semibold truncate">
+                                {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
+                                {p.count > 1 && (
+                                  <span className="ms-1.5 text-[10px] font-semibold text-muted-foreground">
+                                    ({p.count} {L("payments", "دفعات")})
+                                  </span>
+                                )}
+                              </p>
                               {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
                             </div>
                             <div className="text-right shrink-0">
@@ -815,6 +1051,13 @@ export default function CustomerWalletPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {displayedLoanPayments.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-border/40 flex items-center justify-between bg-muted/20">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{L("Total shown", "الإجمالي المعروض")}</span>
+                    <span className="text-xs font-black tabular-nums text-emerald-600">+{fmtTotal(displayedLoanPaymentsTotal)} {loanTotals.currency}</span>
                   </div>
                 )}
               </div>

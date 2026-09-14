@@ -1,4 +1,4 @@
-import type { BuyerStatement } from './loanStatement';
+import { groupPaymentsByDay, type BuyerStatement } from './loanStatement';
 
 /**
  * Turning a buyer statement into something that can be sent to the buyer.
@@ -181,13 +181,14 @@ export function buildStatementCsv(
   rows.push('');
 
   const payments = statement.entries.filter(e => e.kind === 'payment');
+  const paymentDayGroups = groupPaymentsByDay(payments);
   rows.push(csvRow([labels.paymentsReceived]));
-  if (payments.length === 0) {
+  if (paymentDayGroups.length === 0) {
     rows.push(csvRow([labels.noPayments]));
   } else {
     rows.push(csvRow([labels.date, labels.ref, labels.amount, labels.account, labels.note]));
-    for (const p of payments) {
-      rows.push(csvRow([formatDateTime(p.ts, lang), p.ref, rawAmount(p.credit), p.accountName || '', p.description]));
+    for (const g of paymentDayGroups) {
+      rows.push(csvRow([formatDateTime(g.ts, lang), g.refs.join(', '), rawAmount(g.credit), g.accountName || '', g.description]));
     }
     rows.push(csvRow(['', labels.totalRepaid, rawAmount(statement.totalRepaid), '', '']));
   }
@@ -296,6 +297,7 @@ export function buildStatementHtml(
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const cur = escapeHtml(statement.currency);
   const payments = statement.entries.filter(e => e.kind === 'payment');
+  const paymentDayGroups = groupPaymentsByDay(payments);
   const money = clientSafe ? formatMoneyWhole : formatMoney;
   const text = (s: string) => escapeHtml(clientSafe ? redactClientText(s) : s);
 
@@ -311,15 +313,15 @@ export function buildStatementHtml(
         <td class="num">${row.settled ? '—' : row.ageDays}</td>
       </tr>`).join('');
 
-  const paymentRows = payments.length === 0
+  const paymentRows = paymentDayGroups.length === 0
     ? `<tr><td colspan="5" class="empty">${escapeHtml(labels.noPayments)}</td></tr>`
-    : payments.map(p => `
+    : paymentDayGroups.map(g => `
       <tr>
-        <td>${escapeHtml(formatDate(p.ts, lang))}</td>
-        <td class="ref">${escapeHtml(p.ref)}</td>
-        <td class="num paid">${money(p.credit)}</td>
-        <td>${escapeHtml(p.accountName || '—')}</td>
-        <td class="desc">${p.description ? text(p.description) : '—'}</td>
+        <td>${escapeHtml(formatDate(g.ts, lang))}</td>
+        <td class="ref">${escapeHtml(g.refs.join(', '))}</td>
+        <td class="num paid">${money(g.credit)}</td>
+        <td>${escapeHtml(g.accountName || '—')}</td>
+        <td class="desc">${g.description ? text(g.description) : '—'}</td>
       </tr>`).join('');
 
   const ledgerRows = statement.entries.length === 0
@@ -545,6 +547,7 @@ export function buildStatementHtmlCompact(
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const cur = escapeHtml(statement.currency);
   const payments = statement.entries.filter(e => e.kind === 'payment');
+  const paymentDayGroups = groupPaymentsByDay(payments);
   const money = clientSafe ? formatMoneyWhole : formatMoney;
   const redactedText = (s: string) => escapeHtml(clientSafe ? redactClientText(s) : s);
   const percentPaid = statement.totalLoaned > 0
@@ -554,15 +557,15 @@ export function buildStatementHtmlCompact(
     ? `٪${percentPaid}  ${labels.percentPaidSuffix}`
     : `${percentPaid}% ${labels.percentPaidSuffix}`;
 
-  const paymentRows = payments.length === 0
+  const paymentRows = paymentDayGroups.length === 0
     ? `<tr><td colspan="5" class="empty">${escapeHtml(labels.noPayments)}</td></tr>`
-    : payments.map((p, i) => `
+    : paymentDayGroups.map((g, i) => `
       <tr>
         <td class="num">${i + 1}</td>
-        <td>${escapeHtml(formatDate(p.ts, lang))}</td>
-        <td class="num paid">${money(p.credit)}</td>
-        <td class="desc">${redactedText(p.description || labels.payment)}</td>
-        <td class="ref">${escapeHtml(p.ref || '—')}</td>
+        <td>${escapeHtml(formatDate(g.ts, lang))}</td>
+        <td class="num paid">${money(g.credit)}</td>
+        <td class="desc">${redactedText(g.description || labels.payment)}</td>
+        <td class="ref">${escapeHtml(g.refs.join(', ') || '—')}</td>
       </tr>`).join('');
 
   const line = (text: string, name: string, currency: string) => (

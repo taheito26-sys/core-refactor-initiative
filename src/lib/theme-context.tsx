@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AppSettings, LogEntry, ThemeDef, LayoutDef } from './theme/types';
 import { LAYOUTS } from './theme/layouts';
 import { applyThemeToDOM, getTheme, detectOptimalFontSize, FONT_CONFIG } from './theme/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export * from './theme/types';
 export * from './theme/layouts';
@@ -93,16 +94,59 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /*
+   * Settings — the UI language above all — belong to the signed-in account,
+   * not to the device. They are stored per user in tracker_snapshots.preferences,
+   * so they are reloaded whenever the signed-in user changes and reset to the
+   * shipped defaults on sign-out. Without this, whoever logged in second on a
+   * shared device kept the previous person's language until they changed it
+   * by hand.
+   */
+  const activeUserIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    import('./tracker-sync').then(({ loadPreferencesFromCloud }) => {
-      loadPreferencesFromCloud().then((cloudPrefs) => {
-        if (!cloudPrefs) return;
-        const merged = { ...DEFAULT_SETTINGS, ...cloudPrefs } as AppSettings;
-        setSaved(merged); setDraft(merged); setDirty(false);
-        localStorage.setItem('tracker_settings', JSON.stringify(merged));
-        applyThemeToDOM(merged);
+    let cancelled = false;
+
+    const resetToDefaults = () => {
+      const base = { ...DEFAULT_SETTINGS };
+      setSaved(base); setDraft(base); setDirty(false);
+      applyThemeToDOM(base);
+    };
+
+    const applyForUser = (userId: string | null) => {
+      const previous = activeUserIdRef.current;
+      if (previous === userId) return;
+      activeUserIdRef.current = userId;
+
+      if (!userId) {
+        // Dev-mode bypass has no Supabase session, so leave its locally saved
+        // settings alone instead of resetting them on every load.
+        if (localStorage.getItem('p2p_dev_mode') === 'true') return;
+        resetToDefaults();
+        return;
+      }
+
+      // A different account taking over this device starts from the defaults
+      // until its own preferences arrive, so nothing of the previous user's
+      // presentation leaks through.
+      if (previous !== undefined && previous !== null) resetToDefaults();
+
+      void import('./tracker-sync').then(({ loadPreferencesFromCloud }) => {
+        void loadPreferencesFromCloud().then((cloudPrefs) => {
+          if (cancelled || activeUserIdRef.current !== userId || !cloudPrefs) return;
+          const merged = { ...DEFAULT_SETTINGS, ...cloudPrefs } as AppSettings;
+          setSaved(merged); setDraft(merged); setDirty(false);
+          localStorage.setItem('tracker_settings', JSON.stringify(merged));
+          applyThemeToDOM(merged);
+        });
       });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      applyForUser(session?.user?.id ?? null);
     });
+
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

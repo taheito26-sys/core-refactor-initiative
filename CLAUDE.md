@@ -53,6 +53,7 @@ matching whatever tool you use, and do not regenerate the others.
 | `npm run validate` | Source-integrity guard over `OrdersPage`, `MerchantsPage`, `src/components/**` |
 | `npm run guard:generated -- <files>` | Same guard, arbitrary files |
 | `npm run guard:precommit` | Guard staged files; also typechecks + dry-run builds if critical UI files are staged |
+| `npm run guard:invariants` | Invariant guard over buyer-identity + PDF-export code (see §3a) |
 | `npm run cap:sync` / `cap:android` / `cap:ios` | Build web, copy into native projects, open IDE |
 
 There is **no CI workflow in this repo** (`.github/` does not exist). Verification is whatever you
@@ -62,23 +63,71 @@ Playwright (`playwright.config.ts`) imports `lovable-agent-playwright-config`, w
 declared dependency. E2E is driven by the Lovable agent environment, not by local scripts; do not
 assume `npx playwright test` works here.
 
+## 3a. Invariant guard — buyer identity and PDF export
+
+`scripts/guard-invariants.mjs` (`npm run guard:invariants`, and automatically inside
+`build:preflight` and `guard:precommit`) pins a handful of invariants in two subsystems that have
+each regressed in production more than once. Every rule encodes a bug that actually shipped and was
+reported by the merchant. They are guarded because **they break silently** — no type error, no
+failing render, no failing test; just a buyer who quietly stops seeing their orders, or a PDF table
+row quietly sliced in half.
+
+**Buyer identity.** One buyer can be spread across several `Customer` records — a rename or a
+near-miss name match on the order form starts a second one, and nothing surfaces it.
+
+- `Customer.name` is the **identity key**. Trades, loans and statement links are matched back to a
+  buyer by it, so it must never be repointed on an existing record. Per-language spellings go in
+  `nameEn` / `nameAr`. (Deriving `name` from the active UI language unlinked every subsequent order
+  for a buyer the moment an Arabic name was filled in.)
+- Name lookups go through `customerNameVariants()`, never `c.name` alone, so either language
+  resolves to the same record.
+- Anything buyer-facing resolves the whole identity group via `resolveCustomerIdGroup()` — the
+  merchant's order list has always unioned duplicates (`customerIdsByCanonicalName` in
+  `OrdersPage`), and a statement that filters on a single `customer_id` shows the buyer fewer
+  orders than the merchant sees.
+
+**PDF export** (`src/lib/htmlReportToPdf.ts`). Three separate shipped breakages:
+
+- Build the SVG wrapper through DOM nodes + `XMLSerializer`, never string concatenation —
+  real-world text produces invalid XML that Chrome refuses to decode (`EncodingError`).
+- Load that SVG from a `data:` URI, never a `blob:` one — a blob URL taints the canvas and
+  `toDataURL()` throws (`SecurityError`).
+- Pad the rasterized height past `measurer.scrollHeight`, and compute page breaks with
+  `computePageSlices()` against measured unbreakable boxes. A fixed per-page pixel budget cuts
+  whichever row straddles it in half, and an unpadded SVG silently clips its own bottom row.
+- Statement CSS custom properties live on `.sheet`, never `:root` — inside the `foreignObject`
+  used for rasterization, `:root` is the `<svg>` element and the variables never reach the sheet.
+
+Behaviour is covered by `src/test/customer-name-identity.test.ts` and
+`src/test/pdf-pagination.test.ts`. If you are deliberately changing one of these, update the rule
+**and** the tests so the new intent is recorded rather than lost.
+
 ## 3. Source-integrity guard — read this before writing source files
 
 `scripts/source-guard-utils.mjs` rejects source files (`.ts/.tsx/.js/.jsx`) that contain:
 
-- **banned narrative phrases**: `the user is`, `i need to`, `continue where`, `previous response`
-  (case-insensitive), plus in `validate-source.mjs`: `I will complete`, `Let's finish`,
-  `I have implemented`, `Specifically, I have`
-- **markdown-like lines**: a line starting with ```` ``` ````, `#`, `>`, `-`/`*`, `1.`, or `|…|`
+- **banned narrative phrases** (case-insensitive, **in comments only**): `i need to`,
+  `continue where`, `previous response` anywhere in the comment, and `the user is` only when it
+  *opens* the comment's prose — mid-sentence it is ordinary domain English ("detects whether the
+  user is on a mobile browser"). `validate-source.mjs` separately matches `The user is`,
+  `I will complete`, `Let's finish`, `I have implemented`, `Specifically, I have` case-sensitively
+  anywhere in the file.
+- **markdown-like lines in comments**: ```` ``` ````, `#`, or `>`. Lists (`-`/`*`/`1.`) and tables
+  (`|…|`) are allowed **inside `/* */` block comments**, where they are documentation rather than
+  narration, and rejected everywhere else.
 - **TypeScript/JSX parse errors** (AST-level syntax diagnostics)
 
 Practical consequences when editing `.ts`/`.tsx`:
 
 - Never leave assistant narration in a source file.
-- **Bullet-style comments break the build.** A comment line like `// - does a thing` matches the
-  markdown pattern. Use prose comments (`// does a thing`) or the box-drawing style already used
-  across `src/lib` (`// ─── Section ───`).
-- Numbered comment lines (`// 1. step`) and `# `-prefixed lines are likewise rejected.
+- Both narration checks run **only on comment lines**. Narration dumped into code is a parse error,
+  which the syntax check rejects far more decisively — so ordinary code is never mistaken for it
+  (a generic closing `> = {` is not a blockquote; a CSS `* { … }` in a template literal is not a
+  bullet).
+- A JSDoc block may document a set of cases as a list or a table. Headings, blockquotes and code
+  fences stay rejected even in comments.
+- Line comments (`//`) are checked as prose: keep them prose, or use the box-drawing style already
+  used across `src/lib` (`// ─── Section ───`).
 
 `scripts/safe-source-write.mjs` applies the same validation before writing a file.
 
@@ -181,6 +230,23 @@ development, that is what is firing.
   `supabase/config.toml` disables gateway JWT verification for `call-session`, `p2p-scraper`,
   and `push-send` — those functions verify (or intentionally skip) auth themselves.
   Deploy with `supabase functions deploy <name>`.
+- **Never hand-edit `tracker_snapshots.state` with a raw SQL `UPDATE`.** The app is local-first
+  (see §8 Tracker state): a merchant device with the pre-edit data still cached in `localStorage`
+  will read-merge-write its stale copy right back over the fix on its next autosave, resurrecting
+  whatever you just deleted. Use `scripts/admin-patch-tracker-snapshot.mjs` for any out-of-band
+  correction — it backs up the row, applies your patch function, and writes through
+  `save_tracker_snapshot_if_newer` with `write_generation` pushed **1,000,000** ahead of the row's
+  current value (the script's default — do not lower it). That RPC rejects any client write whose
+  `write_generation` hasn't caught up, so a stale device's next save is refused until it reloads
+  from cloud (which resyncs its local generation counter via `syncTrackerWriteGenerationToAtLeast`)
+  — only then can it save again, on top of the corrected state. A small jump (a few hundred or
+  thousand) is not a safe margin: a merchant's local counter increments on every autosave and a
+  daily user can already be well past that, so an undersized jump has silently lost data to this
+  exact race in production (a merchant's own device overwrote 3 stock batches mid-session even
+  though each prior patch had bumped `write_generation`). If you are applying several corrections
+  in one sitting, re-check the row's current state before each one — a concurrent client write
+  between your reads is a real possibility, not a hypothetical. After running the script, tell the
+  merchant to refresh/reopen the app once so the fix is picked up everywhere.
 
 Secrets consumed only by Edge Functions (`RELAY_HMAC_SECRET`, `SIGNALING_RELAY_URL`, `TURN_*`,
 `CLOUDFLARE_TURN_*`) are set in the Supabase dashboard, not in `.env`.

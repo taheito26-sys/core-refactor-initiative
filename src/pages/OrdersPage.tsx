@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
+  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances, resolveCustomerName, customerNameVariants,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
   getLoanRepaid, getLoanRemaining, mergeCustomerRecords,
@@ -27,8 +27,9 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
+import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
@@ -41,6 +42,7 @@ import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRo
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canonicalizeName } from '@/lib/text-normalize';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { ModernOrdersView } from '@/pages/orders/ModernOrdersView';
@@ -62,7 +64,7 @@ interface AllocationRow {
 }
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
-const normalizeName = (v: string) => v.trim().toLowerCase();
+const normalizeName = (v: string) => canonicalizeName(v);
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
 /** Resolve operator & lender display names for an operator priority deal row */
@@ -120,6 +122,23 @@ export default function OrdersPage() {
   const [buyerName, setBuyerName] = useState('');
   const [isLoanSale, setIsLoanSale] = useState(false);
   const [buyerId, setBuyerId] = useState('');
+  // Split-at-registration: carve part of a brand-new sale off to a second
+  // buyer in the same submit, rather than saving the full amount and then
+  // reopening it in Edit to split afterward. Mirrors splitEditingTrade's
+  // guards (blocked when a loan or cash deposit is also in play) since
+  // correctly pro-rating those alongside a split is a separate, larger job.
+  const [newSaleSplitOpen, setNewSaleSplitOpen] = useState(false);
+  const [newSaleSplitAmount, setNewSaleSplitAmount] = useState('');
+  const [newSaleSplitCustomerId, setNewSaleSplitCustomerId] = useState('');
+  // Separate sell price for the split-off portion -- the two buyers on a
+  // split order don't necessarily pay the same rate. Defaults to the main
+  // sell price but is independently editable.
+  const [newSaleSplitSellPrice, setNewSaleSplitSellPrice] = useState('');
+  // The total USDT this split is carved out of, frozen at the moment Split
+  // is checked so "Amount to move" and the quantity field can mirror each
+  // other (typing into either recomputes the other from this fixed total)
+  // without the anchor itself drifting as the merchant types.
+  const [newSaleSplitAnchorTotal, setNewSaleSplitAnchorTotal] = useState(0);
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
   const [manualBuyPrice, setManualBuyPrice] = useState('');
@@ -134,7 +153,7 @@ export default function OrdersPage() {
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
       }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
   >(null);
 
@@ -161,6 +180,19 @@ export default function OrdersPage() {
     // empty for the user to fill in with their own rate.
     setSaleSell(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setSaleAmount('');
+    // Loading a different order into the form must not carry over a split
+    // anchor captured against whatever order was previously on-screen: the
+    // anchor is only ever set once, when Split is checked, and never
+    // refreshed afterward. Left open across a prefill, "Amount to move"
+    // keeps subtracting from the old order's total instead of this one's,
+    // producing a bogus remainder (e.g. an anchor left over from a 3.79
+    // QAR/USDT order silently applied to a freshly-picked 4479.66 USDT
+    // order). Force the merchant to re-check Split for the new order.
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
     setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBuyerId(mappedBuyer?.entityId || '');
@@ -210,12 +242,20 @@ export default function OrdersPage() {
     setSaleUsdtQty(String(prefill.amountUSDT));
     setSaleSell(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
     setSaleAmount('');
+    // See the matching comment in applyExchangeOrderPrefill: a split anchor
+    // left over from whatever order was previously loaded must not silently
+    // apply to this one.
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
     setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
     setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'transfer',
-      transferId: prefill.transferId,
+      transferIds: prefill.transferIds,
       exchange: prefill.exchange,
       exchangeCounterparty: prefill.assigneeName,
       note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
@@ -241,6 +281,101 @@ export default function OrdersPage() {
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
+  };
+
+  /**
+   * Switches saleMode (Price+Vol mode's Amount field, USDT vs QAR/EGP)
+   * without wiping the entered amount. deriveSaleDraft reinterprets the
+   * SAME raw saleAmount string differently depending on saleMode (as a
+   * literal USDT quantity, or as a fiat total to divide by the sell price)
+   * — so switching modes on its own either garbles an already-correct
+   * quantity into nonsense, or (with no sell price typed yet, e.g. an
+   * imported order that "needs QAR rate") silently computes to 0. Convert
+   * the displayed number to what it means in the new mode instead, using
+   * the already-derived USDT quantity as the anchor.
+   */
+  const handleSaleModeToggle = (nextMode: 'USDT' | 'QAR' | 'EGP') => {
+    if (nextMode === saleMode) return;
+    const qty = saleDraft.quantityUsdt;
+    if (qty > 0) {
+      const sell = Number(saleSell) || 0;
+      setSaleAmount(nextMode === 'USDT' ? String(qty) : sell > 0 ? String(Math.round(qty * sell * 100) / 100) : '');
+    }
+    setSaleMode(nextMode);
+  };
+
+  /**
+   * Writes a target USDT quantity into whichever raw field(s) the current
+   * entry mode actually reads (saleUsdtQty for USDT+Total/USDT+Price;
+   * saleAmount, converted to the active display currency, for Price+Vol) —
+   * used by the split panel to mirror "Amount to move" back into the
+   * quantity display regardless of which mode is active.
+   */
+  const setQuantityFieldForMode = (targetUsdt: number) => {
+    const qty = Math.max(0, targetUsdt);
+    if (saleEntryMode === 'price_vol') {
+      const sell = Number(saleSell) || 0;
+      setSaleAmount(saleMode === 'USDT' ? String(qty) : sell > 0 ? String(Math.round(qty * sell * 100) / 100) : '');
+    } else {
+      setSaleUsdtQty(String(qty));
+    }
+  };
+
+  /**
+   * saleUsdtQty's onChange for the USDT+Total and USDT+Price entry modes.
+   * When the split panel is open, mirrors into "Amount to move" so the two
+   * fields always add back up to newSaleSplitAnchorTotal — typing a smaller
+   * total here moves the difference to the second buyer, and vice versa via
+   * the split amount field's own handler.
+   */
+  const handleSaleUsdtQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleUsdtQty(v);
+    if (newSaleSplitOpen) {
+      const stays = Number(v) || 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
+  };
+
+  /**
+   * saleAmount's onChange for Price+Vol mode. Same two-way mirroring as
+   * handleSaleUsdtQtyChange, but has to convert through sell price first
+   * since saleAmount may be a fiat total (QAR/EGP) rather than a raw USDT
+   * quantity depending on saleMode.
+   */
+  const handleSaleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleAmount(v);
+    if (newSaleSplitOpen) {
+      const sell = Number(saleSell) || 0;
+      const raw = Number(v) || 0;
+      const stays = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
+  };
+
+  /**
+   * saleSell's onChange for Price+Vol mode. Only matters for the split
+   * mirror when saleMode is QAR/EGP, since quantity is then derived as
+   * Amount / Sell Price — e.g. an imported order that "needs QAR rate":
+   * Amount gets typed first (with Split already checked), Sell Price
+   * follows, and only then does the true USDT quantity exist to mirror.
+   */
+  const handleSaleSellChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+    setSaleSell(v);
+    if (newSaleSplitOpen && saleMode !== 'USDT') {
+      const raw = Number(saleAmount) || 0;
+      const sellNum = Number(v) || 0;
+      const stays = sellNum > 0 ? raw / sellNum : 0;
+      const moved = Math.max(0, newSaleSplitAnchorTotal - stays);
+      setNewSaleSplitAmount(String(moved));
+    }
   };
 
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
@@ -274,6 +409,17 @@ export default function OrdersPage() {
   const [editManualBuyPrice, setEditManualBuyPrice] = useState('');
   // Loaned-order toggle for edit modal — mirrors `isLoanSale` on the new-sale form
   const [editIsLoan, setEditIsLoan] = useState(false);
+
+  // Split-order state for the edit modal — carves part of this trade off to
+  // a second customer (e.g. a Binance order that needs to be shared between
+  // two buyers). See splitEditingTrade below.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitAmount, setSplitAmount] = useState('');
+  const [splitCustomerId, setSplitCustomerId] = useState('');
+  // Separate sell price for the split-off portion — defaults to the order's
+  // own rate but is independently editable (the two buyers on a split order
+  // don't necessarily pay the same price).
+  const [splitSellPrice, setSplitSellPrice] = useState('');
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -319,6 +465,9 @@ export default function OrdersPage() {
     return () => window.removeEventListener('resize', measure);
   }, [isMobile]);
 
+  // Tracks trades already attempted this session for the customer-order
+  // mirror backfill, so a re-render doesn't retry one still in flight.
+  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -453,7 +602,6 @@ export default function OrdersPage() {
   const [editDealFee, setEditDealFee] = useState('0');
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
-  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
 
   const linkedRelationship = useMemo(
     () => relationships.find(r => r.id === linkedRelId),
@@ -755,6 +903,28 @@ export default function OrdersPage() {
   const minPriceNum = priceMin.trim() === '' ? null : Number(priceMin);
   const maxPriceNum = priceMax.trim() === '' ? null : Number(priceMax);
 
+  // Groups customer ids that share a canonicalized name — imported orders can
+  // mint a second Customer row for the same person when the raw exchange
+  // counterparty text differs cosmetically (dash character, stray space, …).
+  // Grouping here means picking one of the duplicates in the filter still
+  // surfaces every order, instead of splitting them across two options.
+  const customerIdsByCanonicalName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of state.customers) {
+      const key = canonicalizeName(c.name);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(c.id); else map.set(key, [c.id]);
+    }
+    return map;
+  }, [state.customers]);
+
+  const buyerFilterGroup = useMemo(() => {
+    if (!buyerFilter) return null;
+    const selected = state.customers.find(c => c.id === buyerFilter);
+    if (!selected) return new Set([buyerFilter]);
+    return new Set(customerIdsByCanonicalName.get(canonicalizeName(selected.name)) ?? [buyerFilter]);
+  }, [buyerFilter, state.customers, customerIdsByCanonicalName]);
+
   const filtered = useMemo(() => {
     return list.filter(t => {
       if (query) {
@@ -762,19 +932,28 @@ export default function OrdersPage() {
         const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase();
         if (!haystack.includes(query)) return false;
       }
-      if (buyerFilter && t.customerId !== buyerFilter) return false;
+      if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
       if (minPriceNum != null && !Number.isNaN(minPriceNum) && t.sellPriceQAR < minPriceNum) return false;
       if (maxPriceNum != null && !Number.isNaN(maxPriceNum) && t.sellPriceQAR > maxPriceNum) return false;
       return true;
     });
-  }, [list, query, state.customers, buyerFilter, minPriceNum, maxPriceNum]);
+  }, [list, query, state.customers, buyerFilterGroup, minPriceNum, maxPriceNum]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
+  // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
+  // show up as a second, separate option.
   const buyerFilterOptions = useMemo(() => {
     const ids = new Set(list.map(t => t.customerId).filter(Boolean));
-    return state.customers
-      .filter(c => ids.has(c.id))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const seenNames = new Set<string>();
+    const options: Customer[] = [];
+    for (const c of state.customers) {
+      if (!ids.has(c.id)) continue;
+      const key = canonicalizeName(c.name);
+      if (seenNames.has(key)) continue;
+      seenNames.add(key);
+      options.push(c);
+    }
+    return options.sort((a, b) => a.name.localeCompare(b.name));
   }, [list, state.customers]);
 
   const clearOrderFilters = useCallback(() => {
@@ -846,7 +1025,7 @@ export default function OrdersPage() {
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
     const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
-    let qty = 0, vol = 0, netVal = 0;
+    let qty = 0, vol = 0, netVal = 0, egpTotal = 0, hasEgp = false;
     for (const tr of activeList) {
       const c = derived.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
@@ -856,8 +1035,12 @@ export default function OrdersPage() {
       } else if (tr.manualBuyPrice) {
         netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
       }
+      if (tr.originalFiat === 'EGP') {
+        hasEgp = true;
+        egpTotal += tr.originalFiatAmount ?? 0;
+      }
     }
-    return { count: activeList.length, qty, vol, net: netVal };
+    return { count: activeList.length, qty, vol, net: netVal, egpTotal: hasEgp ? egpTotal : null };
   }, [subFilteredMy, derived]);
 
 
@@ -971,7 +1154,9 @@ export default function OrdersPage() {
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return allBuyerOptions;
-    return allBuyerOptions.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
+    return allBuyerOptions.filter(
+      c => customerNameVariants(c).some(v => normalizeName(v).includes(q)) || c.phone.includes(buyerName),
+    );
   }, [allBuyerOptions, buyerName]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
@@ -1058,6 +1243,58 @@ export default function OrdersPage() {
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
+
+  /**
+   * Per-leg preview for a split sale: salePreview above already reflects
+   * the "stays on this order" remainder (saleDraft.quantityUsdt is that
+   * remainder once split is open), but the merchant also needs to see what
+   * the split-off leg looks like — its own qty, avg buy, revenue, and net
+   * at its own (possibly different) sell price — before submitting. Both
+   * legs are FIFO-calculated in one computeFIFO pass, in the same order
+   * they'll actually be saved in, so the split leg's avg buy correctly
+   * reflects stock already spoken for by the remainder leg.
+   */
+  const newSaleSplitPreview = useMemo(() => {
+    if (!newSaleSplitOpen) return null;
+    const splitAmount = Number(newSaleSplitAmount);
+    if (!(splitAmount > 0)) return null;
+    const ts = new Date(saleDate).getTime();
+    // Computed directly off the anchor, never off the live Amount field --
+    // that field only mirrors the remainder when its own onChange fires, so
+    // reading it back here went stale the moment the split checkbox was
+    // toggled on (before any field had a chance to sync) or the USDT/QAR
+    // mode was switched, leaving both preview legs showing the full total.
+    const remainderQty = Math.max(0, newSaleSplitAnchorTotal - splitAmount);
+    const splitSell = parseFloat(newSaleSplitSellPrice) || saleDraft.sellPriceQar;
+    if (!(remainderQty >= 0) || !(splitSell > 0) || !Number.isFinite(ts)) return null;
+
+    const remainderTrade: Trade = {
+      id: '__preview_remainder__', ts, inputMode: 'USDT', amountUSDT: remainderQty,
+      sellPriceQAR: saleDraft.sellPriceQar, feeQAR: 0, note: '', voided: false,
+      usesStock: true, revisions: [], customerId: '',
+    };
+    const splitTrade: Trade = {
+      id: '__preview_split__', ts, inputMode: 'USDT', amountUSDT: splitAmount,
+      sellPriceQAR: splitSell, feeQAR: 0, note: '', voided: false,
+      usesStock: true, revisions: [], customerId: '',
+    };
+    const tradeCalc = computeFIFO(state.batches, [...state.trades, remainderTrade, splitTrade]).tradeCalc;
+
+    const legFor = (trade: Trade) => {
+      const calc = tradeCalc.get(trade.id);
+      const revenue = trade.amountUSDT * trade.sellPriceQAR;
+      const cost = calc?.totalCost || 0;
+      return {
+        qty: trade.amountUSDT,
+        sell: trade.sellPriceQAR,
+        revenue,
+        avgBuy: calc?.ok ? calc.avgBuyQAR : NaN,
+        net: calc?.ok ? revenue - cost : NaN,
+        fifoComplete: !!calc?.ok,
+      };
+    };
+    return { remainder: legFor(remainderTrade), split: legFor(splitTrade) };
+  }, [newSaleSplitOpen, newSaleSplitAmount, newSaleSplitAnchorTotal, newSaleSplitSellPrice, saleDate, saleDraft, state.batches, state.trades]);
 
   const fifoDisplayUnitCost = useMemo(() => {
     if (priceMode !== 'fifo' || !saleFifoPreview) return null;
@@ -1155,26 +1392,39 @@ export default function OrdersPage() {
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
-    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (connected) {
-      const materialized = materializeListedCustomer(connected, state.customers);
-      // A buyer manually recorded before they connected their account left
-      // orders/loans under a locally generated id. Once they resolve to the
-      // connected id here, fold that older duplicate into it instead of
-      // leaving the same person split across two customer rows.
-      const duplicate = state.customers.find(c => c.id !== materialized.id && normalizeName(c.name) === normalizeName(nm));
+    // Prefer an existing local customer over a connected-portal match: a
+    // buyer who already has trades/loans recorded under a local id must
+    // keep landing on that same id once they also connect their portal
+    // account, otherwise every new sale after that point starts a second,
+    // disconnected identity (keyed by their connectedCustomerId) that the
+    // buyer's own statement link never covers -- their order history then
+    // silently splits across two ids with no error anywhere.
+    // Matched against every name variant, not just the legacy `name`: a buyer
+    // with both an English and an Arabic name on file must resolve to the same
+    // record whichever one the merchant typed here.
+    const target = normalizeName(nm);
+    const existing = state.customers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
+    if (existing) {
+      // A duplicate created before this local-first priority landed (e.g. a
+      // connected-portal id materialized here on an earlier sale) is folded
+      // into the existing local record so the buyer stops splitting across
+      // two customer rows with two separate Loaned/Repaid/Outstanding totals.
+      const duplicate = state.customers.find(c => c.id !== existing.id && customerNameVariants(c).some(v => normalizeName(v) === target));
       if (duplicate) {
         const merged = mergeCustomerRecords(
-          { customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans },
+          { customers: state.customers, trades: state.trades, customerLoans: state.customerLoans },
           duplicate.id,
-          materialized.id,
+          existing.id,
         );
-        return { id: materialized.id, ...merged };
+        return { id: existing.id, ...merged };
       }
+      return { id: existing.id, customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
+    }
+    const connected = connectedCustomers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
+    if (connected) {
+      const materialized = materializeListedCustomer(connected, state.customers);
       return { id: materialized.id, customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans };
     }
-    const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (existing) return { id: existing.id, customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
     return { id: nextCustomer.id, customers: [...state.customers, nextCustomer], trades: state.trades, customerLoans: state.customerLoans };
   };
@@ -1601,6 +1851,20 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
+    const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
+    if (newSaleSplitOpen) {
+      if (merchantOrderEnabled) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      if (isLoanSale) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      if (cashDepositMode !== 'none') { setSaleMessage(t('splitBlockedComplexOrder')); return; }
+      // Validate against the anchor (the true pre-split total), not
+      // amountUSDT -- in USDT+Total/USDT+Price modes amountUSDT is already
+      // the mirrored-down remainder by this point, not the whole order.
+      const splitError = validateSplitOrder(splitAmountNum, newSaleSplitAnchorTotal, newSaleSplitCustomerId);
+      if (splitError === 'invalid_amount') { setSaleMessage(t('splitAmountInvalid')); return; }
+      if (splitError === 'amount_too_large') { setSaleMessage(t('splitAmountTooLarge')); return; }
+      if (splitError === 'no_target_customer') { setSaleMessage(t('splitCustomerRequired')); return; }
+    }
+
     const resolveDefaultCostPerUsdt = () => {
       if (priceMode === 'manual') {
         const manual = parseFloat(manualBuyPrice);
@@ -1667,7 +1931,23 @@ export default function OrdersPage() {
     let nextTrades = state.trades;
     let nextCustomerLoans = state.customerLoans;
     let customerId = '';
-    if (buyerName.trim()) {
+    if (buyerId) {
+      // The buyer was picked from the list (a local or connected customer),
+      // so buyerId already names the right, stable identity -- use it as-is
+      // rather than re-deriving from the displayed name. Re-deriving by name
+      // is what silently starts a second, disconnected customer the moment
+      // that name changes (a rename, a translation, the connected customer
+      // editing their own profile): the old name no longer matches, so a
+      // fresh id gets created and every future order lands under it while
+      // the buyer's whole prior history stays stuck under the old one.
+      const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
+      const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
+      customerId = materialized?.id || buyerId;
+      nextCustomers = materialized?.customers || state.customers;
+    } else if (buyerName.trim()) {
+      // No id -- the merchant typed a name that wasn't selected from the
+      // list, so this really is either a brand-new buyer or a rename of an
+      // existing local record (name-matched, best effort).
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
@@ -2038,6 +2318,78 @@ export default function OrdersPage() {
         console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
       }
+    } else if (newSaleSplitOpen) {
+      // Register the sale already carved into two trades -- the remainder
+      // under this buyer, the split-off amount under the second buyer --
+      // instead of saving the full amount and reopening Edit to split later.
+      //
+      // baseTrade.amountUSDT is NOT the pre-split total here: in USDT+Total
+      // and USDT+Price modes the quantity field is two-way mirrored against
+      // "Amount to move" (see handleSaleUsdtQtyChange), so by the time the
+      // form is submitted it already shows the post-split remainder, not
+      // the whole order. Feeding that into splitOrder() would subtract the
+      // split amount a second time. newSaleSplitAnchorTotal is the one
+      // fixed reference to the true full amount (captured when Split was
+      // checked), so it -- not baseTrade.amountUSDT -- is what splitOrder
+      // must treat as the order's starting total.
+      const { primaryTrade, secondTrade } = splitOrder({
+        trade: { ...baseTrade, amountUSDT: newSaleSplitAnchorTotal },
+        splitAmountUsdt: splitAmountNum,
+        targetCustomerId: newSaleSplitCustomerId,
+        newTradeId: uid(),
+        atRegistration: true,
+        secondSellPriceQAR: parseFloat(newSaleSplitSellPrice) || undefined,
+      });
+      const secondBuyerName = state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || '';
+
+      // Split orders can be loaned too -- each half owes its own customer for
+      // its own amount at its own sell price, so this creates one loan per
+      // leg rather than a single loan for the pre-split total.
+      const splitLoans: CustomerLoan[] = [];
+      if (isLoanSale) {
+        if (primaryTrade.customerId) {
+          splitLoans.push({
+            id: uid(), ts, customerId: primaryTrade.customerId, tradeId: primaryTrade.id,
+            principal: Math.max(0, primaryTrade.sellPriceQAR * primaryTrade.amountUSDT),
+            currency: baseFiat as CashCurrency,
+            note: `${t('loanFromOrder')} ${fmtU(primaryTrade.amountUSDT)} USDT @ ${fmtP(primaryTrade.sellPriceQAR)}`,
+            repayments: [], status: 'open', createdAt: Date.now(),
+          });
+        }
+        if (secondTrade.customerId) {
+          splitLoans.push({
+            id: uid(), ts, customerId: secondTrade.customerId, tradeId: secondTrade.id,
+            principal: Math.max(0, secondTrade.sellPriceQAR * secondTrade.amountUSDT),
+            currency: baseFiat as CashCurrency,
+            note: `${t('loanFromOrder')} ${fmtU(secondTrade.amountUSDT)} USDT @ ${fmtP(secondTrade.sellPriceQAR)}`,
+            repayments: [], status: 'open', createdAt: Date.now(),
+          });
+        }
+      }
+
+      const next: TrackerState = {
+        ...state,
+        customers: nextCustomers,
+        trades: [...state.trades, primaryTrade, secondTrade],
+        customerLoans: splitLoans.length ? [...(state.customerLoans || []), ...splitLoans] : state.customerLoans,
+        range: inRange(ts, state.range) ? state.range : 'all'
+      };
+      applyState(next);
+      showSaleToast({ amountUSDT, sell, net: salePreview?.net });
+      toast.success(t('splitSuccess'));
+      if (pendingImport?.kind === 'order') {
+        // Each split-off amount gets its own link record, exactly like a
+        // partial save followed by another partial save would -- the inbox
+        // sees this Binance order as fully accounted for across both buyers.
+        addOrderLink(pendingImport.orderId, 'trade', primaryTrade.id, primaryTrade.amountUSDT, buyerName.trim() || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        addOrderLink(pendingImport.orderId, 'trade', secondTrade.id, secondTrade.amountUSDT, secondBuyerName || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        setPendingImport(null);
+      } else if (pendingImport?.kind === 'transfer') {
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: primaryTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        setPendingImport(null);
+      }
     } else {
       let next: TrackerState = {
         ...state,
@@ -2063,10 +2415,14 @@ export default function OrdersPage() {
         // Best-effort: the trade note embeds the order number, so the inbox
         // recognizes this row as imported (via importedReferences) even if this
         // update fails -- don't let a flaky network call block or duplicate the save.
-        markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        // Recording the actual saved amount (not necessarily the full order
+        // amount) is what lets one order be split across multiple customers --
+        // each partial save adds its own link instead of overwriting the last.
+        addOrderLink(pendingImport.orderId, 'trade', baseTrade.id, baseTrade.amountUSDT, buyerName.trim() || undefined)
+          .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: baseTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     }
@@ -2089,6 +2445,11 @@ export default function OrdersPage() {
     setCashDepositAccountId('');
     setStockOverrideEnabled(false);
     setStockOverrideConfirmed(false);
+    setNewSaleSplitOpen(false);
+    setNewSaleSplitAmount('');
+    setNewSaleSplitCustomerId('');
+    setNewSaleSplitSellPrice('');
+    setNewSaleSplitAnchorTotal(0);
     // Close mobile sheet after successful submission
     if (isMobile) setNewSaleSheetOpen(false);
   };
@@ -2179,6 +2540,58 @@ export default function OrdersPage() {
     setEditCashDepositMode('none');
     setEditCashDepositAmount('');
     setEditCashDepositAccountId('');
+    // Reset split-order state
+    setSplitOpen(false);
+    setSplitAmount('');
+    setSplitCustomerId('');
+    setSplitSellPrice('');
+  };
+
+  /**
+   * Carves `splitAmount` USDT off the trade currently open in the edit
+   * modal and assigns it to a second customer as its own new trade — e.g. a
+   * Binance order registered in full under one customer that turns out to
+   * need part of it reassigned to someone else. Deliberately narrow: refuses
+   * when the trade already has a cash deposit, a loan, or a linked partner
+   * deal riding on it, since correctly pro-rating those is a different,
+   * larger job than "split this order into two" and silently guessing would
+   * risk real money records.
+   */
+  const splitEditingTrade = () => {
+    if (!editingTradeId) return;
+    const existingTrade = state.trades.find(t => t.id === editingTradeId);
+    if (!existingTrade) return;
+
+    const amount = Number(splitAmount);
+    const validationError = validateSplitOrder(amount, existingTrade.amountUSDT, splitCustomerId);
+    if (validationError === 'invalid_amount') { toast.error(t('splitAmountInvalid')); return; }
+    if (validationError === 'amount_too_large') { toast.error(t('splitAmountTooLarge')); return; }
+    if (validationError === 'no_target_customer') { toast.error(t('splitCustomerRequired')); return; }
+
+    const hasCashDeposit = (state.cashLedger || []).some(e =>
+      e.type === 'sale_deposit' && e.direction === 'in'
+      && (e.tradeId === editingTradeId || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId))
+    );
+    const hasLoan = loanByTradeId.has(editingTradeId);
+    if (hasCashDeposit || hasLoan || existingTrade.linkedDealId) {
+      toast.error(t('splitBlockedComplexOrder'));
+      return;
+    }
+
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade: existingTrade,
+      splitAmountUsdt: amount,
+      targetCustomerId: splitCustomerId,
+      newTradeId: uid(),
+      secondSellPriceQAR: parseFloat(splitSellPrice) || undefined,
+    });
+
+    const nextTrades = state.trades.map(tr => (tr.id === editingTradeId ? primaryTrade : tr));
+    nextTrades.push(secondTrade);
+
+    applyState({ ...state, trades: nextTrades });
+    toast.success(t('splitSuccess'));
+    setEditingTradeId(null);
   };
 
   const saveTradeEdit = async () => {
@@ -2239,7 +2652,8 @@ export default function OrdersPage() {
         : 'per_order';
 
       try {
-        const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
+        const editCustomer = state.customers.find(c => c.id === editCustomerId);
+        const customerName = editCustomer ? resolveCustomerName(editCustomer, t.lang) : t('buyer');
         const rev = qty * sell;
 
         const tempCalc = computeFIFO(state.batches, state.trades);
@@ -2513,7 +2927,17 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === editingTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // See handleCancelTrade -- a loan from this trade otherwise outlives the
+    // deletion and keeps showing in the buyer's portal; tombstoned so a
+    // stale tab's next autosave can't bring it back.
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === editingTradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     setEditingTradeId(null);
   };
 
@@ -2543,7 +2967,23 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // A loan created from this trade (loanFromOrder) is otherwise never
+    // cleared once the trade is cancelled -- it has no dependency on
+    // trade.voided, so it keeps showing in the buyer's own portal statement
+    // forever as a ghost order. Drop it here too, but only when nothing has
+    // been repaid against it yet -- once a real payment exists the loan is
+    // no longer purely a byproduct of this trade.
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === tradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    // A plain removal isn't enough to make the delete stick across
+    // tabs/devices -- mergeArrayById on the next autosave from any other
+    // open tab would just bring the loan back. See TrackerState.deletedLoanIds.
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
   };
 
@@ -2561,7 +3001,17 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState({ ...state, trades: nextTrades });
+    // See handleCancelTrade above -- a loan from this trade otherwise
+    // outlives the cancellation and keeps showing in the buyer's portal,
+    // and must be tombstoned or a stale tab's next autosave brings it back.
+    const removedLoanIds = (state.customerLoans || [])
+      .filter(l => l.tradeId === cancelTradeId && getLoanRepaid(l) === 0)
+      .map(l => l.id);
+    const nextLoans = (state.customerLoans || []).filter(l => !removedLoanIds.includes(l.id));
+    const nextDeletedLoanIds = removedLoanIds.length
+      ? Array.from(new Set([...(state.deletedLoanIds || []), ...removedLoanIds])).slice(-500)
+      : state.deletedLoanIds;
+    applyState({ ...state, trades: nextTrades, customerLoans: nextLoans, deletedLoanIds: nextDeletedLoanIds });
     setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
   };
@@ -2865,13 +3315,20 @@ export default function OrdersPage() {
       <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden', ...(isLoaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}>
         {/* ── Header: buyer name + edit/details + date ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-            {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
-            {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
+          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle', flexShrink: 0 }}>🤝</span>}
+            <span title={cn} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+            {tr.importedFrom && (
+              <span title={`Imported from ${EXCHANGE_LABELS[tr.importedFrom]}`} style={{ fontSize: 10, flexShrink: 0, lineHeight: 1 }}>
+                {tr.importedFrom === 'binance' ? '⚡' : '🔶'}
+              </span>
+            )}
             {loan && (
-              <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
-                🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
+              <span
+                title={`${t('loanLinkedOrderBadge')} · ${loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}`}
+                style={{ fontSize: 10, flexShrink: 0, lineHeight: 1 }}
+              >
+                🤝
               </span>
             )}
           </div>
@@ -3121,14 +3578,19 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
-  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => {
+  // The unit is only ever QAR/EGP/USDT and is already implied by the label
+  // (VOLUME, NET P&L, TOTAL EGP...) -- keeping it in the value made long
+  // numbers overflow the narrow KPI box and run into the next card.
+  const stripUnit = (s: string) => s.replace(/\s*(QAR|EGP|USDT)$/i, '');
+  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
-      { label: 'VOLUME', value: fmtC(kpi.vol) },
-      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
-      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
+      { label: 'VOLUME', value: stripUnit(fmtC(kpi.vol)) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: stripUnit(fmtC(avgDeal)) }] : []),
+      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
     return (
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -3317,7 +3779,7 @@ export default function OrdersPage() {
                 </button>
               </div>
 
-              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
+              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net, egpTotal: buyerFilter ? myKpi.egpTotal : null })}
 
 
               {filtered.length === 0 ? (
@@ -4128,15 +4590,15 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('amount', saleMode as any))}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={handleSaleAmountChange} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>{localCur('USDT', t.lang)}</button>
-                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{localCur(baseFiat, t.lang)}</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => handleSaleModeToggle('USDT')} style={mobileActionStyle}>{localCur('USDT', t.lang)}</button>
+                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => handleSaleModeToggle(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{localCur(baseFiat, t.lang)}</button>
                       </div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={handleSaleSellChange} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -4145,7 +4607,7 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={handleSaleUsdtQtyChange} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{totalReceivedLabel}</div>
@@ -4163,7 +4625,7 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={handleSaleUsdtQtyChange} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
@@ -4238,6 +4700,92 @@ export default function OrdersPage() {
                   <input type="checkbox" checked={isLoanSale} onChange={e => setIsLoanSale(e.target.checked)} />
                   🤝 {t('loanSaleCheckbox')}
                 </label>
+
+                {!merchantOrderEnabled && cashDepositMode === 'none' && (
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: newSaleSplitOpen ? 8 : 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={newSaleSplitOpen}
+                        onChange={e => {
+                          setNewSaleSplitOpen(e.target.checked);
+                          // Default to moving the whole amount being registered — the
+                          // common case is "this order should have gone entirely to
+                          // the other customer"; dial it down for a partial split.
+                          const anchor = saleDraft.quantityUsdt || 0;
+                          setNewSaleSplitAnchorTotal(anchor);
+                          setNewSaleSplitAmount(e.target.checked ? String(anchor || '') : '');
+                          setNewSaleSplitCustomerId('');
+                          setNewSaleSplitSellPrice(e.target.checked ? saleSell : '');
+                          // The Amount field must reflect what actually stays on
+                          // this order the instant the checkbox flips, not just
+                          // once the merchant starts typing into "Amount to
+                          // move" — otherwise it keeps showing the full total
+                          // (moving everything by default leaves nothing here).
+                          setQuantityFieldForMode(e.target.checked ? 0 : anchor);
+                        }}
+                        style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
+                    </label>
+                    {newSaleSplitOpen && (
+                      <div style={{ padding: '10px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('splitOrderHint')}</div>
+                        <div className="g2tight">
+                          <div className="field2">
+                            <div className="lbl">{t('splitAmountLabel')}</div>
+                            <div className="inputBox">
+                              <input
+                                inputMode="decimal"
+                                value={newSaleSplitAmount}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                  setNewSaleSplitAmount(v);
+                                  // Two-way mirror with the quantity field,
+                                  // whichever one the active entry mode
+                                  // actually uses: the two must always add
+                                  // back up to the anchor total.
+                                  const moved = Number(v) || 0;
+                                  setQuantityFieldForMode(newSaleSplitAnchorTotal - moved);
+                                }}
+                                style={mobileInputStyle}
+                              />
+                            </div>
+                          </div>
+                          <div className="field2">
+                            <div className="lbl">{t('splitCustomerLabel')}</div>
+                            <select value={newSaleSplitCustomerId} onChange={e => setNewSaleSplitCustomerId(e.target.value)}
+                              style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                            >
+                              <option value="">{t('noCustomerSelected')}</option>
+                              {state.customers.filter(c => c.id !== buyerId).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="field2" style={{ marginTop: 10 }}>
+                          <div className="lbl">{t('splitSellPriceLabel')}</div>
+                          <div className="inputBox">
+                            <input
+                              inputMode="decimal"
+                              placeholder={saleSell || '0.00'}
+                              value={newSaleSplitSellPrice}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                setNewSaleSplitSellPrice(v);
+                              }}
+                              style={mobileInputStyle}
+                            />
+                          </div>
+                          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('splitSellPriceHint')}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {addBuyerOpen && (
                   <div className="previewBox" style={{ marginTop: 2 }}>
@@ -4785,6 +5333,11 @@ export default function OrdersPage() {
                 {(
                 <div className="previewBox" style={isMobile ? { padding: 12 } : undefined}>
                   <div className="pt">{t('livePreview')}</div>
+                  {newSaleSplitOpen && salePreview && (
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                      {t('splitPreviewStaysHeading')}
+                    </div>
+                  )}
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
                       {isInsufficientStock && (
@@ -4874,6 +5427,25 @@ export default function OrdersPage() {
                           {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtC(salePreview.net)}` : '—'}
                         </strong>
                       </div>
+                      {newSaleSplitPreview && (
+                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed color-mix(in srgb,var(--warn) 30%,transparent)' }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--warn)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                            {t('splitPreviewMovesHeading')}{newSaleSplitCustomerId ? ` — ${state.customers.find(c => c.id === newSaleSplitCustomerId)?.name || ''}` : ''}
+                          </div>
+                          {Number.isFinite(newSaleSplitPreview.split.avgBuy) && (
+                            <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(newSaleSplitPreview.split.avgBuy)} QAR</strong></div>
+                          )}
+                          <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(newSaleSplitPreview.split.qty)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</span><strong>{fmtP(newSaleSplitPreview.split.sell)}</strong></div>
+                          <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(newSaleSplitPreview.split.revenue)}</strong></div>
+                          <div className="prev-row">
+                            <span className="muted">{t('net')}</span>
+                            <strong style={{ color: Number.isFinite(newSaleSplitPreview.split.net) ? (newSaleSplitPreview.split.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                              {Number.isFinite(newSaleSplitPreview.split.net) ? `${newSaleSplitPreview.split.net >= 0 ? '+' : ''}${fmtC(newSaleSplitPreview.split.net)}` : '—'}
+                            </strong>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -5254,8 +5826,29 @@ export default function OrdersPage() {
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
-                  <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} style={mobileInputStyle} /></div>
+                  <div className="lbl">{t('qtyUsdt')}{splitOpen ? ` · ${t('splitRemainsOnOrder') || 'remains on this order'}` : ''}</div>
+                  <div className="inputBox">
+                    <input
+                      inputMode="decimal"
+                      value={editQty}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                        setEditQty(v);
+                        // Two-way mirror with "Amount to move": whichever
+                        // field the merchant types into, the other recomputes
+                        // from the order's real saved total so they always
+                        // add back up to the original amount.
+                        if (splitOpen && editingTrade) {
+                          const stays = Number(v) || 0;
+                          const moved = Math.max(0, editingTrade.amountUSDT - stays);
+                          setSplitAmount(String(moved));
+                        }
+                      }}
+                      disabled={isApproved}
+                      style={mobileInputStyle}
+                    />
+                  </div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
@@ -5307,6 +5900,93 @@ export default function OrdersPage() {
                   />
                 </div>
               </div>
+
+              {/* Split into two customers */}
+              {!isApproved && editingTrade && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: splitOpen ? 8 : 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={splitOpen}
+                      onChange={e => {
+                        setSplitOpen(e.target.checked);
+                        setSplitAmount('');
+                        setSplitSellPrice(e.target.checked ? editSell : '');
+                        // Closing the section (or opening it fresh) should
+                        // leave QTY USDT showing the order's real, saved
+                        // amount — not a leftover live-preview remainder from
+                        // whatever was typed into "amount to move".
+                        if (editingTrade) setEditQty(String(editingTrade.amountUSDT));
+                      }}
+                      style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('splitOrderToggle')}</span>
+                  </label>
+                  {splitOpen && (
+                    <div style={{ padding: '10px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{t('splitOrderHint')}</div>
+                      <div className="g2tight" style={{ marginBottom: 10 }}>
+                        <div className="field2">
+                          <div className="lbl">{t('splitAmountLabel')}</div>
+                          <div className="inputBox">
+                            <input
+                              inputMode="decimal"
+                              value={splitAmount}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                                setSplitAmount(v);
+                                // Mirror the remainder into QTY USDT instantly so the
+                                // merchant can see what stays on this order as they type.
+                                if (editingTrade) {
+                                  const moved = Number(v) || 0;
+                                  const remains = Math.max(0, editingTrade.amountUSDT - moved);
+                                  setEditQty(String(remains));
+                                }
+                              }}
+                              style={mobileInputStyle}
+                            />
+                          </div>
+                        </div>
+                        <div className="field2">
+                          <div className="lbl">{t('splitCustomerLabel')}</div>
+                          <select value={splitCustomerId} onChange={e => setSplitCustomerId(e.target.value)}
+                            style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                          >
+                            <option value="">{t('noCustomerSelected')}</option>
+                            {state.customers.filter(c => c.id !== editCustomerId).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="field2" style={{ marginBottom: 10 }}>
+                        <div className="lbl">{t('splitSellPriceLabel')}</div>
+                        <div className="inputBox">
+                          <input
+                            inputMode="decimal"
+                            placeholder={editSell || '0.00'}
+                            value={splitSellPrice}
+                            onChange={e => {
+                              const v = e.target.value;
+                              if (v !== '' && !/^-?\d*\.?\d*$/.test(v)) return;
+                              setSplitSellPrice(v);
+                            }}
+                            style={mobileInputStyle}
+                          />
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('splitSellPriceHint')}</div>
+                      </div>
+                      <button
+                        onClick={splitEditingTrade}
+                        style={{ padding: '8px 14px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 11, border: 'none', cursor: 'pointer', width: isMobile ? '100%' : undefined }}
+                      >
+                        {t('splitOrderButton')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Cash Deposit Option */}
               {!isApproved && (() => {

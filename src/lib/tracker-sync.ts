@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
-import type { TrackerState } from './tracker-helpers';
+import { mergeLoansByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,6 +39,27 @@ const _foreignIds: Record<string, Set<string>> = {
   cashLedger: new Set(),
   cashHistory: new Set(),
 };
+
+/**
+ * Forget everything this module cached about the session that just ended.
+ * Called when the signed-in user changes so the next account does not inherit
+ * the previous one's cloud-loaded flag, foreign-id sets or dedupe hashes —
+ * each of which would otherwise let one user's rows reach another's snapshot.
+ */
+export function resetTrackerSyncSession(): void {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = null;
+  if (_prefTimer) clearTimeout(_prefTimer);
+  _prefTimer = null;
+  _lastSavedJson = '';
+  _lastSavedPrefs = '';
+  _cloudLoadedThisSession = false;
+  _lastAutoBackupTs = Date.now();
+  _lastAutoBackupHash = '';
+  for (const key of Object.keys(_foreignIds) as (keyof typeof _foreignIds)[]) {
+    _foreignIds[key].clear();
+  }
+}
 
 function rememberForeignIds(
   collectionKey: keyof typeof _foreignIds,
@@ -128,18 +149,41 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
       cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
       cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
-      customerLoans: mergeArrayById(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
+      customerLoans: mergeLoansByRecency(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
       // Union tombstones across every member's row too — a delete recorded
       // by any team member must stick for everyone, not just the deleter.
       deletedLoanIds: Array.from(new Set([
         ...(merged.deletedLoanIds || []),
         ...(Array.isArray(state.deletedLoanIds) ? state.deletedLoanIds : []),
       ])).slice(-500),
+      deletedBatchIds: Array.from(new Set([
+        ...(merged.deletedBatchIds || []),
+        ...(Array.isArray(state.deletedBatchIds) ? state.deletedBatchIds : []),
+      ])).slice(-500),
+      deletedTradeIds: Array.from(new Set([
+        ...(merged.deletedTradeIds || []),
+        ...(Array.isArray(state.deletedTradeIds) ? state.deletedTradeIds : []),
+      ])).slice(-500),
+      deletedRepaymentIds: Array.from(new Set([
+        ...(merged.deletedRepaymentIds || []),
+        ...(Array.isArray(state.deletedRepaymentIds) ? state.deletedRepaymentIds : []),
+      ])).slice(-500),
     };
   }
   if (merged.customerLoans && merged.deletedLoanIds?.length) {
     const deleted = new Set(merged.deletedLoanIds);
     merged.customerLoans = merged.customerLoans.filter(l => !deleted.has(l.id));
+  }
+  if (merged.customerLoans && merged.deletedRepaymentIds?.length) {
+    merged.customerLoans = withoutDeletedRepayments(merged.customerLoans, merged.deletedRepaymentIds);
+  }
+  if (merged.batches && merged.deletedBatchIds?.length) {
+    const deleted = new Set(merged.deletedBatchIds);
+    merged.batches = merged.batches.filter(b => !deleted.has(b.id));
+  }
+  if (merged.trades && merged.deletedTradeIds?.length) {
+    const deleted = new Set(merged.deletedTradeIds);
+    merged.trades = merged.trades.filter(tr => !deleted.has(tr.id));
   }
   return merged;
 }
@@ -188,24 +232,28 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     cashHistory: [],
   };
 
-  // Once cloud has been loaded into memory at least once this session, the
-  // in-memory state already incorporates anything cloud had — so batches,
-  // customers and suppliers can be OVERWRITTEN from local state. This is what
-  // makes their deletes propagate. Before that first load, we still
-  // read-merge-write everything so a fresh device (iOS PWA with empty
-  // localStorage) can't wipe cloud by upserting empty.
+  // We ALWAYS fetch the latest cloud row fresh, right before writing, and
+  // never blindly upload this device's in-memory copy over it — that is what
+  // stops a device whose local state is momentarily behind (a slow initial
+  // cloud load, a missed realtime event, a dropped connection) from wiping
+  // out data another device already wrote. Before the first cloud load this
+  // session, we read-merge-write everything so a fresh device (iOS PWA with
+  // empty localStorage) can't wipe cloud by upserting empty.
   //
-  // Trades are the one exception, always: OrdersPage never removes a trade
-  // from the array — "delete" only sets voided:true and leaves the record in
-  // place (see deleteTrade) — so merging trades by id can never resurrect a
-  // real deletion. That makes it safe, and necessary, to always fetch the
-  // latest cloud row and union-merge trades into it on every save, not just
-  // the session's first one. Without this, an idle tab/device whose in-memory
-  // state predates an order added elsewhere will blow that order away the
-  // next time it saves anything at all — its "overwrite once loaded" save
-  // simply never knew the order existed. customerLoans get the same always-
-  // merge treatment since they carry their own delete tombstone
-  // (deletedLoanIds) already.
+  // Trades, batches, and loans are always merged (never overwritten), even
+  // after the first cloud load, because an idle tab/device whose in-memory
+  // state predates something added elsewhere would otherwise blow it away
+  // the next time it saves anything at all — its "overwrite once loaded"
+  // save simply never knew the row existed.
+  //
+  // The normal UI delete path for a trade only ever sets voided:true and
+  // leaves the record in place (see deleteTrade) — but mergeArrayById lets
+  // the incoming (often stale) copy win over cloud for any id present in
+  // both, so a trade that WAS truly removed from the array (an out-of-band
+  // correction, not the normal UI path) needs the same tombstone treatment
+  // batches and loans already have, or a stale device's save silently
+  // resurrects it. See TrackerState.deletedTradeIds/deletedBatchIds/deletedLoanIds
+  // for the identical pattern applied three times.
   let merged: TrackerState = stripped;
   const { data: latestRow } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,21 +269,45 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       ...(latestState.deletedLoanIds || []),
       ...(stripped.deletedLoanIds || []),
     ])).slice(-500);
-    const mergedLoans = mergeArrayById(latestState.customerLoans, stripped.customerLoans)
-      .filter(l => !deletedLoanIds.includes(l.id));
+    const deletedRepaymentIds = Array.from(new Set([
+      ...(latestState.deletedRepaymentIds || []),
+      ...(stripped.deletedRepaymentIds || []),
+    ])).slice(-500);
+    const mergedLoans = withoutDeletedRepayments(
+      mergeLoansByRecency(latestState.customerLoans, stripped.customerLoans)
+        .filter(l => !deletedLoanIds.includes(l.id)),
+      deletedRepaymentIds,
+    );
+
+    const deletedBatchIds = Array.from(new Set([
+      ...(latestState.deletedBatchIds || []),
+      ...(stripped.deletedBatchIds || []),
+    ])).slice(-500);
+    const mergedBatches = mergeArrayById(latestState.batches, stripped.batches)
+      .filter(b => !deletedBatchIds.includes((b as { id: string }).id));
+
+    const deletedTradeIds = Array.from(new Set([
+      ...(latestState.deletedTradeIds || []),
+      ...(stripped.deletedTradeIds || []),
+    ])).slice(-500);
+    const mergedTrades = mergeArrayById(latestState.trades, stripped.trades)
+      .filter(tr => !deletedTradeIds.includes((tr as { id: string }).id));
 
     merged = {
       ...merged,
-      trades: mergeArrayById(latestState.trades, stripped.trades),
+      trades: mergedTrades,
+      deletedTradeIds,
       customerLoans: mergedLoans,
       deletedLoanIds,
+      deletedRepaymentIds,
+      batches: mergedBatches,
+      deletedBatchIds,
     };
 
     if (!_cloudLoadedThisSession) {
       merged = {
         ...latestState,
         ...merged,
-        batches: mergeArrayById(latestState.batches, stripped.batches),
         customers: mergeArrayById(latestState.customers, stripped.customers),
         suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
         cashAccounts: [],

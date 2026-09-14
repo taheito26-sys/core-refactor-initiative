@@ -24,6 +24,9 @@ export function ordersReportLabels(t: Translate): OrdersReportLabels {
     colTotalQar: t('ordersReportTotalQar'),
     colCost: t('ordersReportColCost'),
     colNet: t('ordersReportColNet'),
+    colBuyRate: t('ordersReportColBuyRate'),
+    colMargin: t('ordersReportColMargin'),
+    colSource: t('ordersReportColSource'),
     footer: t('ordersReportFooter'),
     generatedOn: t('stmtGeneratedOn'),
   };

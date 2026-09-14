@@ -1,4 +1,6 @@
 import { buildBuyerStatements, groupPayments } from "../../../src/features/stock/utils/loanStatement.ts";
+import { customerNameVariants } from "../../../src/lib/tracker-helpers.ts";
+import { canonicalizeName } from "../../../src/lib/text-normalize.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnySupabaseClient = any;
@@ -9,6 +11,34 @@ export interface StatementLinkRow {
   user_id: string;
   customer_id: string;
   currency: string;
+}
+
+/**
+ * Every customer record that is really the same buyer as `customerId`.
+ *
+ * One buyer can end up spread across several customer records — a rename or a
+ * near-miss name match on the order form starts a second one, and nothing
+ * surfaces that as an error. The merchant's own order list already unions them
+ * by canonical name (see customerIdsByCanonicalName in OrdersPage); anything
+ * buyer-facing has to resolve the same group, or orders recorded under the
+ * duplicate id go missing from the buyer's portal while the merchant plainly
+ * sees them.
+ */
+export function resolveCustomerIdGroup(
+  // deno-lint-ignore no-explicit-any
+  customers: any[],
+  customerId: string,
+): Set<string> {
+  const group = new Set<string>([customerId]);
+  const linked = customers.find((c) => c && c.id === customerId);
+  if (!linked) return group;
+  const keys = new Set(customerNameVariants(linked).map(canonicalizeName).filter(Boolean));
+  if (keys.size === 0) return group;
+  for (const c of customers) {
+    if (!c || !c.id) continue;
+    if (customerNameVariants(c).some((v) => keys.has(canonicalizeName(v)))) group.add(c.id);
+  }
+  return group;
 }
 
 /**
@@ -31,18 +61,42 @@ export async function buildLoanStatementResponse(
   if (!snapshot?.state) return null;
 
   const state = snapshot.state as { customers?: unknown; customerLoans?: unknown; trades?: AnyTrade[] };
+  // deno-lint-ignore no-explicit-any
+  const customers = (state.customers ?? []) as any[];
   const statements = buildBuyerStatements({
     // deno-lint-ignore no-explicit-any
     loans: (state.customerLoans ?? []) as any,
     // deno-lint-ignore no-explicit-any
-    customers: (state.customers ?? []) as any,
+    customers: customers as any,
     now: Date.now(),
   });
 
-  const statement = statements.find((s) => s.customerId === link.customer_id && s.currency === link.currency);
-  if (!statement) return null;
+  const customerIdGroup = resolveCustomerIdGroup(customers, link.customer_id);
 
-  const buyerTrades = (state.trades ?? []).filter((tr) => tr && tr.customerId === link.customer_id);
+  const groupStatements = statements.filter(
+    (s) => customerIdGroup.has(s.customerId) && s.currency === link.currency,
+  );
+  if (groupStatements.length === 0) return null;
+
+  // Merged into the single statement shape the rest of this function (and
+  // every caller) already expects, re-sorted chronologically so a buyer split
+  // across records reads exactly like one that was never split. Each
+  // statement's per-entry running `balance` is left as-is — nothing
+  // downstream reads it, only the loan rows and the payment entries.
+  // The linked record stays the source of the buyer-facing name so a stray
+  // duplicate's spelling can't override it.
+  const primary = groupStatements.find((s) => s.customerId === link.customer_id) ?? groupStatements[0];
+  const statement = {
+    customerName: primary.customerName,
+    currency: primary.currency,
+    totalLoaned: groupStatements.reduce((sum, s) => sum + s.totalLoaned, 0),
+    totalRepaid: groupStatements.reduce((sum, s) => sum + s.totalRepaid, 0),
+    outstanding: groupStatements.reduce((sum, s) => sum + s.outstanding, 0),
+    loans: groupStatements.flatMap((s) => s.loans).sort((a, b) => a.loan.ts - b.loan.ts),
+    entries: groupStatements.flatMap((s) => s.entries).sort((a, b) => a.ts - b.ts),
+  };
+
+  const buyerTrades = (state.trades ?? []).filter((tr) => tr && customerIdGroup.has(tr.customerId));
 
   type BinanceOrderRow = {
     tradeId: string;
@@ -114,8 +168,16 @@ export async function buildLoanStatementResponse(
 
   binanceOrders.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
+  // Both spellings travel with the statement so the exporter can print the one
+  // matching the reader's language. Resolving it here instead would bake the
+  // server's idea of the language into a document rendered on the client.
+  const linkedCustomer = customers.find((c) => c && c.id === link.customer_id)
+    ?? customers.find((c) => c && customerIdGroup.has(c.id));
+
   return {
     customerName: statement.customerName,
+    customerNameEn: linkedCustomer?.nameEn ?? null,
+    customerNameAr: linkedCustomer?.nameAr ?? null,
     currency: statement.currency,
     totalLoaned: Math.round(statement.totalLoaned),
     totalRepaid: Math.round(statement.totalRepaid),
@@ -148,5 +210,176 @@ export async function buildLoanStatementResponse(
     binanceOrders: binanceOrders.map((o) => (
       clientSafe ? { ...o, usdtAmount: undefined, qarRate: undefined } : o
     )),
+  };
+}
+
+export interface MonthlyBinanceRow {
+  orderNumber: string;
+  date: string | number | null;
+  counterparty: string | null;
+  fiat: string;
+  fiatAmount: number;
+  fiatPrice: number;
+}
+
+export interface MonthlyStatementResponse {
+  customerName: string;
+  /**
+   * Per-language spellings of the buyer's name, when the merchant recorded
+   * them. The exporter prints whichever matches the reader's UI language and
+   * falls back to customerName.
+   */
+  customerNameEn: string | null;
+  customerNameAr: string | null;
+  currency: string;
+  totalLoaned: number;
+  totalRepaid: number;
+  outstanding: number;
+  /**
+   * Whatever was still unpaid from before this month started — every order
+   * placed and payment received prior to the 1st of this month, netted
+   * out. A buyer who owed money going into the month must see that debt
+   * carried forward, not just this month's own new orders.
+   */
+  previousBalance: number;
+  /**
+   * Lifetime totals — every order and payment ever recorded for this buyer,
+   * not scoped to this month. The settlement percentage must be computed
+   * against these (matching the tracker's own "المسدد إجمالي" figure), not
+   * against this month's own totalLoaned/totalRepaid, which cover only a
+   * few weeks of activity and produce a very different, misleading ratio.
+   */
+  totalLoanedAllTime: number;
+  totalRepaidAllTime: number;
+  issueDate: string;
+  month: string;
+  payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
+  /**
+   * This buyer's own EGP sell transactions in the selected month — the
+   * FX-sourcing trail behind their settlements, scoped the same way the
+   * tracker itself scopes a buyer's order count. Deliberately never carries
+   * usdtAmount or a QAR conversion rate — a buyer only ever sees the EGP
+   * amount and the EGP/USDT price, same as every other buyer-facing
+   * statement in this app.
+   */
+  binanceOrders: MonthlyBinanceRow[];
+}
+
+/**
+ * One buyer's statement, re-scoped to a calendar month: the same cumulative
+ * totals and full payment history as {@link buildLoanStatementResponse} (the
+ * "up to issue date" figures a buyer expects to always see), plus that same
+ * buyer's month-scoped EGP sell ledger as a second section — the trail of
+ * their own trades that funded that month's settlements. Scoped to this one
+ * buyer so the order count here always matches what the tracker shows for
+ * them; it must never silently include another buyer's trades.
+ */
+export async function buildMonthlyStatementResponse(
+  // deno-lint-ignore no-explicit-any
+  supabase: AnySupabaseClient,
+  link: StatementLinkRow,
+  month: string,
+): Promise<MonthlyStatementResponse | null> {
+  const base = await buildLoanStatementResponse(supabase, link, false);
+  if (!base) return null;
+
+  const { data: snapshot, error: snapshotError } = await supabase
+    .from("tracker_snapshots")
+    .select("state")
+    .eq("user_id", link.user_id)
+    .maybeSingle();
+  if (snapshotError) throw snapshotError;
+
+  const state = (snapshot?.state ?? {}) as { trades?: AnyTrade[]; customers?: AnyTrade[] };
+  const allTrades = state.trades ?? [];
+  const customerIdGroup = resolveCustomerIdGroup(state.customers ?? [], link.customer_id);
+
+  const [y, m] = month.split("-").map((n: string) => parseInt(n, 10));
+  const monthStart = new Date(y, m - 1, 1).getTime();
+  const monthEnd = new Date(y, m, 1).getTime();
+  const inMonth = (ts: number) => ts >= monthStart && ts < monthEnd;
+
+  const rows: MonthlyBinanceRow[] = [];
+  const tradesNeedingFallback: AnyTrade[] = [];
+
+  for (const trade of allTrades) {
+    if (trade.voided) continue;
+    if (!customerIdGroup.has(trade.customerId)) continue;
+    if (trade.originalFiat === "EGP" && trade.originalFiatAmount != null) {
+      if (!inMonth(Number(trade.ts) || 0)) continue;
+      rows.push({
+        orderNumber: trade.exchangeOrderNumber ?? "",
+        date: trade.ts ?? null,
+        counterparty: trade.exchangeCounterparty ?? null,
+        fiat: trade.originalFiat,
+        fiatAmount: Math.round(Number(trade.originalFiatAmount) || 0),
+        fiatPrice: Number(trade.originalFiatPriceUSDT) || 0,
+      });
+    } else if (trade.importedFrom && inMonth(Number(trade.ts) || 0)) {
+      tradesNeedingFallback.push(trade);
+    }
+  }
+
+  if (tradesNeedingFallback.length > 0) {
+    const tradeById = new Map(tradesNeedingFallback.map((tr) => [tr.id, tr]));
+    const { data: exchangeOrders } = await supabase
+      .from("exchange_p2p_orders")
+      .select("order_number, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+      .eq("user_id", link.user_id)
+      .eq("linked_entity_type", "trade")
+      .eq("fiat", "EGP");
+
+    for (const o of exchangeOrders ?? []) {
+      const trade = tradeById.get(o.linked_entity_id);
+      if (!trade) continue;
+      rows.push({
+        orderNumber: o.order_number,
+        date: o.order_time ?? trade.ts ?? null,
+        counterparty: o.counterparty,
+        fiat: o.fiat,
+        fiatAmount: Math.round(Number(o.total) || 0),
+        fiatPrice: Number(o.price) || 0,
+      });
+    }
+  }
+
+  rows.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
+
+  // Strictly month-scoped, per the buyer's expectation of "September's
+  // statement" — only orders placed and payments received in that calendar
+  // month, not the cumulative to-date figures. base.orders/base.payments are
+  // both timestamped, so this filters and re-sums rather than reusing the
+  // running totals from buildLoanStatementResponse.
+  const monthPayments = base.payments.filter((p) => inMonth(Number(p.date) || 0));
+  const monthOrders = base.orders.filter((o) => inMonth(Number(o.date) || 0));
+  const totalLoaned = Math.round(monthOrders.reduce((sum, o) => sum + o.amount, 0));
+  const totalRepaid = Math.round(monthPayments.reduce((sum, p) => sum + p.amount, 0));
+
+  // Derived from the same all-time outstanding balance the tracker itself
+  // shows (base.outstanding), not by re-filtering individual orders/payments
+  // by date: a loan or payment with a missing/malformed timestamp would
+  // silently drop out of both the "this month" and "prior" buckets under a
+  // per-row filter, understating (or zeroing) the carried-forward balance
+  // without ever throwing an error. Defining it algebraically instead —
+  // whatever is left after backing out this month's own net movement —
+  // guarantees outstanding always reconciles to base.outstanding exactly,
+  // the same number the merchant's tracker displays for this buyer.
+  const previousBalance = Math.round(base.outstanding - totalLoaned + totalRepaid);
+
+  return {
+    customerName: base.customerName,
+    customerNameEn: base.customerNameEn,
+    customerNameAr: base.customerNameAr,
+    currency: base.currency,
+    totalLoaned,
+    totalRepaid,
+    outstanding: base.outstanding,
+    previousBalance,
+    totalLoanedAllTime: base.totalLoaned,
+    totalRepaidAllTime: base.totalRepaid,
+    issueDate: base.issueDate,
+    month,
+    payments: monthPayments,
+    binanceOrders: rows,
   };
 }

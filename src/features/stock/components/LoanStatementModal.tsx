@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import type { CustomerLoan } from '@/lib/tracker-helpers';
-import { groupPayments, type BuyerStatement, type StatementEntry } from '@/features/stock/utils/loanStatement';
+import { groupPaymentsByDay, type BuyerStatement, type StatementEntry } from '@/features/stock/utils/loanStatement';
 import {
   buildStatementCsv, buildStatementHtml, buildStatementHtmlCompact, buildStatementText,
   downloadTextFile, formatMoney, printHtmlDocument, statementFileBase,
@@ -47,7 +47,7 @@ export function LoanStatementModal({
   });
 
   const payments = useMemo(() => statement.entries.filter(e => e.kind === 'payment'), [statement]);
-  const paymentGroups = useMemo(() => groupPayments(payments), [payments]);
+  const paymentGroups = useMemo(() => groupPaymentsByDay(payments), [payments]);
   const canEditPayments = !!(onEditRepayment || onDeleteRepayment);
   const cur = statement.currency;
 

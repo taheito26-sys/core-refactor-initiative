@@ -43,4 +43,32 @@ describe('mergeTrackerStatesForMerchant', () => {
     expect(t2?.sellPriceQAR).toBe(4.2);
     expect(t2?.note).toBe('updated');
   });
+
+  it('does not resurrect a trade that was truly removed and tombstoned, even when an older snapshot still carries it', () => {
+    // Reproduces the exact failure this test guards against: a device saved
+    // an older row that still has the trade; without deletedTradeIds being
+    // unioned and filtered, mergeArrayById would let that stale copy win.
+    const merged = mergeTrackerStatesForMerchant([
+      {
+        updated_at: '2026-04-01T00:00:00.000Z',
+        state: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          trades: [{ id: 't1', ts: 1, inputMode: 'USDT', amountUSDT: 100, sellPriceQAR: 3.8, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' } as any],
+        },
+      },
+      {
+        // A later snapshot (from the device that actually did the delete)
+        // no longer carries t1 at all, and tombstones it.
+        updated_at: '2026-04-02T00:00:00.000Z',
+        state: {
+          trades: [],
+          deletedTradeIds: ['t1'],
+        },
+      },
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((merged?.trades as any[]).find((t) => t.id === 't1')).toBeUndefined();
+    expect(merged?.deletedTradeIds).toContain('t1');
+  });
 });

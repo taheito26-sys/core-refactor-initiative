@@ -104,6 +104,8 @@ export type CustomerProfileRow = {
   id: string;
   user_id: string;
   display_name: string;
+  /** Optional Arabic counterpart to `display_name` — when set, an Arabic UI should show this instead. */
+  display_name_ar: string | null;
   phone: string | null;
   region: string | null;
   country: string | null;
@@ -112,6 +114,16 @@ export type CustomerProfileRow = {
   created_at: string;
   updated_at: string;
 };
+
+/** Picks the profile name matching the active UI language, falling back to the other name then the legacy field. */
+export function resolveCustomerDisplayName(
+  profile: Pick<CustomerProfileRow, 'display_name' | 'display_name_ar'> | null | undefined,
+  lang: 'en' | 'ar',
+): string | null {
+  if (!profile) return null;
+  if (lang === 'ar') return profile.display_name_ar || profile.display_name || null;
+  return profile.display_name || profile.display_name_ar || null;
+}
 
 export type CustomerNotificationRow = {
   id: string;
@@ -945,7 +957,7 @@ export async function cancelCustomerOrder(order: CustomerOrderRow, actorUserId: 
 export async function listCustomerProfiles(userId: string) {
   return supabase
     .from('customer_profiles')
-    .select('id, user_id, display_name, phone, region, country, preferred_currency, status, created_at, updated_at')
+    .select('id, user_id, display_name, display_name_ar, phone, region, country, preferred_currency, status, created_at, updated_at')
     .eq('user_id', userId)
     .maybeSingle();
 }
@@ -1025,7 +1037,17 @@ export async function updateCustomerProfile(userId: string, payload: Partial<Cus
   if (!primary.error) return primary;
 
   const message = primary.error.message.toLowerCase();
-  const isCountrySchemaError = message.includes('country') && (message.includes('schema cache') || message.includes('column'));
+  const isSchemaCacheError = message.includes('schema cache') || message.includes('column');
+  const isCountrySchemaError = message.includes('country') && isSchemaCacheError;
+  // display_name_ar is a newly added column — the same "migration hasn't
+  // landed on this environment yet" race the country fallback below
+  // already guards against, so drop it and retry rather than losing the
+  // rest of the save.
+  const isNameArSchemaError = message.includes('display_name_ar') && isSchemaCacheError;
+  if (isNameArSchemaError) {
+    const { display_name_ar: _displayNameAr, ...fallbackPayload } = payload as Record<string, unknown>;
+    return updateProfile(fallbackPayload);
+  }
   if (!isCountrySchemaError) return primary;
 
   const { country: _country, ...fallbackPayload } = payload as Record<string, unknown>;

@@ -20,15 +20,16 @@ export default function CustomerOnboardingPage() {
     if (!userId) return;
     setLoading(true);
     try {
-      const { error: cpErr } = await supabase.from('customer_profiles').insert({
+      const { error: cpErr } = await supabase.from('customer_profiles').upsert({
         user_id: userId,
         display_name: displayName.trim(),
         phone: phone.trim() || null,
         preferred_currency: 'USDT',
-      });
+      }, { onConflict: 'user_id' });
       if (cpErr) throw cpErr;
       localStorage.setItem('p2p_customer_country', country);
-      await supabase.from('profiles').update({ role: 'customer' }).eq('user_id', userId);
+      const { error: roleErr } = await supabase.from('profiles').update({ role: 'customer' }).eq('user_id', userId);
+      if (roleErr) throw roleErr;
       await refreshProfile();
       navigate('/c/home', { replace: true });
     } catch (err: any) {

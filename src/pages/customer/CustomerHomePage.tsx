@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet, Calculator } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   formatCustomerNumber, formatCustomerDate,
-  listCustomerConnections,
+  listCustomerConnections, resolveCustomerDisplayName,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
@@ -40,17 +40,6 @@ const STATUS: Record<string, { en: string; ar: string; cls: string }> = {
   quote_rejected:   { en: 'Rejected', ar: 'مرفوض',         cls: 'bg-muted text-muted-foreground' },
 };
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
-  return (
-    <div className="rounded-2xl border border-border/50 bg-card p-4">
-      <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
-      <p className={cn('text-xl font-black tabular-nums', highlight && 'text-emerald-600')}>{value}</p>
-      {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
 export default function CustomerHomePage() {
   const { userId, customerProfile } = useAuth();
   const { settings } = useTheme();
@@ -58,7 +47,6 @@ export default function CustomerHomePage() {
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
-  const [calcAmount, setCalcAmount] = useState('');
   const [showNewOrder, setShowNewOrder] = useState(false);
   const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
@@ -95,23 +83,31 @@ export default function CustomerHomePage() {
     enabled: !!userId,
   });
 
+  // `paired` marks rows where the QAR and EGP figures come from the same
+  // trade (a loan matched to its binance order by tradeId) — only these can
+  // be divided against each other to get a real FX rate. Unmatched rows
+  // (an order with no counterpart yet, or a binance leg with no loan) carry
+  // a QAR or EGP flow with nothing to pair it to, and mixing them into a
+  // rate calculation produces a number that isn't a rate at all.
   const historyRows = useMemo(() => {
-    const rows: { ts: number; qar: number; egp: number }[] = [];
+    const rows: { ts: number; qar: number; egp: number; paired: boolean }[] = [];
     for (const s of historyStatements) {
       const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
       const seenTradeIds = new Set<string>();
       for (const b of s.binanceOrders ?? []) {
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
+        const qar = loan ? loan.amount : 0;
+        const egp = b.fiat === 'EGP' ? b.fiatAmount : 0;
         rows.push({
           ts: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
-          qar: loan ? loan.amount : 0,
-          egp: b.fiat === 'EGP' ? b.fiatAmount : 0,
+          qar, egp,
+          paired: qar > 0 && egp > 0,
         });
       }
       for (const o of s.orders) {
         if (o.tradeId && seenTradeIds.has(o.tradeId)) continue;
-        rows.push({ ts: o.date, qar: s.currency === 'QAR' ? o.amount : 0, egp: 0 });
+        rows.push({ ts: o.date, qar: s.currency === 'QAR' ? o.amount : 0, egp: 0, paired: false });
       }
     }
     return rows;
@@ -125,6 +121,38 @@ export default function CustomerHomePage() {
     const currency = historyStatements[0]?.currency ?? 'QAR';
     const settledPct = totalDebt > 0 ? Math.min(100, Math.round((totalPaid / totalDebt) * 100)) : 0;
     return { totalDebt, totalPaid, outstanding, currency, settledPct };
+  }, [historyStatements]);
+
+  // How old the oldest still-open order is, and how many have crossed the
+  // 30-day mark — the same aging signal the merchant sees on their side,
+  // computed from the order rows already inside historyStatements.
+  const agingStats = useMemo(() => {
+    const now = Date.now();
+    let oldestDays = 0, overdueCount = 0, openCount = 0;
+    for (const s of historyStatements) {
+      for (const o of s.orders) {
+        if (o.remaining <= 0) continue;
+        openCount += 1;
+        const days = Math.floor((now - o.date) / 86400000);
+        if (days > oldestDays) oldestDays = days;
+        if (days > 30) overdueCount += 1;
+      }
+    }
+    return { oldestDays, overdueCount, openCount };
+  }, [historyStatements]);
+
+  // Payment history stats — reuses historyStatements' payments array, which
+  // is the same data the debt-settlement progress bar above already sums.
+  const paymentStats = useMemo(() => {
+    let count = 0, total = 0, lastTs: number | null = null;
+    for (const s of historyStatements) {
+      for (const p of s.payments) {
+        count += 1;
+        total += p.amount;
+        if (lastTs == null || p.date > lastTs) lastTs = p.date;
+      }
+    }
+    return { count, avg: count > 0 ? total / count : 0, lastTs, currency: historyStatements[0]?.currency ?? 'QAR' };
   }, [historyStatements]);
 
   const { data: connections = [] } = useQuery({
@@ -198,11 +226,38 @@ export default function CustomerHomePage() {
     const histThisMonthQar = histThisMonth.reduce((s, r) => s + r.qar, 0);
     const histThisMonthEgp = histThisMonth.reduce((s, r) => s + r.egp, 0);
 
-    // Current month completed received orders for summary
+    // Current month completed received orders for summary. Received/Delivered
+    // are flow totals and don't need to line up 1:1 (a QAR receipt this
+    // month can settle in EGP next month), so they're summed independently.
     const thisMonthCompleted = receivedCompleted.filter(o => new Date(o.created_at).getTime() >= monthStart);
     const monthQar = thisMonthCompleted.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonthQar;
     const monthEgp = thisMonthCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0) + histThisMonthEgp;
-    const monthAvgFx = monthQar > 0 ? monthEgp / monthQar : null;
+
+    // Avg Rate must come only from trades where both legs are known — dividing
+    // the two flow totals above produces a meaningless number whenever
+    // received/delivered volumes drift apart for timing reasons.
+    const ratedOrders = thisMonthCompleted.filter(o => (o.fx_rate ?? 0) > 0 && (o.amount ?? 0) > 0);
+    const pairedQar = ratedOrders.reduce((s, o) => s + (o.amount ?? 0), 0)
+      + histThisMonth.filter(r => r.paired).reduce((s, r) => s + r.qar, 0);
+    const pairedEgp = ratedOrders.reduce((s, o) => s + (o.amount ?? 0) * (o.fx_rate ?? 0), 0)
+      + histThisMonth.filter(r => r.paired).reduce((s, r) => s + r.egp, 0);
+    const monthAvgFx = pairedQar > 0 ? pairedEgp / pairedQar : null;
+
+    // EGP-equivalent volume, since the corridor customer cares about what
+    // lands in EGP, not the QAR leg. Each order converts at its own
+    // fx_rate; only orders/rows with no rate of their own fall back to the
+    // best rate estimate available (this month's paired average, else the
+    // live market guide rate).
+    const fallbackRate = monthAvgFx ?? guideRate ?? egyptBuyAvg ?? null;
+    const toEgp = (qar: number, rate: number | null | undefined) => {
+      const r = (rate && rate > 0) ? rate : fallbackRate;
+      return r ? qar * r : 0;
+    };
+    const histRangeEgp = (rows: typeof historyRows) =>
+      rows.reduce((s, r) => s + (r.paired ? r.egp : toEgp(r.qar, null)), 0);
+    const thisMonthVolEgp = thisMonth.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histThisMonth);
+    const lastMonthVolEgp = lastMonth.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histLastMonth);
+    const thisWeekVolEgp  = thisWeek.reduce((s, o) => s + toEgp(o.amount ?? 0, o.fx_rate), 0) + histRangeEgp(histThisWeek);
 
     // Order activity stats (replaces 14-day trend)
     const totalOrders = orders.length + historyRows.length;
@@ -228,71 +283,50 @@ export default function CustomerHomePage() {
       thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonth.reduce((s, r) => s + r.qar, 0),
       lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histLastMonth.reduce((s, r) => s + r.qar, 0),
       thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisWeek.reduce((s, r) => s + r.qar, 0),
+      thisMonthVolEgp, lastMonthVolEgp, thisWeekVolEgp,
       monthQar, monthEgp, monthAvgFx,
       totalOrders, approvedOrders, pendingOrders, thisMonthOrders,
       active, completed, needsAction, trend, maxTrend,
     };
-  }, [orders, historyRows, lang]);
-
-  const calcResult = guideRate && calcAmount && parseFloat(calcAmount) > 0
-    ? parseFloat(calcAmount) * guideRate
-    : null;
+  }, [orders, historyRows, lang, guideRate, egyptBuyAvg]);
 
   return (
     <div className="space-y-5">
-      {/* Hero: rates + calculator */}
+      {/* Hero: greeting + live rates */}
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
         <div>
           <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
-          <h1 className="mt-0.5 text-xl font-bold">{customerProfile?.display_name ?? '—'}</h1>
+          <h1 className="mt-0.5 text-xl font-bold">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
         </div>
 
-        {/* Rate row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{getLocalizedCurrencyName('QAR', lang)}/{getLocalizedCurrencyName('EGP', lang)} {L('Guide', 'دليل')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {guideRate != null ? fmt(guideRate, 4) : '—'}
-            </p>
-          </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{L('Egypt Buy Avg', 'متوسط شراء مصر')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
-            </p>
-          </div>
+        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
+            not shown here; only the market's average selling price. */}
+        <div className="rounded-xl bg-white/10 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
+          <p className="text-2xl font-black tabular-nums">
+            {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
+          </p>
         </div>
+      </div>
 
-        {/* Quick Calculator */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Calculator className="h-3.5 w-3.5 opacity-70" />
-            <p className="text-xs opacity-70 font-medium">{L('Quick Calculator', 'حاسبة سريعة')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                value={calcAmount}
-                onChange={e => setCalcAmount(e.target.value)}
-                type="number"
-                min="0"
-                placeholder="0"
-                className="h-10 w-full rounded-xl bg-white/20 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/40 outline-none focus:bg-white/25"
-              />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('QAR', lang)}</span>
-            </div>
-            <span className="text-white/60 font-bold">→</span>
-            <div className="relative flex-1">
-              <input
-                value={calcResult != null ? fmt(calcResult, 0) : ''}
-                readOnly
-                placeholder="0"
-                className="h-10 w-full rounded-xl bg-white/10 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/30 outline-none tabular-nums"
-              />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('EGP', lang)}</span>
-            </div>
-          </div>
-        </div>
+      {/* Quick actions — the main navigation surface for the page */}
+      <div className="grid grid-cols-5 gap-2">
+        {[
+          { icon: Plus, label: L('New Order', 'طلب جديد'), onClick: () => setShowNewOrder(true), tone: 'text-primary bg-primary/10' },
+          { icon: ListOrdered, label: L('Orders', 'الطلبات'), onClick: () => navigate('/c/orders'), tone: 'text-blue-600 bg-blue-500/10' },
+          { icon: Wallet, label: L('Wallet', 'المحفظة'), onClick: () => navigate('/c/wallet'), tone: 'text-emerald-600 bg-emerald-500/10' },
+          { icon: Users, label: L('Merchants', 'التجار'), onClick: () => navigate('/c/merchants'), tone: 'text-amber-600 bg-amber-500/10' },
+          { icon: MessageCircle, label: L('Chat', 'الدردشة'), onClick: () => navigate('/c/chat'), tone: 'text-violet-600 bg-violet-500/10' },
+        ].map(({ icon: Icon, label, onClick, tone }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-border/50 bg-card py-3 active:scale-[0.97] transition-transform"
+          >
+            <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}><Icon className="h-4.5 w-4.5" /></div>
+            <span className="text-[10.5px] font-semibold">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Action needed */}
@@ -303,6 +337,21 @@ export default function CustomerHomePage() {
             <p className="text-sm font-semibold">{metrics.needsAction.length} {L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}</p>
             <p className="text-xs text-muted-foreground">
               {metrics.needsAction.length > 0 && L('Review quotes', 'راجع العروض')}
+            </p>
+          </div>
+        </button>
+      )}
+
+      {/* Overdue balance warning — only once something has actually crossed 30 days */}
+      {agingStats.overdueCount > 0 && (
+        <button onClick={() => navigate('/c/wallet')} className="flex w-full items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-left active:scale-[0.99]">
+          <Clock className="h-5 w-5 shrink-0 text-rose-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              {L(`${agingStats.overdueCount} order(s) overdue`, `${agingStats.overdueCount} طلب متأخر السداد`)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {L(`Oldest is ${agingStats.oldestDays} days old`, `الأقدم منذ ${agingStats.oldestDays} يوماً`)}
             </p>
           </div>
         </button>
@@ -483,72 +532,72 @@ export default function CustomerHomePage() {
         </div>
       )}
 
-      {/* KPI row: volume periods */}
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume', 'الحجم')} ({getLocalizedCurrencyName('QAR', lang === 'ar' ? 'ar' : 'en')})</p>
-        <div className="grid grid-cols-3 gap-2">
-          <KpiCard label={L('This month', 'هذا الشهر')} value={fmt(metrics.thisMonthVol)} />
-          <KpiCard label={L('Last month', 'الشهر الماضي')} value={fmt(metrics.lastMonthVol)} />
-          <KpiCard label={L('This week', 'هذا الأسبوع')} value={fmt(metrics.thisWeekVol)} />
-        </div>
-      </div>
-
-      {/* FX summary — current month */}
-      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border/40">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
+      {/* Corridor — one consolidated, EGP-led card. Delivered EGP leads as the
+          single hero figure; received QAR, the rate, and the three volume
+          periods are secondary reference numbers underneath. Everything here
+          used to be three separate cards (Volume tiles, FX summary, Order
+          Activity/Order Size) — merged so the page reads as one clear story
+          instead of a stack of near-duplicate boxes. */}
+      <div className="rounded-3xl border border-emerald-500/20 bg-card overflow-hidden">
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
+            </p>
+            {metrics.monthAvgFx != null && (
+              <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                <TrendingUp className="h-3 w-3" /> {fmt(metrics.monthAvgFx, 2)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1"><ArrowDownLeft className="h-4 w-4 text-emerald-500" /><p className="text-xs font-semibold text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم (جنيه)')}</p></div>
+          <p className="text-4xl font-black tabular-nums text-emerald-600 mt-1">{fmt(metrics.monthEgp)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {L('from', 'من')} {fmt(metrics.monthQar)} {getLocalizedCurrencyName('QAR', lang)} {L('received', 'مُستلَم')}
           </p>
         </div>
-        <div className="grid grid-cols-3 divide-x divide-border/40">
-          <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground">{L('Received (QAR)', 'مُستلَم')}</p></div>
-            <p className="text-lg font-black tabular-nums">{fmt(metrics.monthQar)}</p>
+        <div className="grid grid-cols-3 border-t border-border/40 divide-x divide-border/40">
+          <div className="p-3.5 text-center">
+            <p className="text-[10px] text-muted-foreground mb-1">{L('This week', 'هذا الأسبوع')}</p>
+            <p className="text-base font-black tabular-nums">{fmt(metrics.thisWeekVolEgp)}</p>
           </div>
-          <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" /><p className="text-[10px] text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم')}</p></div>
-            <p className="text-lg font-black tabular-nums text-emerald-600">{fmt(metrics.monthEgp)}</p>
+          <div className="p-3.5 text-center bg-emerald-500/5">
+            <p className="text-[10px] text-muted-foreground mb-1">{L('This month', 'هذا الشهر')}</p>
+            <p className="text-base font-black tabular-nums text-emerald-600">{fmt(metrics.thisMonthVolEgp)}</p>
           </div>
-          <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><p className="text-[10px] text-muted-foreground">{L('Avg Rate', 'متوسط السعر')}</p></div>
-            <p className="text-lg font-black tabular-nums">{metrics.monthAvgFx != null ? fmt(metrics.monthAvgFx, 2) : '—'}</p>
+          <div className="p-3.5 text-center">
+            <p className="text-[10px] text-muted-foreground mb-1">{L('Last month', 'الشهر الماضي')}</p>
+            <p className="text-base font-black tabular-nums">{fmt(metrics.lastMonthVolEgp)}</p>
           </div>
         </div>
       </div>
 
-      {/* Order Activity — replaces 14-day volume chart */}
-      {orders.length > 0 && (
-        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/40">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Order Activity', 'نشاط الطلبات')}</p>
+      {/* Payments — count, average, last payment date */}
+      {paymentStats.count > 0 && (
+        <div className="rounded-3xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border/40">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Payment History', 'سجل الدفعات')}</p>
           </div>
-          <div className="grid grid-cols-4 divide-x divide-border/40">
-            <div className="p-3 text-center">
-              <p className="text-[10px] text-muted-foreground mb-1">{L('Total', 'الكل')}</p>
-              <p className="text-xl font-black">{metrics.totalOrders}</p>
+          <div className="grid grid-cols-3 divide-x divide-border/40">
+            <div className="p-4 text-center">
+              <p className="text-2xl font-black tabular-nums">{paymentStats.count}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{L('Payments', 'الدفعات')}</p>
             </div>
-            <div className="p-3 text-center">
-              <p className="text-[10px] text-muted-foreground mb-1">{L('Approved', 'مكتمل')}</p>
-              <p className="text-xl font-black text-emerald-600">{metrics.approvedOrders}</p>
+            <div className="p-4 text-center">
+              <p className="text-2xl font-black tabular-nums">{fmt(paymentStats.avg)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{L('Average', 'المتوسط')}</p>
             </div>
-            <div className="p-3 text-center">
-              <p className="text-[10px] text-muted-foreground mb-1">{L('Pending', 'معلق')}</p>
-              <p className="text-xl font-black text-amber-500">{metrics.pendingOrders}</p>
-            </div>
-            <div className="p-3 text-center">
-              <p className="text-[10px] text-muted-foreground mb-1">{L('This Month', 'هذا الشهر')}</p>
-              <p className="text-xl font-black text-primary">{metrics.thisMonthOrders}</p>
+            <div className="p-4 text-center">
+              <p className="text-sm font-bold mt-1.5">
+                {paymentStats.lastTs != null ? formatCustomerDate(new Date(paymentStats.lastTs), lang) : '—'}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">{L('Last Payment', 'آخر دفعة')}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* New order CTA */}
-      <button onClick={() => setShowNewOrder(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground active:scale-[0.99]">
-        <Plus className="h-4 w-4" />{L('New QAR → EGP Order', 'طلب جديد QAR → EGP')}
-      </button>
-
-      {/* New Order Modal — opens inline without navigating away */}
+      {/* New Order Modal — opens inline without navigating away, triggered from Quick Actions above */}
       {showNewOrder && connections.length > 0 && (
         <NewOrderForm
           connections={connections}
