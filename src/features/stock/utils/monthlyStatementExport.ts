@@ -97,13 +97,23 @@ function fmtDate(value: number | string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+/** `HHMMSS` in the exporting device's local time — down to the second, so a
+ * file downloaded moments apart (e.g. while debugging a rendering issue)
+ * never silently overwrites the previous one and can be told apart at a
+ * glance. */
+function nowTimeStamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
 export function monthlyStatementFileBase(data: MonthlyStatementData): string {
   const name = data.customerName
     .toLowerCase()
     .replace(/[^a-z0-9؀-ۿ]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || 'buyer';
-  return `${name}-statement-${data.month}`;
+  return `${name}-statement-${data.month}-${nowTimeStamp()}`;
 }
 
 // ── Printable / rasterized document ─────────────────────────────────
