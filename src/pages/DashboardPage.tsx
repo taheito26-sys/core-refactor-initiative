@@ -739,7 +739,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="kpis kpis-dashboard">
         <div className="kpi-card">
-          <div className="kpi-lbl">{t('netProfitLabel')}</div>
+          <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
           <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
@@ -770,7 +770,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-sub">{t('liquidUsdt')}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">Average Stock Price + Spread</div>
+          <div className="kpi-lbl">{t('kpiAvgCostShort')}</div>
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtDashboardPrice(averageStockPrice) : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
