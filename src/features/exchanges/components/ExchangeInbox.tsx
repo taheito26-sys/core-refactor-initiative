@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Inbox, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -226,13 +226,6 @@ export function ExchangeInbox({
     [transfers, onPickTransfer, transferDirection, inSelectedMonth],
   );
 
-  const total = allOrders.length + allTransfers.length;
-  if (total === 0) return null;
-
-  const pendingCount =
-    allOrders.filter((o) => !orderCoverage(o).isFull).length +
-    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).length;
-
   // A tick only counts while its row is still pending and still listed --
   // one imported elsewhere, dismissed, or filtered out by the month pill
   // drops out of the selection on its own.
@@ -242,10 +235,12 @@ export function ExchangeInbox({
   const selectedTotal = selectedTransfers.reduce((sum, tr) => sum + tr.amount, 0);
   const sameSender = new Set(selectedTransfers.map((tr) => tr.counterparty ?? '')).size === 1;
   const sameKind = new Set(selectedTransfers.map((tr) => tr.kind)).size === 1;
-  const canCombine = selectedTransfers.length >= 2 && sameSender && sameKind;
+  // One tick fills the form with that transfer; each further tick adds to
+  // the total, as long as they all came from the same sender the same way.
+  const canCombine = selectedTransfers.length >= 1 && sameSender && sameKind;
 
-  const handleCombineSelected = () => {
-    if (!canCombine || !onPickTransfer) return;
+  const pickSelection = () => {
+    if (!onPickTransfer || !canCombine) return;
     const oldestFirst = [...selectedTransfers].sort(
       (a, b) => (a.transfer_time ? new Date(a.transfer_time).getTime() : 0) - (b.transfer_time ? new Date(b.transfer_time).getTime() : 0),
     );
@@ -261,8 +256,28 @@ export function ExchangeInbox({
       ts: latest.transfer_time ? new Date(latest.transfer_time).getTime() : Date.now(),
       assigneeName: latest.counterparty ?? undefined,
     });
-    setSelectedTransferIds(new Set());
   };
+
+  // Ticking IS the combine: every change to the selection refills the form
+  // with the running total, exactly as tapping a single row fills it with
+  // that row. Keyed on the ticked ids so a background refresh of the
+  // transfer list doesn't re-fire it and stomp on edits mid-form.
+  const selectionKey = selectedTransfers.map((tr) => tr.id).sort().join(',');
+  const pickSelectionRef = useRef(pickSelection);
+  useEffect(() => {
+    pickSelectionRef.current = pickSelection;
+  });
+  useEffect(() => {
+    if (!selectionKey) return;
+    pickSelectionRef.current();
+  }, [selectionKey]);
+
+  const total = allOrders.length + allTransfers.length;
+  if (total === 0) return null;
+
+  const pendingCount =
+    allOrders.filter((o) => !orderCoverage(o).isFull).length +
+    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).length;
 
   // One chronological feed -- orders and transfers interleaved by date/time,
   // not grouped by type, so the list matches the exchange's own history.
@@ -305,28 +320,26 @@ export function ExchangeInbox({
 
       {!collapsed && selectedTransfers.length > 0 && (
         <div className="flex items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-2 py-1">
-          <span className="min-w-0 truncate text-[10px] text-muted-foreground">
-            {selectedTransfers.length >= 2 && !canCombine
-              ? 'Pick transfers from the same sender to combine'
-              : `${selectedTransfers.length} selected — ${fmtNum(selectedTotal, 8)} ${selectedTransfers[0]?.asset ?? 'USDT'}`}
+          <span className="min-w-0 truncate text-[10px]">
+            {!canCombine ? (
+              <span className="font-semibold text-amber-500">Tick transfers from the same sender only</span>
+            ) : (
+              <>
+                <span className="text-muted-foreground">{selectedTransfers.length} combined — </span>
+                <span className="font-bold text-primary">
+                  {fmtNum(selectedTotal, 8)} {selectedTransfers[0]?.asset ?? 'USDT'}
+                </span>
+                <span className="text-muted-foreground"> in the form</span>
+              </>
+            )}
           </span>
-          <span className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSelectedTransferIds(new Set())}
-              className="rounded border border-muted-foreground/30 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-destructive/60 hover:text-destructive"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              disabled={!canCombine}
-              onClick={handleCombineSelected}
-              className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {side === 'buy' ? 'Combine into one batch' : 'Combine into one sale'}
-            </button>
-          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedTransferIds(new Set())}
+            className="shrink-0 rounded border border-muted-foreground/30 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-destructive/60 hover:text-destructive"
+          >
+            Clear
+          </button>
         </div>
       )}
       {!collapsed && (
@@ -417,7 +430,7 @@ export function ExchangeInbox({
                     'flex shrink-0 items-center justify-center rounded border px-1.5',
                     selected
                       ? 'border-primary bg-primary/20 text-primary'
-                      : 'border-dashed border-muted-foreground/30 text-transparent hover:border-primary/50 hover:text-muted-foreground/60',
+                      : 'border-dashed border-muted-foreground/40 text-muted-foreground/30 hover:border-primary/50 hover:text-muted-foreground/60',
                   )}
                 >
                   <Check className="h-3 w-3" />
