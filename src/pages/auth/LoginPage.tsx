@@ -5,19 +5,24 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Loader2, Shield, Store, User } from 'lucide-react';
+import { Loader2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
-
-type PortalRole = 'merchant' | 'customer';
 
 // The synthetic email domain admin-create-customer-login uses for
 // username/password customer accounts — the customer only ever sees or
 // types their username, this suffix is invisible to them.
 const USERNAME_EMAIL_DOMAIN = 'customers.local';
 
+// One field for both kinds of account: a merchant signs in with their real
+// email, a customer with the bare username their merchant issued them. An "@"
+// is the only thing that distinguishes the two.
+function toLoginEmail(identifier: string): string {
+  const clean = identifier.trim().toLowerCase();
+  return clean.includes('@') ? clean : `${clean}@${USERNAME_EMAIL_DOMAIN}`;
+}
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<PortalRole | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -27,18 +32,27 @@ export default function LoginPage() {
   const { settings, update } = useTheme();
 
   const handleUsernameLogin = async () => {
-    const cleanUsername = username.trim().toLowerCase();
-    if (!cleanUsername || !password) {
-      setLoginError(t.isRTL ? 'أدخل اسم المستخدم وكلمة المرور' : 'Enter your username and password');
+    const identifier = username.trim();
+    if (!identifier || !password) {
+      setLoginError(
+        t.isRTL
+          ? 'أدخل اسم المستخدم أو البريد الإلكتروني وكلمة المرور'
+          : 'Enter your username or email and your password',
+      );
       return;
     }
     setLoginError('');
-    localStorage.setItem('p2p_signup_role', 'customer');
     setLoading(true);
     try {
-      await login(`${cleanUsername}@${USERNAME_EMAIL_DOMAIN}`, password);
+      // No portal is recorded here: where this account belongs is decided from
+      // the profiles it actually has, once the session resolves.
+      await login(toLoginEmail(identifier), password);
     } catch {
-      setLoginError(t.isRTL ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Incorrect username or password');
+      setLoginError(
+        t.isRTL
+          ? 'بيانات الدخول غير صحيحة'
+          : 'Incorrect sign-in details',
+      );
       setLoading(false);
     }
   };
@@ -58,11 +72,6 @@ export default function LoginPage() {
   }, []);
 
   const handleGoogleLogin = async () => {
-    if (!selectedRole) {
-      toast.error(t.isRTL ? 'اختر البوابة أولاً' : 'Please select a portal first');
-      return;
-    }
-    localStorage.setItem('p2p_signup_role', selectedRole);
     setLoading(true);
     try {
       await loginWithGoogle();
@@ -107,43 +116,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div className="max-w-md space-y-3 pt-2">
-              <p className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-[0.15em]">
-                {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setSelectedRole('merchant')}
-                  className={cn(
-                    'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
-                    selectedRole === 'merchant'
-                      ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
-                      : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
-                  )}>
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', selectedRole === 'merchant' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]')}>
-                    <Store className={cn('h-5 w-5', selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/40')} />
-                  </div>
-                  <span className={cn('text-sm font-bold', selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/60')}>
-                    {t.isRTL ? 'تاجر' : 'Merchant'}
-                  </span>
-                  <span className="text-[10px] text-white/30 text-center">{t.isRTL ? 'تداول وإدارة المخزون' : 'Trade & manage stock'}</span>
-                </button>
-                <button type="button" onClick={() => setSelectedRole('customer')}
-                  className={cn(
-                    'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
-                    selectedRole === 'customer'
-                      ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
-                      : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
-                  )}>
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', selectedRole === 'customer' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]')}>
-                    <User className={cn('h-5 w-5', selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/40')} />
-                  </div>
-                  <span className={cn('text-sm font-bold', selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/60')}>
-                    {t.isRTL ? 'عميل' : 'Customer'}
-                  </span>
-                  <span className="text-[10px] text-white/30 text-center">{t.isRTL ? 'شراء وبيع مع التجار' : 'Buy & sell with merchants'}</span>
-                </button>
-              </div>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -218,50 +190,13 @@ export default function LoginPage() {
                 <p className="text-sm text-muted-foreground mt-1">{t('secureTrading')}</p>
               </div>
 
-              {/* Mobile: Portal Selector */}
-              <div className="lg:hidden space-y-3">
-                <p className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-[0.15em] text-center">
-                  {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setSelectedRole('merchant')}
-                    className={cn(
-                      'flex flex-col items-center gap-2.5 rounded-xl border p-4 transition-all duration-200',
-                      selectedRole === 'merchant'
-                        ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
-                        : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.12]'
-                    )}>
-                    <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', selectedRole === 'merchant' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]')}>
-                      <Store className={cn('h-5 w-5', selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/40')} />
-                    </div>
-                    <span className={cn('text-sm font-bold', selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/60')}>
-                      {t.isRTL ? 'تاجر' : 'Merchant'}
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => setSelectedRole('customer')}
-                    className={cn(
-                      'flex flex-col items-center gap-2.5 rounded-xl border p-4 transition-all duration-200',
-                      selectedRole === 'customer'
-                        ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
-                        : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.12]'
-                    )}>
-                    <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', selectedRole === 'customer' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]')}>
-                      <User className={cn('h-5 w-5', selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/40')} />
-                    </div>
-                    <span className={cn('text-sm font-bold', selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/60')}>
-                      {t.isRTL ? 'عميل' : 'Customer'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Customer username/password login — always visible, not gated
-                  behind picking the "Customer" card first, so a customer
-                  handed a username/password by their merchant can always
-                  find it without discovering a toggle. */}
+              {/* One sign-in form for both roles: a merchant types their
+                  email, a customer the username their merchant issued. Where
+                  the account lands is resolved from its profiles afterwards,
+                  so nobody has to know which "portal" they belong to. */}
               <div className="space-y-3">
                 <p className="text-[10px] font-semibold text-white/40 lg:text-muted-foreground uppercase tracking-[0.15em]">
-                  {t.isRTL ? 'تسجيل دخول العميل' : 'Customer sign in'}
+                  {t.isRTL ? 'تسجيل الدخول' : 'Sign in'}
                 </p>
                 <form
                   className="space-y-3"
@@ -270,7 +205,7 @@ export default function LoginPage() {
                   <input
                     type="text"
                     autoComplete="username"
-                    placeholder={t.isRTL ? 'اسم المستخدم' : 'Username'}
+                    placeholder={t.isRTL ? 'اسم المستخدم أو البريد الإلكتروني' : 'Username or email'}
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     disabled={loading}
@@ -305,7 +240,7 @@ export default function LoginPage() {
                   'lg:bg-primary lg:text-primary-foreground',
                   'max-lg:bg-white max-lg:text-black max-lg:hover:bg-white/90'
                 )}
-                size="lg" onClick={handleGoogleLogin} disabled={loading || !selectedRole}>
+                size="lg" onClick={handleGoogleLogin} disabled={loading}>
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (

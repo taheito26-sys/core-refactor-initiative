@@ -3,8 +3,19 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '../auth-context';
 
 /**
- * ProfileGuard checks that the authenticated user has a merchant profile.
- * If the user selected the "customer" portal at login, redirects to /c/home.
+ * ProfileGuard checks that the authenticated user has a merchant profile, and
+ * otherwise sends them wherever their account actually belongs.
+ *
+ * The destination is derived from the account itself, never from a portal the
+ * user picked at login: sign-in is a single unified page, and which profiles
+ * exist is the authoritative answer. A dual-role account (both a merchant and
+ * a customer profile) lands in the merchant app; /c/* stays reachable
+ * directly, and CustomerGuard admits them because they do have a customer
+ * profile.
+ *
+ * The signup-time role is still honoured, but only for an account that has
+ * neither profile yet — there, intent is the one thing the account cannot
+ * tell us.
  */
 export function ProfileGuard({ children }: { children: React.ReactNode }) {
   const { profile, merchantProfile, customerProfile, isLoading } = useAuth();
@@ -27,26 +38,23 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/account-rejected" replace />;
   }
 
-  const selectedPortal = typeof window !== 'undefined' ? localStorage.getItem('p2p_signup_role') : null;
+  // A merchant profile is what this shell requires, and it wins for a
+  // dual-role account.
+  if (merchantProfile) {
+    return <>{children}</>;
+  }
 
-  // If user explicitly chose customer portal and has a customer profile, go there
-  if (selectedPortal === 'customer' && customerProfile) {
+  // Customer-only account.
+  if (customerProfile) {
     return <Navigate to="/c/home" replace />;
   }
 
-  // If user is customer-only (no merchant profile, role=customer, didn't pick merchant)
-  if (profile && profile.role === 'customer' && !merchantProfile) {
-    return <Navigate to="/c/home" replace />;
+  // Neither profile exists yet, so this is a fresh account that still has to
+  // onboard. Only here does the signup-time choice matter.
+  const signupRole = typeof window !== 'undefined' ? localStorage.getItem('p2p_signup_role') : null;
+  if (signupRole === 'customer' || profile?.role === 'customer') {
+    if (typeof window !== 'undefined') localStorage.removeItem('p2p_signup_role');
+    return <Navigate to="/c/onboarding" replace />;
   }
-
-  // No merchant profile yet — need onboarding
-  if (!merchantProfile) {
-    if (selectedPortal === 'customer') {
-      localStorage.removeItem('p2p_signup_role');
-      return <Navigate to="/c/onboarding" replace />;
-    }
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  return <>{children}</>;
+  return <Navigate to="/onboarding" replace />;
 }
