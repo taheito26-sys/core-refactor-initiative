@@ -570,10 +570,19 @@ export default function CustomerOrdersPage() {
 
   const historyOrders = useMemo<HistoryOrderRow[]>(() => {
     const rows: HistoryOrderRow[] = [];
+    // A buyer can have more than one statement link (one per currency), and
+    // buildLoanStatementResponse attaches this buyer's full binanceOrders
+    // list to every one of them — so the same trade shows up once per
+    // statement unless it's deduped globally, not just within one
+    // statement's own loop. This previously stayed hidden by accident: the
+    // "no matching loan" skip below silently dropped every duplicate copy
+    // (a trade's loan only exists in the one statement that financed it),
+    // which is also what was wrongly hiding genuine cash-sale trades.
+    const seenTradeIds = new Set<string>();
     for (const s of historyStatements) {
       const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
-      const seenTradeIds = new Set<string>();
       for (const b of s.binanceOrders ?? []) {
+        if (seenTradeIds.has(b.tradeId)) continue;
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
         // EGP per QAR cross-rate — the two fiat legs never trade directly,
