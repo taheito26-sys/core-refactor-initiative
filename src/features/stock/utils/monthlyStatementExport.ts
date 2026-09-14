@@ -35,6 +35,9 @@ export interface MonthlyStatementBinanceRow {
 
 export interface MonthlyStatementData {
   customerName: string;
+  /** Per-language spellings, when the merchant recorded them. */
+  customerNameEn?: string | null;
+  customerNameAr?: string | null;
   currency: string;
   totalLoaned: number;
   totalRepaid: number;
@@ -54,6 +57,20 @@ export interface MonthlyStatementData {
 export interface MonthlyStatementOptions {
   businessName?: string;
   businessTagline?: string;
+  /** Reader's UI language — decides which spelling of the buyer's name is printed. */
+  lang?: 'en' | 'ar';
+}
+
+/**
+ * The buyer's name in the reader's language, falling back to the other
+ * spelling and then to the single legacy name. The body of this statement is
+ * Arabic by design, but the name is the one piece a reader matches against
+ * their own records, so it follows the language they are working in.
+ */
+export function resolveStatementName(data: MonthlyStatementData, lang: 'en' | 'ar'): string {
+  const primary = lang === 'ar' ? data.customerNameAr : data.customerNameEn;
+  const secondary = lang === 'ar' ? data.customerNameEn : data.customerNameAr;
+  return primary || secondary || data.customerName;
 }
 
 const CURRENCY_SUFFIX: Record<string, string> = {
@@ -107,8 +124,8 @@ function nowTimeStamp(): string {
   return `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
-export function monthlyStatementFileBase(data: MonthlyStatementData): string {
-  const name = data.customerName
+export function monthlyStatementFileBase(data: MonthlyStatementData, lang: 'en' | 'ar' = 'ar'): string {
+  const name = resolveStatementName(data, lang)
     .toLowerCase()
     .replace(/[^a-z0-9؀-ۿ]+/g, '-')
     .replace(/^-+|-+$/g, '')
@@ -118,7 +135,8 @@ export function monthlyStatementFileBase(data: MonthlyStatementData): string {
 
 // ── Printable / rasterized document ─────────────────────────────────
 
-export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: MonthlyStatementOptions = {}): string {
+export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): string {
+  const displayName = resolveStatementName(data, options.lang ?? 'ar');
   const cur = currencySuffix(data.currency);
   // Coalesced defensively: a not-yet-redeployed edge function won't send
   // this field at all, and undefined + totalLoaned is NaN, not a missing
@@ -168,7 +186,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>بيان حساب ${escapeHtml(data.customerName)} — ${escapeHtml(label)}</title>
+<title>بيان حساب ${escapeHtml(displayName)} — ${escapeHtml(label)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
@@ -282,7 +300,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
     <div class="banner-row">
       <div class="month">${escapeHtml(label)}</div>
       <div class="hero">
-        <div class="name">${escapeHtml(data.customerName)}</div>
+        <div class="name">${escapeHtml(displayName)}</div>
         <div class="note">${previousBalance > 0
           ? `يبدأ برصيد شهر ${escapeHtml(prevLabel)} المرحّل، ويضيف طلبات ودفعات ${escapeHtml(label)} فقط`
           : `بيان شهر ${escapeHtml(label)} فقط — حتى تاريخ الإصدار ${escapeHtml(fmtDate(data.issueDate))}`}</div>
@@ -411,7 +429,8 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
 /** Saves the statement as an actual PDF file, downloaded directly — no print dialog. */
 export async function exportMonthlyStatementPdf(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): Promise<void> {
   const html = buildMonthlyStatementHtml(data, options);
-  await renderHtmlReportToPdf(html, `${monthlyStatementFileBase(data)}.pdf`, { orientation: 'portrait', renderWidth: 800 });
+  const fileBase = monthlyStatementFileBase(data, options.lang ?? 'ar');
+  await renderHtmlReportToPdf(html, `${fileBase}.pdf`, { orientation: 'portrait', renderWidth: 800 });
 }
 
 // ── XLSX ───────────────────────────────────────────────────────────
@@ -419,6 +438,7 @@ export async function exportMonthlyStatementPdf(data: MonthlyStatementData, opti
 /** Saves the statement as a colored, formula-free XLSX workbook — a summary sheet, a payments sheet, and an EGP-ledger sheet. */
 export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, options: MonthlyStatementOptions = {}): Promise<void> {
   const { businessName = 'TAHEITO' } = options;
+  const displayName = resolveStatementName(data, options.lang ?? 'ar');
   const cur = currencySuffix(data.currency);
   const label = monthLabel(data.month);
 
@@ -442,7 +462,7 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   summary.getCell('A1').value = `${businessName} — ${label}`;
   summary.getCell('A1').font = { bold: true, size: 15, color: { argb: 'FF1C3D5A' } };
   summary.mergeCells('A2:B2');
-  summary.getCell('A2').value = data.customerName;
+  summary.getCell('A2').value = displayName;
   summary.getCell('A2').font = { bold: true, size: 12 };
   summary.addRow([]);
 
@@ -526,6 +546,6 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   const buffer = await workbook.xlsx.writeBuffer();
   triggerBlobDownload(
     new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `${monthlyStatementFileBase(data)}.xlsx`,
+    `${monthlyStatementFileBase(data, options.lang ?? 'ar')}.xlsx`,
   );
 }

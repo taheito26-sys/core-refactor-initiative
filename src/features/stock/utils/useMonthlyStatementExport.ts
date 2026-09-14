@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useTheme } from "@/lib/theme-context";
 import {
   exportMonthlyStatementPdf,
   exportMonthlyStatementXlsx,
@@ -16,6 +17,11 @@ import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunkRecove
  */
 export function useMonthlyStatementExport(currency: string, L: (en: string, ar: string) => string) {
   const [exportingFormat, setExportingFormat] = useState<"pdf" | "xlsx" | null>(null);
+  // Read here rather than taken as an argument: both call sites already derive
+  // their own `L` from this same setting, so threading it through would just
+  // be one more thing to keep in sync.
+  const { settings } = useTheme();
+  const lang = settings.language === "ar" ? "ar" : "en";
 
   const fetchStatement = async (month: string): Promise<MonthlyStatementData | null> => {
     const { data, error } = await supabase.functions.invoke(
@@ -45,8 +51,8 @@ export function useMonthlyStatementExport(currency: string, L: (en: string, ar: 
     try {
       const statement = await fetchStatement(targetMonth);
       if (!statement) return;
-      if (format === "pdf") await exportMonthlyStatementPdf(statement);
-      else await exportMonthlyStatementXlsx(statement);
+      if (format === "pdf") await exportMonthlyStatementPdf(statement, { lang });
+      else await exportMonthlyStatementXlsx(statement, { lang });
     } catch (err) {
       console.error("Monthly statement export failed", format, err);
       // jsPDF/exceljs are dynamically imported by hashed chunk URL; if a new

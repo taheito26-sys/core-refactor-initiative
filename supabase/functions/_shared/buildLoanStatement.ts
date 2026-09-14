@@ -168,8 +168,16 @@ export async function buildLoanStatementResponse(
 
   binanceOrders.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
+  // Both spellings travel with the statement so the exporter can print the one
+  // matching the reader's language. Resolving it here instead would bake the
+  // server's idea of the language into a document rendered on the client.
+  const linkedCustomer = customers.find((c) => c && c.id === link.customer_id)
+    ?? customers.find((c) => c && customerIdGroup.has(c.id));
+
   return {
     customerName: statement.customerName,
+    customerNameEn: linkedCustomer?.nameEn ?? null,
+    customerNameAr: linkedCustomer?.nameAr ?? null,
     currency: statement.currency,
     totalLoaned: Math.round(statement.totalLoaned),
     totalRepaid: Math.round(statement.totalRepaid),
@@ -216,6 +224,13 @@ export interface MonthlyBinanceRow {
 
 export interface MonthlyStatementResponse {
   customerName: string;
+  /**
+   * Per-language spellings of the buyer's name, when the merchant recorded
+   * them. The exporter prints whichever matches the reader's UI language and
+   * falls back to customerName.
+   */
+  customerNameEn: string | null;
+  customerNameAr: string | null;
   currency: string;
   totalLoaned: number;
   totalRepaid: number;
@@ -353,6 +368,8 @@ export async function buildMonthlyStatementResponse(
 
   return {
     customerName: base.customerName,
+    customerNameEn: base.customerNameEn,
+    customerNameAr: base.customerNameAr,
     currency: base.currency,
     totalLoaned,
     totalRepaid,
