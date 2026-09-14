@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
+  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances, resolveCustomerName,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
   getLoanRepaid, getLoanRemaining,
@@ -2292,7 +2292,8 @@ export default function OrdersPage() {
         : 'per_order';
 
       try {
-        const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
+        const editCustomer = state.customers.find(c => c.id === editCustomerId);
+        const customerName = editCustomer ? resolveCustomerName(editCustomer, t.lang) : t('buyer');
         const rev = qty * sell;
 
         const tempCalc = computeFIFO(state.batches, state.trades);

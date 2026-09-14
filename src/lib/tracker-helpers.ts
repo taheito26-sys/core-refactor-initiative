@@ -391,12 +391,23 @@ export interface Trade {
 
 export interface Customer {
   id: string;
+  /** Legacy single name, kept as the fallback every existing read site still uses. */
   name: string;
+  /** Optional per-language names — when set, UI should show whichever matches the active language. */
+  nameEn?: string;
+  nameAr?: string;
   phone: string;
   tier: string;
   dailyLimitUSDT: number;
   notes: string;
   createdAt: number;
+}
+
+/** Picks the name matching the active language, falling back to the other language then the legacy `name`. */
+export function resolveCustomerName(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>, lang: 'en' | 'ar'): string {
+  const primary = lang === 'ar' ? customer.nameAr : customer.nameEn;
+  const secondary = lang === 'ar' ? customer.nameEn : customer.nameAr;
+  return primary || secondary || customer.name;
 }
 
 export interface DerivedBatch {
