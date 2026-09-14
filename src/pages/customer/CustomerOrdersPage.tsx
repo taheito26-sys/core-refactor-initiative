@@ -576,11 +576,6 @@ export default function CustomerOrdersPage() {
       for (const b of s.binanceOrders ?? []) {
         seenTradeIds.add(b.tradeId);
         const loan = loanByTradeId.get(b.tradeId);
-        // A trade with no matching loan was already settled at the time of
-        // the trade — nothing to track here, and showing it duplicated the
-        // loan-linked row for the same order with an empty "fully paid"
-        // card. Skip it; only loan-linked trades get a row.
-        if (!loan) continue;
         // EGP per QAR cross-rate — the two fiat legs never trade directly,
         // so it's derived from each side's rate against the shared USDT leg.
         const qarToEgpRate = b.qarRate ? (b.fiatPrice || 0) / b.qarRate : null;
@@ -589,11 +584,15 @@ export default function CustomerOrdersPage() {
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
-          loaned: true,
-          settled: loan.settled,
+          // A trade with no matching loan was paid upfront (cash sale, not
+          // financed) — still a real order the buyer placed, so it gets a
+          // row here too; it just has no repayment progress to show, the
+          // same as any other already-settled order.
+          loaned: !!loan,
+          settled: loan ? loan.settled : true,
           loanCurrency: s.currency,
-          loanAmount: loan.amount,
-          loanPaid: loan.paid,
+          loanAmount: loan?.amount ?? null,
+          loanPaid: loan?.paid ?? null,
           fiatPrice: b.fiatPrice || null,
           qarToEgpRate,
         });
