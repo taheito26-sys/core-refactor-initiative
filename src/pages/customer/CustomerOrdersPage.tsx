@@ -1556,7 +1556,6 @@ export default function CustomerOrdersPage() {
               { label: L('Count', 'العدد'), value: String(historyKpi.count) },
               { label: L('Volume (EGP)', 'الحجم (جنيه)'), value: Math.round(historyKpi.volumeEgp).toLocaleString() },
               { label: L('Total (QAR)', 'الإجمالي (ريال)'), value: Math.round(historyKpi.totalQar).toLocaleString() },
-              { label: L('Avg Rate (EGP/QAR)', 'متوسط السعر (جنيه/ريال)'), value: historyKpi.avgRate != null ? historyKpi.avgRate.toFixed(2) : '—' },
             ].map(k => (
               <div key={k.label} style={{
                 minWidth: 0, boxSizing: 'border-box',
