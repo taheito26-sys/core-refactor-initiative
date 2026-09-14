@@ -74,13 +74,58 @@ export interface HtmlReportToPdfOptions {
   renderWidth?: number;
 }
 
+/** Elements that must never be sliced in half across a page break. */
+const UNBREAKABLE_SELECTOR = 'tr, .card, .settlement, .legal, h2';
+
+/**
+ * Reads the top/bottom of every unbreakable element in the measured sheet,
+ * in the same px coordinate space as `scrollHeight`. A mobile browser
+ * substitutes different fonts than desktop for the 'Tahoma'/'Segoe UI'
+ * stack (neither ships on Android), which changes Arabic line-height/row
+ * height enough to push a sheet from fitting one page to spilling a few
+ * rows onto a second — and without this, whichever pixel row the page-break
+ * math lands on gets rendered cut in half, chopping a payment row or the
+ * ledger total mid-cell instead of moving it cleanly to the next page.
+ */
+function measureUnbreakableRanges(measurer: HTMLElement): Array<[number, number]> {
+  const containerTop = measurer.getBoundingClientRect().top;
+  return Array.from(measurer.querySelectorAll(UNBREAKABLE_SELECTOR)).map(el => {
+    const rect = el.getBoundingClientRect();
+    return [rect.top - containerTop, rect.bottom - containerTop] as [number, number];
+  });
+}
+
+/**
+ * Splits `totalHeight` px of content into page-sized slices (each capped at
+ * `budget` px), nudging any slice boundary that would fall inside one of
+ * `ranges` back to that range's start so a row/card/heading always moves to
+ * the next page whole rather than being cut across the page break.
+ */
+function computePageSlices(totalHeight: number, budget: number, ranges: Array<[number, number]>): number[] {
+  const slices: number[] = [];
+  let cursor = 0;
+  while (cursor < totalHeight - 0.5) {
+    let end = Math.min(cursor + budget, totalHeight);
+    const collision = ranges.find(([top, bottom]) => end > top + 0.5 && end < bottom - 0.5);
+    if (collision) end = collision[0];
+    // A single element taller than the whole page budget (shouldn't happen
+    // for a table row, but guards against an infinite loop either way).
+    if (end <= cursor) end = Math.min(cursor + budget, totalHeight);
+    slices.push(end - cursor);
+    cursor = end;
+  }
+  return slices;
+}
+
 /**
  * Renders a full report HTML document to an actual PDF file and downloads it
  * directly — no print dialog. Each `.sheet` in the document becomes its own
  * PDF page (never merged with a neighboring sheet into one giant sliced
  * image — that produced a stray hard cut wherever the slice boundary landed
  * mid-table). A single sheet whose own content is still taller than one
- * physical page is sliced within itself, the same as before.
+ * physical page is sliced within itself, with slice boundaries nudged to
+ * never fall inside a table row (or card/heading), so overflow content
+ * moves to the next page intact instead of being rendered cut in half.
  */
 export async function renderHtmlReportToPdf(
   reportHtml: string,
@@ -106,17 +151,22 @@ export async function renderHtmlReportToPdf(
   const margin = 12;
   const usableWidth = pageWidth - margin * 2;
   const usableHeight = pageHeight - margin * 2;
+  const ptPerPx = usableWidth / renderWidth;
+  const budgetPx = usableHeight / ptPerPx;
 
   for (let i = 0; i < sheets.length; i++) {
     const sheetHtml = sheets[i];
 
-    // Measure real layout height first — the SVG needs explicit width/height
-    // up front, and foreignObject content doesn't reflow after the fact.
+    // Measure real layout height (and every unbreakable element's box) on
+    // this same device before rasterizing — the SVG needs explicit
+    // width/height up front, and foreignObject content doesn't reflow
+    // after the fact.
     const measurer = document.createElement('div');
     measurer.style.cssText = `position:absolute;left:-9999px;top:0;width:${renderWidth}px;background:#fff;`;
     measurer.innerHTML = `<style>${styles}</style>${sheetHtml}`;
     document.body.appendChild(measurer);
     const renderHeight = measurer.scrollHeight;
+    const unbreakableRanges = measureUnbreakableRanges(measurer);
     measurer.remove();
 
     const img = await svgImageFromHtml(`<style>${styles}</style>${sheetHtml}`, renderWidth, renderHeight);
@@ -134,16 +184,16 @@ export async function renderHtmlReportToPdf(
     const imgWidth = usableWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
+    const slicesPx = computePageSlices(renderHeight, budgetPx, unbreakableRanges);
+
     if (i > 0) doc.addPage();
-    let heightLeft = imgHeight;
     let position = margin;
-    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-    heightLeft -= usableHeight;
-    while (heightLeft > 0) {
-      position -= usableHeight;
-      doc.addPage();
+    for (let s = 0; s < slicesPx.length; s++) {
+      if (s > 0) {
+        position -= slicesPx[s - 1] * ptPerPx;
+        doc.addPage();
+      }
       doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-      heightLeft -= usableHeight;
     }
   }
 
