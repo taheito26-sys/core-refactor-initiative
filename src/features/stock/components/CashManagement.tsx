@@ -1346,8 +1346,8 @@ interface CashCounterModalProps {
   customers: Customer[];
   getLoanRemaining: (loan: CustomerLoan) => number;
   onAddToCash: (entry: CashLedgerEntry) => void;
-  onRepayLoan: (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string) => void | Promise<void>;
-  onSplitRepay: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => Promise<boolean> | void;
+  onRepayLoan: (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>) => void | Promise<void>;
+  onSplitRepay: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string, banknoteBreakdown?: Record<number, number>) => Promise<boolean> | void;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -1534,13 +1534,15 @@ function CashCounterModal({
 
     setSaving(true);
     try {
+      // The physical count describes everything that was counted, not just
+      // whatever share ends up on the cash account — some of it may have
+      // been carved off to a loan repayment. Attach the full breakdown to
+      // whichever entry represents this counting pass: the cash entry when
+      // one exists, otherwise the loan repayment itself.
+      const banknoteBreakdown = countMode === 'notes' && noteCountEntries.length > 0
+        ? Object.fromEntries(noteCountEntries.map(({ d, n }) => [d, n]))
+        : undefined;
       if (addAmt > 0) {
-        // The breakdown describes the whole physical count, so it only
-        // attaches to this entry when the full counted amount is going onto
-        // the cash account (nothing carved off to a loan repayment).
-        const banknoteBreakdown = countMode === 'notes' && Math.abs(addAmt - total) < 0.005 && noteCountEntries.length > 0
-          ? Object.fromEntries(noteCountEntries.map(({ d, n }) => [d, n]))
-          : undefined;
         const entry: CashLedgerEntry = {
           id: uid(), ts: selectedTs, type: 'deposit', accountId: account.id,
           direction: 'in', amount: addAmt, currency: account.currency,
@@ -1550,10 +1552,11 @@ function CashCounterModal({
         onAddToCash(entry);
       }
       const repayAccountId = repayAddsCash ? account.id : null;
+      const repayBreakdown = wantsAdd ? undefined : banknoteBreakdown;
       if (allocations.length === 1) {
-        await onRepayLoan(allocations[0].loan, repayAccountId, allocations[0].amount, selectedTs, defaultNote());
+        await onRepayLoan(allocations[0].loan, repayAccountId, allocations[0].amount, selectedTs, defaultNote(), repayBreakdown);
       } else if (allocations.length > 1) {
-        const ok = await onSplitRepay(allocations, repayAccountId, selectedTs, defaultNote());
+        const ok = await onSplitRepay(allocations, repayAccountId, selectedTs, defaultNote(), repayBreakdown);
         if (ok === false) { setErr(t('saveFailed') || 'Save failed'); setSaving(false); return; }
       }
       closeAndReset();
@@ -3082,7 +3085,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** The loan list with `loan` swapped in. */
   const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string) => {
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>) => {
     // Wrapped end-to-end: a throw anywhere in here used to reject silently
     // (this runs from the modal's fire-and-forget onSave), leaving the click
     // looking like it did nothing. Now the modal awaits this and shows
@@ -3098,6 +3101,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         id: uid(), ts, type: 'loan_repayment', accountId,
         direction: 'in', amount, currency: loan.currency,
         note: repaymentLedgerNote(loan, note),
+        ...(banknoteBreakdown ? { banknoteBreakdown } : {}),
       } : null;
       const repayment: LoanRepayment = {
         id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note,
@@ -3133,16 +3137,23 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     accountId: string | null,
     ts: number,
     note?: string,
+    banknoteBreakdown?: Record<number, number>,
   ) => {
     const batchId = uid();
     let newLedger = ledger;
     let newLoans = loans;
+    // The counted notes describe the whole payment, not any one allocation —
+    // attach them to only the first row so the account's Notes Details total
+    // isn't multiplied by however many loans this payment got split across.
+    let breakdownAttached = false;
     for (const { loan, amount } of allocations) {
       const entry: CashLedgerEntry | null = accountId ? {
         id: uid(), ts, type: 'loan_repayment', accountId,
         direction: 'in', amount, currency: loan.currency,
         note: repaymentLedgerNote(loan, note), batchId,
+        ...(banknoteBreakdown && !breakdownAttached ? { banknoteBreakdown } : {}),
       } : null;
+      if (entry?.banknoteBreakdown) breakdownAttached = true;
       const repayment: LoanRepayment = {
         id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note, batchId,
       };
@@ -4968,8 +4979,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           getLoanRemaining={getLoanRemaining}
           isMobile={isMobile}
           onAddToCash={addLedgerEntry}
-          onRepayLoan={(loan, accountId, amount, ts, note) => addLoanRepayment(loan, accountId, amount, ts, note)}
-          onSplitRepay={(allocations, accountId, ts, note) => addSplitLoanRepayment(allocations, accountId, ts, note)}
+          onRepayLoan={(loan, accountId, amount, ts, note, banknoteBreakdown) => addLoanRepayment(loan, accountId, amount, ts, note, banknoteBreakdown)}
+          onSplitRepay={(allocations, accountId, ts, note, banknoteBreakdown) => addSplitLoanRepayment(allocations, accountId, ts, note, banknoteBreakdown)}
           onClose={() => setShowCashCounter(false)}
         />
       )}

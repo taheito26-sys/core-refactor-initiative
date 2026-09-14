@@ -15,6 +15,8 @@ import {
   uid,
   getAccountBalance,
   getAllAccountBalances,
+  getAccountNoteTotals,
+  allocateBanknoteWithdrawal,
   deriveCashQAR,
   totalStock,
   type TrackerState,
@@ -83,7 +85,7 @@ export default function StockPage() {
   // linked. There is no separate import action -- picking only prefills.
   const [pendingImport, setPendingImport] = useState<
     | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
     | null
   >(null);
   const { data: counterpartyMappings } = useCounterpartyMap();
@@ -361,7 +363,7 @@ export default function StockPage() {
     setBatchSupplier(mappedSupplier?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
     setBatchNote(`Received via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference})`);
     setFundingAccountId('none');
-    setPendingImport({ transferId: prefill.transferId, kind: 'transfer', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
+    setPendingImport({ transferIds: prefill.transferIds, kind: 'transfer', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
     setBatchMsg('');
     setAddBatchSheetOpen(true);
   }, [counterpartyMappings]);
@@ -439,6 +441,13 @@ export default function StockPage() {
         return;
       }
       const entryId = uid();
+      // Auto-deduct the physical notes largest-first so the Notes Details
+      // tally moves with the balance instead of staying stuck at whatever
+      // was last manually counted/deposited.
+      const noteTotals = getAccountNoteTotals(fundingAccountId, state.cashLedger || []);
+      const withdrawnBreakdown = selectedAcc.currency === 'QAR'
+        ? allocateBanknoteWithdrawal(noteTotals, batchCostQAR)
+        : undefined;
       const purchaseEntry: CashLedgerEntry = {
         id: entryId,
         ts: Date.now(),
@@ -450,6 +459,7 @@ export default function StockPage() {
         linkedEntityType: 'batch',
         linkedEntityId: batchId,
         note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
+        ...(withdrawnBreakdown ? { banknoteBreakdown: withdrawnBreakdown } : {}),
       };
       nextCashLedger = [...nextCashLedger, purchaseEntry];
       fundingLedgerEntryId = entryId;
@@ -526,7 +536,7 @@ export default function StockPage() {
         .catch((err) => console.warn('Failed to mark exchange order as linked', err));
       setPendingImport(null);
     } else if (pendingImport?.kind === 'transfer') {
-      markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'batch', entityId: batchId }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+      markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'batch' as const, entityId: batchId }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
       setPendingImport(null);
     }
     setBatchAmount('');

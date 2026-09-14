@@ -153,7 +153,7 @@ export default function OrdersPage() {
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
       }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
   >(null);
 
@@ -255,7 +255,7 @@ export default function OrdersPage() {
     setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'transfer',
-      transferId: prefill.transferId,
+      transferIds: prefill.transferIds,
       exchange: prefill.exchange,
       exchangeCounterparty: prefill.assigneeName,
       note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
@@ -1587,7 +1587,23 @@ export default function OrdersPage() {
 
     let nextCustomers = state.customers;
     let customerId = '';
-    if (buyerName.trim()) {
+    if (buyerId) {
+      // The buyer was picked from the list (a local or connected customer),
+      // so buyerId already names the right, stable identity -- use it as-is
+      // rather than re-deriving from the displayed name. Re-deriving by name
+      // is what silently starts a second, disconnected customer the moment
+      // that name changes (a rename, a translation, the connected customer
+      // editing their own profile): the old name no longer matches, so a
+      // fresh id gets created and every future order lands under it while
+      // the buyer's whole prior history stays stuck under the old one.
+      const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
+      const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
+      customerId = materialized?.id || buyerId;
+      nextCustomers = materialized?.customers || state.customers;
+    } else if (buyerName.trim()) {
+      // No id -- the merchant typed a name that wasn't selected from the
+      // list, so this really is either a brand-new buyer or a rename of an
+      // existing local record (name-matched, best effort).
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
@@ -2018,7 +2034,7 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: primaryTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: primaryTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     } else {
@@ -2052,7 +2068,7 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: baseTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     }
@@ -3196,15 +3212,19 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
+  // The unit is only ever QAR/EGP/USDT and is already implied by the label
+  // (VOLUME, NET P&L, TOTAL EGP...) -- keeping it in the value made long
+  // numbers overflow the narrow KPI box and run into the next card.
+  const stripUnit = (s: string) => s.replace(/\s*(QAR|EGP|USDT)$/i, '');
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
-      { label: 'VOLUME', value: fmtC(kpi.vol) },
-      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
-      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
-      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) + ' EGP' }] : []),
+      { label: 'VOLUME', value: stripUnit(fmtC(kpi.vol)) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: stripUnit(fmtC(avgDeal)) }] : []),
+      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
     return (
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
