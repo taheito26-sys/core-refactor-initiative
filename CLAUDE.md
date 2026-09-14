@@ -106,19 +106,28 @@ Behaviour is covered by `src/test/customer-name-identity.test.ts` and
 
 `scripts/source-guard-utils.mjs` rejects source files (`.ts/.tsx/.js/.jsx`) that contain:
 
-- **banned narrative phrases**: `the user is`, `i need to`, `continue where`, `previous response`
-  (case-insensitive), plus in `validate-source.mjs`: `I will complete`, `Let's finish`,
-  `I have implemented`, `Specifically, I have`
-- **markdown-like lines**: a line starting with ```` ``` ````, `#`, `>`, `-`/`*`, `1.`, or `|…|`
+- **banned narrative phrases** (case-insensitive, **in comments only**): `i need to`,
+  `continue where`, `previous response` anywhere in the comment, and `the user is` only when it
+  *opens* the comment's prose — mid-sentence it is ordinary domain English ("detects whether the
+  user is on a mobile browser"). `validate-source.mjs` separately matches `The user is`,
+  `I will complete`, `Let's finish`, `I have implemented`, `Specifically, I have` case-sensitively
+  anywhere in the file.
+- **markdown-like lines in comments**: ```` ``` ````, `#`, or `>`. Lists (`-`/`*`/`1.`) and tables
+  (`|…|`) are allowed **inside `/* */` block comments**, where they are documentation rather than
+  narration, and rejected everywhere else.
 - **TypeScript/JSX parse errors** (AST-level syntax diagnostics)
 
 Practical consequences when editing `.ts`/`.tsx`:
 
 - Never leave assistant narration in a source file.
-- **Bullet-style comments break the build.** A comment line like `// - does a thing` matches the
-  markdown pattern. Use prose comments (`// does a thing`) or the box-drawing style already used
-  across `src/lib` (`// ─── Section ───`).
-- Numbered comment lines (`// 1. step`) and `# `-prefixed lines are likewise rejected.
+- Both narration checks run **only on comment lines**. Narration dumped into code is a parse error,
+  which the syntax check rejects far more decisively — so ordinary code is never mistaken for it
+  (a generic closing `> = {` is not a blockquote; a CSS `* { … }` in a template literal is not a
+  bullet).
+- A JSDoc block may document a set of cases as a list or a table. Headings, blockquotes and code
+  fences stay rejected even in comments.
+- Line comments (`//`) are checked as prose: keep them prose, or use the box-drawing style already
+  used across `src/lib` (`// ─── Section ───`).
 
 `scripts/safe-source-write.mjs` applies the same validation before writing a file.
 
