@@ -25,6 +25,7 @@ export interface CustomerProfile {
   id: string;
   user_id: string;
   display_name: string;
+  display_name_ar: string | null;
   phone: string | null;
   region: string | null;
   country: string | null;

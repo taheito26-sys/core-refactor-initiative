@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   formatCustomerNumber, formatCustomerDate,
-  listCustomerConnections,
+  listCustomerConnections, resolveCustomerDisplayName,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
@@ -296,7 +296,7 @@ export default function CustomerHomePage() {
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
         <div>
           <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
-          <h1 className="mt-0.5 text-xl font-bold">{customerProfile?.display_name ?? '—'}</h1>
+          <h1 className="mt-0.5 text-xl font-bold">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
         </div>
 
         {/* Rate row */}
