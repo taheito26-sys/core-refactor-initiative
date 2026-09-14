@@ -3212,15 +3212,19 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
+  // The unit is only ever QAR/EGP/USDT and is already implied by the label
+  // (VOLUME, NET P&L, TOTAL EGP...) -- keeping it in the value made long
+  // numbers overflow the narrow KPI box and run into the next card.
+  const stripUnit = (s: string) => s.replace(/\s*(QAR|EGP|USDT)$/i, '');
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
-      { label: 'VOLUME', value: fmtC(kpi.vol) },
-      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
-      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
-      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) + ' EGP' }] : []),
+      { label: 'VOLUME', value: stripUnit(fmtC(kpi.vol)) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: stripUnit(fmtC(avgDeal)) }] : []),
+      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
     return (
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
