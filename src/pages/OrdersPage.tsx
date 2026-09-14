@@ -1587,7 +1587,23 @@ export default function OrdersPage() {
 
     let nextCustomers = state.customers;
     let customerId = '';
-    if (buyerName.trim()) {
+    if (buyerId) {
+      // The buyer was picked from the list (a local or connected customer),
+      // so buyerId already names the right, stable identity -- use it as-is
+      // rather than re-deriving from the displayed name. Re-deriving by name
+      // is what silently starts a second, disconnected customer the moment
+      // that name changes (a rename, a translation, the connected customer
+      // editing their own profile): the old name no longer matches, so a
+      // fresh id gets created and every future order lands under it while
+      // the buyer's whole prior history stays stuck under the old one.
+      const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
+      const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
+      customerId = materialized?.id || buyerId;
+      nextCustomers = materialized?.customers || state.customers;
+    } else if (buyerName.trim()) {
+      // No id -- the merchant typed a name that wasn't selected from the
+      // list, so this really is either a brand-new buyer or a rename of an
+      // existing local record (name-matched, best effort).
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
