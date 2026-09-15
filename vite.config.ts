@@ -47,7 +47,14 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: "autoUpdate",
           injectRegister: "auto",
-          includeAssets: ["favicon.ico?v=2", "favicon.png?v=2", "icon-192.png?v=2", "icon-512.png?v=2", "robots.txt"],
+          includeAssets: [
+            "favicon.ico?v=2",
+            "favicon.png?v=2",
+            "icon-192.png?v=2",
+            "icon-512.png?v=2",
+            "apple-touch-icon.png",
+            "robots.txt",
+          ],
           workbox: {
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
