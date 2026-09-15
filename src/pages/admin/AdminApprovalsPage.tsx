@@ -216,6 +216,7 @@ export default function AdminApprovalsPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Registered</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -226,6 +227,17 @@ export default function AdminApprovalsPage() {
                       {format(new Date(p.created_at), 'MMM d, yyyy HH:mm')}
                     </TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
+                    <TableCell className="text-right">
+                      {p.status === 'rejected' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(p)}
+                          disabled={approve.isPending}
+                        >
+                          <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
