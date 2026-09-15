@@ -20,9 +20,9 @@ import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
 
 function PwaDebugBadge() {
-  if (typeof window === 'undefined') return null;
-  const enabled = new URLSearchParams(window.location.search).get('pwa_debug') === '1';
-  if (!enabled) return null;
+  const enabled =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('pwa_debug') === '1';
 
   const [installPromptSeen, setInstallPromptSeen] = useState(false);
   const [swInfo, setSwInfo] = useState<{
@@ -31,8 +31,6 @@ function PwaDebugBadge() {
     registrations: number | null;
   }>({ supported: typeof navigator !== 'undefined' && 'serviceWorker' in navigator, controller: false, registrations: null });
   const [manifestHref, setManifestHref] = useState<string | null>(null);
-  const [pwaRegisterAttempted, setPwaRegisterAttempted] = useState(false);
-  const [pwaRegisterError, setPwaRegisterError] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -86,28 +84,6 @@ function PwaDebugBadge() {
     };
   }, []);
 
-  useEffect(() => {
-    // If PWA is enabled but SW isn't registered yet, attempt a safe explicit registration.
-    // This helps cases where injected registration didn't run as expected on some browsers.
-    if (!('serviceWorker' in navigator)) return;
-    if (pwaRegisterAttempted) return;
-    if (navigator.serviceWorker.controller) return;
-
-    setPwaRegisterAttempted(true);
-    (async () => {
-      try {
-        // vite-plugin-pwa virtual module; will throw if DISABLE_PWA_BUILD=1 or in non-PWA build.
-        const mod = await import('virtual:pwa-register');
-        const registerSW: undefined | ((opts?: unknown) => void) = (mod as { registerSW?: (opts?: unknown) => void }).registerSW;
-        if (typeof registerSW === 'function') {
-          registerSW({ immediate: true });
-        }
-      } catch (e) {
-        setPwaRegisterError(e instanceof Error ? e.message : String(e));
-      }
-    })();
-  }, [pwaRegisterAttempted]);
-
   const safeGet = (key: string) => {
     try {
       return window.localStorage.getItem(key);
@@ -136,6 +112,8 @@ function PwaDebugBadge() {
     !installedFlag &&
     !isPostponed;
 
+  if (!enabled) return null;
+
   return (
     <div className="fixed bottom-2 left-2 z-[200] rounded-lg border border-border bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
       <div className="font-mono">
@@ -153,8 +131,6 @@ function PwaDebugBadge() {
         <div>sw.supported: {String(swInfo.supported)}</div>
         <div>sw.controller: {String(swInfo.controller)}</div>
         <div>sw.registrations: {String(swInfo.registrations)}</div>
-        <div>pwa.registerAttempted: {String(pwaRegisterAttempted)}</div>
-        <div>pwa.registerError: {pwaRegisterError ? 'yes' : 'no'}</div>
       </div>
     </div>
   );
@@ -215,6 +191,25 @@ const RelationshipWorkspace = createPlaceholderPage('Workspace', 'Relationship w
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// ── Register the PWA service worker unconditionally ──
+// This used to run only inside PwaDebugBadge, which bails out before its
+// hooks run unless `?pwa_debug=1` is in the URL — so the service worker
+// never registered for real users, no installable app criteria were ever
+// met, and "Add to Home Screen" on iOS/Android fell back to a plain
+// browser-chrome shortcut instead of a real standalone install.
+(async function registerPwaServiceWorker() {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const mod = await import('virtual:pwa-register');
+    const registerSW: undefined | ((opts?: unknown) => void) = (mod as { registerSW?: (opts?: unknown) => void }).registerSW;
+    if (typeof registerSW === 'function') {
+      registerSW({ immediate: true });
+    }
+  } catch {
+    // vite-plugin-pwa virtual module is unavailable when DISABLE_PWA_BUILD=1
+  }
+})();
 
 // ── Aggressive SW cleanup on every app boot ──
 // This ensures stale service workers never block new deployments
