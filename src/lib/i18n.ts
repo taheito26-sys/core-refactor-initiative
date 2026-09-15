@@ -2042,6 +2042,7 @@ const translations = {
   notesAccPh:            { en: 'Any notes about this account...', ar: 'أي ملاحظات عن هذا الحساب...' },
   createAccountBtn:      { en: 'Create Account',               ar: 'إنشاء حساب' },
   accountNameRequired:   { en: 'Account name is required',     ar: 'اسم الحساب مطلوب' },
+  accountNameDuplicate:  { en: 'An active account with this name and currency already exists', ar: 'يوجد بالفعل حساب نشط بهذا الاسم وهذه العملة' },
 
   // Deposit / Withdraw modal
   depositTitle:          { en: 'Deposit',                      ar: 'إيداع' },

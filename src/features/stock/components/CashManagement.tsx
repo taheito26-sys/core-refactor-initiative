@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, Fragment, type MutableRefObject } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, fmtP, fmtU, num, computeFIFO,
@@ -177,11 +177,12 @@ function KpiBox({ icon, label, value, unit, sub, tone = 'neutral', progress, onC
 
 interface AddAccountModalProps {
   existingAccount?: CashAccount;
+  existingAccounts?: CashAccount[];
   onSave: (account: CashAccount) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }: AddAccountModalProps) {
+function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClose, isMobile = false }: AddAccountModalProps) {
   const t = useT();
   const [name, setName] = useState(existingAccount?.name || '');
   const [type, setType] = useState<CashAccountType>(existingAccount?.type || 'hand');
@@ -192,6 +193,7 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
   const [relationshipId, setRelationshipId] = useState(existingAccount?.relationshipId || '');
   const [notes, setNotes] = useState(existingAccount?.notes || '');
   const [err, setErr] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -210,10 +212,21 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
   }, [isMobile]);
 
   const handleSave = () => {
-    if (!name.trim()) { setErr(t('accountNameRequired')); return; }
+    if (submitting) return; // guard against double-click / rapid re-fire creating duplicates
+    const trimmedName = name.trim();
+    if (!trimmedName) { setErr(t('accountNameRequired')); return; }
+    const isDuplicate = existingAccounts.some(a =>
+      a.id !== existingAccount?.id &&
+      a.status === 'active' &&
+      a.currency === currency &&
+      a.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) { setErr(t('accountNameDuplicate')); return; }
+    setErr('');
+    setSubmitting(true);
     const account: CashAccount = {
       id: existingAccount?.id || uid(),
-      name: name.trim(),
+      name: trimmedName,
       type,
       currency,
       status: existingAccount?.status || 'active',
@@ -332,8 +345,8 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
-          <button className="btn secondary" style={{ minHeight: isMobile ? 42 : undefined }} onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handleSave}>
+          <button className="btn secondary" style={{ minHeight: isMobile ? 42 : undefined }} onClick={onClose} disabled={submitting}>{t('cancel')}</button>
+          <button className="btn" onClick={handleSave} disabled={submitting} style={submitting ? { opacity: 0.6, cursor: 'default' } : undefined}>
             {existingAccount ? t('saveChanges') : t('createAccountBtn')}
           </button>
         </div>
@@ -3016,18 +3029,43 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   const addAccount = async (account: CashAccount, openingBalance: number) => {
-    const newLedger = [...ledger];
-    if (openingBalance > 0) {
-      newLedger.push({
-        id: uid(), ts: Date.now(), type: 'opening', accountId: account.id,
-        direction: 'in', amount: openingBalance, currency: account.currency,
-        note: 'Opening balance',
-      });
+    // Guards against duplicate accounts from a slow commit being clicked twice, and from the
+    // same account object being submitted again (e.g. a duplicate event fire on the same click).
+    if (isCreatingAccountRef.current) return;
+    const isDuplicate = accounts.some(a =>
+      a.id !== account.id &&
+      a.status === 'active' &&
+      a.currency === account.currency &&
+      a.name.trim().toLowerCase() === account.name.trim().toLowerCase()
+    );
+    if (isDuplicate || accounts.some(a => a.id === account.id)) {
+      setPendingAccount(null);
+      setNewOpeningBalance('');
+      return;
     }
-    const newAccounts = [...accounts, account];
-    const newCashQAR = deriveCashQAR(newAccounts, newLedger);
-    const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
-    if (ok) setShowAddAccount(false);
+    isCreatingAccountRef.current = true;
+    setIsCreatingAccountUi(true);
+    try {
+      const newLedger = [...ledger];
+      if (openingBalance > 0) {
+        newLedger.push({
+          id: uid(), ts: Date.now(), type: 'opening', accountId: account.id,
+          direction: 'in', amount: openingBalance, currency: account.currency,
+          note: 'Opening balance',
+        });
+      }
+      const newAccounts = [...accounts, account];
+      const newCashQAR = deriveCashQAR(newAccounts, newLedger);
+      const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
+      if (ok) {
+        setShowAddAccount(false);
+        setPendingAccount(null);
+        setNewOpeningBalance('');
+      }
+    } finally {
+      isCreatingAccountRef.current = false;
+      setIsCreatingAccountUi(false);
+    }
   };
 
   const saveAccount = async (account: CashAccount) => {
@@ -3493,6 +3531,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // Add account modal with opening balance
   const [newOpeningBalance, setNewOpeningBalance] = useState('');
   const [pendingAccount, setPendingAccount] = useState<CashAccount | null>(null);
+  const isCreatingAccountRef = useRef(false);
+  const [isCreatingAccountUi, setIsCreatingAccountUi] = useState(false);
 
   const handleAccountSaved = (account: CashAccount) => {
     if (editingAccount) { saveAccount(account); return; }
@@ -4868,6 +4908,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         <AddAccountModal
           isMobile={isMobile}
           existingAccount={editingAccount}
+          existingAccounts={accounts}
           onSave={handleAccountSaved}
           onClose={() => { setShowAddAccount(false); setEditingAccount(undefined); }}
         />
@@ -4887,10 +4928,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <div className="inputBox"><input inputMode="decimal" value={newOpeningBalance} onChange={e => setNewOpeningBalance(e.target.value)} placeholder="0.00" autoFocus /></div>
             </div>
             <div className="formActions">
-              <button className="btn secondary" onClick={() => { addAccount(pendingAccount, 0); setPendingAccount(null); setNewOpeningBalance(''); }}>
+              <button className="btn secondary" disabled={isCreatingAccountUi} onClick={() => addAccount(pendingAccount, 0)}>
                 {t('skipZeroBalance')}
               </button>
-              <button className="btn" onClick={() => { addAccount(pendingAccount, num(newOpeningBalance, 0)); setPendingAccount(null); setNewOpeningBalance(''); }}>
+              <button className="btn" disabled={isCreatingAccountUi} style={isCreatingAccountUi ? { opacity: 0.6, cursor: 'default' } : undefined} onClick={() => addAccount(pendingAccount, num(newOpeningBalance, 0))}>
                 {t('createAccountBtn')}
               </button>
             </div>
