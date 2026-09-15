@@ -83,6 +83,18 @@ export function ModernDashboardView({
     return liveCashQAR + stCost;
   }, [liveCashQAR, stCost]);
 
+  // liveCashQAR (the headline KPI) only counts ACTIVE, QAR-denominated, non-custody accounts —
+  // split the accounts list the same way so the total shown always matches what's listed under it.
+  const { countedAccounts, excludedAccounts } = useMemo(() => {
+    const counted: typeof activeAccounts = [];
+    const excluded: typeof activeAccounts = [];
+    for (const acc of activeAccounts) {
+      if (acc.currency === 'QAR' && acc.type !== 'merchant_custody') counted.push(acc);
+      else excluded.push(acc);
+    }
+    return { countedAccounts: counted, excludedAccounts: excluded };
+  }, [activeAccounts]);
+
   // Chart data: daily aggregated volume and profit
   const chartData = useMemo(() => {
     const map = new Map<string, { date: string; volume: number; profit: number; rawTs: number }>();
@@ -204,14 +216,18 @@ export function ModernDashboardView({
         </div>
 
         {/* Metric 4: Cash Balances */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
+        <div
+          className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50 cursor-pointer"
+          onClick={() => navigate('/trading/cash')}
+          title={`Sum of ${countedAccounts.length} active ${baseFiat} account(s). Excludes merchant-custody and other-currency accounts.`}
+        >
           <div className="flex items-center gap-2">
             <div className="p-1 rounded bg-amber-500/10 text-amber-500 flex-shrink-0">
               <Building2 className="h-3.5 w-3.5" />
             </div>
             <div>
               <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
-                Liquid Cash
+                Cash On Hand ({baseFiat})
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="font-mono font-bold text-foreground text-xs sm:text-sm">{fmtTotal(liveCashQAR)}</span>
@@ -220,7 +236,7 @@ export function ModernDashboardView({
             </div>
           </div>
           <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
-            {activeAccounts.length} Accounts
+            {countedAccounts.length} of {activeAccounts.length} accounts
           </span>
         </div>
 
@@ -237,15 +253,15 @@ export function ModernDashboardView({
               <span className="text-xs font-bold text-foreground">Cash Accounts & Safe Liquidity</span>
             </div>
             <span className="text-[10px] font-mono text-emerald-500 font-bold">
-              Total: {fmtTotal(liveCashQAR)} {baseFiat}
+              Cash On Hand: {fmtTotal(liveCashQAR)} {baseFiat}
             </span>
           </div>
 
           <div className="space-y-1.5 py-2">
-            {activeAccounts.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No active bank accounts found.</p>
+            {countedAccounts.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No active {baseFiat} accounts found.</p>
             ) : (
-              activeAccounts.slice(0, 4).map((acc) => (
+              countedAccounts.slice(0, 4).map((acc) => (
                 <div
                   key={acc.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/40 text-xs"
@@ -256,6 +272,25 @@ export function ModernDashboardView({
                   </span>
                 </div>
               ))
+            )}
+
+            {excludedAccounts.length > 0 && (
+              <div className="pt-1.5 mt-1.5 border-t border-dashed border-border/50">
+                <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">
+                  Not counted above (other currency / merchant custody)
+                </p>
+                {excludedAccounts.slice(0, 3).map((acc) => (
+                  <div
+                    key={acc.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/20 border border-border/30 text-xs opacity-70"
+                  >
+                    <span className="font-medium text-foreground">{acc.name}</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {fmtTotal(accountBalances.get(acc.id) || 0)} <span className="text-[9px] text-muted-foreground font-sans">{acc.currency}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
