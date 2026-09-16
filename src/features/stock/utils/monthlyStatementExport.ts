@@ -84,6 +84,17 @@ function currencySuffix(code: string): string {
   return CURRENCY_SUFFIX[code] || code;
 }
 
+const CURRENCY_FULL_NAME_AR: Record<string, string> = {
+  QAR: 'الريال القطري',
+  EGP: 'الجنيه المصري',
+  AED: 'الدرهم الإماراتي',
+  SAR: 'الريال السعودي',
+};
+
+function currencyFullNameAr(code: string): string {
+  return CURRENCY_FULL_NAME_AR[code] || code;
+}
+
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
@@ -336,7 +347,7 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       <div class="u">${cur}</div>
     </div>
     <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
-      <div class="k">إجمالي المستحقات</div>
+      <div class="k">إجمالي المبلغ بـ${escapeHtml(currencyFullNameAr(data.currency))}</div>
       <div class="v">${fmtAmount(grandTotalDue)}</div>
       <div class="u">${cur}</div>
     </div>
@@ -487,7 +498,7 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
   addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
-  addRow(`إجمالي المستحقات (${cur})`, previousBalance + data.totalLoaned);
+  addRow(`إجمالي المبلغ بـ${currencyFullNameAr(data.currency)} (${cur})`, previousBalance + data.totalLoaned);
   addRow(`نسبة التسوية الإجمالية %`, totalLoanedAllTime > 0 ? Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100) : 0);
   addRow(`إجمالي حجم البيع (${binanceFiatXlsx})`, binanceTotalXlsx);
   addRow('عدد الدفعات', data.payments.length);
