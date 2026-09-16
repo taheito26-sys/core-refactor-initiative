@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, Fragment, type MutableRefObject } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, fmtP, fmtU, num, computeFIFO,
@@ -177,11 +177,12 @@ function KpiBox({ icon, label, value, unit, sub, tone = 'neutral', progress, onC
 
 interface AddAccountModalProps {
   existingAccount?: CashAccount;
+  existingAccounts?: CashAccount[];
   onSave: (account: CashAccount) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }: AddAccountModalProps) {
+function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClose, isMobile = false }: AddAccountModalProps) {
   const t = useT();
   const [name, setName] = useState(existingAccount?.name || '');
   const [type, setType] = useState<CashAccountType>(existingAccount?.type || 'hand');
@@ -192,6 +193,7 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
   const [relationshipId, setRelationshipId] = useState(existingAccount?.relationshipId || '');
   const [notes, setNotes] = useState(existingAccount?.notes || '');
   const [err, setErr] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -210,10 +212,21 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
   }, [isMobile]);
 
   const handleSave = () => {
-    if (!name.trim()) { setErr(t('accountNameRequired')); return; }
+    if (submitting) return; // guard against double-click / rapid re-fire creating duplicates
+    const trimmedName = name.trim();
+    if (!trimmedName) { setErr(t('accountNameRequired')); return; }
+    const isDuplicate = existingAccounts.some(a =>
+      a.id !== existingAccount?.id &&
+      a.status === 'active' &&
+      a.currency === currency &&
+      a.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) { setErr(t('accountNameDuplicate')); return; }
+    setErr('');
+    setSubmitting(true);
     const account: CashAccount = {
       id: existingAccount?.id || uid(),
-      name: name.trim(),
+      name: trimmedName,
       type,
       currency,
       status: existingAccount?.status || 'active',
@@ -332,8 +345,8 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
-          <button className="btn secondary" style={{ minHeight: isMobile ? 42 : undefined }} onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handleSave}>
+          <button className="btn secondary" style={{ minHeight: isMobile ? 42 : undefined }} onClick={onClose} disabled={submitting}>{t('cancel')}</button>
+          <button className="btn" onClick={handleSave} disabled={submitting} style={submitting ? { opacity: 0.6, cursor: 'default' } : undefined}>
             {existingAccount ? t('saveChanges') : t('createAccountBtn')}
           </button>
         </div>
@@ -1084,6 +1097,10 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
 }
 
 /** `datetime-local` wants local wall-clock time, not the UTC ISO string. */
+/** Money rounding used across the loan tables, kept out of render so the
+    running totals and the per-row figures never drift apart. */
+const round2Loan = (n: number): number => Math.round(n * 100) / 100;
+
 function toLocalInput(ts: number): string {
   const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -1892,11 +1909,24 @@ interface AccountLedgerModalProps {
   balance: number;
   typeLabels: Record<LedgerEntryType, string>;
   onClose: () => void;
+  onEditNote?: (entryId: string, note: string) => void;
   isMobile?: boolean;
 }
-function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, isMobile = false }: AccountLedgerModalProps) {
+function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, onEditNote, isMobile = false }: AccountLedgerModalProps) {
   const t = useT();
   const [typeFilter, setTypeFilter] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState('');
+
+  const startEditNote = (entry: CashLedgerEntry) => {
+    setEditingNoteId(entry.id);
+    setEditingNoteValue(entry.note || '');
+  };
+  const cancelEditNote = () => { setEditingNoteId(null); setEditingNoteValue(''); };
+  const saveEditNote = (entryId: string) => {
+    onEditNote?.(entryId, editingNoteValue.trim());
+    cancelEditNote();
+  };
 
   const sorted = useMemo(() => [...entries].sort((a, b) => a.ts - b.ts), [entries]);
   const runningBalances = useMemo(() => {
@@ -1990,7 +2020,25 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                     <div><span className="muted">{t('ledgerColAmount')}:</span> <strong className="mono" style={{ color: isIn ? 'var(--good)' : 'var(--bad)' }}>{isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}</strong></div>
                     <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
                     {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
-                    {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                    {onEditNote && (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        {editingNoteId === entry.id ? (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <div className="inputBox" style={{ flex: 1 }}>
+                              <input value={editingNoteValue} onChange={e => setEditingNoteValue(e.target.value)} placeholder={t('notesAccPh')} autoFocus />
+                            </div>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: 34 }} onClick={() => saveEditNote(entry.id)}>{t('save')}</button>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: 34 }} onClick={cancelEditNote}>{t('cancel')}</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+                            <span>{entry.note || '—'}</span>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={() => startEditNote(entry)}>✏️ {t('edit')}</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!onEditNote && entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
                     {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && (
                       <div style={{ gridColumn: 'span 2', color: 'var(--muted)', fontSize: 10 }}>
                         💵 {Object.entries(entry.banknoteBreakdown)
@@ -2043,9 +2091,26 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                           <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : undefined}>
-                        {entry.note || '—'}
-                        {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
+                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 240 }}>
+                        {editingNoteId === entry.id ? (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <div className="inputBox" style={{ flex: 1, minWidth: 120 }}>
+                              <input value={editingNoteValue} onChange={e => setEditingNoteValue(e.target.value)} placeholder={t('notesAccPh')} autoFocus />
+                            </div>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={() => saveEditNote(entry.id)}>{t('save')}</button>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={cancelEditNote}>{t('cancel')}</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : entry.note}>
+                              {entry.note || '—'}
+                              {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
+                            </span>
+                            {onEditNote && (
+                              <button className="rowBtn" style={{ fontSize: 9, padding: '1px 5px', minHeight: 18, flexShrink: 0 }} onClick={() => startEditNote(entry)}>✏️</button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -2061,6 +2126,9 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
 
 interface SplitRepaymentModalProps {
   statement: BuyerStatement;
+  /** Limits the pickable orders to these ids — used by the per-day payment
+      button so one day's orders can be settled without scrolling the rest. */
+  restrictToLoanIds?: string[];
   accounts: CashAccount[];
   onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => void;
   onClose: () => void;
@@ -2073,9 +2141,14 @@ interface SplitRepaymentModalProps {
  * as it's checked (capped at what that order still owes) — any leftover
  * is easy to see and nudge by hand before saving.
  */
-function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = false }: SplitRepaymentModalProps) {
+function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, onClose, isMobile = false }: SplitRepaymentModalProps) {
   const t = useT();
-  const openLoans = useMemo(() => statement.loans.filter(r => !r.settled), [statement]);
+  const openLoans = useMemo(() => {
+    const rows = statement.loans.filter(r => !r.settled);
+    if (!restrictToLoanIds) return rows;
+    const allowed = new Set(restrictToLoanIds);
+    return rows.filter(r => allowed.has(r.loan.id));
+  }, [statement, restrictToLoanIds]);
   const [accountId, setAccountId] = useState(
     accounts.find(a => a.currency === statement.currency)?.id || accounts[0]?.id || ''
   );
@@ -2828,7 +2901,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
   /** Buyer statement whose open orders can be closed with one split payment. */
-  const [splitPaymentStatement, setSplitPaymentStatement] = useState<BuyerStatement | null>(null);
+  /* A split payment is normally spread over everything a buyer still owes, but
+     the day rows open the same dialog scoped to just that day's orders. */
+  const [splitPaymentStatement, setSplitPaymentStatement] = useState<{ statement: BuyerStatement; loanIds?: string[] } | null>(null);
   /** Which grouped-payment rows are expanded to show their per-order breakdown. */
   const [expandedPaymentGroups, setExpandedPaymentGroups] = useState<Set<string>>(new Set());
   const togglePaymentGroup = (id: string) => {
@@ -3002,18 +3077,43 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   const addAccount = async (account: CashAccount, openingBalance: number) => {
-    const newLedger = [...ledger];
-    if (openingBalance > 0) {
-      newLedger.push({
-        id: uid(), ts: Date.now(), type: 'opening', accountId: account.id,
-        direction: 'in', amount: openingBalance, currency: account.currency,
-        note: 'Opening balance',
-      });
+    // Guards against duplicate accounts from a slow commit being clicked twice, and from the
+    // same account object being submitted again (e.g. a duplicate event fire on the same click).
+    if (isCreatingAccountRef.current) return;
+    const isDuplicate = accounts.some(a =>
+      a.id !== account.id &&
+      a.status === 'active' &&
+      a.currency === account.currency &&
+      a.name.trim().toLowerCase() === account.name.trim().toLowerCase()
+    );
+    if (isDuplicate || accounts.some(a => a.id === account.id)) {
+      setPendingAccount(null);
+      setNewOpeningBalance('');
+      return;
     }
-    const newAccounts = [...accounts, account];
-    const newCashQAR = deriveCashQAR(newAccounts, newLedger);
-    const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
-    if (ok) setShowAddAccount(false);
+    isCreatingAccountRef.current = true;
+    setIsCreatingAccountUi(true);
+    try {
+      const newLedger = [...ledger];
+      if (openingBalance > 0) {
+        newLedger.push({
+          id: uid(), ts: Date.now(), type: 'opening', accountId: account.id,
+          direction: 'in', amount: openingBalance, currency: account.currency,
+          note: 'Opening balance',
+        });
+      }
+      const newAccounts = [...accounts, account];
+      const newCashQAR = deriveCashQAR(newAccounts, newLedger);
+      const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
+      if (ok) {
+        setShowAddAccount(false);
+        setPendingAccount(null);
+        setNewOpeningBalance('');
+      }
+    } finally {
+      isCreatingAccountRef.current = false;
+      setIsCreatingAccountUi(false);
+    }
   };
 
   const saveAccount = async (account: CashAccount) => {
@@ -3044,6 +3144,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashHistory = [...(state.cashHistory || []), legacyEntry];
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, cashHistory: newCashHistory });
     if (ok) setShowDeposit(null);
+  };
+
+  const editLedgerEntryNote = async (entryId: string, note: string) => {
+    const trimmed = note.trim();
+    const newLedger = ledger.map(e => e.id === entryId ? { ...e, note: trimmed || undefined } : e);
+    // Mirror the correction into the legacy cashHistory record (same id) so older reports/exports
+    // that still read cashHistory stay consistent with the ledger.
+    const newCashHistory = (state.cashHistory || []).map(h => h.id === entryId ? { ...h, note: trimmed } : h);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashHistory: newCashHistory });
+    if (ok) toast.success(t('noteUpdated'));
   };
 
   const addTransfer = async (entries: [CashLedgerEntry, CashLedgerEntry]) => {
@@ -3479,6 +3589,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // Add account modal with opening balance
   const [newOpeningBalance, setNewOpeningBalance] = useState('');
   const [pendingAccount, setPendingAccount] = useState<CashAccount | null>(null);
+  const isCreatingAccountRef = useRef(false);
+  const [isCreatingAccountUi, setIsCreatingAccountUi] = useState(false);
 
   const handleAccountSaved = (account: CashAccount) => {
     if (editingAccount) { saveAccount(account); return; }
@@ -4029,7 +4141,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               <button
                                 className="rowBtn"
                                 style={{ padding: '6px 14px', fontSize: 11 }}
-                                onClick={() => setSplitPaymentStatement(stmt)}
+                                onClick={() => setSplitPaymentStatement({ statement: stmt })}
                               >
                                 🔗 {t('loanSplitPayment')}
                               </button>
@@ -4047,12 +4159,47 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             )}
                           </div>
 
-                          {/* Every loaned order on this account, open and settled alike — a
-                              buyer's order history shouldn't shrink as orders get paid off.
-                              Settled loans still show here (marked Closed) as well as under
-                              the dedicated Closed tab. */}
+                          {/* Only orders that still owe something. A settled order belongs to
+                              the Closed Loans tab, not here -- carrying it in both places made
+                              this list grow without bound and buried the orders still needing
+                              a payment. The header keeps the full order count as its
+                              denominator so the history is still visible at a glance. */}
                           {(() => {
-                            const openLoanRows = stmt.loans;
+                            const openLoanRows = stmt.loans.filter(r => !r.settled);
+                            const visibleLoaned = round2Loan(openLoanRows.reduce((s, r) => s + r.principal, 0));
+                            const visibleRepaid = round2Loan(openLoanRows.reduce((s, r) => s + r.repaid, 0));
+                            const visibleRemaining = round2Loan(openLoanRows.reduce((s, r) => s + r.remaining, 0));
+                            /*
+                             * Realised profit on one loaned order: what the buyer was charged,
+                             * less the cost of the FIFO layers the order drew from, less the
+                             * order's fee. Null when the order has no linked trade or its FIFO
+                             * calc didn't resolve, so an unknown never reads as a zero profit.
+                             */
+                            const netOfLoanRow = (row: typeof stmt.loans[number]): number | null => {
+                              const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
+                              if (!linkedTrade) return null;
+                              const calc = derivedFifo.tradeCalc.get(linkedTrade.id);
+                              if (!calc?.ok) return null;
+                              const buyCost = calc.slices.reduce((sum, sl) => sum + sl.cost, 0);
+                              const revenue = linkedTrade.amountUSDT * linkedTrade.sellPriceQAR;
+                              return revenue - buyCost - (linkedTrade.feeQAR || 0);
+                            };
+                            /*
+                             * Total of the nets that could be computed. A day or a statement with
+                             * no resolvable order stays null rather than collapsing to 0.00.
+                             */
+                            const sumNets = (rows: Array<typeof stmt.loans[number]>): number | null => {
+                              let total = 0;
+                              let any = false;
+                              for (const row of rows) {
+                                const n = netOfLoanRow(row);
+                                if (n == null) continue;
+                                total += n;
+                                any = true;
+                              }
+                              return any ? round2Loan(total) : null;
+                            };
+                            const visibleNet = sumNets(openLoanRows);
                             // Several orders loaned to the same buyer on one day collapse into a
                             // single summary row -- rows/day, not one row per order -- expandable
                             // to the underlying orders, the same pattern payments use.
@@ -4060,6 +4207,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             interface LoanDayGroup {
                               key: string; ts: number; rows: LoanRow[];
                               principal: number; repaid: number; remaining: number; usdt: number; egp: number; hasEgp: boolean;
+                              net: number | null;
                             }
                             const loanDayGroups: LoanDayGroup[] = (() => {
                               const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -4070,7 +4218,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                                 let g = map.get(key);
                                 if (!g) {
-                                  g = { key, ts: row.loan.ts, rows: [], principal: 0, repaid: 0, remaining: 0, usdt: 0, egp: 0, hasEgp: false };
+                                  g = { key, ts: row.loan.ts, rows: [], principal: 0, repaid: 0, remaining: 0, usdt: 0, egp: 0, hasEgp: false, net: null };
                                   map.set(key, g);
                                   order.push(key);
                                 }
@@ -4083,7 +4231,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 if (linkedTrade) g.usdt += linkedTrade.amountUSDT;
                                 if (linkedTrade?.originalFiat) { g.hasEgp = true; g.egp += linkedTrade.originalFiatAmount || 0; }
                               }
-                              return order.map(k => map.get(k)!);
+                              const groups = order.map(k => map.get(k)!);
+                              // The collapsed day row stands in for its orders, so it has to
+                              // carry their combined profit -- otherwise a day that collapsed
+                              // showed a dash where the only Net figure for those orders was.
+                              for (const g of groups) g.net = sumNets(g.rows);
+                              return groups;
                             })();
                             const loanRow = (row: typeof stmt.loans[number]) => {
                               const linkedTrade = row.loan.tradeId ? state.trades.find(tr => tr.id === row.loan.tradeId) : undefined;
@@ -4311,7 +4464,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                         {formatMoney(group.remaining)}
                                       </span>
                                     </div>
+                                    <div>
+                                      <div className="loan-cell-lbl">{t('loanColNet')}</div>
+                                      <span className="loan-num" style={{ color: group.net == null ? undefined : group.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                        {group.net != null ? `${group.net >= 0 ? '+' : ''}${formatMoney(group.net)}` : '—'}
+                                      </span>
+                                    </div>
                                   </div>
+                                  {group.remaining > 0 && (
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '6px 10px', fontSize: 10, minHeight: 34, marginTop: 8, width: '100%' }}
+                                      onClick={() => setSplitPaymentStatement({ statement: stmt, loanIds: group.rows.map(r => r.loan.id) })}
+                                    >
+                                      + {t('loanAddDayPayment')}
+                                    </button>
+                                  )}
                                   {isExpanded && (
                                     <div style={{ display: 'grid', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
                                       {group.rows.map(loanCard)}
@@ -4344,8 +4512,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     </td>
                                     <td className="r mono">—</td>
                                     <td className="r mono">—</td>
-                                    <td className="r mono">—</td>
-                                    <td />
+                                    <td className="r loan-num" style={{ color: group.net == null ? undefined : group.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                      {group.net != null ? `${group.net >= 0 ? '+' : ''}${formatMoney(group.net)}` : '—'}
+                                    </td>
+                                    <td>
+                                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                        {group.remaining > 0 && (
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, whiteSpace: 'nowrap' }}
+                                            onClick={() => setSplitPaymentStatement({ statement: stmt, loanIds: group.rows.map(r => r.loan.id) })}
+                                          >
+                                            + {t('loanAddDayPayment')}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
                                   </tr>
                                   {isExpanded && group.rows.map(loanRow)}
                                 </Fragment>
@@ -4354,7 +4536,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             return (
                               <div>
                                 <div className="acct-sec">
-                                  {t('stmtLoanedOrders')} · {stmt.openCount} {t('loanOfWordLbl') || 'of'} {openLoanRows.length} {t('loanOpenWordLbl') || 'open'}
+                                  {t('stmtLoanedOrders')} · {openLoanRows.length} {t('loanOfWordLbl') || 'of'} {stmt.loans.length} {t('loanOpenWordLbl') || 'open'}
                                 </div>
                                 {isMobile ? (
                                   openLoanRows.length === 0 ? (
@@ -4394,11 +4576,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     <tfoot>
                                       <tr>
                                         <td colSpan={2} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
-                                        <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                        <td className="r loan-num">{formatMoney(visibleLoaned)}</td>
                                         <td colSpan={3} />
-                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                        <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                        <td colSpan={5} />
+                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(visibleRepaid)}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(visibleRemaining)}</td>
+                                        <td colSpan={3} />
+                                        <td className="r loan-num" style={{ color: visibleNet == null ? undefined : visibleNet >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                          {visibleNet != null ? `${visibleNet >= 0 ? '+' : ''}${formatMoney(visibleNet)}` : '—'}
+                                        </td>
+                                        <td />
                                       </tr>
                                     </tfoot>
                                   </table>
@@ -4780,6 +4966,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         <AddAccountModal
           isMobile={isMobile}
           existingAccount={editingAccount}
+          existingAccounts={accounts}
           onSave={handleAccountSaved}
           onClose={() => { setShowAddAccount(false); setEditingAccount(undefined); }}
         />
@@ -4799,10 +4986,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <div className="inputBox"><input inputMode="decimal" value={newOpeningBalance} onChange={e => setNewOpeningBalance(e.target.value)} placeholder="0.00" autoFocus /></div>
             </div>
             <div className="formActions">
-              <button className="btn secondary" onClick={() => { addAccount(pendingAccount, 0); setPendingAccount(null); setNewOpeningBalance(''); }}>
+              <button className="btn secondary" disabled={isCreatingAccountUi} onClick={() => addAccount(pendingAccount, 0)}>
                 {t('skipZeroBalance')}
               </button>
-              <button className="btn" onClick={() => { addAccount(pendingAccount, num(newOpeningBalance, 0)); setPendingAccount(null); setNewOpeningBalance(''); }}>
+              <button className="btn" disabled={isCreatingAccountUi} style={isCreatingAccountUi ? { opacity: 0.6, cursor: 'default' } : undefined} onClick={() => addAccount(pendingAccount, num(newOpeningBalance, 0))}>
                 {t('createAccountBtn')}
               </button>
             </div>
@@ -4966,6 +5153,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             typeLabels={LEDGER_TYPE_LABELS}
             isMobile={isMobile}
             onClose={() => setAccountDetailId(null)}
+            onEditNote={editLedgerEntryNote}
           />
         );
       })()}
@@ -4998,7 +5186,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {splitPaymentStatement && (
         <SplitRepaymentModal
-          statement={splitPaymentStatement}
+          statement={splitPaymentStatement.statement}
+          restrictToLoanIds={splitPaymentStatement.loanIds}
           accounts={activeAccounts}
           isMobile={isMobile}
           onSave={(allocations, accountId, ts, note) => addSplitLoanRepayment(allocations, accountId, ts, note)}

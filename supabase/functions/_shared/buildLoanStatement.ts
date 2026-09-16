@@ -1,4 +1,6 @@
 import { buildBuyerStatements, groupPayments } from "../../../src/features/stock/utils/loanStatement.ts";
+import { customerNameVariants } from "../../../src/lib/tracker-helpers.ts";
+import { canonicalizeName } from "../../../src/lib/text-normalize.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnySupabaseClient = any;
@@ -9,6 +11,34 @@ export interface StatementLinkRow {
   user_id: string;
   customer_id: string;
   currency: string;
+}
+
+/**
+ * Every customer record that is really the same buyer as `customerId`.
+ *
+ * One buyer can end up spread across several customer records — a rename or a
+ * near-miss name match on the order form starts a second one, and nothing
+ * surfaces that as an error. The merchant's own order list already unions them
+ * by canonical name (see customerIdsByCanonicalName in OrdersPage); anything
+ * buyer-facing has to resolve the same group, or orders recorded under the
+ * duplicate id go missing from the buyer's portal while the merchant plainly
+ * sees them.
+ */
+export function resolveCustomerIdGroup(
+  // deno-lint-ignore no-explicit-any
+  customers: any[],
+  customerId: string,
+): Set<string> {
+  const group = new Set<string>([customerId]);
+  const linked = customers.find((c) => c && c.id === customerId);
+  if (!linked) return group;
+  const keys = new Set(customerNameVariants(linked).map(canonicalizeName).filter(Boolean));
+  if (keys.size === 0) return group;
+  for (const c of customers) {
+    if (!c || !c.id) continue;
+    if (customerNameVariants(c).some((v) => keys.has(canonicalizeName(v)))) group.add(c.id);
+  }
+  return group;
 }
 
 /**
@@ -31,18 +61,42 @@ export async function buildLoanStatementResponse(
   if (!snapshot?.state) return null;
 
   const state = snapshot.state as { customers?: unknown; customerLoans?: unknown; trades?: AnyTrade[] };
+  // deno-lint-ignore no-explicit-any
+  const customers = (state.customers ?? []) as any[];
   const statements = buildBuyerStatements({
     // deno-lint-ignore no-explicit-any
     loans: (state.customerLoans ?? []) as any,
     // deno-lint-ignore no-explicit-any
-    customers: (state.customers ?? []) as any,
+    customers: customers as any,
     now: Date.now(),
   });
 
-  const statement = statements.find((s) => s.customerId === link.customer_id && s.currency === link.currency);
-  if (!statement) return null;
+  const customerIdGroup = resolveCustomerIdGroup(customers, link.customer_id);
 
-  const buyerTrades = (state.trades ?? []).filter((tr) => tr && tr.customerId === link.customer_id);
+  const groupStatements = statements.filter(
+    (s) => customerIdGroup.has(s.customerId) && s.currency === link.currency,
+  );
+  if (groupStatements.length === 0) return null;
+
+  // Merged into the single statement shape the rest of this function (and
+  // every caller) already expects, re-sorted chronologically so a buyer split
+  // across records reads exactly like one that was never split. Each
+  // statement's per-entry running `balance` is left as-is — nothing
+  // downstream reads it, only the loan rows and the payment entries.
+  // The linked record stays the source of the buyer-facing name so a stray
+  // duplicate's spelling can't override it.
+  const primary = groupStatements.find((s) => s.customerId === link.customer_id) ?? groupStatements[0];
+  const statement = {
+    customerName: primary.customerName,
+    currency: primary.currency,
+    totalLoaned: groupStatements.reduce((sum, s) => sum + s.totalLoaned, 0),
+    totalRepaid: groupStatements.reduce((sum, s) => sum + s.totalRepaid, 0),
+    outstanding: groupStatements.reduce((sum, s) => sum + s.outstanding, 0),
+    loans: groupStatements.flatMap((s) => s.loans).sort((a, b) => a.loan.ts - b.loan.ts),
+    entries: groupStatements.flatMap((s) => s.entries).sort((a, b) => a.ts - b.ts),
+  };
+
+  const buyerTrades = (state.trades ?? []).filter((tr) => tr && customerIdGroup.has(tr.customerId));
 
   type BinanceOrderRow = {
     tradeId: string;
@@ -114,8 +168,16 @@ export async function buildLoanStatementResponse(
 
   binanceOrders.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
+  // Both spellings travel with the statement so the exporter can print the one
+  // matching the reader's language. Resolving it here instead would bake the
+  // server's idea of the language into a document rendered on the client.
+  const linkedCustomer = customers.find((c) => c && c.id === link.customer_id)
+    ?? customers.find((c) => c && customerIdGroup.has(c.id));
+
   return {
     customerName: statement.customerName,
+    customerNameEn: linkedCustomer?.nameEn ?? null,
+    customerNameAr: linkedCustomer?.nameAr ?? null,
     currency: statement.currency,
     totalLoaned: Math.round(statement.totalLoaned),
     totalRepaid: Math.round(statement.totalRepaid),
@@ -162,6 +224,13 @@ export interface MonthlyBinanceRow {
 
 export interface MonthlyStatementResponse {
   customerName: string;
+  /**
+   * Per-language spellings of the buyer's name, when the merchant recorded
+   * them. The exporter prints whichever matches the reader's UI language and
+   * falls back to customerName.
+   */
+  customerNameEn: string | null;
+  customerNameAr: string | null;
   currency: string;
   totalLoaned: number;
   totalRepaid: number;
@@ -221,8 +290,9 @@ export async function buildMonthlyStatementResponse(
     .maybeSingle();
   if (snapshotError) throw snapshotError;
 
-  const state = (snapshot?.state ?? {}) as { trades?: AnyTrade[] };
+  const state = (snapshot?.state ?? {}) as { trades?: AnyTrade[]; customers?: AnyTrade[] };
   const allTrades = state.trades ?? [];
+  const customerIdGroup = resolveCustomerIdGroup(state.customers ?? [], link.customer_id);
 
   const [y, m] = month.split("-").map((n: string) => parseInt(n, 10));
   const monthStart = new Date(y, m - 1, 1).getTime();
@@ -234,7 +304,7 @@ export async function buildMonthlyStatementResponse(
 
   for (const trade of allTrades) {
     if (trade.voided) continue;
-    if (trade.customerId !== link.customer_id) continue;
+    if (!customerIdGroup.has(trade.customerId)) continue;
     if (trade.originalFiat === "EGP" && trade.originalFiatAmount != null) {
       if (!inMonth(Number(trade.ts) || 0)) continue;
       rows.push({
@@ -298,6 +368,8 @@ export async function buildMonthlyStatementResponse(
 
   return {
     customerName: base.customerName,
+    customerNameEn: base.customerNameEn,
+    customerNameAr: base.customerNameAr,
     currency: base.currency,
     totalLoaned,
     totalRepaid,

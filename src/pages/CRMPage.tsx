@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTrackerState } from '@/lib/useTrackerState';
-import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, type Customer, type Supplier } from '@/lib/tracker-helpers';
+import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, resolveCustomerName, customerNameVariants, type Customer, type Supplier } from '@/lib/tracker-helpers';
+import { canonicalizeName } from '@/lib/text-normalize';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
@@ -15,7 +16,7 @@ import '@/styles/tracker.css';
 
 // ── Blank customer factory ────────────────────────────────────────────
 const blankCustomer = (): Omit<Customer, 'id' | 'createdAt'> => ({
-  name: '', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '',
+  name: '', nameEn: '', nameAr: '', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '',
 });
 
 // ── Modal wrapper — defined OUTSIDE the page so React never remounts it ──
@@ -274,7 +275,10 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
     if (!search) return mergedCustomers;
     const q = search.toLowerCase();
     return mergedCustomers.filter(c =>
-      c.name.toLowerCase().includes(q) || c.phone.includes(q),
+      c.name.toLowerCase().includes(q)
+      || (c.nameEn || '').toLowerCase().includes(q)
+      || (c.nameAr || '').toLowerCase().includes(q)
+      || c.phone.includes(q),
     );
   }, [mergedCustomers, search]);
 
@@ -388,21 +392,38 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
   const openEditCustomer = (c: Customer) => {
     setEditingCust(c);
-    setCustForm({ name: c.name, phone: c.phone, tier: c.tier, dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes });
+    setCustForm({
+      name: c.name, nameEn: c.nameEn || '', nameAr: c.nameAr || '',
+      phone: c.phone, tier: c.tier, dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes,
+    });
     setCustError('');
     setShowCustModal(true);
   };
 
   const saveCustomer = () => {
-    if (!custForm.name.trim()) { setCustError('Name is required.'); return; }
+    const nameEn = custForm.nameEn?.trim() || '';
+    const nameAr = custForm.nameAr?.trim() || '';
+    if (!nameEn && !nameAr) { setCustError('At least one name (English or Arabic) is required.'); return; }
+    // `name` is this buyer's identity key — trades and loans are matched back
+    // to them by it — so an edit must never repoint it. Deriving it from the
+    // merchant's current UI language (as this did briefly) flipped it to the
+    // Arabic spelling the moment an Arabic name was filled in, after which
+    // every new order failed to match and silently started a second customer
+    // record the buyer's statement link didn't cover. Only a brand-new
+    // customer gets one assigned, and from English first so it never depends
+    // on which language the merchant happened to be using.
+    const name = editingCust ? editingCust.name : (nameEn || nameAr);
+    const entered = [nameEn, nameAr].filter(Boolean).map(canonicalizeName);
     const existing = customers.find(
-      c => c.name.toLowerCase() === custForm.name.trim().toLowerCase() && c.id !== editingCust?.id
+      c => c.id !== editingCust?.id
+        && customerNameVariants(c).some(v => entered.includes(canonicalizeName(v))),
     );
     if (existing) { setCustError('A customer with this name already exists.'); return; }
 
+    const patch = { ...custForm, nameEn, nameAr, name };
     const next = editingCust
-      ? customers.map(c => c.id === editingCust.id ? { ...c, ...custForm, name: custForm.name.trim() } : c)
-      : [...customers, { id: uid(), createdAt: Date.now(), ...custForm, name: custForm.name.trim() } as Customer];
+      ? customers.map(c => c.id === editingCust.id ? { ...c, ...patch } : c)
+      : [...customers, { id: uid(), createdAt: Date.now(), ...patch } as Customer];
 
     applyState({ ...state, customers: next });
     setShowCustModal(false);
@@ -556,7 +577,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                           </td>
                           <td style={{ fontWeight: 700 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span>{c.name}</span>
+                              <span>{resolveCustomerName(c, t.lang)}</span>
                               {c.source === 'connected' && (
                                 <span className="pill good" style={{ fontSize: 10 }}>Connected</span>
                               )}
@@ -667,21 +688,35 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
       {/* ── Customer Add/Edit Modal ── */}
       {showCustModal && (
         <CRMModal
-          title={editingCust ? `Edit — ${editingCust.name}` : t('addCustomer')}
+          title={editingCust ? `Edit — ${resolveCustomerName(editingCust, t.lang)}` : t('addCustomer')}
           onClose={() => setShowCustModal(false)}
           onSave={saveCustomer}
           error={custError}
         >
-          <FormField label="Name *">
-            <input
-              className="inputBox"
-              style={{ padding: '6px 10px', width: '100%' }}
-              placeholder="e.g. Ahmed Al-Rashid"
-              value={custForm.name}
-              autoFocus
-              onChange={e => setCustForm(f => ({ ...f, name: e.target.value }))}
-            />
-          </FormField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Name (English)">
+              <input
+                className="inputBox"
+                style={{ padding: '6px 10px', width: '100%' }}
+                placeholder="e.g. Ahmed Al-Rashid"
+                dir="ltr"
+                value={custForm.nameEn}
+                autoFocus={t.lang !== 'ar'}
+                onChange={e => setCustForm(f => ({ ...f, nameEn: e.target.value }))}
+              />
+            </FormField>
+            <FormField label="Name (Arabic)">
+              <input
+                className="inputBox"
+                style={{ padding: '6px 10px', width: '100%' }}
+                placeholder="مثال: أحمد الراشد"
+                dir="rtl"
+                value={custForm.nameAr}
+                autoFocus={t.lang === 'ar'}
+                onChange={e => setCustForm(f => ({ ...f, nameAr: e.target.value }))}
+              />
+            </FormField>
+          </div>
           <FormField label="Phone">
             <input
               className="inputBox"

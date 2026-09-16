@@ -4,10 +4,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
+  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances, resolveCustomerName, customerNameVariants,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
-  getLoanRepaid, getLoanRemaining,
+  getLoanRepaid, getLoanRemaining, mergeCustomerRecords,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -153,7 +153,7 @@ export default function OrdersPage() {
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
       }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
   >(null);
 
@@ -255,7 +255,7 @@ export default function OrdersPage() {
     setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'transfer',
-      transferId: prefill.transferId,
+      transferIds: prefill.transferIds,
       exchange: prefill.exchange,
       exchangeCounterparty: prefill.assigneeName,
       note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
@@ -465,6 +465,9 @@ export default function OrdersPage() {
     return () => window.removeEventListener('resize', measure);
   }, [isMobile]);
 
+  // Tracks trades already attempted this session for the customer-order
+  // mirror backfill, so a re-render doesn't retry one still in flight.
+  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -1151,7 +1154,9 @@ export default function OrdersPage() {
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return allBuyerOptions;
-    return allBuyerOptions.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
+    return allBuyerOptions.filter(
+      c => customerNameVariants(c).some(v => normalizeName(v).includes(q)) || c.phone.includes(buyerName),
+    );
   }, [allBuyerOptions, buyerName]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
@@ -1386,7 +1391,7 @@ export default function OrdersPage() {
 
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
-    if (!nm) return { id: '', customers: state.customers };
+    if (!nm) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     // Prefer an existing local customer over a connected-portal match: a
     // buyer who already has trades/loans recorded under a local id must
     // keep landing on that same id once they also connect their portal
@@ -1394,19 +1399,41 @@ export default function OrdersPage() {
     // disconnected identity (keyed by their connectedCustomerId) that the
     // buyer's own statement link never covers -- their order history then
     // silently splits across two ids with no error anywhere.
-    const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (existing) return { id: existing.id, customers: state.customers };
-    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (connected) return materializeListedCustomer(connected, state.customers);
+    // Matched against every name variant, not just the legacy `name`: a buyer
+    // with both an English and an Arabic name on file must resolve to the same
+    // record whichever one the merchant typed here.
+    const target = normalizeName(nm);
+    const existing = state.customers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
+    if (existing) {
+      // A duplicate created before this local-first priority landed (e.g. a
+      // connected-portal id materialized here on an earlier sale) is folded
+      // into the existing local record so the buyer stops splitting across
+      // two customer rows with two separate Loaned/Repaid/Outstanding totals.
+      const duplicate = state.customers.find(c => c.id !== existing.id && customerNameVariants(c).some(v => normalizeName(v) === target));
+      if (duplicate) {
+        const merged = mergeCustomerRecords(
+          { customers: state.customers, trades: state.trades, customerLoans: state.customerLoans },
+          duplicate.id,
+          existing.id,
+        );
+        return { id: existing.id, ...merged };
+      }
+      return { id: existing.id, customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
+    }
+    const connected = connectedCustomers.find(c => customerNameVariants(c).some(v => normalizeName(v) === target));
+    if (connected) {
+      const materialized = materializeListedCustomer(connected, state.customers);
+      return { id: materialized.id, customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans };
+    }
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
-    return { id: nextCustomer.id, customers: [...state.customers, nextCustomer] };
+    return { id: nextCustomer.id, customers: [...state.customers, nextCustomer], trades: state.trades, customerLoans: state.customerLoans };
   };
 
   const addBuyerFromModal = () => {
     if (!newBuyerName.trim()) return;
     const created = ensureCustomer(newBuyerName, newBuyerPhone, newBuyerTier);
     if (!created.id) return;
-    applyState({ ...state, customers: created.customers });
+    applyState({ ...state, customers: created.customers, trades: created.trades, customerLoans: created.customerLoans });
     setBuyerName(newBuyerName.trim());
     setBuyerId(created.id);
     setBuyerMenuOpen(false);
@@ -1416,6 +1443,37 @@ export default function OrdersPage() {
 
   const isUuidLike = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+  const resolveMirrorCustomerUserId = useCallback((trade: Trade) => {
+    // MIRRORING GATE: Only attempt to mirror if explicitly marked as connected_customer
+    // Do NOT use name-based matching or infer from customerId
+    if (trade.buyerType !== 'connected_customer') {
+      return null;
+    }
+
+    // Must have explicit connectedCustomerId
+    if (!trade.connectedCustomerId) {
+      return null;
+    }
+
+    // Validate UUID format
+    if (!isUuidLike(trade.connectedCustomerId)) {
+      return null;
+    }
+
+    // Find connected customer record to verify it exists
+    const connectedCustomer = connectedCustomers.find(
+      (customer) => customer.customerUserId === trade.connectedCustomerId,
+    );
+    if (!connectedCustomer) {
+      return null;
+    }
+
+    return {
+      customerUserId: connectedCustomer.customerUserId,
+      displayName: connectedCustomer.name,
+    };
+  }, [connectedCustomers]);
 
   // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number, tradeId?: string): TrackerState => {
@@ -1482,6 +1540,290 @@ export default function OrdersPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ) as any,
     });
+  };
+
+  // ─── Sync helper: mirror a trade to customer_orders via the security-definer RPC ──
+  // Direct INSERT on customer_orders is blocked by RLS for merchant users.
+  // The mirror_merchant_customer_order RPC runs as security definer and handles auth.
+  const syncTradeToCustomerOrders = useCallback(async (trade: Trade) => {
+    try {
+      // GATING: Skip if not a connected customer trade
+      if (trade.buyerType !== 'connected_customer') {
+        console.log('Mirror skipped: trade is not a connected_customer buyer type', {
+          merchantId: merchantProfile?.merchant_id,
+          buyerType: trade.buyerType,
+          tradeId: trade.id,
+        });
+        return 'skipped_not_connected';
+      }
+
+      // GATING: Skip if already attempted and marked as failed
+      if (trade.mirrorStatus === 'skipped_not_connected' || trade.mirrorStatus === 'failed') {
+        console.log('Mirror skipped: trade has terminal mirror status', {
+          merchantId: merchantProfile?.merchant_id,
+          mirrorStatus: trade.mirrorStatus,
+          tradeId: trade.id,
+        });
+        return trade.mirrorStatus;
+      }
+
+      if (!merchantProfile?.merchant_id) {
+        const message = 'Customer order mirror failed: merchant session missing.';
+        console.error(message, { merchantId: merchantProfile?.merchant_id ?? null, tradeId: trade.id });
+        return 'failed';
+      }
+
+      // Resolve connected customer using explicit connectedCustomerId
+      const resolvedCustomer = resolveMirrorCustomerUserId(trade);
+      if (!resolvedCustomer) {
+        console.log('Mirror skipped: buyer is not a valid connected customer', {
+          merchantId: merchantProfile.merchant_id,
+          buyerType: trade.buyerType,
+          connectedCustomerId: trade.connectedCustomerId,
+          tradeId: trade.id,
+        });
+        return 'skipped_not_connected';
+      }
+
+      const { customerUserId } = resolvedCustomer;
+      if (!isUuidLike(customerUserId)) {
+        const message = 'Mirror failed: resolved customer id is not a valid UUID.';
+        console.error(message, {
+          merchantId: merchantProfile.merchant_id,
+          connectedCustomerId: trade.connectedCustomerId,
+          customerUserId,
+          tradeId: trade.id,
+        });
+        return 'failed';
+      }
+
+      const { data: existingOrder, error: existingError } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', customerUserId)
+        .eq('amount', trade.amountUSDT)
+        .eq('rate', trade.sellPriceQAR)
+        .gte('created_at', new Date(trade.ts - 60_000).toISOString())
+        .lte('created_at', new Date(trade.ts + 60_000).toISOString())
+        .maybeSingle();
+
+      if (existingError) {
+        const message = `Mirror failed: ${existingError.message}`;
+        console.error(message, existingError);
+        return 'failed';
+      }
+
+      if (existingOrder?.id) {
+        console.log('Mirror already exists for this trade', { tradeId: trade.id, orderId: existingOrder.id });
+        return 'mirrored';
+      }
+
+      const { data: connRow } = await supabase
+        .from('customer_merchant_connections')
+        .select('id')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', customerUserId)
+        .in('status', ['active', 'pending'])
+        .maybeSingle();
+
+      const connectionId: string | null = connRow?.id ?? null;
+      if (!connectionId) {
+        console.log('Mirror skipped: no active or pending customer connection exists', {
+          merchantId: merchantProfile.merchant_id,
+          customerUserId,
+          tradeId: trade.id,
+        });
+        return 'skipped_not_connected';
+      }
+
+      const { error } = await supabase.rpc('mirror_merchant_customer_order', {
+        p_connection_id: connectionId,
+        p_status: 'completed',
+        p_order_type: 'buy',
+        p_amount: trade.amountUSDT,
+        p_currency: 'USDT',
+        p_rate: trade.sellPriceQAR,
+        p_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_note: trade.note || null,
+        p_send_country: null,
+        p_receive_country: null,
+        p_send_currency: 'USDT',
+        p_receive_currency: settings.baseFiatCurrency || 'QAR',
+        p_payout_rail: null,
+        p_corridor_label: null,
+        p_pricing_mode: 'merchant_quote',
+        p_guide_rate: null,
+        p_guide_total: null,
+        p_guide_source: null,
+        p_guide_snapshot: null,
+        p_guide_generated_at: null,
+        p_final_rate: trade.sellPriceQAR,
+        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_final_quote_note: null,
+        p_quoted_by_user_id: null,
+        p_customer_accepted_quote_at: null,
+        p_customer_rejected_quote_at: null,
+        p_quote_rejection_reason: null,
+        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+        p_pricing_version: 'tracker-sync-v1',
+      });
+
+      if (error) {
+        console.error(`Mirror failed: ${error.message}`, error);
+        return 'failed';
+      }
+      console.log('Mirror successful', { tradeId: trade.id, customerUserId });
+      return 'mirrored';
+    } catch (syncErr: any) {
+      console.error(`Mirror exception: ${syncErr?.message ?? 'unknown error'}`, syncErr);
+      return 'failed';
+    }
+  }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
+
+  useEffect(() => {
+    if (!merchantProfile?.merchant_id) return;
+    if (state.trades.length === 0) return;
+
+    let cancelled = false;
+
+    const restoreMissingMirrors = async () => {
+      let mirroredCount = 0;
+      const resolvedStatuses: Record<string, Trade['mirrorStatus']> = {};
+
+      for (const trade of state.trades) {
+        if (cancelled) return;
+        if (trade.voided) continue;
+        if (!trade.customerId) continue;
+
+        // Skip if already processed with terminal status
+        if (trade.mirrorStatus === 'mirrored' || trade.mirrorStatus === 'skipped_not_connected' || trade.mirrorStatus === 'failed') {
+          continue;
+        }
+
+        // Prevent duplicate attempts in same session
+        if (backfillAttemptedTradeIdsRef.current.has(trade.id)) continue;
+        backfillAttemptedTradeIdsRef.current.add(trade.id);
+
+        const status = await syncTradeToCustomerOrders(trade);
+        resolvedStatuses[trade.id] = status;
+        if (status === 'mirrored') {
+          mirroredCount += 1;
+        }
+      }
+
+      // Persist terminal statuses so non-connected trades aren't re-attempted
+      // (and re-logged) on every future mount of this page.
+      if (!cancelled && Object.keys(resolvedStatuses).length > 0) {
+        const nextTrades = state.trades.map((trade) =>
+          resolvedStatuses[trade.id] ? { ...trade, mirrorStatus: resolvedStatuses[trade.id] } : trade,
+        );
+        applyState({ ...state, trades: nextTrades });
+      }
+
+      if (!cancelled && mirroredCount > 0) {
+        toast.success(
+          mirroredCount === 1
+            ? 'Restored 1 missing customer order'
+            : `Restored ${mirroredCount} missing customer orders`,
+        );
+      }
+    };
+
+    void restoreMissingMirrors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState]);
+
+  // ─── Manual backfill: push an existing trade to the client portal ──
+  const pushTradeToClient = async (trade: Trade) => {
+    try {
+      if (!merchantProfile?.merchant_id) {
+        toast.error('No connected customer found for this trade');
+        return;
+      }
+
+      // Manual backfill also requires explicit buyer type + connected customer ID
+      const resolvedBuyer = resolveMirrorCustomerUserId(trade);
+      if (!resolvedBuyer) {
+        toast.error('No connected customer found for this trade. Please verify buyer type and selection.');
+        return;
+      }
+      const { customerUserId } = resolvedBuyer;
+      if (!isUuidLike(customerUserId)) {
+        toast.error('Invalid connected customer ID');
+        return;
+      }
+
+      const { data: connRow } = await supabase
+        .from('customer_merchant_connections')
+        .select('id')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', customerUserId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!connRow?.id) {
+        toast.error('Active connection not found');
+        return;
+      }
+
+      // Check if already synced (avoid duplicates)
+      const { data: existing } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('customer_user_id', customerUserId)
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('amount', trade.amountUSDT)
+        .eq('rate', trade.sellPriceQAR)
+        .gte('created_at', new Date(trade.ts - 60000).toISOString())
+        .lte('created_at', new Date(trade.ts + 60000).toISOString())
+        .maybeSingle();
+
+      if (existing?.id) {
+        toast.info('Already synced to client portal');
+        return;
+      }
+
+      const { error: insertErr } = await supabase.rpc('mirror_merchant_customer_order', {
+        p_connection_id: connRow.id,
+        p_status: 'completed',
+        p_order_type: 'buy',
+        p_amount: trade.amountUSDT,
+        p_currency: 'USDT',
+        p_rate: trade.sellPriceQAR,
+        p_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_note: trade.note || null,
+        p_send_country: null,
+        p_receive_country: null,
+        p_send_currency: 'USDT',
+        p_receive_currency: settings.baseFiatCurrency || 'QAR',
+        p_payout_rail: null,
+        p_corridor_label: null,
+        p_pricing_mode: 'merchant_quote',
+        p_guide_rate: null,
+        p_guide_total: null,
+        p_guide_source: null,
+        p_guide_snapshot: null,
+        p_guide_generated_at: null,
+        p_final_rate: trade.sellPriceQAR,
+        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_final_quote_note: null,
+        p_quoted_by_user_id: null,
+        p_customer_accepted_quote_at: null,
+        p_customer_rejected_quote_at: null,
+        p_quote_rejection_reason: null,
+        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+        p_pricing_version: 'tracker-sync-v1',
+      });
+
+      if (insertErr) throw insertErr;
+      toast.success(`Order pushed to ${resolvedBuyer.displayName}'s portal`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to push order');
+    }
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
@@ -1586,11 +1928,31 @@ export default function OrdersPage() {
     }
 
     let nextCustomers = state.customers;
+    let nextTrades = state.trades;
+    let nextCustomerLoans = state.customerLoans;
     let customerId = '';
-    if (buyerName.trim()) {
+    if (buyerId) {
+      // The buyer was picked from the list (a local or connected customer),
+      // so buyerId already names the right, stable identity -- use it as-is
+      // rather than re-deriving from the displayed name. Re-deriving by name
+      // is what silently starts a second, disconnected customer the moment
+      // that name changes (a rename, a translation, the connected customer
+      // editing their own profile): the old name no longer matches, so a
+      // fresh id gets created and every future order lands under it while
+      // the buyer's whole prior history stays stuck under the old one.
+      const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
+      const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
+      customerId = materialized?.id || buyerId;
+      nextCustomers = materialized?.customers || state.customers;
+    } else if (buyerName.trim()) {
+      // No id -- the merchant typed a name that wasn't selected from the
+      // list, so this really is either a brand-new buyer or a rename of an
+      // existing local record (name-matched, best effort).
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
+      nextTrades = ensured.trades;
+      nextCustomerLoans = ensured.customerLoans;
     }
 
     // Remember which customer this exchange counterparty resolved to, so the
@@ -1794,13 +2156,19 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
-          trades: [...state.trades, persistedTrade],
+          customerLoans: nextCustomerLoans,
+          trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
         applyState(applyCashDeposit(next, sell, amountUSDT, persistedTrade.id));
         await reloadMerchantData();
         const _allocPartner = allocations[0]?.merchantName || relationships.find(r => r.id === allocations[0]?.relationshipId)?.counterparty?.display_name;
         showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
+
+        // Sync to customer portal (only if buyer is a connected customer)
+        if (baseTrade.buyerType === 'connected_customer' && baseTrade.connectedCustomerId) {
+          await syncTradeToCustomerOrders(baseTrade);
+        }
 
         // Reset
         setSaleAmount('');
@@ -1936,7 +2304,8 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
-          trades: [...state.trades, persistedTrade],
+          customerLoans: nextCustomerLoans,
+          trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
         applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT, persistedTrade.id));
@@ -2018,14 +2387,15 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: primaryTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: primaryTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     } else {
       let next: TrackerState = {
         ...state,
         customers: nextCustomers,
-        trades: [...state.trades, baseTrade],
+        customerLoans: nextCustomerLoans,
+        trades: [...nextTrades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
       next = applyCashDeposit(next, sell, baseTrade.amountUSDT, baseTrade.id);
@@ -2052,9 +2422,15 @@ export default function OrdersPage() {
           .catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       } else if (pendingImport?.kind === 'transfer') {
-        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
+        markTransfersLinked(pendingImport.transferIds.map((transferId) => ({ transferId, entityType: 'trade' as const, entityId: baseTrade.id }))).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
+    }
+
+    // ─── Sync to customer_orders when buyer is a connected customer ──────────
+    // This makes the trade visible on the customer portal side.
+    if (baseTrade.buyerType === 'connected_customer' && baseTrade.connectedCustomerId) {
+      await syncTradeToCustomerOrders(baseTrade);
     }
 
     // Reset form
@@ -2276,7 +2652,8 @@ export default function OrdersPage() {
         : 'per_order';
 
       try {
-        const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
+        const editCustomer = state.customers.find(c => c.id === editCustomerId);
+        const customerName = editCustomer ? resolveCustomerName(editCustomer, t.lang) : t('buyer');
         const rev = qty * sell;
 
         const tempCalc = computeFIFO(state.batches, state.trades);
@@ -3020,12 +3397,17 @@ export default function OrdersPage() {
               {tr.approvalStatus === 'approved' && (
                 <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 34 }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
+              {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
+                <button className="rowBtn" style={{ minHeight: 34, color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
+                  📤 {t('pushToClientPortal')}
+                </button>
+              )}
             </div>
           </div>
         )}
       </div>
     );
-  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, connectedCustomers, fmtC, fmtU, fmtP, loanByTradeId]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, pushTradeToClient, connectedCustomers, fmtC, fmtU, fmtP, loanByTradeId]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -3196,15 +3578,19 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
+  // The unit is only ever QAR/EGP/USDT and is already implied by the label
+  // (VOLUME, NET P&L, TOTAL EGP...) -- keeping it in the value made long
+  // numbers overflow the narrow KPI box and run into the next card.
+  const stripUnit = (s: string) => s.replace(/\s*(QAR|EGP|USDT)$/i, '');
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
-      { label: 'VOLUME', value: fmtC(kpi.vol) },
-      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
-      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
-      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) + ' EGP' }] : []),
+      { label: 'VOLUME', value: stripUnit(fmtC(kpi.vol)) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: stripUnit(fmtC(avgDeal)) }] : []),
+      ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
     return (
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>

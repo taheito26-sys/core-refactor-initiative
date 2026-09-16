@@ -39,6 +39,7 @@ export function useApproveProfile() {
           status: 'approved',
           approved_at: new Date().toISOString(),
           approved_by: userId,
+          rejection_reason: null,
         })
         .eq('user_id', profileUserId);
       if (error) throw error;

@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   formatCustomerNumber, formatCustomerDate,
-  listCustomerConnections,
+  listCustomerConnections, resolveCustomerDisplayName,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
@@ -296,23 +296,16 @@ export default function CustomerHomePage() {
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
         <div>
           <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
-          <h1 className="mt-0.5 text-xl font-bold">{customerProfile?.display_name ?? '—'}</h1>
+          <h1 className="mt-0.5 text-xl font-bold">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
         </div>
 
-        {/* Rate row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{getLocalizedCurrencyName('QAR', lang)}/{getLocalizedCurrencyName('EGP', lang)} {L('Guide', 'دليل')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {guideRate != null ? fmt(guideRate, 4) : '—'}
-            </p>
-          </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">{L('Egypt Buy Avg', 'متوسط شراء مصر')}</p>
-            <p className="text-xl font-black tabular-nums mt-0.5">
-              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
-            </p>
-          </div>
+        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
+            not shown here; only the market's average selling price. */}
+        <div className="rounded-xl bg-white/10 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
+          <p className="text-2xl font-black tabular-nums">
+            {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
+          </p>
         </div>
       </div>
 

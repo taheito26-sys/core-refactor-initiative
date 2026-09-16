@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
+import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import '@/styles/tracker.css';
 
 // PRD nav: Dashboard, Orders, Cash Management, Chat — 4 primary items
@@ -33,6 +34,7 @@ export function CustomerLayout() {
   const lang  = isRTL ? 'ar' : 'en';
   const isChatRoute = location.pathname.startsWith('/c/chat');
   const isWideRoute = location.pathname.startsWith('/c/orders');
+  const displayName = resolveCustomerDisplayName(customerProfile, lang);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const go = (path: string) => { navigate(path); setDrawerOpen(false); };
@@ -46,7 +48,7 @@ export function CustomerLayout() {
         {isMobile && <button onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>}
       </div>
       <div className="mx-3 mb-3 rounded-xl bg-muted/60 px-3 py-2.5">
-        <p className="text-sm font-semibold truncate">{customerProfile?.display_name ?? '—'}</p>
+        <p className="text-sm font-semibold truncate">{displayName ?? '—'}</p>
         <p className="text-xs text-muted-foreground">{customerProfile?.country ?? ''}</p>
       </div>
       <nav className="flex-1 space-y-0.5 px-2">
@@ -82,7 +84,7 @@ export function CustomerLayout() {
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
-          <span className="text-sm font-semibold truncate">{customerProfile?.display_name ?? 'Customer'}</span>
+          <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
           <CustomerActivityCenter />
           {isMobile && (

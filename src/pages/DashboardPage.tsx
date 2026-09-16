@@ -14,6 +14,7 @@ import { localCur } from '@/lib/currency-locale';import { supabase } from '@/int
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
+import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import { activateTrackerClearBarrier, markTrackerClearInProgress } from '@/lib/tracker-backup';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
@@ -70,6 +71,16 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const { data: qatarP2PRate } = useP2PRates('qatar');
   const { data: egyptP2PRate } = useP2PRates('egypt');
+  // Binance USDT available balance (spot + funding) — same figure shown on the Stock page,
+  // synced from exchange-sync, not part of the local FIFO stock.
+  const { data: exchangeBalances } = useExchangeBalances();
+  const binanceUsdt = useMemo(() => {
+    let total = 0;
+    for (const b of exchangeBalances ?? []) {
+      if (b.exchange === 'binance' && b.asset === 'USDT') total += b.free + b.locked;
+    }
+    return total;
+  }, [exchangeBalances]);
 
   const dashboardQarPerUsdt = useMemo(() => {
     const qatarBuyRate = num(qatarP2PRate?.buyRate, 0);
@@ -739,7 +750,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="kpis kpis-dashboard">
         <div className="kpi-card">
-          <div className="kpi-lbl">{t('netProfitLabel')}</div>
+          <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
           <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
@@ -769,8 +780,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className={`kpi-val ${isLow ? 'bad' : 'good'}`} style={isLow ? { animation: 'tracker-blink 1.5s infinite' } : undefined}>{fmtU(stk, 0)}</div>
           <div className="kpi-sub">{t('liquidUsdt')}</div>
         </div>
+        <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock') : undefined}>
+          <div className="kpi-lbl">{t('binanceBalanceLbl')}</div>
+          <div className="kpi-val">{fmtU(binanceUsdt, 0)}</div>
+          <div className="kpi-sub">{t('binanceBalanceSub')}</div>
+        </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">Average Stock Price + Spread</div>
+          <div className="kpi-lbl">{t('kpiAvgCostShort')}</div>
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtDashboardPrice(averageStockPrice) : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
@@ -787,13 +803,22 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           const cashLedger = state.cashLedger || [];
           const hasAccounts = cashAccounts.length > 0;
           const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
+          const activeAccounts = cashAccounts.filter(a => a.status === 'active');
+          // deriveCashQAR only sums active, QAR-currency, non-custody accounts — count the same
+          // subset here so the KPI's breakdown always matches the total shown above it.
+          const countedAccounts = activeAccounts.filter(a => a.currency === 'QAR' && a.type !== 'merchant_custody');
 
           return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
-              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')}</div>
+            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined} title={hasAccounts ? `Sum of ${countedAccounts.length} active QAR account(s). Excludes merchant-custody and other-currency accounts.` : undefined}>
+              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')} (QAR)</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtDashboardAmount(totalCash)}</div>
               <div className="kpi-sub">
-                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>}
+                {hasAccounts && (
+                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                    {countedAccounts.length} {t('kpiOf')} {activeAccounts.length} {countedAccounts.length === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}
+                  </span>
+                )}
+                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600, marginLeft: hasAccounts ? 6 : 0 }}>{t('openCashMgmt')}</span>}
               </div>
             </div>
           );

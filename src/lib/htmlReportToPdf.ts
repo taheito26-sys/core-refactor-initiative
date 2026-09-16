@@ -74,13 +74,84 @@ export interface HtmlReportToPdfOptions {
   renderWidth?: number;
 }
 
+/** Elements that must never be sliced in half across a page break. */
+const UNBREAKABLE_SELECTOR = 'tr, .card, .settlement, .legal, h2';
+
+/**
+ * Reads the top/bottom of every unbreakable element in the measured sheet,
+ * in the same px coordinate space as `scrollHeight`. A mobile browser
+ * substitutes different fonts than desktop for the 'Tahoma'/'Segoe UI'
+ * stack (neither ships on Android), which changes Arabic line-height/row
+ * height enough to push a sheet from fitting one page to spilling a few
+ * rows onto a second — and without this, whichever pixel row the page-break
+ * math lands on gets rendered cut in half, chopping a payment row or the
+ * ledger total mid-cell instead of moving it cleanly to the next page.
+ */
+function measureUnbreakableRanges(measurer: HTMLElement): Array<[number, number]> {
+  const containerTop = measurer.getBoundingClientRect().top;
+  return Array.from(measurer.querySelectorAll(UNBREAKABLE_SELECTOR)).map(el => {
+    const rect = el.getBoundingClientRect();
+    return [rect.top - containerTop, rect.bottom - containerTop] as [number, number];
+  });
+}
+
+// Generous on purpose: the off-screen measurer div and the actual
+// foreignObject-rasterized image are two separate layout passes, and even
+// on one device their row positions can disagree by a few px (subpixel
+// font hinting, foreignObject's own nested viewport). A tight tolerance
+// here was still letting a row's last couple of pixels peek through onto
+// the wrong page instead of moving the whole row.
+const ROW_SAFETY_PX = 6;
+
+/**
+ * Splits `totalHeight` px of content into page-sized slices (each capped at
+ * `budget` px), nudging any slice boundary that would fall inside one of
+ * `ranges` — expanded by `ROW_SAFETY_PX` on each side — back to that range's
+ * start so a row/card/heading always moves to the next page whole rather
+ * than being cut across the page break.
+ */
+export function computePageSlices(totalHeight: number, budget: number, ranges: Array<[number, number]>): number[] {
+  const slices: number[] = [];
+  let cursor = 0;
+  while (cursor < totalHeight - 0.5) {
+    const hardEnd = Math.min(cursor + budget, totalHeight);
+    let end = hardEnd;
+    // Nothing follows the last slice, so it needs no boundary adjustment.
+    if (end < totalHeight) {
+      // Repeated, not a single adjustment: pulling the boundary off one row
+      // routinely lands it inside the row above (rows sit back to back, and
+      // the pull is a whole row height plus the safety margin), which would
+      // cut that row in half instead — the very thing being prevented.
+      for (;;) {
+        const hit = ranges.find(([top, bottom]) => end > top - ROW_SAFETY_PX && end < bottom + ROW_SAFETY_PX);
+        if (!hit) break;
+        const pulled = hit[0] - ROW_SAFETY_PX;
+        if (pulled <= cursor) {
+          // This element is taller than a whole page (or starts at the very
+          // top of it), so it cannot be kept whole. Take the hard cut rather
+          // than emitting an empty page and never advancing.
+          end = hardEnd;
+          break;
+        }
+        end = pulled;
+      }
+    }
+    if (end <= cursor) end = hardEnd;
+    slices.push(end - cursor);
+    cursor = end;
+  }
+  return slices;
+}
+
 /**
  * Renders a full report HTML document to an actual PDF file and downloads it
  * directly — no print dialog. Each `.sheet` in the document becomes its own
  * PDF page (never merged with a neighboring sheet into one giant sliced
  * image — that produced a stray hard cut wherever the slice boundary landed
  * mid-table). A single sheet whose own content is still taller than one
- * physical page is sliced within itself, the same as before.
+ * physical page is sliced within itself, with slice boundaries nudged to
+ * never fall inside a table row (or card/heading), so overflow content
+ * moves to the next page intact instead of being rendered cut in half.
  */
 export async function renderHtmlReportToPdf(
   reportHtml: string,
@@ -106,17 +177,33 @@ export async function renderHtmlReportToPdf(
   const margin = 12;
   const usableWidth = pageWidth - margin * 2;
   const usableHeight = pageHeight - margin * 2;
+  const ptPerPx = usableWidth / renderWidth;
+  const budgetPx = usableHeight / ptPerPx;
 
   for (let i = 0; i < sheets.length; i++) {
     const sheetHtml = sheets[i];
 
-    // Measure real layout height first — the SVG needs explicit width/height
-    // up front, and foreignObject content doesn't reflow after the fact.
+    // Measure real layout height (and every unbreakable element's box) on
+    // this same device before rasterizing — the SVG needs explicit
+    // width/height up front, and foreignObject content doesn't reflow
+    // after the fact.
     const measurer = document.createElement('div');
     measurer.style.cssText = `position:absolute;left:-9999px;top:0;width:${renderWidth}px;background:#fff;`;
     measurer.innerHTML = `<style>${styles}</style>${sheetHtml}`;
     document.body.appendChild(measurer);
-    const renderHeight = measurer.scrollHeight;
+    // A padded, not exact, canvas/SVG height: an off-screen measurer div and
+    // the actual foreignObject rasterization are two separate layout
+    // engines, and on some mobile browsers the real rendered content comes
+    // out a handful of px taller than `scrollHeight` reported — an SVG root
+    // clips to its own height by default, so an under-measured height was
+    // silently slicing the true bottom edge off the image (a table's last
+    // row/total showing cut in half with blank canvas below it, never
+    // reaching the page-break logic at all since the whole sheet still
+    // "fit" by the too-small measurement). The padding is inert extra white
+    // space when the measurement was accurate.
+    const RENDER_HEIGHT_PADDING_PX = 32;
+    const renderHeight = measurer.scrollHeight + RENDER_HEIGHT_PADDING_PX;
+    const unbreakableRanges = measureUnbreakableRanges(measurer);
     measurer.remove();
 
     const img = await svgImageFromHtml(`<style>${styles}</style>${sheetHtml}`, renderWidth, renderHeight);
@@ -134,16 +221,16 @@ export async function renderHtmlReportToPdf(
     const imgWidth = usableWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
+    const slicesPx = computePageSlices(renderHeight, budgetPx, unbreakableRanges);
+
     if (i > 0) doc.addPage();
-    let heightLeft = imgHeight;
     let position = margin;
-    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-    heightLeft -= usableHeight;
-    while (heightLeft > 0) {
-      position -= usableHeight;
-      doc.addPage();
+    for (let s = 0; s < slicesPx.length; s++) {
+      if (s > 0) {
+        position -= slicesPx[s - 1] * ptPerPx;
+        doc.addPage();
+      }
       doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-      heightLeft -= usableHeight;
     }
   }
 

@@ -3,23 +3,30 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { Loader2, LogOut, Bell, Globe, User, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { CUSTOMER_COUNTRIES, updateCustomerProfile } from '@/features/customer/customer-portal';
+import { CUSTOMER_COUNTRIES, updateCustomerProfile, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
   const { settings, update } = useTheme();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
-  const [displayName, setDisplayName] = useState(customerProfile?.display_name ?? '');
+  const [displayName,   setDisplayName]   = useState(customerProfile?.display_name ?? '');
+  const [displayNameAr, setDisplayNameAr] = useState(customerProfile?.display_name_ar ?? '');
   const [phone,       setPhone]       = useState(customerProfile?.phone ?? '');
   const [country,     setCountry]     = useState(customerProfile?.country ?? CUSTOMER_COUNTRIES[0]);
   const [saving,      setSaving]      = useState(false);
+  const resolvedName = resolveCustomerDisplayName(customerProfile, lang);
 
   const save = async () => {
     if (!userId || !displayName.trim()) { toast.error(L('Name is required', 'الاسم مطلوب')); return; }
     setSaving(true);
     try {
-      const { error } = await updateCustomerProfile(userId, { display_name: displayName.trim(), phone: phone.trim() || null, country });
+      const { error } = await updateCustomerProfile(userId, {
+        display_name: displayName.trim(),
+        display_name_ar: displayNameAr.trim() || null,
+        phone: phone.trim() || null,
+        country,
+      });
       if (error) throw error;
       await refreshProfile();
       toast.success(L('Saved', 'تم الحفظ'));
@@ -34,10 +41,10 @@ export default function CustomerSettingsPage() {
       {/* Account card */}
       <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-          {(customerProfile?.display_name?.[0] ?? email?.[0] ?? 'C').toUpperCase()}
+          {(resolvedName?.[0] ?? email?.[0] ?? 'C').toUpperCase()}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">{customerProfile?.display_name ?? '—'}</p>
+          <p className="text-sm font-semibold truncate">{resolvedName ?? '—'}</p>
           <p className="text-xs text-muted-foreground truncate">{email}</p>
         </div>
       </div>
@@ -50,12 +57,13 @@ export default function CustomerSettingsPage() {
         </div>
         <div className="px-4 py-4 space-y-4">
           {[
-            { label: L('Name', 'الاسم'), value: displayName, set: setDisplayName, type: 'text', placeholder: L('Your name', 'اسمك') },
-            { label: L('Phone', 'الهاتف'), value: phone, set: setPhone, type: 'tel', placeholder: '+974…' },
-          ].map(({ label, value, set, type, placeholder }) => (
+            { label: L('Name (English)', 'الاسم (إنجليزي)'), value: displayName, set: setDisplayName, type: 'text', placeholder: L('Your name', 'اسمك'), dir: 'ltr' as const },
+            { label: L('Name (Arabic)', 'الاسم (عربي)'), value: displayNameAr, set: setDisplayNameAr, type: 'text', placeholder: 'اسمك بالعربية', dir: 'rtl' as const },
+            { label: L('Phone', 'الهاتف'), value: phone, set: setPhone, type: 'tel', placeholder: '+974…', dir: 'ltr' as const },
+          ].map(({ label, value, set, type, placeholder, dir }) => (
             <div key={label}>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
-              <input value={value} onChange={e => set(e.target.value)} type={type} placeholder={placeholder} className="h-11 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+              <input value={value} onChange={e => set(e.target.value)} type={type} placeholder={placeholder} dir={dir} className="h-11 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           ))}
           <div>

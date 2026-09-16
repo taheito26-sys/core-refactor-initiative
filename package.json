@@ -19,11 +19,12 @@
     "cap:android": "npm run cap:sync && npx --no-install cap open android",
     "cap:ios": "npm run cap:sync && npx --no-install cap open ios",
     "typecheck": "tsc --noEmit",
-    "build:preflight": "npm run validate && npm run typecheck",
+    "build:preflight": "npm run validate && npm run guard:invariants && npm run typecheck",
     "build:dry-run": "vite build",
     "guard:generated": "node scripts/validate-generated-patch.mjs",
     "guard:precommit": "node scripts/precommit-source-guard.mjs",
-    "statement:generate": "vite-node scripts/generate-buyer-statement.ts --"
+    "statement:generate": "vite-node scripts/generate-buyer-statement.ts --",
+    "guard:invariants": "node scripts/guard-invariants.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",

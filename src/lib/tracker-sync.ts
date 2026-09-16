@@ -40,6 +40,27 @@ const _foreignIds: Record<string, Set<string>> = {
   cashHistory: new Set(),
 };
 
+/**
+ * Forget everything this module cached about the session that just ended.
+ * Called when the signed-in user changes so the next account does not inherit
+ * the previous one's cloud-loaded flag, foreign-id sets or dedupe hashes —
+ * each of which would otherwise let one user's rows reach another's snapshot.
+ */
+export function resetTrackerSyncSession(): void {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = null;
+  if (_prefTimer) clearTimeout(_prefTimer);
+  _prefTimer = null;
+  _lastSavedJson = '';
+  _lastSavedPrefs = '';
+  _cloudLoadedThisSession = false;
+  _lastAutoBackupTs = Date.now();
+  _lastAutoBackupHash = '';
+  for (const key of Object.keys(_foreignIds) as (keyof typeof _foreignIds)[]) {
+    _foreignIds[key].clear();
+  }
+}
+
 function rememberForeignIds(
   collectionKey: keyof typeof _foreignIds,
   rows: unknown[],

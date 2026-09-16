@@ -65,8 +65,9 @@
 .tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 /* Dashboard KPI band: one continuous grid with a fixed column count so the
    tiles always pack next to each other instead of orphaning a half-empty row.
-   The tile count (10) divides evenly by both 5 (wide) and 2 (mobile). */
-.tracker-root .kpis.kpis-dashboard { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+   The column count matches the tile count (7) so the band stays on one line on
+   a wide screen; the mobile overrides below drop it back to two per row. */
+.tracker-root .kpis.kpis-dashboard { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
   padding: 6px; box-shadow: var(--lt-shadow2); position: relative; overflow: hidden;
