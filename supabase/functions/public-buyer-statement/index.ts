@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     const { data: link, error: linkError } = await supabase
       .from("buyer_statement_links")
-      .select("user_id, customer_id, currency")
+      .select("user_id, customer_id, currency, customer_user_id")
       .eq("token", token)
       .is("revoked_at", null)
       .maybeSingle();

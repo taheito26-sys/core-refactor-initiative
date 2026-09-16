@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     let linksQuery = supabase
       .from("buyer_statement_links")
-      .select("user_id, customer_id, currency")
+      .select("user_id, customer_id, currency, customer_user_id")
       .eq("customer_user_id", customerUserId)
       .is("revoked_at", null);
     if (currency) linksQuery = linksQuery.eq("currency", currency);

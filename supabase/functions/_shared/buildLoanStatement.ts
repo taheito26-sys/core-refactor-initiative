@@ -11,6 +11,10 @@ export interface StatementLinkRow {
   user_id: string;
   customer_id: string;
   currency: string;
+  /** The signed-in buyer this link is attached to, when there is one (a
+   *  token-only public link may not have this set). Used to prefer the
+   *  buyer's own account name over the merchant's ad-hoc tracker entry. */
+  customer_user_id?: string | null;
 }
 
 /**
@@ -174,10 +178,28 @@ export async function buildLoanStatementResponse(
   const linkedCustomer = customers.find((c) => c && c.id === link.customer_id)
     ?? customers.find((c) => c && customerIdGroup.has(c.id));
 
+  // When this link is attached to a signed-in buyer, their own portal
+  // account name (which they set themselves, and see correctly) takes
+  // priority over the merchant's ad-hoc tracker entry for this customer —
+  // that entry is often just whatever spelling the merchant typed once when
+  // placing the first order, long before the buyer had a portal account,
+  // and can be in the wrong language entirely.
+  let profileNameEn: string | null = null;
+  let profileNameAr: string | null = null;
+  if (link.customer_user_id) {
+    const { data: profile } = await supabase
+      .from("customer_profiles")
+      .select("display_name, display_name_ar")
+      .eq("user_id", link.customer_user_id)
+      .maybeSingle();
+    profileNameEn = profile?.display_name ?? null;
+    profileNameAr = profile?.display_name_ar ?? null;
+  }
+
   return {
     customerName: statement.customerName,
-    customerNameEn: linkedCustomer?.nameEn ?? null,
-    customerNameAr: linkedCustomer?.nameAr ?? null,
+    customerNameEn: profileNameEn ?? linkedCustomer?.nameEn ?? null,
+    customerNameAr: profileNameAr ?? linkedCustomer?.nameAr ?? null,
     currency: statement.currency,
     totalLoaned: Math.round(statement.totalLoaned),
     totalRepaid: Math.round(statement.totalRepaid),
