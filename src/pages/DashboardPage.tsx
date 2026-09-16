@@ -787,13 +787,22 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           const cashLedger = state.cashLedger || [];
           const hasAccounts = cashAccounts.length > 0;
           const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
+          const activeAccounts = cashAccounts.filter(a => a.status === 'active');
+          // deriveCashQAR only sums active, QAR-currency, non-custody accounts — count the same
+          // subset here so the KPI's breakdown always matches the total shown above it.
+          const countedAccounts = activeAccounts.filter(a => a.currency === 'QAR' && a.type !== 'merchant_custody');
 
           return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
-              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')}</div>
+            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined} title={hasAccounts ? `Sum of ${countedAccounts.length} active QAR account(s). Excludes merchant-custody and other-currency accounts.` : undefined}>
+              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')} (QAR)</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtDashboardAmount(totalCash)}</div>
               <div className="kpi-sub">
-                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>}
+                {hasAccounts && (
+                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                    {countedAccounts.length} {t('kpiOf')} {activeAccounts.length} {countedAccounts.length === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}
+                  </span>
+                )}
+                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600, marginLeft: hasAccounts ? 6 : 0 }}>{t('openCashMgmt')}</span>}
               </div>
             </div>
           );

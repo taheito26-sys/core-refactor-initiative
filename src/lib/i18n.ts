@@ -2101,6 +2101,7 @@ const translations = {
   kpiCustomersUnit:      { en: 'customers',                    ar: 'عملاء' },
   kpiCustomerUnit:       { en: 'customer',                     ar: 'عميل' },
   kpiOfPortfolio:        { en: 'of portfolio',                 ar: 'من المحفظة' },
+  kpiOf:                 { en: 'of',                           ar: 'من' },
   kpiRepaidPct:          { en: 'repaid',                       ar: 'مُسدد' },
   kpiNoLoans:            { en: 'no loans yet',                 ar: 'لا توجد قروض بعد' },
   kpiNoneYet:            { en: 'none yet',                     ar: 'لا شيء بعد' },
