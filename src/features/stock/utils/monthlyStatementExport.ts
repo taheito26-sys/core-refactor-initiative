@@ -84,16 +84,6 @@ function currencySuffix(code: string): string {
   return CURRENCY_SUFFIX[code] || code;
 }
 
-const CURRENCY_FULL_NAME_AR: Record<string, string> = {
-  QAR: 'الريال القطري',
-  EGP: 'الجنيه المصري',
-  AED: 'الدرهم الإماراتي',
-  SAR: 'الريال السعودي',
-};
-
-function currencyFullNameAr(code: string): string {
-  return CURRENCY_FULL_NAME_AR[code] || code;
-}
 
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -153,10 +143,10 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
   // this field at all, and undefined + totalLoaned is NaN, not a missing
   // carryover — that must never leak into the customer-facing total.
   const previousBalance = data.previousBalance || 0;
-  const grandTotalDue = previousBalance + data.totalLoaned;
   // Against lifetime totals, matching the tracker's own "المسدد إجمالي" — not
-  // this month's totalRepaid over grandTotalDue, which covers only a few
-  // weeks of activity and produces a very different, misleading ratio.
+  // this month's totalRepaid over previousBalance + totalLoaned, which
+  // covers only a few weeks of activity and produces a very different,
+  // misleading ratio.
   const totalLoanedAllTime = data.totalLoanedAllTime || 0;
   const totalRepaidAllTime = data.totalRepaidAllTime || 0;
   const repaidPct = totalLoanedAllTime > 0 ? Math.min(100, Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100)) : 0;
@@ -346,11 +336,6 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, options: M
       <div class="v">${fmtAmount(data.outstanding)}</div>
       <div class="u">${cur}</div>
     </div>
-    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
-      <div class="k">إجمالي المبلغ بـ${escapeHtml(currencyFullNameAr(data.currency))}</div>
-      <div class="v">${fmtAmount(grandTotalDue)}</div>
-      <div class="u">${cur}</div>
-    </div>
     <div class="card" style="--accent:var(--teal);--tint:var(--teal-soft);">
       <div class="k">حجم البيع (${escapeHtml(binanceFiat)})</div>
       <div class="v">${fmtAmount(binanceTotal)}</div>
@@ -498,7 +483,6 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
   addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
-  addRow(`إجمالي المبلغ بـ${currencyFullNameAr(data.currency)} (${cur})`, previousBalance + data.totalLoaned);
   addRow(`نسبة التسوية الإجمالية %`, totalLoanedAllTime > 0 ? Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100) : 0);
   addRow(`إجمالي حجم البيع (${binanceFiatXlsx})`, binanceTotalXlsx);
   addRow('عدد الدفعات', data.payments.length);

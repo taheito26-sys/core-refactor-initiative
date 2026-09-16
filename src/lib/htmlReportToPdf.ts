@@ -98,17 +98,10 @@ function measureUnbreakableRanges(measurer: HTMLElement): Array<[number, number]
 // Generous on purpose: the off-screen measurer div and the actual
 // foreignObject-rasterized image are two separate layout passes, and even
 // on one device their row positions can disagree by a few px (subpixel
-// font hinting, foreignObject's own nested viewport). That per-row
-// disagreement also compounds — every row above a given point in a long
-// table (a payments ledger can run to dozens of rows) can each be a
-// fraction of a px taller or shorter in the rasterized image than in the
-// measurer, so a row deep in the table can have drifted well past what a
-// tight tolerance covers even though the mismatch starts out tiny at the
-// top of the sheet. A tight tolerance here was still letting a row get cut
-// across the page break instead of moving whole — first just a couple of
-// pixels peeking through, then (on a long table, further from the top)
-// most of a row.
-const ROW_SAFETY_PX = 24;
+// font hinting, foreignObject's own nested viewport). A tight tolerance
+// here was still letting a row's last couple of pixels peek through onto
+// the wrong page instead of moving the whole row.
+const ROW_SAFETY_PX = 6;
 
 /**
  * Splits `totalHeight` px of content into page-sized slices (each capped at
@@ -185,13 +178,7 @@ export async function renderHtmlReportToPdf(
   const usableWidth = pageWidth - margin * 2;
   const usableHeight = pageHeight - margin * 2;
   const ptPerPx = usableWidth / renderWidth;
-  // Packing every page right up to the full usable height leaves zero room
-  // for the measurer/rasterization drift ROW_SAFETY_PX compensates for at a
-  // single boundary — a row already close to a hard-packed edge has nowhere
-  // to be nudged into. Trimming a few percent off the per-page budget keeps
-  // a standing margin of white space at the bottom of every page instead.
-  const PAGE_BUDGET_SAFETY_FACTOR = 0.96;
-  const budgetPx = (usableHeight / ptPerPx) * PAGE_BUDGET_SAFETY_FACTOR;
+  const budgetPx = usableHeight / ptPerPx;
 
   for (let i = 0; i < sheets.length; i++) {
     const sheetHtml = sheets[i];
