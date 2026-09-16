@@ -1979,6 +1979,7 @@ const translations = {
   loanDeletePayment: { en: 'Delete payment', ar: 'حذف الدفعة' },
   loanRepaymentAdded: { en: 'Payment recorded', ar: 'تم تسجيل الدفعة' },
   loanPaymentUpdated: { en: 'Payment updated', ar: 'تم تحديث الدفعة' },
+  noteUpdated: { en: 'Note updated', ar: 'تم تحديث الملاحظة' },
   loanPaymentDeleted: { en: 'Payment deleted', ar: 'تم حذف الدفعة' },
   loanDeletePaymentConfirm: {
     en: 'This removes the payment and the cash entry it created, and reopens the loan if this payment had settled it. This cannot be undone.',

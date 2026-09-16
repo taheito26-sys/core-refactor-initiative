@@ -1909,11 +1909,24 @@ interface AccountLedgerModalProps {
   balance: number;
   typeLabels: Record<LedgerEntryType, string>;
   onClose: () => void;
+  onEditNote?: (entryId: string, note: string) => void;
   isMobile?: boolean;
 }
-function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, isMobile = false }: AccountLedgerModalProps) {
+function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, onEditNote, isMobile = false }: AccountLedgerModalProps) {
   const t = useT();
   const [typeFilter, setTypeFilter] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState('');
+
+  const startEditNote = (entry: CashLedgerEntry) => {
+    setEditingNoteId(entry.id);
+    setEditingNoteValue(entry.note || '');
+  };
+  const cancelEditNote = () => { setEditingNoteId(null); setEditingNoteValue(''); };
+  const saveEditNote = (entryId: string) => {
+    onEditNote?.(entryId, editingNoteValue.trim());
+    cancelEditNote();
+  };
 
   const sorted = useMemo(() => [...entries].sort((a, b) => a.ts - b.ts), [entries]);
   const runningBalances = useMemo(() => {
@@ -2007,7 +2020,25 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                     <div><span className="muted">{t('ledgerColAmount')}:</span> <strong className="mono" style={{ color: isIn ? 'var(--good)' : 'var(--bad)' }}>{isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}</strong></div>
                     <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
                     {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
-                    {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                    {onEditNote && (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        {editingNoteId === entry.id ? (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <div className="inputBox" style={{ flex: 1 }}>
+                              <input value={editingNoteValue} onChange={e => setEditingNoteValue(e.target.value)} placeholder={t('notesAccPh')} autoFocus />
+                            </div>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: 34 }} onClick={() => saveEditNote(entry.id)}>{t('save')}</button>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: 34 }} onClick={cancelEditNote}>{t('cancel')}</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+                            <span>{entry.note || '—'}</span>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={() => startEditNote(entry)}>✏️ {t('edit')}</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!onEditNote && entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
                     {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && (
                       <div style={{ gridColumn: 'span 2', color: 'var(--muted)', fontSize: 10 }}>
                         💵 {Object.entries(entry.banknoteBreakdown)
@@ -2060,9 +2091,26 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
                           <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : undefined}>
-                        {entry.note || '—'}
-                        {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
+                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 240 }}>
+                        {editingNoteId === entry.id ? (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <div className="inputBox" style={{ flex: 1, minWidth: 120 }}>
+                              <input value={editingNoteValue} onChange={e => setEditingNoteValue(e.target.value)} placeholder={t('notesAccPh')} autoFocus />
+                            </div>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={() => saveEditNote(entry.id)}>{t('save')}</button>
+                            <button className="rowBtn" style={{ fontSize: 9, padding: '2px 6px', minHeight: 22 }} onClick={cancelEditNote}>{t('cancel')}</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.banknoteBreakdown ? Object.entries(entry.banknoteBreakdown).sort((a, b) => Number(b[0]) - Number(a[0])).map(([denom, count]) => `${count}×${denom}`).join(', ') : entry.note}>
+                              {entry.note || '—'}
+                              {entry.banknoteBreakdown && Object.keys(entry.banknoteBreakdown).length > 0 && ' 💵'}
+                            </span>
+                            {onEditNote && (
+                              <button className="rowBtn" style={{ fontSize: 9, padding: '1px 5px', minHeight: 18, flexShrink: 0 }} onClick={() => startEditNote(entry)}>✏️</button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -3096,6 +3144,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashHistory = [...(state.cashHistory || []), legacyEntry];
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, cashHistory: newCashHistory });
     if (ok) setShowDeposit(null);
+  };
+
+  const editLedgerEntryNote = async (entryId: string, note: string) => {
+    const trimmed = note.trim();
+    const newLedger = ledger.map(e => e.id === entryId ? { ...e, note: trimmed || undefined } : e);
+    // Mirror the correction into the legacy cashHistory record (same id) so older reports/exports
+    // that still read cashHistory stay consistent with the ledger.
+    const newCashHistory = (state.cashHistory || []).map(h => h.id === entryId ? { ...h, note: trimmed } : h);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashHistory: newCashHistory });
+    if (ok) toast.success(t('noteUpdated'));
   };
 
   const addTransfer = async (entries: [CashLedgerEntry, CashLedgerEntry]) => {
@@ -5095,6 +5153,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             typeLabels={LEDGER_TYPE_LABELS}
             isMobile={isMobile}
             onClose={() => setAccountDetailId(null)}
+            onEditNote={editLedgerEntryNote}
           />
         );
       })()}
