@@ -194,14 +194,18 @@ export async function renderHtmlReportToPdf(
     // A padded, not exact, canvas/SVG height: an off-screen measurer div and
     // the actual foreignObject rasterization are two separate layout
     // engines, and on some mobile browsers the real rendered content comes
-    // out a handful of px taller than `scrollHeight` reported — an SVG root
-    // clips to its own height by default, so an under-measured height was
-    // silently slicing the true bottom edge off the image (a table's last
-    // row/total showing cut in half with blank canvas below it, never
-    // reaching the page-break logic at all since the whole sheet still
-    // "fit" by the too-small measurement). The padding is inert extra white
-    // space when the measurement was accurate.
-    const RENDER_HEIGHT_PADDING_PX = 32;
+    // out taller than `scrollHeight` reported — an SVG root clips to its own
+    // height by default, so an under-measured height silently slices the
+    // true bottom edge off the image (a table's last row/total showing cut
+    // in half with blank canvas below it, never reaching the page-break
+    // logic at all since the whole sheet still "fit" by the too-small
+    // measurement). A flat 32px margin turned out not to be enough on some
+    // devices — the two layout engines' disagreement is proportional to how
+    // much content there is (every row can each be a little off), not a
+    // fixed amount, so the padding scales with the measured height instead
+    // of a flat constant. Inert extra white space when the measurement was
+    // accurate.
+    const RENDER_HEIGHT_PADDING_PX = Math.max(64, measurer.scrollHeight * 0.06);
     const renderHeight = measurer.scrollHeight + RENDER_HEIGHT_PADDING_PX;
     const unbreakableRanges = measureUnbreakableRanges(measurer);
     measurer.remove();
