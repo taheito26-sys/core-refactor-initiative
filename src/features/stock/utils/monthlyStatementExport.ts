@@ -182,6 +182,12 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
     --blue-soft: #eaf3f6;
     --blue-border: #c8dce4;
     --sand-soft: #f5f1ed;
+    --green: #2f9e6b;
+    --green-soft: #eaf6f0;
+    --amber: #c97a1f;
+    --amber-soft: #fdf3e3;
+    --teal: #1f7a8c;
+    --teal-soft: #e8f4f6;
     --ink: #243746;
     --muted: #71808b;
     --border: #dbe3e7;
@@ -281,32 +287,32 @@ export function buildMonthlyStatementHtml(data: MonthlyStatementData, _options: 
   </div>
 
   <div class="cards">
+    <div class="card" style="--accent:var(--coral);--tint:var(--coral-soft);">
+      <div class="k">مديونية مرحّلة من شهر ${escapeHtml(prevLabel)}</div>
+      <div class="v">${fmtAmount(previousBalance)}</div>
+      <div class="u">${cur}</div>
+    </div>
     <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
       <div class="k">مديونية ${escapeHtml(label)} (جديدة)</div>
       <div class="v">${fmtAmount(data.totalLoaned)}</div>
       <div class="u">${cur}</div>
     </div>
-    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
-      <div class="k">مديونية ${escapeHtml(prevLabel)} (مرحّلة)</div>
-      <div class="v">${fmtAmount(previousBalance)}</div>
-      <div class="u">${cur}</div>
-    </div>
-    <div class="card" style="--accent:var(--coral);--tint:var(--coral-soft);">
-      <div class="k">إجمالي المستحقات</div>
-      <div class="v">${fmtAmount(grandTotalDue)}</div>
-      <div class="u">${cur}</div>
-    </div>
-    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
+    <div class="card" style="--accent:var(--green);--tint:var(--green-soft);">
       <div class="k">مدفوعات ${escapeHtml(label)}</div>
       <div class="v">${fmtAmount(data.totalRepaid)}</div>
       <div class="u">${cur}</div>
     </div>
-    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+    <div class="card" style="--accent:var(--amber);--tint:var(--amber-soft);">
       <div class="k">الرصيد المتبقي</div>
       <div class="v">${fmtAmount(data.outstanding)}</div>
       <div class="u">${cur}</div>
     </div>
-    <div class="card" style="--accent:var(--navy);--tint:var(--blue-soft);">
+    <div class="card" style="--accent:#8a5a3e;--tint:var(--sand-soft);">
+      <div class="k">إجمالي المستحقات</div>
+      <div class="v">${fmtAmount(grandTotalDue)}</div>
+      <div class="u">${cur}</div>
+    </div>
+    <div class="card" style="--accent:var(--teal);--tint:var(--teal-soft);">
       <div class="k">حجم البيع (${escapeHtml(binanceFiat)})</div>
       <div class="v">${fmtAmount(binanceTotal)}</div>
       <div class="u">${escapeHtml(binanceFiat)}</div>
@@ -447,11 +453,11 @@ export async function exportMonthlyStatementXlsx(data: MonthlyStatementData, opt
   const totalRepaidAllTime = data.totalRepaidAllTime || 0;
   const binanceFiatXlsx = data.binanceOrders[0]?.fiat || 'EGP';
   const binanceTotalXlsx = data.binanceOrders.reduce((sum, o) => sum + o.fiatAmount, 0);
+  addRow(`مديونية مرحّلة من شهر ${previousMonthLabel(data.month)} (${cur})`, previousBalance, dueFill);
   addRow(`مديونية ${label} (جديدة) (${cur})`, data.totalLoaned);
-  addRow(`مديونية ${previousMonthLabel(data.month)} (مرحّلة) (${cur})`, previousBalance);
-  addRow(`إجمالي المستحقات (${cur})`, previousBalance + data.totalLoaned);
   addRow(`مدفوعات ${label} (${cur})`, data.totalRepaid, goodFill);
   addRow(`الرصيد المتبقي (${cur})`, data.outstanding, data.outstanding > 0 ? dueFill : goodFill);
+  addRow(`إجمالي المستحقات (${cur})`, previousBalance + data.totalLoaned);
   addRow(`نسبة التسوية الإجمالية %`, totalLoanedAllTime > 0 ? Math.round((totalRepaidAllTime / totalLoanedAllTime) * 100) : 0);
   addRow(`إجمالي حجم البيع (${binanceFiatXlsx})`, binanceTotalXlsx);
   addRow('عدد الدفعات', data.payments.length);
