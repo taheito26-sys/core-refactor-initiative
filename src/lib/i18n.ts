@@ -322,6 +322,8 @@ const translations = {
   loansUnpaidNone: { en: 'All loans settled', ar: 'كل القروض مسددة' },
   availableUsdt: { en: 'USDT', ar: 'USDT' },
   liquidUsdt: { en: 'Liquid USDT ready for deployment', ar: 'USDT سائل جاهز للاستخدام' },
+  binanceBalanceLbl: { en: 'Binance Balance', ar: 'رصيد بينانس' },
+  binanceBalanceSub: { en: 'Spot + Funding (USDT)', ar: 'سبوت + تمويل (USDT)' },
   avPriceSpread: { en: 'Av Price + SPREAD', ar: 'متوسط السعر + الفارق' },
   noStock: { en: 'No stock', ar: 'لا مخزون' },
   sellAboveAvPrice: { en: 'Sell above Av Price to profit', ar: 'بع فوق متوسط السعر للربح' },

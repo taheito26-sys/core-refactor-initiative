@@ -14,6 +14,7 @@ import { localCur } from '@/lib/currency-locale';import { supabase } from '@/int
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
+import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import { activateTrackerClearBarrier, markTrackerClearInProgress } from '@/lib/tracker-backup';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
@@ -70,6 +71,16 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const { data: qatarP2PRate } = useP2PRates('qatar');
   const { data: egyptP2PRate } = useP2PRates('egypt');
+  // Binance USDT available balance (spot + funding) — same figure shown on the Stock page,
+  // synced from exchange-sync, not part of the local FIFO stock.
+  const { data: exchangeBalances } = useExchangeBalances();
+  const binanceUsdt = useMemo(() => {
+    let total = 0;
+    for (const b of exchangeBalances ?? []) {
+      if (b.exchange === 'binance' && b.asset === 'USDT') total += b.free + b.locked;
+    }
+    return total;
+  }, [exchangeBalances]);
 
   const dashboardQarPerUsdt = useMemo(() => {
     const qatarBuyRate = num(qatarP2PRate?.buyRate, 0);
@@ -768,6 +779,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-lbl">{t('availableUsdt')}</div>
           <div className={`kpi-val ${isLow ? 'bad' : 'good'}`} style={isLow ? { animation: 'tracker-blink 1.5s infinite' } : undefined}>{fmtU(stk, 0)}</div>
           <div className="kpi-sub">{t('liquidUsdt')}</div>
+        </div>
+        <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock') : undefined}>
+          <div className="kpi-lbl">{t('binanceBalanceLbl')}</div>
+          <div className="kpi-val">{fmtU(binanceUsdt, 0)}</div>
+          <div className="kpi-sub">{t('binanceBalanceSub')}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('kpiAvgCostShort')}</div>

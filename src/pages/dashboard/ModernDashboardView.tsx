@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import { TopClientsKPI } from '@/components/dashboard/TopClientsKPI';
 import { BanqueMisrInstaPayKPI } from '@/components/dashboard/BanqueMisrInstaPayKPI';
+import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 
 export interface ModernDashboardViewProps {
   state: TrackerState;
@@ -82,6 +83,17 @@ export function ModernDashboardView({
   const totalPortfolioCapital = useMemo(() => {
     return liveCashQAR + stCost;
   }, [liveCashQAR, stCost]);
+
+  // Binance USDT available balance (spot + funding) — same figure shown on the Stock page,
+  // synced from exchange-sync, not part of the local FIFO stock.
+  const { data: exchangeBalances } = useExchangeBalances();
+  const binanceUsdt = useMemo(() => {
+    let total = 0;
+    for (const b of exchangeBalances ?? []) {
+      if (b.exchange === 'binance' && b.asset === 'USDT') total += b.free + b.locked;
+    }
+    return total;
+  }, [exchangeBalances]);
 
   // liveCashQAR (the headline KPI) only counts ACTIVE, QAR-denominated, non-custody accounts —
   // split the accounts list the same way so the total shown always matches what's listed under it.
@@ -150,7 +162,7 @@ export function ModernDashboardView({
       </div>
 
       {/* ── 2. ULTRA-SLIM PRO METRIC RIBBON (Zero Wasted Space) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-muted/30 p-1 rounded-xl border border-border/70 text-xs">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 bg-muted/30 p-1 rounded-xl border border-border/70 text-xs">
         
         {/* Metric 1: Total Portfolio Capital */}
         <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
@@ -237,6 +249,31 @@ export function ModernDashboardView({
           </div>
           <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
             {countedAccounts.length} of {activeAccounts.length} accounts
+          </span>
+        </div>
+
+        {/* Metric 5: Binance Available Balance */}
+        <div
+          className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50 cursor-pointer"
+          onClick={() => navigate('/trading/stock')}
+          title="Binance USDT balance (spot + funding), synced from exchange-sync"
+        >
+          <div className="flex items-center gap-2">
+            <div className="p-1 rounded bg-yellow-500/10 text-yellow-500 flex-shrink-0">
+              <Wallet className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+                Binance Balance
+              </div>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="font-mono font-bold text-foreground text-xs sm:text-sm">{fmtU(binanceUsdt)}</span>
+                <span className="text-[9px] text-muted-foreground">USDT</span>
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
+            Spot + Funding
           </span>
         </div>
 
