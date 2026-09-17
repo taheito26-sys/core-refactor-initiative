@@ -982,8 +982,8 @@ export default function OrdersPage() {
       seenNames.add(key);
       options.push(c);
     }
-    return options.sort((a, b) => a.name.localeCompare(b.name));
-  }, [list, state.customers]);
+    return sortByCustomerUsage(options);
+  }, [list, state.customers, sortByCustomerUsage]);
 
   const clearOrderFilters = useCallback(() => {
     setBuyerFilter('');
