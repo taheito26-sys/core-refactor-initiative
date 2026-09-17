@@ -531,31 +531,31 @@ export default function OrdersPage() {
     enabled: !!merchantProfile?.merchant_id,
   });
 
-  // How often each buyer actually appears in past trades -- used to put the
-  // merchant's most-used buyers at the top of every picker instead of
-  // whatever order the underlying arrays happen to be in. Keyed by
-  // canonicalized name (not id) so cosmetic near-duplicate Customer rows for
-  // the same real buyer (see customerIdsByCanonicalName) share one count.
+  // When each buyer was last traded with -- used to put the merchant's most
+  // recently used buyers at the top of every picker instead of whatever order
+  // the underlying arrays happen to be in. Keyed by canonicalized name (not
+  // id) so cosmetic near-duplicate Customer rows for the same real buyer
+  // (see customerIdsByCanonicalName) share one timestamp.
   const customerNameById = useMemo(() => new Map(state.customers.map(c => [c.id, c.name])), [state.customers]);
-  const customerUsageByCanonicalName = useMemo(() => {
-    const counts = new Map<string, number>();
+  const customerLastUsedByCanonicalName = useMemo(() => {
+    const lastUsed = new Map<string, number>();
     for (const t of state.trades) {
       if (t.voided) continue;
       const name = customerNameById.get(t.customerId);
       if (!name) continue;
       const key = canonicalizeName(name);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      if (t.ts > (lastUsed.get(key) ?? 0)) lastUsed.set(key, t.ts);
     }
-    return counts;
+    return lastUsed;
   }, [state.trades, customerNameById]);
   const sortByCustomerUsage = useCallback(<T extends { name: string }>(list: T[]): T[] => {
     return [...list].sort((a, b) => {
-      const usageA = customerUsageByCanonicalName.get(canonicalizeName(a.name)) ?? 0;
-      const usageB = customerUsageByCanonicalName.get(canonicalizeName(b.name)) ?? 0;
-      if (usageB !== usageA) return usageB - usageA;
+      const lastA = customerLastUsedByCanonicalName.get(canonicalizeName(a.name)) ?? 0;
+      const lastB = customerLastUsedByCanonicalName.get(canonicalizeName(b.name)) ?? 0;
+      if (lastB !== lastA) return lastB - lastA;
       return a.name.localeCompare(b.name);
     });
-  }, [customerUsageByCanonicalName]);
+  }, [customerLastUsedByCanonicalName]);
   const sortedCustomers = useMemo(() => sortByCustomerUsage(state.customers), [state.customers, sortByCustomerUsage]);
   const allBuyerOptions = useMemo<ListedCustomer[]>(
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
