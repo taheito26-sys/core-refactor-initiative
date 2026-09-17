@@ -5,7 +5,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import {
   fmtTotal, fmtDate, uid, shortRef, resolveCustomerName, customerNameVariants,
-  type Customer, type TrackerState,
+  type Customer, type TrackerState, type DerivedState,
 } from '@/lib/tracker-helpers';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { mapConnectedCustomers, mergeListedCustomers } from '@/features/merchants/lib/customer-listing';
@@ -94,7 +94,7 @@ type CustomerRow = Customer & { source?: 'local' | 'connected' };
  * subscription (see tracker-sync notes on why one merchant device shouldn't
  * hold two independent local-first copies of the same snapshot at once).
  */
-export function CustomersPanel({ state, applyState }: { state: TrackerState; applyState: (next: TrackerState) => void }) {
+export function CustomersPanel({ state, applyState, derived }: { state: TrackerState; applyState: (next: TrackerState) => void; derived: DerivedState }) {
   const t = useT();
   const { merchantProfile } = useAuth();
   const qc = useQueryClient();
@@ -199,17 +199,39 @@ export function CustomersPanel({ state, applyState }: { state: TrackerState; app
     );
   }, [mergedCustomers, search]);
 
-  const customerStats = (cId: string) => {
-    const trades = state.trades.filter(tr => !tr.voided && tr.customerId === cId);
+  // One real-world buyer can be spread across several Customer records (a
+  // local row plus a connected-portal row, or a cosmetic near-duplicate) --
+  // filtering a buyer's stats by a single id undercounts trades/volume/P&L
+  // for exactly that buyer. Group every id sharing a canonical name so a
+  // row's stats reflect everything the merchant actually did with them, the
+  // same union OrdersPage's own buyer filter uses.
+  const customerIdsByCanonicalName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const addAll = (rows: { id: string; name: string }[]) => {
+      for (const row of rows) {
+        const key = canonicalizeName(row.name);
+        const bucket = map.get(key);
+        if (bucket) { if (!bucket.includes(row.id)) bucket.push(row.id); } else map.set(key, [row.id]);
+      }
+    };
+    addAll(customers);
+    addAll(connectedCustomers);
+    return map;
+  }, [customers, connectedCustomers]);
+
+  const customerStats = (c: CustomerRow) => {
+    const groupIds = new Set(customerIdsByCanonicalName.get(canonicalizeName(c.name)) ?? [c.id]);
+    const trades = state.trades.filter(tr => !tr.voided && groupIds.has(tr.customerId));
     const totalUSDT = trades.reduce((s, tr) => s + tr.amountUSDT, 0);
     const totalRevenue = trades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
-    const totalCost = trades.reduce((s, tr) => {
-      const avgBuyCost = state.batches.length > 0
-        ? state.batches.reduce((a, b) => a + b.buyPriceQAR * b.initialUSDT, 0) / Math.max(1, state.batches.reduce((a, b) => a + b.initialUSDT, 0))
-        : 0;
-      return s + tr.amountUSDT * avgBuyCost;
+    // Real FIFO-matched profit (same source as the Orders page's own Net
+    // P&L column) rather than an average-cost estimate -- a trade FIFO
+    // couldn't fully match against stock counts as 0 here, consistent with
+    // how the rest of the app treats an unmatched trade.
+    const pnl = trades.reduce((s, tr) => {
+      const calc = derived.tradeCalc.get(tr.id);
+      return s + (calc?.ok ? calc.netQAR : 0);
     }, 0);
-    const pnl = totalRevenue - totalCost;
     const lastTrade = trades.length > 0 ? Math.max(...trades.map(tr => tr.ts)) : 0;
     return { trades: trades.length, totalUSDT, totalQAR: totalRevenue, pnl, lastTrade };
   };
@@ -217,12 +239,10 @@ export function CustomersPanel({ state, applyState }: { state: TrackerState; app
   const kpis = useMemo(() => {
     const allTrades = state.trades.filter(tr => !tr.voided);
     const totalUSDT = allTrades.reduce((s, tr) => s + tr.amountUSDT, 0);
-    const totalRevenue = allTrades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
-    const avgBuyCost = state.batches.length > 0
-      ? state.batches.reduce((a, b) => a + b.buyPriceQAR * b.initialUSDT, 0) / Math.max(1, state.batches.reduce((a, b) => a + b.initialUSDT, 0))
-      : 0;
-    const totalCost = allTrades.reduce((s, tr) => s + tr.amountUSDT * avgBuyCost, 0);
-    const netPnl = totalRevenue - totalCost;
+    const netPnl = allTrades.reduce((s, tr) => {
+      const calc = derived.tradeCalc.get(tr.id);
+      return s + (calc?.ok ? calc.netQAR : 0);
+    }, 0);
     const linkedTrades = allTrades.filter(tr => tr.linkedRelId).length;
     const tierCounts = { A: 0, B: 0, C: 0 };
     for (const c of customers) {
@@ -231,7 +251,7 @@ export function CustomersPanel({ state, applyState }: { state: TrackerState; app
       else tierCounts.C++;
     }
     return { clients: customers.length, totalUSDT, netPnl, linkedTrades, tierCounts };
-  }, [state.trades, state.batches, customers]);
+  }, [state.trades, derived.tradeCalc, customers]);
 
   const openAddCustomer = () => {
     setEditingCust(null);
@@ -331,7 +351,7 @@ export function CustomersPanel({ state, applyState }: { state: TrackerState; app
             </thead>
             <tbody>
               {filteredCustomers.map(c => {
-                const s = customerStats(c.id);
+                const s = customerStats(c);
                 return (
                   <tr key={c.id}>
                     <td className="mono" style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }} title={c.id}>

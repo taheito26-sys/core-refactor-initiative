@@ -3748,7 +3748,7 @@ export default function OrdersPage() {
 
       {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
       {activeTab === 'customers' && (
-        <CustomersPanel state={state} applyState={applyState} />
+        <CustomersPanel state={state} applyState={applyState} derived={derived} />
       )}
 
       <div className="twoColPage orders-two-col" style={activeTab === 'customers' ? { display: 'none' } : undefined}>

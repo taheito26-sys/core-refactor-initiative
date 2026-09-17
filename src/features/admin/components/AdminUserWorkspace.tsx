@@ -79,7 +79,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   // the old combined CRM tab) -- disableCloudSync means edits made here never
   // write back to the real user's cloud snapshot, same as the other
   // adminTrackerState-driven tabs above.
-  const { state: crmTrackerState, applyState: applyCrmTrackerState } = useTrackerState({
+  const { state: crmTrackerState, derived: crmDerived, applyState: applyCrmTrackerState } = useTrackerState({
     preloadedState: trackerState ?? undefined,
     disableCloudSync: true,
   });
@@ -333,7 +333,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         </TabsContent>
 
         <TabsContent value="customers" className="mt-3">
-          <CustomersPanel state={crmTrackerState} applyState={applyCrmTrackerState} />
+          <CustomersPanel state={crmTrackerState} applyState={applyCrmTrackerState} derived={crmDerived} />
         </TabsContent>
 
         <TabsContent value="suppliers" className="mt-3">
