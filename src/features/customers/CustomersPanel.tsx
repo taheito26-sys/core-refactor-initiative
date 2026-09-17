@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useT } from '@/lib/i18n';
 import {
   fmtTotal, fmtDate, uid, shortRef, resolveCustomerName, customerNameVariants,
@@ -19,40 +20,48 @@ const blankCustomer = (): Omit<Customer, 'id' | 'createdAt'> => ({
 
 // ── Modal wrapper — defined OUTSIDE the panel so React never remounts it ──
 function CustomerModal({
-  title, onClose, onSave, error, children,
+  title, onClose, onSave, error, children, isMobile,
 }: {
   title: string;
   onClose: () => void;
   onSave: () => void;
   error?: string;
   children: React.ReactNode;
+  isMobile?: boolean;
 }) {
   return (
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.50)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+        padding: isMobile ? 0 : 16,
       }}
       onClick={onClose}
     >
       <div
         className="panel"
-        style={{ width: '100%', maxWidth: 460, borderRadius: 12, overflow: 'hidden' }}
+        style={{
+          width: '100%', maxWidth: isMobile ? '100%' : 460,
+          borderRadius: isMobile ? '16px 16px 0 0' : 12,
+          overflow: 'hidden',
+          maxHeight: isMobile ? '90dvh' : undefined,
+          display: 'flex', flexDirection: 'column',
+        }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="panel-head" style={{ padding: '10px 16px' }}>
+        <div className="panel-head" style={{ padding: '10px 16px', flexShrink: 0 }}>
           <h2 style={{ fontSize: 13 }}>{title}</h2>
           <button className="rowBtn" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: isMobile ? 'max(16px, env(safe-area-inset-bottom, 0px))' : 16 }}>
           {children}
           {error && (
             <div style={{ fontSize: 11, color: 'var(--bad)', paddingTop: 2 }}>⚠ {error}</div>
           )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button className="btn secondary" onClick={onClose}>Cancel</button>
-            <button className="btn" onClick={onSave}>Save</button>
+            <button className="btn secondary" style={isMobile ? { flex: 1, minHeight: 44 } : undefined} onClick={onClose}>Cancel</button>
+            <button className="btn" style={isMobile ? { flex: 1, minHeight: 44 } : undefined} onClick={onSave}>Save</button>
           </div>
         </div>
       </div>
@@ -83,6 +92,7 @@ type CustomerRow = Customer & { source?: 'local' | 'connected' };
  */
 export function CustomersPanel({ state, applyState, derived }: { state: TrackerState; applyState: (next: TrackerState) => void; derived: DerivedState }) {
   const t = useT();
+  const isMobile = useIsMobile();
   const { merchantProfile } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -272,20 +282,21 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('buyerManagement')}</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div className="inputBox" style={{ maxWidth: 260, padding: '6px 10px' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexDirection: isMobile ? 'column' : 'row' }}>
+          <div className="inputBox" style={{ width: isMobile ? '100%' : undefined, maxWidth: isMobile ? undefined : 260, padding: isMobile ? '10px 12px' : '6px 10px' }}>
             <input
               placeholder={t('searchCustomers')}
               value={search}
               onChange={e => setSearch(e.target.value)}
+              style={isMobile ? { fontSize: 14 } : undefined}
             />
           </div>
-          <button className="btn" onClick={openAddCustomer}>{t('addCustomer')}</button>
+          <button className="btn" style={isMobile ? { width: '100%', minHeight: 44 } : undefined} onClick={openAddCustomer}>{t('addCustomer')}</button>
         </div>
       </div>
 
@@ -293,6 +304,65 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
         <div className="empty">
           <div className="empty-t">{t('noCustomersFound')}</div>
           <div className="empty-s">{t('addFirstBuyer')}</div>
+        </div>
+      ) : isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10 }}>
+          {filteredCustomers.map(c => {
+            const s = customerStats(c);
+            return (
+              <div key={c.id} className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{resolveCustomerName(c, t.lang)}</span>
+                      {c.source === 'connected' && (
+                        <span className="pill good" style={{ fontSize: 9 }}>Connected</span>
+                      )}
+                    </div>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{shortRef('CUS', c.id)}</span>
+                  </div>
+                  <span className={`pill ${c.tier === 'A' ? 'good' : c.tier === 'B' ? 'warn' : ''}`}
+                    style={{
+                      fontWeight: 700, fontSize: 10, minWidth: 28, textAlign: 'center', flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                    }}>
+                    {c.tier === 'A' ? '⭐' : c.tier === 'B' ? '＋' : '●'} {c.tier}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                  <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{t('trades')}</div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{s.trades}</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>USDT</div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtTotal(s.totalUSDT)}</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>P&L</div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: s.pnl >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                      {s.pnl >= 0 ? '+' : ''}{fmtTotal(s.pnl)}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                  Last trade: {s.lastTrade > 0 ? fmtDate(s.lastTrade) : '—'}
+                </div>
+
+                {c.source !== 'connected' ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="rowBtn" style={{ flex: 1, minHeight: 36 }} onClick={() => openEditCustomer(c)}>Edit</button>
+                    <button className="rowBtn" style={{ flex: 1, minHeight: 36, color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>Login</button>
+                    <button className="rowBtn" style={{ minHeight: 36, color: 'var(--bad)', fontWeight: 700, padding: '0 12px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>Synced from merchant connection</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="tableWrap">
@@ -369,27 +439,28 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           onClose={() => setShowCustModal(false)}
           onSave={saveCustomer}
           error={custError}
+          isMobile={isMobile}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <FormField label="Name (English)">
               <input
                 className="inputBox"
-                style={{ padding: '6px 10px', width: '100%' }}
+                style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
                 placeholder="e.g. Ahmed Al-Rashid"
                 dir="ltr"
                 value={custForm.nameEn}
-                autoFocus={t.lang !== 'ar'}
+                autoFocus={!isMobile && t.lang !== 'ar'}
                 onChange={e => setCustForm(f => ({ ...f, nameEn: e.target.value }))}
               />
             </FormField>
             <FormField label="Name (Arabic)">
               <input
                 className="inputBox"
-                style={{ padding: '6px 10px', width: '100%' }}
+                style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
                 placeholder="مثال: أحمد الراشد"
                 dir="rtl"
                 value={custForm.nameAr}
-                autoFocus={t.lang === 'ar'}
+                autoFocus={!isMobile && t.lang === 'ar'}
                 onChange={e => setCustForm(f => ({ ...f, nameAr: e.target.value }))}
               />
             </FormField>
@@ -397,16 +468,16 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           <FormField label="Phone">
             <input
               className="inputBox"
-              style={{ padding: '6px 10px', width: '100%' }}
+              style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
               placeholder="+974 ..."
               value={custForm.phone}
               onChange={e => setCustForm(f => ({ ...f, phone: e.target.value }))}
             />
           </FormField>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <FormField label="Tier">
               <select
-                style={{ padding: '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
+                style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: isMobile ? 14 : 12 }}
                 value={custForm.tier}
                 onChange={e => setCustForm(f => ({ ...f, tier: e.target.value }))}
               >
@@ -418,7 +489,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
             <FormField label="Daily Limit (USDT)">
               <input
                 className="inputBox"
-                style={{ padding: '6px 10px', width: '100%' }}
+                style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
                 type="number"
                 min={0}
                 placeholder="0"
@@ -429,7 +500,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           </div>
           <FormField label="Notes">
             <textarea
-              style={{ padding: '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 64, fontFamily: 'inherit' }}
+              style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: isMobile ? 14 : 12, resize: 'vertical', minHeight: 64, fontFamily: 'inherit' }}
               placeholder="Optional notes..."
               value={custForm.notes}
               onChange={e => setCustForm(f => ({ ...f, notes: e.target.value }))}
@@ -444,6 +515,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           onClose={() => setLoginModalCust(null)}
           onSave={submitCreateLogin}
           error={loginError}
+          isMobile={isMobile}
         >
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>
             The customer signs into the customer portal with this username and password — no email needed.
@@ -451,10 +523,10 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           <FormField label="Username *">
             <input
               className="inputBox"
-              style={{ padding: '6px 10px', width: '100%' }}
+              style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
               placeholder="e.g. damrawy"
               value={loginUsername}
-              autoFocus
+              autoFocus={!isMobile}
               disabled={loginSaving}
               onChange={e => setLoginUsername(e.target.value)}
             />
@@ -463,7 +535,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
             <input
               className="inputBox"
               type="text"
-              style={{ padding: '6px 10px', width: '100%' }}
+              style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
               placeholder="At least 8 characters"
               value={loginPassword}
               disabled={loginSaving}
@@ -474,7 +546,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
             <input
               className="inputBox"
               type="text"
-              style={{ padding: '6px 10px', width: '100%' }}
+              style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', fontSize: isMobile ? 14 : undefined }}
               value={loginConfirm}
               disabled={loginSaving}
               onChange={e => setLoginConfirm(e.target.value)}
