@@ -84,13 +84,13 @@ export function ModernDashboardView({
     return liveCashQAR + stCost;
   }, [liveCashQAR, stCost]);
 
-  // Binance USDT available balance (spot + funding) — same figure shown on the Stock page,
-  // synced from exchange-sync, not part of the local FIFO stock.
+  // Exchange USDT available balance (spot + funding), across every connected exchange —
+  // same figure shown on the Stock page, synced from exchange-sync, not part of the local FIFO stock.
   const { data: exchangeBalances } = useExchangeBalances();
   const binanceUsdt = useMemo(() => {
     let total = 0;
     for (const b of exchangeBalances ?? []) {
-      if (b.exchange === 'binance' && b.asset === 'USDT') total += b.free + b.locked;
+      if (b.asset === 'USDT') total += b.free + b.locked;
     }
     return total;
   }, [exchangeBalances]);
@@ -252,11 +252,11 @@ export function ModernDashboardView({
           </span>
         </div>
 
-        {/* Metric 5: Binance Available Balance */}
+        {/* Metric 5: Exchange Available Balance (all connected exchanges) */}
         <div
           className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50 cursor-pointer"
           onClick={() => navigate('/trading/stock')}
-          title="Binance USDT balance (spot + funding), synced from exchange-sync"
+          title="Exchange USDT balance (spot + funding) across all connected exchanges, synced from exchange-sync"
         >
           <div className="flex items-center gap-2">
             <div className="p-1 rounded bg-yellow-500/10 text-yellow-500 flex-shrink-0">
@@ -264,7 +264,7 @@ export function ModernDashboardView({
             </div>
             <div>
               <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
-                Binance Balance
+                Exchange Balance
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="font-mono font-bold text-foreground text-xs sm:text-sm">{fmtU(binanceUsdt)}</span>

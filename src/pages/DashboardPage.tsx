@@ -71,13 +71,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const { data: qatarP2PRate } = useP2PRates('qatar');
   const { data: egyptP2PRate } = useP2PRates('egypt');
-  // Binance USDT available balance (spot + funding) — same figure shown on the Stock page,
-  // synced from exchange-sync, not part of the local FIFO stock.
+  // Exchange USDT available balance (spot + funding), across every connected exchange —
+  // same figure shown on the Stock page, synced from exchange-sync, not part of the local FIFO stock.
   const { data: exchangeBalances } = useExchangeBalances();
   const binanceUsdt = useMemo(() => {
     let total = 0;
     for (const b of exchangeBalances ?? []) {
-      if (b.exchange === 'binance' && b.asset === 'USDT') total += b.free + b.locked;
+      if (b.asset === 'USDT') total += b.free + b.locked;
     }
     return total;
   }, [exchangeBalances]);
