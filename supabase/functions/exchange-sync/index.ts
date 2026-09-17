@@ -259,7 +259,9 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
           asset: d.coin,
           amount: parseFloat(d.amount ?? "0"),
           status: String(d.status ?? ""),
-          reference: String(d.txId ?? d.id),
+          // Same "" vs null pitfall as OKX below: a still-confirming Binance
+          // deposit can report txId as "" rather than omitting it.
+          reference: String(d.txId || d.id),
           counterparty: d.address ?? null,
           network: d.network ?? null,
           transfer_time: Number.isFinite(ms) ? new Date(ms).toISOString() : null,
@@ -354,7 +356,11 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
           asset: d.ccy,
           amount: parseFloat(d.amt ?? "0"),
           status: String(d.state ?? ""),
-          reference: String(d.txId ?? d.wdId ?? d.depId ?? ""),
+          // OKX reliably sends "" (not null/undefined) for txId on a deposit
+          // that's still confirming or was an internal transfer -- `??` does
+          // not fall through on "", so it must be `||` here or every such
+          // deposit loses its reference and gets silently dropped below.
+          reference: String(d.txId || d.wdId || d.depId || ""),
           counterparty: (src.direction === "in" ? d.from : d.to) ?? null,
           network: d.chain ?? null,
           transfer_time: d.ts ? new Date(Number(d.ts)).toISOString() : null,
