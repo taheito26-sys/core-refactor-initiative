@@ -46,6 +46,30 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Supabase/Postgrest errors are plain {message, code, details, hint} objects,
+ * not Error instances, so naively stringifying with String(err) degrades
+ * them to the useless "[object Object]" -- hiding the real DB failure
+ * behind a message that can't be diagnosed from the UI.
+ */
+function errMsg(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object") {
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.message === "string" && obj.message) {
+      return [obj.message, obj.code ? `(${obj.code})` : null, obj.details, obj.hint]
+        .filter(Boolean)
+        .join(" ");
+    }
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
 async function hmacSha256Base64(secret: string, message: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -215,7 +239,7 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
       if (payRows.length < 100) break;
     }
   } catch (err) {
-    failures.push(`pay: ${err instanceof Error ? err.message : String(err)}`);
+    failures.push(`pay: ${errMsg(err)}`);
   }
 
   const onChain: { path: string; direction: "in" | "out"; timeKey: string }[] = [
@@ -243,7 +267,7 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
         });
       }
     } catch (err) {
-      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${err instanceof Error ? err.message : String(err)}`);
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${errMsg(err)}`);
     }
   }
 
@@ -338,7 +362,7 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
         });
       }
     } catch (err) {
-      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${err instanceof Error ? err.message : String(err)}`);
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${errMsg(err)}`);
     }
   }
 
@@ -364,7 +388,7 @@ async function fetchOkxP2POrders(creds: Credentials) {
   try {
     json = await okxSignedRequest(creds, "/api/v5/c2c/order-mgmt/orders-list?limit=100");
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errMsg(err);
     if (msg.includes(" 404 ")) {
       throw new Error(
         "OKX does not expose personal P2P order history on this API endpoint/account tier. " +
@@ -489,7 +513,7 @@ Deno.serve(async (req: Request) => {
         }
         summary.balances = balances.length;
       } catch (err) {
-        errors.balances = err instanceof Error ? err.message : String(err);
+        errors.balances = errMsg(err);
       }
     }
 
@@ -522,7 +546,7 @@ Deno.serve(async (req: Request) => {
         }
         summary.p2pOrders = orders.length;
       } catch (err) {
-        errors.p2pOrders = err instanceof Error ? err.message : String(err);
+        errors.p2pOrders = errMsg(err);
       }
     }
 
@@ -557,7 +581,7 @@ Deno.serve(async (req: Request) => {
           errors.transfers = failures.join("; ");
         }
       } catch (err) {
-        errors.transfers = err instanceof Error ? err.message : String(err);
+        errors.transfers = errMsg(err);
       }
     }
 
@@ -586,7 +610,7 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err instanceof Error ? err.message : err) }), {
+    return new Response(JSON.stringify({ error: errMsg(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
