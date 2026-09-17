@@ -444,8 +444,6 @@ export default function OrdersPage() {
   useExchangeMonthSync(selectedMonth);
   const [ordersPage, setOrdersPage] = useState(1);
   const [buyerFilter, setBuyerFilter] = useState('');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
   const [dayFilter, setDayFilter] = useState(''); // 'YYYY-MM-DD', empty = no day filter
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
@@ -901,8 +899,6 @@ export default function OrdersPage() {
     return m;
   }, [state.customerLoans, state.deletedLoanIds]);
   const loanedTradeIds = useMemo(() => new Set(loanByTradeId.keys()), [loanByTradeId]);
-  const minPriceNum = priceMin.trim() === '' ? null : Number(priceMin);
-  const maxPriceNum = priceMax.trim() === '' ? null : Number(priceMax);
 
   // Groups customer ids that share a canonicalized name — imported orders can
   // mint a second Customer row for the same person when the raw exchange
@@ -934,8 +930,6 @@ export default function OrdersPage() {
         if (!haystack.includes(query)) return false;
       }
       if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
-      if (minPriceNum != null && !Number.isNaN(minPriceNum) && t.sellPriceQAR < minPriceNum) return false;
-      if (maxPriceNum != null && !Number.isNaN(maxPriceNum) && t.sellPriceQAR > maxPriceNum) return false;
       if (dayFilter) {
         const d = new Date(t.ts);
         const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -943,7 +937,7 @@ export default function OrdersPage() {
       }
       return true;
     });
-  }, [list, query, state.customers, buyerFilterGroup, minPriceNum, maxPriceNum, dayFilter]);
+  }, [list, query, state.customers, buyerFilterGroup, dayFilter]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
   // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
@@ -964,12 +958,10 @@ export default function OrdersPage() {
 
   const clearOrderFilters = useCallback(() => {
     setBuyerFilter('');
-    setPriceMin('');
-    setPriceMax('');
     setDayFilter('');
   }, []);
 
-  const hasActiveOrderFilters = Boolean(buyerFilter || priceMin.trim() || priceMax.trim() || dayFilter);
+  const hasActiveOrderFilters = Boolean(buyerFilter || dayFilter);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -3766,22 +3758,6 @@ export default function OrdersPage() {
                     title={t('filterByDay')}
                     value={dayFilter}
                     onChange={e => setDayFilter(e.target.value)}
-                  />
-                </div>
-                <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
-                  <input
-                    type="number"
-                    placeholder={t('minPrice')}
-                    value={priceMin}
-                    onChange={e => setPriceMin(e.target.value)}
-                  />
-                </div>
-                <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
-                  <input
-                    type="number"
-                    placeholder={t('maxPrice')}
-                    value={priceMax}
-                    onChange={e => setPriceMax(e.target.value)}
                   />
                 </div>
                 {hasActiveOrderFilters && (
