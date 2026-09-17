@@ -88,7 +88,7 @@ export function ExchangeConnectionsCard() {
     setSyncingExchange(exchange);
     try {
       const result = await syncExchange(exchange, 'all');
-      toast.success(`${EXCHANGE_LABELS[exchange]} synced: ${result.balances ?? 0} balances, ${result.p2pOrders ?? 0} P2P orders`);
+      toast.success(`${EXCHANGE_LABELS[exchange]} synced: ${result.balances ?? 0} balances, ${result.p2pOrders ?? 0} P2P orders, ${result.transfers ?? 0} transfers`);
       if (result.errors) {
         for (const [section, msg] of Object.entries(result.errors)) {
           toast.warning(`${EXCHANGE_LABELS[exchange]} ${section}: ${msg}`);
