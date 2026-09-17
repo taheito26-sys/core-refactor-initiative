@@ -330,9 +330,15 @@ async function fetchOkxBalances(creds: Credentials) {
 }
 
 /**
- * OKX deposits/withdrawals. OKX flags internal account-to-account moves
- * (its "Pay"-equivalent) via the deposit type field, so one endpoint pair
- * covers both kinds.
+ * OKX deposits/withdrawals, plus internal ledger movements.
+ *
+ * deposit-history/withdrawal-history only ever report genuine on-chain
+ * (external) movement -- neither endpoint has any concept of an internal
+ * account-to-account transfer, contrary to what this function used to
+ * assume. Funds moved into the Funding wallet from a sub-account or from
+ * the Trading account ("Received from sub-account" / "Received from
+ * trading account" in OKX's own History screen) never appear there at all
+ * and need the separate funding-account bills/ledger endpoint.
  */
 async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRow[]; failures: string[] }> {
   const rows: TransferRow[] = [];
@@ -348,18 +354,16 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
       const json = await okxSignedRequest(creds, src.path);
       for (const d of json.data ?? []) {
         if (d.ccy !== TRACKED_ASSET) continue;
-        // OKX: type "3"/"4" denote internal (account-to-account) transfers.
-        const internal = d.type === "3" || d.type === "4";
         rows.push({
-          kind: internal ? "pay" : "network",
+          kind: "network",
           direction: src.direction,
           asset: d.ccy,
           amount: parseFloat(d.amt ?? "0"),
           status: String(d.state ?? ""),
           // OKX reliably sends "" (not null/undefined) for txId on a deposit
-          // that's still confirming or was an internal transfer -- `??` does
-          // not fall through on "", so it must be `||` here or every such
-          // deposit loses its reference and gets silently dropped below.
+          // that's still confirming -- `??` does not fall through on "", so
+          // it must be `||` here or such a deposit loses its reference and
+          // gets silently dropped below.
           reference: String(d.txId || d.wdId || d.depId || ""),
           counterparty: (src.direction === "in" ? d.from : d.to) ?? null,
           network: d.chain ?? null,
@@ -370,6 +374,36 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
     } catch (err) {
       failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${errMsg(err)}`);
     }
+  }
+
+  // Funding-account ledger: bill type "1"/"2" are the same deposit/withdrawal
+  // events already fetched above (excluded here so the same movement isn't
+  // recorded under two different references) -- everything else is an
+  // internal account-to-account move (sub-account <-> Funding, Trading <->
+  // Funding), OKX's nearest equivalent to Binance Pay, with the balance
+  // change's sign giving direction.
+  try {
+    const bills = await okxSignedRequest(creds, `/api/v5/asset/bills?ccy=${TRACKED_ASSET}&limit=100`);
+    for (const b of bills.data ?? []) {
+      if (b.ccy !== TRACKED_ASSET) continue;
+      if (b.type === "1" || b.type === "2") continue;
+      const balChg = parseFloat(b.balChg ?? "0");
+      if (balChg === 0) continue;
+      rows.push({
+        kind: "pay",
+        direction: balChg > 0 ? "in" : "out",
+        asset: b.ccy,
+        amount: Math.abs(balChg),
+        status: "completed",
+        reference: String(b.billId || ""),
+        counterparty: null,
+        network: null,
+        transfer_time: b.ts ? new Date(Number(b.ts)).toISOString() : null,
+        raw: b,
+      });
+    }
+  } catch (err) {
+    failures.push(`internal transfers: ${errMsg(err)}`);
   }
 
   return { rows: rows.filter((r) => r.reference), failures };
