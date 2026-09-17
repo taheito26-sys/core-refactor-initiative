@@ -18,7 +18,9 @@ import { AdminOrdersMirror } from './AdminOrdersMirror';
 import { AdminStockMirror } from './AdminStockMirror';
 import DashboardPage from '@/pages/DashboardPage';
 import MerchantsPage from '@/pages/MerchantsPage';
-import CRMPage from '@/pages/CRMPage';
+import { useTrackerState } from '@/lib/useTrackerState';
+import { CustomersPanel } from '@/features/customers/CustomersPanel';
+import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { fmtTotal } from '@/lib/tracker-helpers';
 import {
   useAdminWorkspace,
@@ -73,6 +75,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
   const userBaseFiat = trackerState?.settings?.baseFiatCurrency || trackerPreferences?.baseFiatCurrency || 'QAR';
+  // Local-only tracker state for the Customers/Suppliers admin tabs (replaces
+  // the old combined CRM tab) -- disableCloudSync means edits made here never
+  // write back to the real user's cloud snapshot, same as the other
+  // adminTrackerState-driven tabs above.
+  const { state: crmTrackerState, applyState: applyCrmTrackerState } = useTrackerState({
+    preloadedState: trackerState ?? undefined,
+    disableCloudSync: true,
+  });
   const deals = (workspace?.deals ?? []) as any[];
   const settlements = (workspace?.settlements ?? []) as any[];
   const profits = (workspace?.profits ?? []) as any[];
@@ -252,10 +262,10 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
       {profileLoading ? <Skeleton className="h-24" /> : (
         <Card>
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 text-xs">
-            <div><span className="text-muted-foreground">Display Name</span><p className="font-medium">{profile?.display_name ?? '—'}</p></div>
-            <div><span className="text-muted-foreground">Merchant ID</span><p className="font-mono">{resolvedMerchantId ?? '—'}</p></div>
-            <div><span className="text-muted-foreground">Region</span><p>{profile?.region ?? '—'}</p></div>
-            <div><span className="text-muted-foreground">Status</span><p>{profile?.status ? <Badge variant="outline" className="text-[10px]">{profile.status}</Badge> : '—'}</p></div>
+            <div><span className="text-muted-foreground">Display Name</span><p className="font-medium">{profile?.display_name ?? 'ï¿½'}</p></div>
+            <div><span className="text-muted-foreground">Merchant ID</span><p className="font-mono">{resolvedMerchantId ?? 'ï¿½'}</p></div>
+            <div><span className="text-muted-foreground">Region</span><p>{profile?.region ?? 'ï¿½'}</p></div>
+            <div><span className="text-muted-foreground">Status</span><p>{profile?.status ? <Badge variant="outline" className="text-[10px]">{profile.status}</Badge> : 'ï¿½'}</p></div>
           </CardContent>
         </Card>
       )}
@@ -282,7 +292,8 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <TabsTrigger value="merchants" className="text-xs">Merchants</TabsTrigger>
           <TabsTrigger value="orders" className="text-xs">Orders</TabsTrigger>
           <TabsTrigger value="stock" className="text-xs">Stock</TabsTrigger>
-          <TabsTrigger value="crm" className="text-xs">CRM</TabsTrigger>
+          <TabsTrigger value="customers" className="text-xs">Customers</TabsTrigger>
+          <TabsTrigger value="suppliers" className="text-xs">Suppliers</TabsTrigger>
           <TabsTrigger value="deals" className="text-xs">Deals ({deals?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="settlements" className="text-xs">Settlements ({settlements?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="profits" className="text-xs">Profits ({profits?.length ?? 0})</TabsTrigger>
@@ -321,11 +332,12 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <AdminStockMirror trackerState={trackerState ?? null} />
         </TabsContent>
 
-        <TabsContent value="crm" className="mt-3">
-          <CRMPage
-            adminTrackerState={trackerState ?? undefined}
-            isAdminView
-          />
+        <TabsContent value="customers" className="mt-3">
+          <CustomersPanel state={crmTrackerState} applyState={applyCrmTrackerState} />
+        </TabsContent>
+
+        <TabsContent value="suppliers" className="mt-3">
+          <SuppliersPanel state={crmTrackerState} applyState={applyCrmTrackerState} />
         </TabsContent>
 
         <TabsContent value="deals" className="mt-3">

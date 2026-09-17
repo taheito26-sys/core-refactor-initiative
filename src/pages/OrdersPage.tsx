@@ -43,6 +43,7 @@ import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import { canonicalizeName } from '@/lib/text-normalize';
+import { CustomersPanel } from '@/features/customers/CustomersPanel';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { ModernOrdersView } from '@/pages/orders/ModernOrdersView';
@@ -437,7 +438,7 @@ export default function OrdersPage() {
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers' | 'customers'>('my');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   // Backfills a connected exchange's P2P history for exactly the clicked
   // month, so months outside the auto-sync's rolling window still show up.
@@ -1075,9 +1076,9 @@ export default function OrdersPage() {
   // URL-driven tab sync: read ?tab= and switch activeTab before focus
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['my', 'incoming', 'outgoing', 'transfers'].includes(tabParam)) {
-      setActiveTab(tabParam as 'my' | 'incoming' | 'outgoing' | 'transfers');
-      if (tabParam !== 'my') {
+    if (tabParam && ['my', 'incoming', 'outgoing', 'transfers', 'customers'].includes(tabParam)) {
+      setActiveTab(tabParam as 'my' | 'incoming' | 'outgoing' | 'transfers' | 'customers');
+      if (tabParam !== 'my' && tabParam !== 'customers') {
         setMerchantOrderEnabled(true);
         if (tabParam === 'transfers') {
           setSelectedTemplateId('capital_transfer');
@@ -3737,9 +3738,20 @@ export default function OrdersPage() {
         >
           💸 {t('usdtTransfers')}
         </button>
+        <button
+          onClick={() => setActiveTab('customers')}
+          className={`orders-tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
+        >
+          👥 {t('customers')}
+        </button>
       </div>
 
-      <div className="twoColPage orders-two-col">
+      {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
+      {activeTab === 'customers' && (
+        <CustomersPanel state={state} applyState={applyState} />
+      )}
+
+      <div className="twoColPage orders-two-col" style={activeTab === 'customers' ? { display: 'none' } : undefined}>
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
         <div>

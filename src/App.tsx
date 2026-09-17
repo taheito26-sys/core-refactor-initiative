@@ -172,7 +172,6 @@ import SettingsPage from './pages/SettingsPage';
 
 // Placeholder pages (will be replaced in later phases)
 import CalendarPage from './pages/CalendarPage';
-import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
 import RelationshipPage from './pages/RelationshipPage';
 import ChatPage from './pages/ChatPage';
@@ -410,7 +409,6 @@ const App = () => (
                   <Route path="/trading/cash" element={<CashPage />} />
                   <Route path="/trading/calendar" element={<CalendarPage />} />
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />
-                  <Route path="/crm" element={<CRMPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
                   <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
                   <Route path="/chat" element={<ChatPage />} />
@@ -418,6 +416,8 @@ const App = () => (
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />
+                  {/* CRM split: customers moved into Orders' Customers tab, suppliers into Stock's Suppliers tab */}
+                  <Route path="/crm" element={<Navigate to="/trading/orders?tab=customers" replace />} />
                   <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />

@@ -85,7 +85,7 @@ const RULES = [
     ],
   },
   {
-    file: 'src/pages/CRMPage.tsx',
+    file: 'src/features/customers/CustomersPanel.tsx',
     subsystem: 'Buyer identity',
     incident:
       'Saving a customer re-derived the legacy `name` from the merchant\'s current UI language, so filling in an Arabic name flipped the identity key and unlinked every subsequent order.',

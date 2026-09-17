@@ -45,6 +45,7 @@ import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, u
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { ModernStockView } from '@/pages/stock/ModernStockView';
+import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -115,6 +116,11 @@ export default function StockPage() {
 
   const [searchParams] = useSearchParams();
   const stockTab = 'batches' as const;
+  // Top-level section switch for this page -- separate from the legacy
+  // (currently dead) `stockTab` constant above, which some pre-existing hint
+  // buttons still reference. Suppliers moved here from the old combined CRM
+  // page; customers moved to the Orders page instead.
+  const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers'>('batches');
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
   // ── Mobile Add Batch Sheet ────────────────────────────────────────
   const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
@@ -935,8 +941,29 @@ export default function StockPage() {
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
+      {/* ─── SECTION TAB BAR ─── */}
+      <div className="orders-tab-bar">
+        <button
+          onClick={() => setActiveStockSection('batches')}
+          className={`orders-tab-btn ${activeStockSection === 'batches' ? 'active' : ''}`}
+        >
+          📦 {t('stock')}
+        </button>
+        <button
+          onClick={() => setActiveStockSection('suppliers')}
+          className={`orders-tab-btn ${activeStockSection === 'suppliers' ? 'active' : ''}`}
+        >
+          🏭 {t('suppliers')}
+        </button>
+      </div>
+
+      {/* ── SUPPLIERS TAB — moved here from the old combined CRM page ── */}
+      {activeStockSection === 'suppliers' && (
+        <SuppliersPanel state={state} applyState={applyState} />
+      )}
+
       {stockTab === 'batches' && (
-      <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
+      <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection === 'suppliers' ? { display: 'none' } : undefined) }}>
         <div>
           <div 
             className="orders-tab-bar" 
@@ -1517,7 +1544,7 @@ export default function StockPage() {
       )} {/* end batches tab */}
 
       {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
-      {isMobile && stockTab === 'batches' && (
+      {isMobile && stockTab === 'batches' && activeStockSection === 'batches' && (
         <button
           aria-label={t('addBatchTitle')}
           onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
