@@ -446,6 +446,7 @@ export default function OrdersPage() {
   const [buyerFilter, setBuyerFilter] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [dayFilter, setDayFilter] = useState(''); // 'YYYY-MM-DD', empty = no day filter
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
   // ── Dynamic rows per page: fit table to available viewport height ──
@@ -935,9 +936,14 @@ export default function OrdersPage() {
       if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
       if (minPriceNum != null && !Number.isNaN(minPriceNum) && t.sellPriceQAR < minPriceNum) return false;
       if (maxPriceNum != null && !Number.isNaN(maxPriceNum) && t.sellPriceQAR > maxPriceNum) return false;
+      if (dayFilter) {
+        const d = new Date(t.ts);
+        const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (dayKey !== dayFilter) return false;
+      }
       return true;
     });
-  }, [list, query, state.customers, buyerFilterGroup, minPriceNum, maxPriceNum]);
+  }, [list, query, state.customers, buyerFilterGroup, minPriceNum, maxPriceNum, dayFilter]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
   // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
@@ -960,9 +966,10 @@ export default function OrdersPage() {
     setBuyerFilter('');
     setPriceMin('');
     setPriceMax('');
+    setDayFilter('');
   }, []);
 
-  const hasActiveOrderFilters = Boolean(buyerFilter || priceMin.trim() || priceMax.trim());
+  const hasActiveOrderFilters = Boolean(buyerFilter || priceMin.trim() || priceMax.trim() || dayFilter);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -1004,7 +1011,7 @@ export default function OrdersPage() {
   const ORDERS_PER_PAGE = isMobile ? 10 : ordersPerPage;
   const totalOrderPages = Math.max(1, Math.ceil(subFilteredMy.length / ORDERS_PER_PAGE));
   // Reset page when filters change
-  useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range]);
+  useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range, dayFilter]);
   const paginatedOrders = useMemo(() => {
     // On mobile, show all orders (no pagination)
     if (isMobile) return subFilteredMy;
@@ -3752,6 +3759,15 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                <div className="inputBox" style={{ width: 140, padding: '4px 10px' }}>
+                  <input
+                    type="date"
+                    aria-label={t('filterByDay')}
+                    title={t('filterByDay')}
+                    value={dayFilter}
+                    onChange={e => setDayFilter(e.target.value)}
+                  />
+                </div>
                 <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
                   <input
                     type="number"

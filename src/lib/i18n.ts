@@ -488,6 +488,7 @@ const translations = {
   minPrice: { en: 'Min price', ar: 'أقل سعر' },
   maxPrice: { en: 'Max price', ar: 'أعلى سعر' },
   clearFilters: { en: 'Clear filters', ar: 'مسح الفلاتر' },
+  filterByDay: { en: 'Filter by day', ar: 'تصفية حسب اليوم' },
   exportXlsx: { en: 'Export XLSX', ar: 'تصدير XLSX' },
   exportPdf: { en: 'Export PDF', ar: 'تصدير PDF' },
   exporting: { en: 'Exporting…', ar: 'جارٍ التصدير…' },
