@@ -31,7 +31,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoBackup: false,
   logsEnabled: true,
   logLevel: 'info',
-  uiDesignVersion: 'modern',
 };
 
 interface ThemeContextValue {
