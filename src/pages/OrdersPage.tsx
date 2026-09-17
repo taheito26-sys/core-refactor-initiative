@@ -531,7 +531,36 @@ export default function OrdersPage() {
     enabled: !!merchantProfile?.merchant_id,
   });
 
-  const allBuyerOptions = useMemo<ListedCustomer[]>(() => mergeListedCustomers(state.customers ?? [], connectedCustomers), [connectedCustomers, state.customers]);
+  // How often each buyer actually appears in past trades -- used to put the
+  // merchant's most-used buyers at the top of every picker instead of
+  // whatever order the underlying arrays happen to be in. Keyed by
+  // canonicalized name (not id) so cosmetic near-duplicate Customer rows for
+  // the same real buyer (see customerIdsByCanonicalName) share one count.
+  const customerNameById = useMemo(() => new Map(state.customers.map(c => [c.id, c.name])), [state.customers]);
+  const customerUsageByCanonicalName = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of state.trades) {
+      if (t.voided) continue;
+      const name = customerNameById.get(t.customerId);
+      if (!name) continue;
+      const key = canonicalizeName(name);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [state.trades, customerNameById]);
+  const sortByCustomerUsage = useCallback(<T extends { name: string }>(list: T[]): T[] => {
+    return [...list].sort((a, b) => {
+      const usageA = customerUsageByCanonicalName.get(canonicalizeName(a.name)) ?? 0;
+      const usageB = customerUsageByCanonicalName.get(canonicalizeName(b.name)) ?? 0;
+      if (usageB !== usageA) return usageB - usageA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [customerUsageByCanonicalName]);
+  const sortedCustomers = useMemo(() => sortByCustomerUsage(state.customers), [state.customers, sortByCustomerUsage]);
+  const allBuyerOptions = useMemo<ListedCustomer[]>(
+    () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
+    [connectedCustomers, state.customers, sortByCustomerUsage],
+  );
   const activeTradeIds = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided).map((t) => t.id)),
     [state.trades],
@@ -4751,7 +4780,7 @@ export default function OrdersPage() {
                               style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                             >
                               <option value="">{t('noCustomerSelected')}</option>
-                              {state.customers.filter(c => c.id !== buyerId).map(c => (
+                              {sortedCustomers.filter(c => c.id !== buyerId).map(c => (
                                 <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
                               ))}
                             </select>
@@ -5810,7 +5839,7 @@ export default function OrdersPage() {
                   style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="">{t('noCustomerSelected')}</option>
-                  {state.customers.map(c => (
+                  {sortedCustomers.map(c => (
                     <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
                   ))}
                 </select>
@@ -5946,7 +5975,7 @@ export default function OrdersPage() {
                             style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                           >
                             <option value="">{t('noCustomerSelected')}</option>
-                            {state.customers.filter(c => c.id !== editCustomerId).map(c => (
+                            {sortedCustomers.filter(c => c.id !== editCustomerId).map(c => (
                               <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
                             ))}
                           </select>

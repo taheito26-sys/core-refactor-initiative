@@ -227,6 +227,10 @@ export default function StockPage() {
   
   const supplierOptions = useMemo(() => {
     const byNormalized = new Map<string, string>();
+    // Suppliers aren't a first-class id here -- a batch only carries a free-text
+    // `source` name -- so "most frequently used" is just how many batches were
+    // bought from that (normalized) name.
+    const usageCount = new Map<string, number>();
     (state.suppliers || []).forEach((supplier) => {
       const cleaned = typeof supplier.name === 'string' ? supplier.name.trim() : '';
       if (!cleaned) return;
@@ -240,8 +244,16 @@ export default function StockPage() {
       const normalized = cleaned.toLocaleLowerCase();
       if (!normalized) return;
       if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+      usageCount.set(normalized, (usageCount.get(normalized) ?? 0) + 1);
     });
-    return Array.from(byNormalized.values()).sort((a, b) => a.localeCompare(b));
+    return Array.from(byNormalized.entries())
+      .sort(([aKey, aName], [bKey, bName]) => {
+        const usageA = usageCount.get(aKey) ?? 0;
+        const usageB = usageCount.get(bKey) ?? 0;
+        if (usageB !== usageA) return usageB - usageA;
+        return aName.localeCompare(bName);
+      })
+      .map(([, name]) => name);
   }, [state.batches, state.suppliers]);
 
   const supplierLookup = useMemo(() => {
