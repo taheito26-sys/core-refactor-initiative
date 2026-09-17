@@ -552,9 +552,21 @@ Deno.serve(async (req: Request) => {
 
     if (action === "transfers" || action === "all") {
       try {
-        const { rows: transfers, failures } = exchange === "binance"
+        const { rows: rawTransfers, failures } = exchange === "binance"
           ? await fetchBinanceTransfers(creds)
           : await fetchOkxTransfers(creds);
+
+        // Postgres rejects an upsert batch that hits the same conflict target
+        // (user_id, exchange, kind, direction, reference) twice in one
+        // command ("ON CONFLICT DO UPDATE command cannot affect row a second
+        // time") -- OKX's deposit/withdrawal history can legitimately repeat
+        // the same reference (e.g. a resubmitted/duplicated ledger entry), so
+        // dedupe on that same key before upserting.
+        const transferByKey = new Map<string, TransferRow>();
+        for (const tr of rawTransfers) {
+          transferByKey.set(`${tr.kind}|${tr.direction}|${tr.reference}`, tr);
+        }
+        const transfers = Array.from(transferByKey.values());
 
         if (transfers.length > 0) {
           const { error } = await admin.from("exchange_transfers").upsert(
