@@ -71,19 +71,6 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function KpiCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{
-      flex: '1 1 120px', minWidth: 100, padding: '8px 12px',
-      border: '1px solid var(--line)', borderRadius: 8,
-      background: 'var(--surface)',
-    }}>
-      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono, monospace)', color: color || 'var(--fg)', marginTop: 2 }}>{value}</div>
-    </div>
-  );
-}
-
 type CustomerRow = Customer & { source?: 'local' | 'connected' };
 
 /**
@@ -236,23 +223,6 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
     return { trades: trades.length, totalUSDT, totalQAR: totalRevenue, pnl, lastTrade };
   };
 
-  const kpis = useMemo(() => {
-    const allTrades = state.trades.filter(tr => !tr.voided);
-    const totalUSDT = allTrades.reduce((s, tr) => s + tr.amountUSDT, 0);
-    const netPnl = allTrades.reduce((s, tr) => {
-      const calc = derived.tradeCalc.get(tr.id);
-      return s + (calc?.ok ? calc.netQAR : 0);
-    }, 0);
-    const linkedTrades = allTrades.filter(tr => tr.linkedRelId).length;
-    const tierCounts = { A: 0, B: 0, C: 0 };
-    for (const c of customers) {
-      if (c.tier === 'A') tierCounts.A++;
-      else if (c.tier === 'B') tierCounts.B++;
-      else tierCounts.C++;
-    }
-    return { clients: customers.length, totalUSDT, netPnl, linkedTrades, tierCounts };
-  }, [state.trades, derived.tradeCalc, customers]);
-
   const openAddCustomer = () => {
     setEditingCust(null);
     setCustForm(blankCustomer());
@@ -302,16 +272,6 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <KpiCard label="Clients" value={kpis.clients} />
-        <KpiCard label="USDT Vol" value={fmtTotal(kpis.totalUSDT)} />
-        <KpiCard label="Net P&L" value={(kpis.netPnl >= 0 ? '+' : '') + fmtTotal(kpis.netPnl)} color={kpis.netPnl >= 0 ? 'var(--good)' : 'var(--bad)'} />
-        <KpiCard label="Linked Trades" value={kpis.linkedTrades} />
-        <KpiCard label="⭐ A" value={kpis.tierCounts.A} color="var(--good)" />
-        <KpiCard label="🔵 B" value={kpis.tierCounts.B} color="hsl(210 80% 60%)" />
-        <KpiCard label="🔴 C" value={kpis.tierCounts.C} color="var(--bad)" />
-      </div>
-
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
