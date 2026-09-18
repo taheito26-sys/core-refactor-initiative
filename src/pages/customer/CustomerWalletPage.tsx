@@ -10,6 +10,7 @@ import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { fmtTotal } from "@/lib/tracker-helpers";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
 import { useMonthlyStatementExport } from "@/features/stock/utils/useMonthlyStatementExport";
+import { useLoanPaymentClaims } from "@/hooks/useLoanPaymentClaims";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -298,6 +299,82 @@ function AccountModal({ existing, onSave, onClose, lang }: {
   );
 }
 
+// ── Log a Loan Payment Modal ────────────────────────────────────────
+// Reports a payment the customer made outside the app (bank transfer, cash,
+// etc.) against one of their loans. This never touches the merchant's
+// tracker directly -- it inserts a loan_payment_claims row the merchant
+// reviews on their own device before it becomes a real repayment. See
+// supabase/migrations/*_loan_payment_claims.sql for why.
+
+interface StatementLinkOption {
+  merchantUserId: string;
+  customerId: string;
+  currency: string;
+}
+
+function LogPaymentModal({ links, onSave, onClose, lang, saving }: {
+  links: StatementLinkOption[];
+  onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string }) => void;
+  onClose: () => void; lang: string; saving: boolean;
+}) {
+  const L = (en: string, ar: string) => lang === "ar" ? ar : en;
+  const [linkIndex, setLinkIndex] = useState(0);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const link = links[linkIndex];
+  const amtNum = parseFloat(amount) || 0;
+
+  const handle = () => {
+    if (!link) { setErr(L("No linked loan found", "لا يوجد قرض مرتبط")); return; }
+    if (!(amtNum > 0)) { setErr(L("Enter a valid amount", "أدخل مبلغاً صحيحاً")); return; }
+    onSave({ merchantUserId: link.merchantUserId, customerId: link.customerId, currency: link.currency, amount: amtNum, note: note.trim() || undefined });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-sm">💸 {L("Log a Payment", "تسجيل دفعة")}</p>
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {L(
+            "Tell your merchant you paid them outside the app. They'll confirm it before it's applied.",
+            "أخبر تاجرك أنك دفعت له خارج التطبيق. سيقوم بتأكيدها قبل تطبيقها.",
+          )}
+        </p>
+        {links.length > 1 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{L("Currency", "العملة")}</label>
+            <select value={linkIndex} onChange={e => setLinkIndex(Number(e.target.value))}
+              className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
+              {links.map((l, i) => <option key={`${l.merchantUserId}-${l.currency}`} value={i}>{l.currency}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">{L("Amount", "المبلغ")} {link ? `(${link.currency})` : ""}</label>
+          <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+            placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">{L("Note (optional)", "ملاحظة (اختياري)")}</label>
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder={L("e.g. bank transfer ref #1234", "مثل: تحويل بنكي رقم 1234")}
+            className="h-10 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        {err && <p className="text-xs text-destructive">⚠ {err}</p>}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L("Cancel", "إلغاء")}</button>
+          <button onClick={handle} disabled={saving} className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60">
+            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : L("Submit", "إرسال")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────
 
 export default function CustomerWalletPage() {
@@ -319,6 +396,7 @@ export default function CustomerWalletPage() {
   const [expandedLedgerAccountId, setExpandedLedgerAccountId] = useState<string | null>(null);
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [showLogPayment, setShowLogPayment] = useState(false);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -346,6 +424,25 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
     refetchInterval: 20000,
   });
+
+  // Which (merchant, customer_id, currency) loans this customer is
+  // authorized to log a payment against -- the same buyer_statement_links
+  // rows that already gate their read-only loan statement above.
+  const { data: statementLinks = [] } = useQuery({
+    queryKey: ["customer-statement-links", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buyer_statement_links")
+        .select("user_id, customer_id, currency")
+        .eq("customer_user_id", userId)
+        .is("revoked_at", null);
+      if (error) return [];
+      return (data ?? []).map(l => ({ merchantUserId: l.user_id, customerId: l.customer_id, currency: l.currency }));
+    },
+    enabled: !!userId,
+  });
+
+  const { claims: myPaymentClaims, submitClaim } = useLoanPaymentClaims("customer");
 
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
@@ -866,6 +963,47 @@ export default function CustomerWalletPage() {
                 </div>
               </div>
 
+              {/* Log a payment — reports a payment made outside the app
+                  (bank transfer, cash, etc.) for the merchant to confirm. */}
+              {statementLinks.length > 0 && (
+                <button
+                  onClick={() => setShowLogPayment(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 py-3 text-sm font-bold text-primary hover:bg-primary/10 transition-colors"
+                >
+                  💸 {L("Log a Payment", "تسجيل دفعة")}
+                </button>
+              )}
+
+              {/* My submitted payment claims — pending/accepted/rejected. */}
+              {myPaymentClaims.length > 0 && (
+                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border/40">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("My Reported Payments", "دفعاتي المُبلغ عنها")}</p>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {myPaymentClaims.map(c => (
+                      <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {new Date(c.createdAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
+                            {c.note ? ` · ${c.note}` : ""}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                          c.status === "pending" && "bg-amber-500/15 text-amber-600",
+                          c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
+                          c.status === "rejected" && "bg-rose-500/15 text-rose-600",
+                        )}>
+                          {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Monthly breakdown — every month with a payment, newest
                   first, each bar scaled against that month's own peak. */}
               {monthlyPaymentBreakdown.length > 1 && (
@@ -1089,6 +1227,13 @@ export default function CustomerWalletPage() {
             addLedgerEntry.mutate(out);
             addLedgerEntry.mutate(inn);
             toast.success(L("Transfer complete", "تم التحويل"));
+          }} />
+      )}
+      {showLogPayment && (
+        <LogPaymentModal lang={lang} links={statementLinks} saving={submitClaim.isPending}
+          onClose={() => setShowLogPayment(false)}
+          onSave={input => {
+            submitClaim.mutate(input, { onSuccess: () => setShowLogPayment(false) });
           }} />
       )}
     </div>

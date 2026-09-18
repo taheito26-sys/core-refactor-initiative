@@ -7,12 +7,13 @@ import {
   type CashLedgerEntry, type LedgerEntryType,
   type CustomerLoan, type LoanRepayment, type Customer, type Trade,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
-  getLoanRepaid, getLoanRemaining,
+  getLoanRepaid, getLoanRemaining, customerNameVariants,
 } from '@/lib/tracker-helpers';
 import { useT } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
+import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
 import { deleteCashAccountLedgerFromCloud, deleteCashAccountFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
@@ -2965,6 +2966,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     cancelRequest,
   } = useCashCustodyRequests();
 
+  const { pending: pendingPaymentClaims, reviewClaim } = useLoanPaymentClaims('merchant');
+
   const myMerchantId = merchantProfile?.merchant_id ?? '';
   const myUserId = user?.id ?? '';
 
@@ -3275,6 +3278,57 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setSplitPaymentStatement(null);
     return ok;
+  };
+
+  /**
+   * Applies a customer-submitted payment claim (loan_payment_claims) as a
+   * real repayment: auto-allocates the claimed amount across that buyer's
+   * open loans in that currency, oldest first — same algorithm as the cash
+   * counter's "auto-allocate" — then marks the claim accepted. No cash
+   * account is credited (accountId: null) since the merchant is confirming
+   * money already received outside the app, not counting it in here; they
+   * can edit the resulting repayment afterward if they do want it tied to
+   * an account.
+   */
+  const acceptPaymentClaim = async (claim: { id: string; customerId: string; currency: string; amount: number; note: string | null }) => {
+    const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
+    const nameKeys = claimCustomer ? new Set(customerNameVariants(claimCustomer).map(canonicalizeName)) : new Set<string>();
+    const matchingIds = new Set(
+      (state.customers || [])
+        .filter(c => c.id === claim.customerId || customerNameVariants(c).some(v => nameKeys.has(canonicalizeName(v))))
+        .map(c => c.id),
+    );
+    const openLoans = loans
+      .filter(l => matchingIds.has(l.customerId) && l.currency === claim.currency && getLoanRemaining(l) > 0)
+      .sort((a, b) => a.ts - b.ts);
+
+    let budget = claim.amount;
+    const allocations: Array<{ loan: CustomerLoan; amount: number }> = [];
+    for (const loan of openLoans) {
+      if (budget <= 0) break;
+      const amt = Math.min(getLoanRemaining(loan), budget);
+      if (!(amt > 0)) continue;
+      allocations.push({ loan, amount: amt });
+      budget -= amt;
+    }
+
+    if (allocations.length === 0) {
+      toast.error(t('loanPaymentClaimNoOpenLoans') || 'No open loan found for this customer in that currency — nothing to apply.');
+      return;
+    }
+
+    const note = claim.note ? `${t('customerReportedPayment') || 'Customer-reported'}: ${claim.note}` : (t('customerReportedPayment') || 'Customer-reported payment');
+    try {
+      if (allocations.length === 1) {
+        await addLoanRepayment(allocations[0].loan, null, allocations[0].amount, Date.now(), note);
+      } else {
+        const ok = await addSplitLoanRepayment(allocations, null, Date.now(), note);
+        if (!ok) throw new Error('Save failed');
+      }
+      reviewClaim.mutate({ id: claim.id, action: 'accept' });
+    } catch (err) {
+      console.error('[CashManagement] acceptPaymentClaim failed:', err);
+    }
   };
 
   /**
@@ -3934,6 +3988,40 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
             </div>
           </div>
+
+          {/* ── CUSTOMER-REPORTED PAYMENTS awaiting review — a customer
+              logged a payment from their portal; nothing is applied to the
+              loan until accepted here. ── */}
+          {pendingPaymentClaims.length > 0 && (
+            <div className="panel" style={{ marginBottom: 10 }}>
+              <div className="panel-head"><h2>💸 {t('loanPaymentClaimsTitle') || 'Customer-Reported Payments'}</h2></div>
+              <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pendingPaymentClaims.map(claim => {
+                  const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
+                  return (
+                    <div key={claim.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
+                      <div style={{ flex: 1, minWidth: 180 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700 }}>{claimCustomer?.name || claim.customerId}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          {fmtTotal(claim.amount)} {claim.currency}{claim.note ? ` — ${claim.note}` : ''} · {new Date(claim.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn" style={{ fontSize: 10, padding: '5px 10px', background: 'var(--good)', color: '#000' }}
+                          onClick={() => acceptPaymentClaim(claim)}>
+                          ✓ {t('custodyAccept') || 'Accept'}
+                        </button>
+                        <button className="rowBtn" style={{ fontSize: 10 }}
+                          onClick={() => reviewClaim.mutate({ id: claim.id, action: 'reject' })}>
+                          ✕ {t('custodyReject') || 'Reject'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* The book in one line per currency: loaned, repaid, still owed */}
           {bookTotals.length > 0 && (

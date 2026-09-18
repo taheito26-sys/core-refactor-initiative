@@ -1885,6 +1885,11 @@ const translations = {
   exchangeLoanCreated: { en: 'Loan created from exchange order', ar: 'تم إنشاء القرض من طلب المنصة' },
   exchangeLoanCreateFailed: { en: 'Could not create the loan', ar: 'تعذر إنشاء القرض' },
 
+  // Customer-reported loan payment claims (customer portal -> merchant review)
+  loanPaymentClaimsTitle: { en: 'Customer-Reported Payments', ar: 'دفعات أبلغ عنها العملاء' },
+  loanPaymentClaimNoOpenLoans: { en: 'No open loan found for this customer in that currency — nothing to apply.', ar: 'لا يوجد قرض مفتوح لهذا العميل بهذه العملة — لا شيء لتطبيقه.' },
+  customerReportedPayment: { en: 'Customer-reported', ar: 'أبلغ عنه العميل' },
+
   // Loans page — buyer accounts (receivables ledger)
   loanReceivables: { en: 'Receivables', ar: 'الذمم المدينة' },
   loanBuyerAccounts: { en: 'Buyer accounts', ar: 'حسابات المشترين' },
