@@ -307,24 +307,56 @@ export default function MobileInstallPrompt() {
               </p>
             </div>
           ) : isIOS ? (
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
-              <div className="font-semibold text-foreground flex items-center gap-1.5">
-                <Share className="h-4 w-4 text-primary" />
-                iOS (iPhone / iPad) installation steps:
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-3">
+              <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <Share className="h-4 w-4 text-primary shrink-0" />
+                iOS (iPhone / iPad) installation steps
               </div>
-              <ol className="list-decimal space-y-1.5 ps-4 font-medium">
-                <li>
-                  Tap the <strong>Share</strong> button at the bottom of Safari.
-                </li>
-                <li>
-                  Scroll down and select <strong>Add to Home Screen</strong> (
-                  <PlusSquare className="inline h-3.5 w-3.5" />
-                  ).
-                </li>
-                <li>
-                  Tap <strong>Add</strong>, then launch The Tracker from your home screen.
-                </li>
-              </ol>
+              {!/CriOS|FxiOS/i.test(userAgent) && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-foreground">
+                  This only works in <strong>Safari</strong>. If you opened this link elsewhere,
+                  copy it and paste it into Safari first.
+                </div>
+              )}
+              <div className="space-y-2.5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    1
+                  </span>
+                  <p className="pt-0.5 text-sm font-medium leading-snug text-foreground">
+                    Tap the <strong>Share</strong> icon{" "}
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/60 bg-background align-middle">
+                      <Share className="h-3.5 w-3.5" />
+                    </span>{" "}
+                    — a square with an arrow pointing up. It's in Safari's toolbar, usually at
+                    the <strong>bottom</strong> of the screen on iPhone (<strong>top</strong> on
+                    iPad).
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    2
+                  </span>
+                  <p className="pt-0.5 text-sm font-medium leading-snug text-foreground">
+                    Swipe down the menu that opens and tap{" "}
+                    <strong>Add to Home Screen</strong>{" "}
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/60 bg-background align-middle">
+                      <PlusSquare className="h-3.5 w-3.5" />
+                    </span>
+                    . If you don't see it, tap <strong>Edit Actions...</strong> at the bottom of
+                    the list and add it.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    3
+                  </span>
+                  <p className="pt-0.5 text-sm font-medium leading-snug text-foreground">
+                    Tap <strong>Add</strong> in the top corner, then close Safari and open{" "}
+                    <strong>The Tracker</strong> from the icon now on your home screen.
+                  </p>
+                </div>
+              </div>
             </div>
           ) : edgeAndroid && !deferredPrompt ? (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
