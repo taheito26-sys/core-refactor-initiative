@@ -3290,7 +3290,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    * can edit the resulting repayment afterward if they do want it tied to
    * an account.
    */
-  const acceptPaymentClaim = async (claim: { id: string; customerId: string; currency: string; amount: number; note: string | null }) => {
+  const acceptPaymentClaim = async (claim: { id: string; customerId: string; currency: string; amount: number; note: string | null; paidAt: string }) => {
     const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
     const nameKeys = claimCustomer ? new Set(customerNameVariants(claimCustomer).map(canonicalizeName)) : new Set<string>();
     const matchingIds = new Set(
@@ -3318,11 +3318,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     }
 
     const note = claim.note ? `${t('customerReportedPayment') || 'Customer-reported'}: ${claim.note}` : (t('customerReportedPayment') || 'Customer-reported payment');
+    // The date the customer says they paid, not "now" -- so the repayment
+    // lands on the tracker's timeline where it actually happened, matching
+    // what the customer sees on their own submission.
+    const ts = new Date(claim.paidAt).getTime() || Date.now();
     try {
       if (allocations.length === 1) {
-        await addLoanRepayment(allocations[0].loan, null, allocations[0].amount, Date.now(), note);
+        await addLoanRepayment(allocations[0].loan, null, allocations[0].amount, ts, note);
       } else {
-        const ok = await addSplitLoanRepayment(allocations, null, Date.now(), note);
+        const ok = await addSplitLoanRepayment(allocations, null, ts, note);
         if (!ok) throw new Error('Save failed');
       }
       reviewClaim.mutate({ id: claim.id, action: 'accept' });
@@ -4003,7 +4007,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                       <div style={{ flex: 1, minWidth: 180 }}>
                         <div style={{ fontSize: 11, fontWeight: 700 }}>{claimCustomer?.name || claim.customerId}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          {fmtTotal(claim.amount)} {claim.currency}{claim.note ? ` — ${claim.note}` : ''} · {new Date(claim.createdAt).toLocaleDateString()}
+                          {fmtTotal(claim.amount)} {claim.currency}{claim.note ? ` — ${claim.note}` : ''} · {new Date(claim.paidAt).toLocaleDateString()}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>

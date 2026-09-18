@@ -13,6 +13,8 @@ export interface LoanPaymentClaim {
   amount: number;
   note: string | null;
   status: 'pending' | 'accepted' | 'rejected';
+  /** When the customer says the payment was actually made -- editable while pending. */
+  paidAt: string;
   createdAt: string;
   reviewedAt: string | null;
 }
@@ -28,6 +30,7 @@ function rowToClaim(r: any): LoanPaymentClaim {
     amount: Number(r.amount),
     note: r.note ?? null,
     status: r.status,
+    paidAt: r.paid_at ?? r.created_at,
     createdAt: r.created_at,
     reviewedAt: r.reviewed_at ?? null,
   };
@@ -81,7 +84,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
   }, [user?.id, role, qc]);
 
   const submitClaim = useMutation({
-    mutationFn: async (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string }) => {
+    mutationFn: async (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt?: number }) => {
       if (!user?.id) throw new Error('Not authenticated');
       const { error } = await supabase
         .from('loan_payment_claims' as any)
@@ -92,6 +95,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
           currency: input.currency,
           amount: input.amount,
           note: input.note ?? null,
+          ...(input.paidAt ? { paid_at: new Date(input.paidAt).toISOString() } : {}),
         });
       if (error) throw error;
     },
@@ -100,6 +104,26 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       toast.success('Payment reported to your merchant');
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not submit payment'),
+  });
+
+  /** Corrects a still-pending claim's amount/note/date -- RLS refuses this once a merchant has reviewed it. */
+  const updateClaim = useMutation({
+    mutationFn: async (input: { id: string; amount: number; note?: string; paidAt: number }) => {
+      const { error } = await supabase
+        .from('loan_payment_claims' as any)
+        .update({
+          amount: input.amount,
+          note: input.note ?? null,
+          paid_at: new Date(input.paidAt).toISOString(),
+        })
+        .eq('id', input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
+      toast.success('Payment updated');
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not update payment'),
   });
 
   const reviewClaim = useMutation({
@@ -121,6 +145,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     pending: (query.data ?? []).filter(c => c.status === 'pending'),
     isLoading: query.isLoading,
     submitClaim,
+    updateClaim,
     reviewClaim,
   };
 }

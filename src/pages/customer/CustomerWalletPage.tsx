@@ -312,39 +312,58 @@ interface StatementLinkOption {
   currency: string;
 }
 
-function LogPaymentModal({ links, onSave, onClose, lang, saving }: {
+function dateInputValue(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function LogPaymentModal({ links, existing, onSave, onClose, lang, saving }: {
   links: StatementLinkOption[];
-  onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string }) => void;
+  /** Present when correcting an already-submitted (still pending) claim instead of logging a new one. */
+  existing?: { id: string; currency: string; amount: number; note: string | null; paidAt: string };
+  onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt: number }) => void;
   onClose: () => void; lang: string; saving: boolean;
 }) {
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const [linkIndex, setLinkIndex] = useState(0);
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
+  const [note, setNote] = useState(existing?.note || "");
+  const [dateStr, setDateStr] = useState(dateInputValue(existing ? new Date(existing.paidAt).getTime() : Date.now()));
   const [err, setErr] = useState("");
   const link = links[linkIndex];
   const amtNum = parseFloat(amount) || 0;
 
   const handle = () => {
-    if (!link) { setErr(L("No linked loan found", "لا يوجد قرض مرتبط")); return; }
+    if (!existing && !link) { setErr(L("No linked loan found", "لا يوجد قرض مرتبط")); return; }
     if (!(amtNum > 0)) { setErr(L("Enter a valid amount", "أدخل مبلغاً صحيحاً")); return; }
-    onSave({ merchantUserId: link.merchantUserId, customerId: link.customerId, currency: link.currency, amount: amtNum, note: note.trim() || undefined });
+    const paidAt = new Date(`${dateStr}T00:00:00`).getTime();
+    if (!Number.isFinite(paidAt)) { setErr(L("Enter a valid date", "أدخل تاريخاً صحيحاً")); return; }
+    onSave({
+      merchantUserId: link?.merchantUserId ?? "",
+      customerId: link?.customerId ?? "",
+      currency: existing?.currency ?? link!.currency,
+      amount: amtNum,
+      note: note.trim() || undefined,
+      paidAt,
+    });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-t-2xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <p className="font-bold text-sm">💸 {L("Log a Payment", "تسجيل دفعة")}</p>
+          <p className="font-bold text-sm">💸 {existing ? L("Edit Payment", "تعديل الدفعة") : L("Log a Payment", "تسجيل دفعة")}</p>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {L(
-            "Tell your merchant you paid them outside the app. They'll confirm it before it's applied.",
-            "أخبر تاجرك أنك دفعت له خارج التطبيق. سيقوم بتأكيدها قبل تطبيقها.",
-          )}
-        </p>
-        {links.length > 1 && (
+        {!existing && (
+          <p className="text-xs text-muted-foreground">
+            {L(
+              "Tell your merchant you paid them outside the app. They'll confirm it before it's applied.",
+              "أخبر تاجرك أنك دفعت له خارج التطبيق. سيقوم بتأكيدها قبل تطبيقها.",
+            )}
+          </p>
+        )}
+        {!existing && links.length > 1 && (
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("Currency", "العملة")}</label>
             <select value={linkIndex} onChange={e => setLinkIndex(Number(e.target.value))}
@@ -353,10 +372,17 @@ function LogPaymentModal({ links, onSave, onClose, lang, saving }: {
             </select>
           </div>
         )}
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">{L("Amount", "المبلغ")} {link ? `(${link.currency})` : ""}</label>
-          <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-            placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{L("Amount", "المبلغ")} {existing?.currency || link ? `(${existing?.currency ?? link?.currency})` : ""}</label>
+            <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{L("Date paid", "تاريخ الدفع")}</label>
+            <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} max={dateInputValue(Date.now())}
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{L("Note (optional)", "ملاحظة (اختياري)")}</label>
@@ -367,7 +393,7 @@ function LogPaymentModal({ links, onSave, onClose, lang, saving }: {
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L("Cancel", "إلغاء")}</button>
           <button onClick={handle} disabled={saving} className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60">
-            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : L("Submit", "إرسال")}
+            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : existing ? L("Save", "حفظ") : L("Submit", "إرسال")}
           </button>
         </div>
       </div>
@@ -397,6 +423,7 @@ export default function CustomerWalletPage() {
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [showLogPayment, setShowLogPayment] = useState(false);
+  const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -442,7 +469,8 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
-  const { claims: myPaymentClaims, submitClaim } = useLoanPaymentClaims("customer");
+  const { claims: myPaymentClaims, submitClaim, updateClaim } = useLoanPaymentClaims("customer");
+  const editingClaim = myPaymentClaims.find(c => c.id === editingClaimId) || null;
 
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
@@ -986,18 +1014,25 @@ export default function CustomerWalletPage() {
                         <div className="min-w-0">
                           <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
                           <p className="text-[10px] text-muted-foreground truncate">
-                            {new Date(c.createdAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
+                            {new Date(c.paidAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
                             {c.note ? ` · ${c.note}` : ""}
                           </p>
                         </div>
-                        <span className={cn(
-                          "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold",
-                          c.status === "pending" && "bg-amber-500/15 text-amber-600",
-                          c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
-                          c.status === "rejected" && "bg-rose-500/15 text-rose-600",
-                        )}>
-                          {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {c.status === "pending" && (
+                            <button onClick={() => setEditingClaimId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <span className={cn(
+                            "rounded-full px-2.5 py-1 text-[10px] font-bold",
+                            c.status === "pending" && "bg-amber-500/15 text-amber-600",
+                            c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
+                            c.status === "rejected" && "bg-rose-500/15 text-rose-600",
+                          )}>
+                            {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1234,6 +1269,14 @@ export default function CustomerWalletPage() {
           onClose={() => setShowLogPayment(false)}
           onSave={input => {
             submitClaim.mutate(input, { onSuccess: () => setShowLogPayment(false) });
+          }} />
+      )}
+      {editingClaim && (
+        <LogPaymentModal lang={lang} links={statementLinks} saving={updateClaim.isPending}
+          existing={{ id: editingClaim.id, currency: editingClaim.currency, amount: editingClaim.amount, note: editingClaim.note, paidAt: editingClaim.paidAt }}
+          onClose={() => setEditingClaimId(null)}
+          onSave={input => {
+            updateClaim.mutate({ id: editingClaim.id, amount: input.amount, note: input.note, paidAt: input.paidAt }, { onSuccess: () => setEditingClaimId(null) });
           }} />
       )}
     </div>
