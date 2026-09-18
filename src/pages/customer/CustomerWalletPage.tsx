@@ -455,6 +455,7 @@ export default function CustomerWalletPage() {
   // Which (merchant, customer_id, currency) loans this customer is
   // authorized to log a payment against -- the same buyer_statement_links
   // rows that already gate their read-only loan statement above.
+  const [statementLinksDebug, setStatementLinksDebug] = useState<string | null>(null);
   const { data: statementLinks = [] } = useQuery({
     queryKey: ["customer-statement-links", userId],
     queryFn: async () => {
@@ -465,8 +466,10 @@ export default function CustomerWalletPage() {
         .is("revoked_at", null);
       if (error) {
         console.warn("[CustomerWalletPage] statement-links query error:", error.message);
+        setStatementLinksDebug(`error: ${error.message}`);
         return [];
       }
+      setStatementLinksDebug(`rows: ${(data ?? []).length}`);
       return (data ?? []).map(l => ({ merchantUserId: l.user_id, customerId: l.customer_id, currency: l.currency }));
     },
     enabled: !!userId,
@@ -993,6 +996,12 @@ export default function CustomerWalletPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Temporary diagnostic line -- remove once the Log a Payment
+                  visibility issue is confirmed fixed. */}
+              {statementLinksDebug && (
+                <p className="text-center text-[10px] text-muted-foreground/60">debug: {statementLinksDebug}</p>
+              )}
 
               {/* Log a payment — reports a payment made outside the app
                   (bank transfer, cash, etc.) for the merchant to confirm. */}
