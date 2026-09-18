@@ -463,7 +463,10 @@ export default function CustomerWalletPage() {
         .select("user_id, customer_id, currency")
         .eq("customer_user_id", userId)
         .is("revoked_at", null);
-      if (error) return [];
+      if (error) {
+        console.warn("[CustomerWalletPage] statement-links query error:", error.message);
+        return [];
+      }
       return (data ?? []).map(l => ({ merchantUserId: l.user_id, customerId: l.customer_id, currency: l.currency }));
     },
     enabled: !!userId,
