@@ -38,3 +38,6 @@ ios/DerivedData
 
 # Generated buyer statements (scripts/generate-buyer-statement.ts output)
 /out/
+
+# Scratch git worktrees created by isolated background agents
+.claude/worktrees/
