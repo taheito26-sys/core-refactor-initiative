@@ -126,6 +126,22 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not update payment'),
   });
 
+  /** Withdraws a still-pending claim -- RLS refuses this once a merchant has reviewed it. */
+  const deleteClaim = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('loan_payment_claims' as any)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
+      toast.success('Payment report deleted');
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not delete payment'),
+  });
+
   const reviewClaim = useMutation({
     mutationFn: async (input: { id: string; action: 'accept' | 'reject' }) => {
       const { error } = await supabase
@@ -146,6 +162,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     isLoading: query.isLoading,
     submitClaim,
     updateClaim,
+    deleteClaim,
     reviewClaim,
   };
 }

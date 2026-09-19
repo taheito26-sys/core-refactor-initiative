@@ -435,6 +435,7 @@ export default function CustomerWalletPage() {
   const [noteDraft, setNoteDraft] = useState("");
   const [showLogPayment, setShowLogPayment] = useState(false);
   const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
+  const [deleteClaimPromptId, setDeleteClaimPromptId] = useState<string | null>(null);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -483,7 +484,7 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
-  const { claims: myPaymentClaims, submitClaim, updateClaim } = useLoanPaymentClaims("customer");
+  const { claims: myPaymentClaims, submitClaim, updateClaim, deleteClaim } = useLoanPaymentClaims("customer");
   const editingClaim = myPaymentClaims.find(c => c.id === editingClaimId) || null;
   // Once a claim is accepted it becomes a real repayment on the merchant's
   // tracker and already appears in the unified "Payments Received" list
@@ -1036,30 +1037,50 @@ export default function CustomerWalletPage() {
                   </div>
                   <div className="divide-y divide-border/40">
                     {unsettledPaymentClaims.map(c => (
-                      <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {new Date(c.paidAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
-                            {c.note ? ` · ${c.note}` : ""}
-                          </p>
+                      deleteClaimPromptId === c.id ? (
+                        <div key={c.id} className="flex items-center gap-2 px-4 py-2.5">
+                          <p className="flex-1 text-xs text-rose-600">{L("Delete this reported payment?", "حذف هذه الدفعة المُبلغ عنها؟")}</p>
+                          <button
+                            onClick={() => { deleteClaim.mutate(c.id); setDeleteClaimPromptId(null); }}
+                            className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white"
+                          >
+                            {L("Delete", "حذف")}
+                          </button>
+                          <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-3 py-1 text-xs font-semibold hover:bg-muted">
+                            {L("Cancel", "إلغاء")}
+                          </button>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {c.status === "pending" && (
-                            <button onClick={() => setEditingClaimId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          <span className={cn(
-                            "rounded-full px-2.5 py-1 text-[10px] font-bold",
-                            c.status === "pending" && "bg-amber-500/15 text-amber-600",
-                            c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
-                            c.status === "rejected" && "bg-rose-500/15 text-rose-600",
-                          )}>
-                            {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
-                          </span>
+                      ) : (
+                        <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {new Date(c.paidAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
+                              {c.note ? ` · ${c.note}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {c.status === "pending" && (
+                              <>
+                                <button onClick={() => setEditingClaimId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => setDeleteClaimPromptId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                            <span className={cn(
+                              "rounded-full px-2.5 py-1 text-[10px] font-bold",
+                              c.status === "pending" && "bg-amber-500/15 text-amber-600",
+                              c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
+                              c.status === "rejected" && "bg-rose-500/15 text-rose-600",
+                            )}>
+                              {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )
                     ))}
                   </div>
                 </div>
