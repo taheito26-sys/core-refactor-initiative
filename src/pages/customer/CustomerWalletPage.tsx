@@ -67,6 +67,17 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+// The only two strings CashManagement's acceptPaymentClaim ever prefixes an
+// accepted claim's note with (src/lib/i18n.ts customerReportedPayment) --
+// checked directly rather than through a stored flag since the repayment
+// itself is merchant tracker-state, not a relational row this page can add
+// a column to.
+const CUSTOMER_REPORTED_NOTE_PREFIXES = ['Customer-reported', 'أبلغ عنه العميل'];
+function isCustomerReportedNote(note: string | null): boolean {
+  if (!note) return false;
+  return CUSTOMER_REPORTED_NOTE_PREFIXES.some(p => note.startsWith(p));
+}
+
 function getBalance(accountId: string, ledger: LedgerRow[]): number {
   return ledger
     .filter(e => e.account_id === accountId)
@@ -474,14 +485,19 @@ export default function CustomerWalletPage() {
 
   const { claims: myPaymentClaims, submitClaim, updateClaim } = useLoanPaymentClaims("customer");
   const editingClaim = myPaymentClaims.find(c => c.id === editingClaimId) || null;
+  // Once a claim is accepted it becomes a real repayment on the merchant's
+  // tracker and already appears in the unified "Payments Received" list
+  // below (tagged "Added by me") -- keeping it here too would show the same
+  // money twice under two different headings.
+  const unsettledPaymentClaims = useMemo(() => myPaymentClaims.filter(c => c.status !== "accepted"), [myPaymentClaims]);
 
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
   const loanPayments = useMemo(() => {
-    const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null }[] = [];
+    const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null; addedByCustomer: boolean }[] = [];
     for (const s of loanStatements) {
       for (const p of s.payments) {
-        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref });
+        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref, addedByCustomer: isCustomerReportedNote(p.note) });
       }
     }
     return rows.sort((a, b) => b.date - a.date);
@@ -554,13 +570,13 @@ export default function CustomerWalletPage() {
   // sum, and the group's key stays content-based so a note attached to it
   // survives a refetch the same way a single payment's does.
   const groupedLoanPayments = useMemo(() => {
-    const groups = new Map<string, { date: number; amount: number; currency: string; notes: string[]; count: number }>();
+    const groups = new Map<string, { date: number; amount: number; currency: string; notes: string[]; count: number; addedByCustomer: boolean }>();
     const order: string[] = [];
     for (const p of filteredLoanPayments) {
       const gkey = `${p.currency}:${localDayKey(p.date)}`;
       let g = groups.get(gkey);
       if (!g) {
-        g = { date: p.date, amount: 0, currency: p.currency, notes: [], count: 0 };
+        g = { date: p.date, amount: 0, currency: p.currency, notes: [], count: 0, addedByCustomer: false };
         groups.set(gkey, g);
         order.push(gkey);
       }
@@ -568,6 +584,10 @@ export default function CustomerWalletPage() {
       g.date = Math.max(g.date, p.date);
       g.count += 1;
       if (p.note && !g.notes.includes(p.note)) g.notes.push(p.note);
+      // A day's group is "added by me" only if every payment folded into it
+      // was customer-reported -- one merchant-logged entry alongside it
+      // means the merchant is the one who put the money on the books.
+      g.addedByCustomer = (g.count === 1 ? p.addedByCustomer : g.addedByCustomer && p.addedByCustomer);
     }
     return order.map(gkey => {
       const g = groups.get(gkey)!;
@@ -578,6 +598,7 @@ export default function CustomerWalletPage() {
         currency: g.currency,
         note: g.notes.join(' · ') || null,
         count: g.count,
+        addedByCustomer: g.addedByCustomer,
       };
     });
   }, [filteredLoanPayments]);
@@ -1005,14 +1026,16 @@ export default function CustomerWalletPage() {
                 </button>
               )}
 
-              {/* My submitted payment claims — pending/accepted/rejected. */}
-              {myPaymentClaims.length > 0 && (
+              {/* My submitted payment claims still awaiting the merchant's
+                  review — accepted ones already show below, unified into
+                  Payments Received. */}
+              {unsettledPaymentClaims.length > 0 && (
                 <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
                   <div className="px-4 py-3 border-b border-border/40">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("My Reported Payments", "دفعاتي المُبلغ عنها")}</p>
                   </div>
                   <div className="divide-y divide-border/40">
-                    {myPaymentClaims.map(c => (
+                    {unsettledPaymentClaims.map(c => (
                       <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                         <div className="min-w-0">
                           <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
@@ -1173,13 +1196,19 @@ export default function CustomerWalletPage() {
                           <div className="flex items-center gap-3">
                             <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">
+                              <p className="text-xs font-semibold truncate flex items-center gap-1.5">
                                 {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
                                 {p.count > 1 && (
-                                  <span className="ms-1.5 text-[10px] font-semibold text-muted-foreground">
+                                  <span className="text-[10px] font-semibold text-muted-foreground">
                                     ({p.count} {L("payments", "دفعات")})
                                   </span>
                                 )}
+                                <span className={cn(
+                                  "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold",
+                                  p.addedByCustomer ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                                )}>
+                                  {p.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر")}
+                                </span>
                               </p>
                               {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
                             </div>
