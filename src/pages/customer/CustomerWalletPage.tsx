@@ -451,7 +451,10 @@ export default function CustomerWalletPage() {
   // Same edit/delete flow as above, but for a payment the merchant entered
   // directly -- see merchantPaymentClaimByBucket.
   const [editingMerchantPayment, setEditingMerchantPayment] = useState<{ bucket: string; currency: string; amount: number; date: number; note: string | null } | null>(null);
-  const [deleteMerchantPaymentPromptKey, setDeleteMerchantPaymentPromptKey] = useState<string | null>(null);
+  // Shared between the "added by me" and "added by merchant" correction
+  // flows below -- keyed by the payment row's own key, not a claim id,
+  // since a merchant-added row has no claim until a request creates one.
+  const [deletePaymentPromptKey, setDeletePaymentPromptKey] = useState<string | null>(null);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -1299,6 +1302,32 @@ export default function CustomerWalletPage() {
                       const merchantSingle = !p.addedByCustomer ? singlePaymentByBucket.get(p.bucket) : undefined;
                       const merchantRequest = !p.addedByCustomer ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
                       const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
+
+                      // Unifies the two correction flows (a claim the
+                      // customer submitted vs. a request staged fresh
+                      // against a merchant-entered payment) into one shape,
+                      // so the action row below doesn't have to branch on
+                      // which one it's rendering.
+                      const correction = ownClaim
+                        ? {
+                            changeRequest: ownClaim.changeRequest,
+                            onEdit: () => setEditingClaimId(ownClaim.id),
+                            onRequestDelete: () => requestChange.mutate({ id: ownClaim.id, kind: "delete" }),
+                            onCancelRequest: () => requestChange.mutate({ id: ownClaim.id, kind: null }),
+                          }
+                        : merchantSingle && merchantLink
+                        ? {
+                            changeRequest: merchantRequest?.changeRequest ?? null,
+                            onEdit: () => setEditingMerchantPayment({ bucket: p.bucket, currency: p.currency, amount: merchantSingle.amount, date: merchantSingle.date, note: merchantSingle.note }),
+                            onRequestDelete: () => requestMerchantPaymentChange.mutate({
+                              merchantUserId: merchantLink.merchantUserId, customerId: merchantLink.customerId,
+                              currency: p.currency, amount: merchantSingle.amount, paidAt: merchantSingle.date,
+                              kind: "delete",
+                            }),
+                            onCancelRequest: () => merchantRequest && cancelMerchantPaymentChange.mutate(merchantRequest.id),
+                          }
+                        : null;
+
                       return (
                         <div key={p.key} className="px-4 py-2.5">
                           <div className="flex items-center gap-3">
@@ -1313,7 +1342,7 @@ export default function CustomerWalletPage() {
                                 )}
                                 <span className={cn(
                                   "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold",
-                                  p.addedByCustomer ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                                  p.addedByCustomer ? "bg-violet-500/15 text-violet-600" : "bg-blue-500/15 text-blue-600",
                                 )}>
                                   {p.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر")}
                                 </span>
@@ -1325,148 +1354,96 @@ export default function CustomerWalletPage() {
                             </div>
                           </div>
 
-                          {/* Edit / remove — a request the merchant applies,
-                              since the repayment itself sits in their books. */}
-                          {ownClaim && (
-                            ownClaim.changeRequest ? (
-                              <div className="mt-1.5 flex items-center gap-2 ps-10">
-                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
-                                  {ownClaim.changeRequest === "delete"
-                                    ? L("Removal requested", "طُلب الحذف")
-                                    : L("Change requested", "طُلب التعديل")}
-                                </span>
-                                <button
-                                  onClick={() => requestChange.mutate({ id: ownClaim.id, kind: null })}
-                                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
-                                >
-                                  {L("Cancel request", "إلغاء الطلب")}
-                                </button>
-                              </div>
-                            ) : deleteClaimPromptId === ownClaim.id ? (
-                              <div className="mt-1.5 flex items-center gap-2 ps-10">
-                                <p className="flex-1 text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</p>
-                                <button
-                                  onClick={() => { requestChange.mutate({ id: ownClaim.id, kind: "delete" }); setDeleteClaimPromptId(null); }}
-                                  className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
-                                >
-                                  {L("Request", "إرسال")}
-                                </button>
-                                <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
-                                  {L("Cancel", "إلغاء")}
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="mt-1.5 flex items-center gap-3 ps-10">
-                                <button
-                                  onClick={() => setEditingClaimId(ownClaim.id)}
-                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
-                                >
-                                  <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
-                                </button>
-                                <button
-                                  onClick={() => setDeleteClaimPromptId(ownClaim.id)}
-                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
-                                >
-                                  <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
-                                </button>
-                              </div>
-                            )
-                          )}
+                          {/* Edit, delete and note — one line. Edit/Delete
+                              only appear when this row can be tied to a
+                              correction request (own claim, or a single
+                              unambiguous merchant-entered payment); either
+                              way it's a request the merchant applies, since
+                              the repayment itself sits in their books. */}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-3 ps-10">
+                            {correction && (
+                              correction.changeRequest ? (
+                                <>
+                                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
+                                    {correction.changeRequest === "delete"
+                                      ? L("Removal requested", "طُلب الحذف")
+                                      : L("Change requested", "طُلب التعديل")}
+                                  </span>
+                                  <button
+                                    onClick={correction.onCancelRequest}
+                                    className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+                                  >
+                                    {L("Cancel request", "إلغاء الطلب")}
+                                  </button>
+                                </>
+                              ) : deletePaymentPromptKey === p.key ? (
+                                <>
+                                  <span className="text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</span>
+                                  <button
+                                    onClick={() => { correction.onRequestDelete(); setDeletePaymentPromptKey(null); }}
+                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
+                                  >
+                                    {L("Request", "إرسال")}
+                                  </button>
+                                  <button onClick={() => setDeletePaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
+                                    {L("Cancel", "إلغاء")}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={correction.onEdit}
+                                    className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
+                                  >
+                                    <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
+                                  </button>
+                                  <button
+                                    onClick={() => setDeletePaymentPromptKey(p.key)}
+                                    className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
+                                  </button>
+                                </>
+                              )
+                            )}
 
-                          {/* Edit / remove for a payment the merchant added --
-                              same idea as the block above, but there's no
-                              claim to hang the request on until one is sent,
-                              since the merchant never went through the
-                              claim-submission flow for their own entry. */}
-                          {merchantSingle && merchantLink && (
-                            merchantRequest?.changeRequest ? (
-                              <div className="mt-1.5 flex items-center gap-2 ps-10">
-                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
-                                  {merchantRequest.changeRequest === "delete"
-                                    ? L("Removal requested", "طُلب الحذف")
-                                    : L("Change requested", "طُلب التعديل")}
-                                </span>
-                                <button
-                                  onClick={() => cancelMerchantPaymentChange.mutate(merchantRequest.id)}
-                                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
-                                >
-                                  {L("Cancel request", "إلغاء الطلب")}
-                                </button>
-                              </div>
-                            ) : deleteMerchantPaymentPromptKey === p.key ? (
-                              <div className="mt-1.5 flex items-center gap-2 ps-10">
-                                <p className="flex-1 text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</p>
-                                <button
-                                  onClick={() => {
-                                    requestMerchantPaymentChange.mutate({
-                                      merchantUserId: merchantLink.merchantUserId, customerId: merchantLink.customerId,
-                                      currency: p.currency, amount: merchantSingle.amount, paidAt: merchantSingle.date,
-                                      kind: "delete",
-                                    });
-                                    setDeleteMerchantPaymentPromptKey(null);
+                            {/* Customer's own note — separate from the merchant's note above */}
+                            {isEditingNote ? (
+                              <div className="flex flex-1 min-w-[140px] items-center gap-1.5">
+                                <input
+                                  autoFocus
+                                  value={noteDraft}
+                                  onChange={e => setNoteDraft(e.target.value)}
+                                  placeholder={L("Add a note...", "أضف ملاحظة...")}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
+                                    if (e.key === "Escape") setEditingNoteKey(null);
                                   }}
-                                  className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
+                                  className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                                />
+                                <button
+                                  onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
+                                  className="rounded-lg bg-primary p-1.5 text-primary-foreground"
                                 >
-                                  {L("Request", "إرسال")}
-                                </button>
-                                <button onClick={() => setDeleteMerchantPaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
-                                  {L("Cancel", "إلغاء")}
+                                  <Check className="h-3.5 w-3.5" />
                                 </button>
                               </div>
-                            ) : (
-                              <div className="mt-1.5 flex items-center gap-3 ps-10">
-                                <button
-                                  onClick={() => setEditingMerchantPayment({ bucket: p.bucket, currency: p.currency, amount: merchantSingle.amount, date: merchantSingle.date, note: merchantSingle.note })}
-                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
-                                >
-                                  <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
-                                </button>
-                                <button
-                                  onClick={() => setDeleteMerchantPaymentPromptKey(p.key)}
-                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
-                                >
-                                  <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
-                                </button>
-                              </div>
-                            )
-                          )}
-
-                          {/* Customer's own note — separate from the merchant's note above */}
-                          {isEditingNote ? (
-                            <div className="mt-2 flex items-center gap-1.5 ps-10">
-                              <input
-                                autoFocus
-                                value={noteDraft}
-                                onChange={e => setNoteDraft(e.target.value)}
-                                placeholder={L("Add a note...", "أضف ملاحظة...")}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
-                                  if (e.key === "Escape") setEditingNoteKey(null);
-                                }}
-                                className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                              />
+                            ) : myNote ? (
                               <button
-                                onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
-                                className="rounded-lg bg-primary p-1.5 text-primary-foreground"
+                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
+                                className="flex min-w-0 items-center gap-1.5 text-[10px] text-primary hover:underline"
                               >
-                                <Check className="h-3.5 w-3.5" />
+                                <Pencil className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{myNote}</span>
                               </button>
-                            </div>
-                          ) : myNote ? (
-                            <button
-                              onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
-                              className="mt-1.5 flex items-center gap-1.5 ps-10 text-[10px] text-primary hover:underline"
-                            >
-                              <Pencil className="h-2.5 w-2.5 shrink-0" /> {myNote}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
-                              className="mt-1.5 flex items-center gap-1 ps-10 text-[10px] text-muted-foreground hover:text-primary"
-                            >
-                              <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
-                            </button>
-                          )}
+                            ) : (
+                              <button
+                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
+                              >
+                                <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
