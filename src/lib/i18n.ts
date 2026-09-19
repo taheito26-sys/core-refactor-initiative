@@ -1888,6 +1888,10 @@ const translations = {
   // Customer-reported loan payment claims (customer portal -> merchant review)
   loanPaymentClaimsTitle: { en: 'Customer-Reported Payments', ar: 'دفعات أبلغ عنها العملاء' },
   loanPaymentClaimNoOpenLoans: { en: 'No open loan found for this customer in that currency — nothing to apply.', ar: 'لا يوجد قرض مفتوح لهذا العميل بهذه العملة — لا شيء لتطبيقه.' },
+  loanPaymentClaimNotFound: { en: 'Could not find the payment this request refers to — adjust it manually, then decline the request.', ar: 'تعذر العثور على الدفعة المقصودة بهذا الطلب — عدّلها يدوياً ثم ارفض الطلب.' },
+  loanPaymentClaimChangeRequested: { en: 'Change requested', ar: 'طلب تعديل' },
+  loanPaymentClaimRemovalRequested: { en: 'Removal requested', ar: 'طلب حذف' },
+  loanPaymentClaimApply: { en: 'Apply', ar: 'تطبيق' },
   customerReportedPayment: { en: 'Customer-reported', ar: 'أبلغ عنه العميل' },
 
   // Loans page — buyer accounts (receivables ledger)

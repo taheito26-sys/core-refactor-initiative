@@ -328,10 +328,12 @@ function dateInputValue(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function LogPaymentModal({ links, existing, onSave, onClose, lang, saving }: {
+function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang, saving }: {
   links: StatementLinkOption[];
-  /** Present when correcting an already-submitted (still pending) claim instead of logging a new one. */
+  /** Present when correcting an already-submitted claim instead of logging a new one. */
   existing?: { id: string; currency: string; amount: number; note: string | null; paidAt: string };
+  /** The claim was already accepted, so this edit is a request the merchant has to apply. */
+  needsApproval?: boolean;
   onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt: number }) => void;
   onClose: () => void; lang: string; saving: boolean;
 }) {
@@ -374,6 +376,14 @@ function LogPaymentModal({ links, existing, onSave, onClose, lang, saving }: {
             )}
           </p>
         )}
+        {needsApproval && (
+          <p className="text-xs text-muted-foreground">
+            {L(
+              "Your merchant already confirmed this payment, so your correction goes to them for review.",
+              "تاجرك أكد هذه الدفعة بالفعل، لذا سيُرسل تعديلك إليه للمراجعة.",
+            )}
+          </p>
+        )}
         {!existing && links.length > 1 && (
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("Currency", "العملة")}</label>
@@ -404,7 +414,9 @@ function LogPaymentModal({ links, existing, onSave, onClose, lang, saving }: {
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L("Cancel", "إلغاء")}</button>
           <button onClick={handle} disabled={saving} className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60">
-            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : existing ? L("Save", "حفظ") : L("Submit", "إرسال")}
+            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              : needsApproval ? L("Send request", "إرسال الطلب")
+              : existing ? L("Save", "حفظ") : L("Submit", "إرسال")}
           </button>
         </div>
       </div>
@@ -484,13 +496,37 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
-  const { claims: myPaymentClaims, submitClaim, updateClaim, deleteClaim } = useLoanPaymentClaims("customer");
+  const { claims: myPaymentClaims, submitClaim, updateClaim, deleteClaim, requestChange } = useLoanPaymentClaims("customer");
   const editingClaim = myPaymentClaims.find(c => c.id === editingClaimId) || null;
   // Once a claim is accepted it becomes a real repayment on the merchant's
   // tracker and already appears in the unified "Payments Received" list
   // below (tagged "Added by me") -- keeping it here too would show the same
-  // money twice under two different headings.
-  const unsettledPaymentClaims = useMemo(() => myPaymentClaims.filter(c => c.status !== "accepted"), [myPaymentClaims]);
+  // money twice under two different headings. A withdrawn one is gone from
+  // both.
+  const unsettledPaymentClaims = useMemo(
+    () => myPaymentClaims.filter(c => c.status === "pending" || c.status === "rejected"),
+    [myPaymentClaims],
+  );
+
+  // Which accepted claim produced which row of the payments list. The list
+  // groups by currency + day, so a claim is matched back the same way --
+  // and only when it's the single accepted claim in that bucket, since two
+  // claims on one day collapse into one row with no way to tell which of
+  // them an edit was aimed at.
+  const claimByPaymentBucket = useMemo(() => {
+    const byBucket = new Map<string, typeof myPaymentClaims>();
+    for (const c of myPaymentClaims) {
+      if (c.status !== "accepted") continue;
+      const bucket = `${c.currency}:${localDayKey(c.paidAt)}`;
+      const list = byBucket.get(bucket);
+      if (list) list.push(c); else byBucket.set(bucket, [c]);
+    }
+    const unambiguous = new Map<string, typeof myPaymentClaims[number]>();
+    for (const [bucket, list] of byBucket) {
+      if (list.length === 1) unambiguous.set(bucket, list[0]);
+    }
+    return unambiguous;
+  }, [myPaymentClaims]);
 
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
@@ -594,6 +630,7 @@ export default function CustomerWalletPage() {
       const g = groups.get(gkey)!;
       return {
         key: `${gkey}:${g.amount}`,
+        bucket: gkey,
         date: g.date,
         amount: g.amount,
         currency: g.currency,
@@ -1212,6 +1249,10 @@ export default function CustomerWalletPage() {
                     {displayedLoanPayments.map(p => {
                       const myNote = paymentNoteByKey.get(p.key) ?? "";
                       const isEditingNote = editingNoteKey === p.key;
+                      // Only a payment this customer reported themselves can
+                      // be changed from here, and only through the merchant:
+                      // it's their tracker that holds the repayment.
+                      const ownClaim = p.addedByCustomer ? claimByPaymentBucket.get(p.bucket) : undefined;
                       return (
                         <div key={p.key} className="px-4 py-2.5">
                           <div className="flex items-center gap-3">
@@ -1237,6 +1278,54 @@ export default function CustomerWalletPage() {
                               <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>
                             </div>
                           </div>
+
+                          {/* Edit / remove — a request the merchant applies,
+                              since the repayment itself sits in their books. */}
+                          {ownClaim && (
+                            ownClaim.changeRequest ? (
+                              <div className="mt-1.5 flex items-center gap-2 ps-10">
+                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
+                                  {ownClaim.changeRequest === "delete"
+                                    ? L("Removal requested", "طُلب الحذف")
+                                    : L("Change requested", "طُلب التعديل")}
+                                </span>
+                                <button
+                                  onClick={() => requestChange.mutate({ id: ownClaim.id, kind: null })}
+                                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+                                >
+                                  {L("Cancel request", "إلغاء الطلب")}
+                                </button>
+                              </div>
+                            ) : deleteClaimPromptId === ownClaim.id ? (
+                              <div className="mt-1.5 flex items-center gap-2 ps-10">
+                                <p className="flex-1 text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</p>
+                                <button
+                                  onClick={() => { requestChange.mutate({ id: ownClaim.id, kind: "delete" }); setDeleteClaimPromptId(null); }}
+                                  className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
+                                >
+                                  {L("Request", "إرسال")}
+                                </button>
+                                <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
+                                  {L("Cancel", "إلغاء")}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="mt-1.5 flex items-center gap-3 ps-10">
+                                <button
+                                  onClick={() => setEditingClaimId(ownClaim.id)}
+                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
+                                >
+                                  <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
+                                </button>
+                                <button
+                                  onClick={() => setDeleteClaimPromptId(ownClaim.id)}
+                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
+                                </button>
+                              </div>
+                            )
+                          )}
 
                           {/* Customer's own note — separate from the merchant's note above */}
                           {isEditingNote ? (
@@ -1325,10 +1414,22 @@ export default function CustomerWalletPage() {
           }} />
       )}
       {editingClaim && (
-        <LogPaymentModal lang={lang} links={statementLinks} saving={updateClaim.isPending}
+        <LogPaymentModal lang={lang} links={statementLinks}
+          saving={editingClaim.status === "accepted" ? requestChange.isPending : updateClaim.isPending}
           existing={{ id: editingClaim.id, currency: editingClaim.currency, amount: editingClaim.amount, note: editingClaim.note, paidAt: editingClaim.paidAt }}
+          needsApproval={editingClaim.status === "accepted"}
           onClose={() => setEditingClaimId(null)}
           onSave={input => {
+            // A claim the merchant already accepted has become a repayment
+            // in their tracker -- correcting it is a request they apply,
+            // not a write this side can make.
+            if (editingClaim.status === "accepted") {
+              requestChange.mutate(
+                { id: editingClaim.id, kind: "edit", amount: input.amount, note: input.note, paidAt: input.paidAt },
+                { onSuccess: () => setEditingClaimId(null) },
+              );
+              return;
+            }
             updateClaim.mutate({ id: editingClaim.id, amount: input.amount, note: input.note, paidAt: input.paidAt }, { onSuccess: () => setEditingClaimId(null) });
           }} />
       )}

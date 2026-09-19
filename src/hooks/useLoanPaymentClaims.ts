@@ -12,11 +12,18 @@ export interface LoanPaymentClaim {
   currency: string;
   amount: number;
   note: string | null;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
   /** When the customer says the payment was actually made -- editable while pending. */
   paidAt: string;
   createdAt: string;
   reviewedAt: string | null;
+  /** batchId stamped on the repayments this claim produced, once accepted. */
+  appliedBatchId: string | null;
+  /** An accepted payment the customer has asked to correct or remove. */
+  changeRequest: 'edit' | 'delete' | null;
+  changeAmount: number | null;
+  changeNote: string | null;
+  changePaidAt: string | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,6 +40,11 @@ function rowToClaim(r: any): LoanPaymentClaim {
     paidAt: r.paid_at ?? r.created_at,
     createdAt: r.created_at,
     reviewedAt: r.reviewed_at ?? null,
+    appliedBatchId: r.applied_batch_id ?? null,
+    changeRequest: r.change_request ?? null,
+    changeAmount: r.change_amount == null ? null : Number(r.change_amount),
+    changeNote: r.change_note ?? null,
+    changePaidAt: r.change_paid_at ?? null,
   };
 }
 
@@ -143,10 +155,14 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
   });
 
   const reviewClaim = useMutation({
-    mutationFn: async (input: { id: string; action: 'accept' | 'reject' }) => {
+    mutationFn: async (input: { id: string; action: 'accept' | 'reject'; appliedBatchId?: string }) => {
       const { error } = await supabase
         .from('loan_payment_claims' as any)
-        .update({ status: input.action === 'accept' ? 'accepted' : 'rejected', reviewed_at: new Date().toISOString() })
+        .update({
+          status: input.action === 'accept' ? 'accepted' : 'rejected',
+          reviewed_at: new Date().toISOString(),
+          ...(input.appliedBatchId ? { applied_batch_id: input.appliedBatchId } : {}),
+        })
         .eq('id', input.id);
       if (error) throw error;
     },
@@ -156,13 +172,55 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not update payment claim'),
   });
 
+  /**
+   * Customer side: ask the merchant to correct or remove a payment they
+   * already accepted. Nothing moves until the merchant applies it -- the
+   * repayment it produced lives in their tracker snapshot, not here.
+   * `kind: null` cancels an outstanding request.
+   */
+  const requestChange = useMutation({
+    mutationFn: async (input: { id: string; kind: 'edit' | 'delete' | null; amount?: number; note?: string; paidAt?: number }) => {
+      const { error } = await supabase.rpc('request_loan_payment_claim_change' as any, {
+        p_claim_id: input.id,
+        p_kind: input.kind,
+        p_amount: input.amount ?? null,
+        p_note: input.note ?? null,
+        p_paid_at: input.paidAt ? new Date(input.paidAt).toISOString() : null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
+      toast.success(input.kind === null ? 'Request cancelled' : 'Sent to your merchant for review');
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not send the request'),
+  });
+
+  /** Merchant side: close out a change request, after applying it to the tracker or declining it. */
+  const resolveChange = useMutation({
+    mutationFn: async (input: { id: string; action: 'applied' | 'declined' }) => {
+      const { error } = await supabase.rpc('resolve_loan_payment_claim_change' as any, {
+        p_claim_id: input.id,
+        p_action: input.action,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'merchant', user?.id] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not close the request'),
+  });
+
   return {
     claims: query.data ?? [],
     pending: (query.data ?? []).filter(c => c.status === 'pending'),
+    changeRequests: (query.data ?? []).filter(c => c.changeRequest !== null),
     isLoading: query.isLoading,
     submitClaim,
     updateClaim,
     deleteClaim,
     reviewClaim,
+    requestChange,
+    resolveChange,
   };
 }

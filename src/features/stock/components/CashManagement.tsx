@@ -13,7 +13,7 @@ import { useT } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
+import { useLoanPaymentClaims, type LoanPaymentClaim } from '@/hooks/useLoanPaymentClaims';
 import { deleteCashAccountLedgerFromCloud, deleteCashAccountFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
@@ -2966,7 +2966,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     cancelRequest,
   } = useCashCustodyRequests();
 
-  const { pending: pendingPaymentClaims, reviewClaim } = useLoanPaymentClaims('merchant');
+  const { pending: pendingPaymentClaims, changeRequests: paymentChangeRequests, reviewClaim, resolveChange } = useLoanPaymentClaims('merchant');
 
   const myMerchantId = merchantProfile?.merchant_id ?? '';
   const myUserId = user?.id ?? '';
@@ -3198,7 +3198,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** The loan list with `loan` swapped in. */
   const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>) => {
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>, batchId?: string) => {
     // Wrapped end-to-end: a throw anywhere in here used to reject silently
     // (this runs from the modal's fire-and-forget onSave), leaving the click
     // looking like it did nothing. Now the modal awaits this and shows
@@ -3214,10 +3214,12 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         id: uid(), ts, type: 'loan_repayment', accountId,
         direction: 'in', amount, currency: loan.currency,
         note: repaymentLedgerNote(loan, note),
+        ...(batchId ? { batchId } : {}),
         ...(banknoteBreakdown ? { banknoteBreakdown } : {}),
       } : null;
       const repayment: LoanRepayment = {
         id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note,
+        ...(batchId ? { batchId } : {}),
       };
       const newLedger = entry ? [...ledger, entry] : ledger;
       const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
@@ -3251,8 +3253,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     ts: number,
     note?: string,
     banknoteBreakdown?: Record<number, number>,
+    forcedBatchId?: string,
   ) => {
-    const batchId = uid();
+    const batchId = forcedBatchId || uid();
     let newLedger = ledger;
     let newLoans = loans;
     // The counted notes describe the whole payment, not any one allocation —
@@ -3290,19 +3293,27 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    * can edit the resulting repayment afterward if they do want it tied to
    * an account.
    */
-  const acceptPaymentClaim = async (claim: { id: string; customerId: string; currency: string; amount: number; note: string | null; paidAt: string }) => {
-    const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
+  /** Every Customer.id that is the same buyer as this claim's, by name identity. */
+  const claimCustomerIdGroup = (customerId: string) => {
+    const claimCustomer = (state.customers || []).find(c => c.id === customerId);
     const nameKeys = claimCustomer ? new Set(customerNameVariants(claimCustomer).map(canonicalizeName)) : new Set<string>();
-    const matchingIds = new Set(
+    return new Set(
       (state.customers || [])
-        .filter(c => c.id === claim.customerId || customerNameVariants(c).some(v => nameKeys.has(canonicalizeName(v))))
+        .filter(c => c.id === customerId || customerNameVariants(c).some(v => nameKeys.has(canonicalizeName(v))))
         .map(c => c.id),
     );
-    const openLoans = loans
-      .filter(l => matchingIds.has(l.customerId) && l.currency === claim.currency && getLoanRemaining(l) > 0)
+  };
+
+  /** Spread `amount` across that buyer's open loans in `currency`, oldest first. */
+  const allocateAcrossOpenLoans = (
+    loanPool: CustomerLoan[], customerId: string, currency: string, amount: number,
+  ): Array<{ loan: CustomerLoan; amount: number }> => {
+    const matchingIds = claimCustomerIdGroup(customerId);
+    const openLoans = loanPool
+      .filter(l => matchingIds.has(l.customerId) && l.currency === currency && getLoanRemaining(l) > 0)
       .sort((a, b) => a.ts - b.ts);
 
-    let budget = claim.amount;
+    let budget = amount;
     const allocations: Array<{ loan: CustomerLoan; amount: number }> = [];
     for (const loan of openLoans) {
       if (budget <= 0) break;
@@ -3311,27 +3322,139 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       allocations.push({ loan, amount: amt });
       budget -= amt;
     }
+    return allocations;
+  };
+
+  const claimRepaymentNote = (note: string | null) => (
+    note
+      ? `${t('customerReportedPayment') || 'Customer-reported'}: ${note}`
+      : (t('customerReportedPayment') || 'Customer-reported payment')
+  );
+
+  const acceptPaymentClaim = async (claim: { id: string; customerId: string; currency: string; amount: number; note: string | null; paidAt: string }) => {
+    const allocations = allocateAcrossOpenLoans(loans, claim.customerId, claim.currency, claim.amount);
 
     if (allocations.length === 0) {
       toast.error(t('loanPaymentClaimNoOpenLoans') || 'No open loan found for this customer in that currency — nothing to apply.');
       return;
     }
 
-    const note = claim.note ? `${t('customerReportedPayment') || 'Customer-reported'}: ${claim.note}` : (t('customerReportedPayment') || 'Customer-reported payment');
+    const note = claimRepaymentNote(claim.note);
     // The date the customer says they paid, not "now" -- so the repayment
     // lands on the tracker's timeline where it actually happened, matching
     // what the customer sees on their own submission.
     const ts = new Date(claim.paidAt).getTime() || Date.now();
+    // Stamped on every repayment this claim produces and stored back on the
+    // claim, so a later correction request from the customer can find
+    // exactly these rows instead of guessing from amount and date.
+    const batchId = uid();
     try {
       if (allocations.length === 1) {
-        await addLoanRepayment(allocations[0].loan, null, allocations[0].amount, ts, note);
+        await addLoanRepayment(allocations[0].loan, null, allocations[0].amount, ts, note, undefined, batchId);
       } else {
-        const ok = await addSplitLoanRepayment(allocations, null, ts, note);
+        const ok = await addSplitLoanRepayment(allocations, null, ts, note, undefined, batchId);
         if (!ok) throw new Error('Save failed');
       }
-      reviewClaim.mutate({ id: claim.id, action: 'accept' });
+      reviewClaim.mutate({ id: claim.id, action: 'accept', appliedBatchId: batchId });
     } catch (err) {
       console.error('[CashManagement] acceptPaymentClaim failed:', err);
+    }
+  };
+
+  /**
+   * The repayments a given accepted claim put on the books. Claims accepted
+   * before applied_batch_id existed carry no batch, so fall back to the
+   * buyer's customer-reported repayments on that same day whose amounts add
+   * up to exactly what was claimed -- anything less certain returns nothing
+   * and the merchant is told to adjust it by hand rather than having the
+   * wrong payment rewritten underneath them.
+   */
+  const findClaimRepayments = (claim: LoanPaymentClaim): Array<{ loan: CustomerLoan; repayment: LoanRepayment }> => {
+    if (claim.appliedBatchId) {
+      const batched: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
+      for (const loan of loans) {
+        for (const r of loan.repayments || []) {
+          if (r.batchId === claim.appliedBatchId) batched.push({ loan, repayment: r });
+        }
+      }
+      if (batched.length > 0) return batched;
+    }
+
+    const matchingIds = claimCustomerIdGroup(claim.customerId);
+    const claimDay = new Date(claim.paidAt).toDateString();
+    const sameDay: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
+    for (const loan of loans) {
+      if (!matchingIds.has(loan.customerId) || loan.currency !== claim.currency) continue;
+      for (const r of loan.repayments || []) {
+        if (new Date(r.ts).toDateString() !== claimDay) continue;
+        if (!(r.note || '').startsWith(t('customerReportedPayment') || 'Customer-reported')) continue;
+        sameDay.push({ loan, repayment: r });
+      }
+    }
+    const total = sameDay.reduce((sum, x) => sum + x.repayment.amount, 0);
+    return Math.abs(total - claim.amount) < 0.01 ? sameDay : [];
+  };
+
+  /**
+   * Apply a customer's request to correct or remove a payment the merchant
+   * already accepted. Both directions are one commit: the old repayments
+   * come off, and an edit re-allocates the corrected amount across that
+   * buyer's open loans the same way accepting the claim did in the first
+   * place -- re-allocating rather than patching amounts in place because
+   * the corrected total may no longer split the way the original did.
+   */
+  const applyClaimChange = async (claim: LoanPaymentClaim) => {
+    const targets = findClaimRepayments(claim);
+    if (targets.length === 0) {
+      toast.error(t('loanPaymentClaimNotFound') || 'Could not find the payment this request refers to — adjust it manually, then decline the request.');
+      return;
+    }
+
+    let workingLedger = ledger;
+    let workingLoans = loans;
+    const deletedIds: string[] = [];
+    for (const { loan, repayment } of targets) {
+      const live = workingLoans.find(l => l.id === loan.id) || loan;
+      const next = deleteRepayment(live, repayment.id, workingLedger);
+      if (!next) continue;
+      workingLedger = next.ledger;
+      workingLoans = workingLoans.map(l => (l.id === live.id ? next.loan : l));
+      deletedIds.push(repayment.id);
+    }
+
+    const batchId = claim.appliedBatchId || uid();
+    if (claim.changeRequest === 'edit') {
+      const amount = claim.changeAmount ?? claim.amount;
+      const ts = new Date(claim.changePaidAt ?? claim.paidAt).getTime() || Date.now();
+      const note = claimRepaymentNote(claim.changeNote);
+      // Allocated against the loans as they stand with the old payment
+      // already removed, so the balance it used to cover is available again.
+      const allocations = allocateAcrossOpenLoans(workingLoans, claim.customerId, claim.currency, amount);
+      if (allocations.length === 0) {
+        toast.error(t('loanPaymentClaimNoOpenLoans') || 'No open loan found for this customer in that currency — nothing to apply.');
+        return;
+      }
+      for (const { loan, amount: amt } of allocations) {
+        const live = workingLoans.find(l => l.id === loan.id) || loan;
+        const repayment: LoanRepayment = { id: uid(), ts, amount: amt, note, batchId };
+        const updated = withDerivedStatus({ ...live, repayments: [...(live.repayments || []), repayment] });
+        workingLoans = workingLoans.map(l => (l.id === live.id ? updated : l));
+      }
+    }
+
+    // Tombstoned so a stale device doesn't resurrect the replaced rows on
+    // its next save -- see TrackerState.deletedRepaymentIds.
+    const newDeletedRepaymentIds = Array.from(new Set([...(state.deletedRepaymentIds || []), ...deletedIds])).slice(-500);
+    const ok = await commit({
+      ...state,
+      cashLedger: workingLedger,
+      cashQAR: deriveCashQAR(accounts, workingLedger),
+      customerLoans: workingLoans,
+      deletedRepaymentIds: newDeletedRepaymentIds,
+    });
+    if (ok) {
+      resolveChange.mutate({ id: claim.id, action: 'applied' });
+      toast.success(claim.changeRequest === 'delete' ? t('loanPaymentDeleted') : t('loanPaymentUpdated'));
     }
   };
 
@@ -3996,10 +4119,43 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           {/* ── CUSTOMER-REPORTED PAYMENTS awaiting review — a customer
               logged a payment from their portal; nothing is applied to the
               loan until accepted here. ── */}
-          {pendingPaymentClaims.length > 0 && (
+          {(pendingPaymentClaims.length > 0 || paymentChangeRequests.length > 0) && (
             <div className="panel" style={{ marginBottom: 10 }}>
               <div className="panel-head"><h2>💸 {t('loanPaymentClaimsTitle') || 'Customer-Reported Payments'}</h2></div>
               <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* A buyer asking to correct or drop a payment already on the
+                    books -- applying rewrites the repayments it created. */}
+                {paymentChangeRequests.map(claim => {
+                  const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
+                  const isDelete = claim.changeRequest === 'delete';
+                  return (
+                    <div key={`change-${claim.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--warn) 35%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 7%, transparent)' }}>
+                      <div style={{ flex: 1, minWidth: 180 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700 }}>
+                          {claimCustomer?.name || claim.customerId}
+                          <span className="pill warn" style={{ fontSize: 9, marginInlineStart: 6 }}>
+                            {isDelete ? (t('loanPaymentClaimRemovalRequested') || 'Removal requested') : (t('loanPaymentClaimChangeRequested') || 'Change requested')}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          {isDelete
+                            ? `${fmtTotal(claim.amount)} ${claim.currency} · ${new Date(claim.paidAt).toLocaleDateString()}`
+                            : `${fmtTotal(claim.amount)} → ${fmtTotal(claim.changeAmount ?? claim.amount)} ${claim.currency} · ${new Date(claim.changePaidAt ?? claim.paidAt).toLocaleDateString()}${claim.changeNote ? ` — ${claim.changeNote}` : ''}`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn" style={{ fontSize: 10, padding: '5px 10px', background: 'var(--good)', color: '#000' }}
+                          onClick={() => applyClaimChange(claim)}>
+                          ✓ {t('loanPaymentClaimApply') || 'Apply'}
+                        </button>
+                        <button className="rowBtn" style={{ fontSize: 10 }}
+                          onClick={() => resolveChange.mutate({ id: claim.id, action: 'declined' })}>
+                          ✕ {t('custodyReject') || 'Decline'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
                 {pendingPaymentClaims.map(claim => {
                   const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
                   return (
