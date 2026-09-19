@@ -448,6 +448,10 @@ export default function CustomerWalletPage() {
   const [showLogPayment, setShowLogPayment] = useState(false);
   const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
   const [deleteClaimPromptId, setDeleteClaimPromptId] = useState<string | null>(null);
+  // Same edit/delete flow as above, but for a payment the merchant entered
+  // directly -- see merchantPaymentClaimByBucket.
+  const [editingMerchantPayment, setEditingMerchantPayment] = useState<{ bucket: string; currency: string; amount: number; date: number; note: string | null } | null>(null);
+  const [deleteMerchantPaymentPromptKey, setDeleteMerchantPaymentPromptKey] = useState<string | null>(null);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -496,7 +500,10 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
-  const { claims: myPaymentClaims, submitClaim, updateClaim, deleteClaim, requestChange } = useLoanPaymentClaims("customer");
+  const {
+    claims: myPaymentClaims, submitClaim, updateClaim, deleteClaim, requestChange,
+    requestMerchantPaymentChange, cancelMerchantPaymentChange,
+  } = useLoanPaymentClaims("customer");
   const editingClaim = myPaymentClaims.find(c => c.id === editingClaimId) || null;
   // Once a claim is accepted it becomes a real repayment on the merchant's
   // tracker and already appears in the unified "Payments Received" list
@@ -528,6 +535,20 @@ export default function CustomerWalletPage() {
     return unambiguous;
   }, [myPaymentClaims]);
 
+  // A payment the *merchant* entered directly has no claim of its own --
+  // correcting or removing it goes through request_merchant_payment_correction
+  // instead, which stages a claim row (source: 'merchant_payment') just to
+  // carry the request. Keyed the same way, one per bucket: two merchant
+  // requests never coexist on one day since the RPC upserts on that key.
+  const merchantPaymentClaimByBucket = useMemo(() => {
+    const map = new Map<string, typeof myPaymentClaims[number]>();
+    for (const c of myPaymentClaims) {
+      if (c.source !== "merchant_payment") continue;
+      map.set(`${c.currency}:${localDayKey(c.paidAt)}`, c);
+    }
+    return map;
+  }, [myPaymentClaims]);
+
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
   const loanPayments = useMemo(() => {
@@ -539,6 +560,24 @@ export default function CustomerWalletPage() {
     }
     return rows.sort((a, b) => b.date - a.date);
   }, [loanStatements]);
+
+  // The exact underlying payment (date + amount) a merchant-added row's
+  // "Edit"/"Delete" request needs -- only resolvable when the day's group
+  // is a single payment, since a merged multi-payment day has no one
+  // amount/date to target.
+  const singlePaymentByBucket = useMemo(() => {
+    const byBucket = new Map<string, typeof loanPayments>();
+    for (const p of loanPayments) {
+      const bucket = `${p.currency}:${localDayKey(p.date)}`;
+      const list = byBucket.get(bucket);
+      if (list) list.push(p); else byBucket.set(bucket, [p]);
+    }
+    const single = new Map<string, typeof loanPayments[number]>();
+    for (const [bucket, list] of byBucket) {
+      if (list.length === 1) single.set(bucket, list[0]);
+    }
+    return single;
+  }, [loanPayments]);
 
   // The customer's own note on a payment — independent of the merchant's
   // own note field on the same row, which the customer can't edit.
@@ -1253,6 +1292,13 @@ export default function CustomerWalletPage() {
                       // be changed from here, and only through the merchant:
                       // it's their tracker that holds the repayment.
                       const ownClaim = p.addedByCustomer ? claimByPaymentBucket.get(p.bucket) : undefined;
+                      // Merchant-added row: only a single, unambiguous
+                      // payment can be targeted for a correction request --
+                      // a merged multi-payment day has no one amount/date
+                      // to send the merchant.
+                      const merchantSingle = !p.addedByCustomer ? singlePaymentByBucket.get(p.bucket) : undefined;
+                      const merchantRequest = !p.addedByCustomer ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
+                      const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
                       return (
                         <div key={p.key} className="px-4 py-2.5">
                           <div className="flex items-center gap-3">
@@ -1319,6 +1365,64 @@ export default function CustomerWalletPage() {
                                 </button>
                                 <button
                                   onClick={() => setDeleteClaimPromptId(ownClaim.id)}
+                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
+                                </button>
+                              </div>
+                            )
+                          )}
+
+                          {/* Edit / remove for a payment the merchant added --
+                              same idea as the block above, but there's no
+                              claim to hang the request on until one is sent,
+                              since the merchant never went through the
+                              claim-submission flow for their own entry. */}
+                          {merchantSingle && merchantLink && (
+                            merchantRequest?.changeRequest ? (
+                              <div className="mt-1.5 flex items-center gap-2 ps-10">
+                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
+                                  {merchantRequest.changeRequest === "delete"
+                                    ? L("Removal requested", "طُلب الحذف")
+                                    : L("Change requested", "طُلب التعديل")}
+                                </span>
+                                <button
+                                  onClick={() => cancelMerchantPaymentChange.mutate(merchantRequest.id)}
+                                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+                                >
+                                  {L("Cancel request", "إلغاء الطلب")}
+                                </button>
+                              </div>
+                            ) : deleteMerchantPaymentPromptKey === p.key ? (
+                              <div className="mt-1.5 flex items-center gap-2 ps-10">
+                                <p className="flex-1 text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</p>
+                                <button
+                                  onClick={() => {
+                                    requestMerchantPaymentChange.mutate({
+                                      merchantUserId: merchantLink.merchantUserId, customerId: merchantLink.customerId,
+                                      currency: p.currency, amount: merchantSingle.amount, paidAt: merchantSingle.date,
+                                      kind: "delete",
+                                    });
+                                    setDeleteMerchantPaymentPromptKey(null);
+                                  }}
+                                  className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
+                                >
+                                  {L("Request", "إرسال")}
+                                </button>
+                                <button onClick={() => setDeleteMerchantPaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
+                                  {L("Cancel", "إلغاء")}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="mt-1.5 flex items-center gap-3 ps-10">
+                                <button
+                                  onClick={() => setEditingMerchantPayment({ bucket: p.bucket, currency: p.currency, amount: merchantSingle.amount, date: merchantSingle.date, note: merchantSingle.note })}
+                                  className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
+                                >
+                                  <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
+                                </button>
+                                <button
+                                  onClick={() => setDeleteMerchantPaymentPromptKey(p.key)}
                                   className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
                                 >
                                   <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
@@ -1431,6 +1535,31 @@ export default function CustomerWalletPage() {
               return;
             }
             updateClaim.mutate({ id: editingClaim.id, amount: input.amount, note: input.note, paidAt: input.paidAt }, { onSuccess: () => setEditingClaimId(null) });
+          }} />
+      )}
+      {editingMerchantPayment && (
+        <LogPaymentModal
+          lang={lang}
+          links={statementLinks}
+          saving={requestMerchantPaymentChange.isPending}
+          existing={{
+            id: editingMerchantPayment.bucket, currency: editingMerchantPayment.currency,
+            amount: editingMerchantPayment.amount, note: editingMerchantPayment.note,
+            paidAt: new Date(editingMerchantPayment.date).toISOString(),
+          }}
+          needsApproval
+          onClose={() => setEditingMerchantPayment(null)}
+          onSave={input => {
+            const link = statementLinks.find(l => l.currency === editingMerchantPayment.currency);
+            if (!link) return;
+            requestMerchantPaymentChange.mutate(
+              {
+                merchantUserId: link.merchantUserId, customerId: link.customerId, currency: editingMerchantPayment.currency,
+                amount: editingMerchantPayment.amount, paidAt: editingMerchantPayment.date,
+                kind: "edit", changeAmount: input.amount, changeNote: input.note, changePaidAt: input.paidAt,
+              },
+              { onSuccess: () => setEditingMerchantPayment(null) },
+            );
           }} />
       )}
     </div>

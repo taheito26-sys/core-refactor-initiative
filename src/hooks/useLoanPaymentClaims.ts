@@ -24,6 +24,13 @@ export interface LoanPaymentClaim {
   changeAmount: number | null;
   changeNote: string | null;
   changePaidAt: string | null;
+  /**
+   * 'customer_claim' — the normal submit/accept flow. 'merchant_payment' —
+   * this row exists only to carry a correction request against a payment
+   * the merchant entered directly (no claim was ever submitted for it), so
+   * it's inserted pre-accepted with the request already attached.
+   */
+  source: 'customer_claim' | 'merchant_payment';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +52,7 @@ function rowToClaim(r: any): LoanPaymentClaim {
     changeAmount: r.change_amount == null ? null : Number(r.change_amount),
     changeNote: r.change_note ?? null,
     changePaidAt: r.change_paid_at ?? null,
+    source: r.source ?? 'customer_claim',
   };
 }
 
@@ -196,6 +204,50 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not send the request'),
   });
 
+  /**
+   * Customer side: ask for a correction/removal on a payment the merchant
+   * entered directly -- there's no claim row for it yet, so this creates
+   * one (or updates it, if one is already open) carrying the request.
+   */
+  const requestMerchantPaymentChange = useMutation({
+    mutationFn: async (input: {
+      merchantUserId: string; customerId: string; currency: string;
+      amount: number; paidAt: number;
+      kind: 'edit' | 'delete'; changeAmount?: number; changeNote?: string; changePaidAt?: number;
+    }) => {
+      const { error } = await supabase.rpc('request_merchant_payment_correction' as any, {
+        p_merchant_user_id: input.merchantUserId,
+        p_customer_id: input.customerId,
+        p_currency: input.currency,
+        p_amount: input.amount,
+        p_paid_at: new Date(input.paidAt).toISOString(),
+        p_kind: input.kind,
+        p_change_amount: input.changeAmount ?? null,
+        p_change_note: input.changeNote ?? null,
+        p_change_paid_at: input.changePaidAt ? new Date(input.changePaidAt).toISOString() : null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
+      toast.success('Sent to your merchant for review');
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not send the request'),
+  });
+
+  /** Customer side: withdraw a still-open request against a merchant-entered payment. */
+  const cancelMerchantPaymentChange = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('cancel_merchant_payment_correction' as any, { p_claim_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
+      toast.success('Request cancelled');
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not cancel the request'),
+  });
+
   /** Merchant side: close out a change request, after applying it to the tracker or declining it. */
   const resolveChange = useMutation({
     mutationFn: async (input: { id: string; action: 'applied' | 'declined' }) => {
@@ -221,6 +273,8 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     deleteClaim,
     reviewClaim,
     requestChange,
+    requestMerchantPaymentChange,
+    cancelMerchantPaymentChange,
     resolveChange,
   };
 }

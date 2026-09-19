@@ -3382,12 +3382,17 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
     const matchingIds = claimCustomerIdGroup(claim.customerId);
     const claimDay = new Date(claim.paidAt).toDateString();
+    // A merchant_payment correction targets a repayment the merchant entered
+    // themselves, so it never carries the "Customer-reported" note prefix a
+    // customer_claim's does -- only customer_claim rows need that check to
+    // avoid sweeping up an unrelated same-day merchant entry.
+    const requireCustomerReportedNote = claim.source !== 'merchant_payment';
     const sameDay: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
     for (const loan of loans) {
       if (!matchingIds.has(loan.customerId) || loan.currency !== claim.currency) continue;
       for (const r of loan.repayments || []) {
         if (new Date(r.ts).toDateString() !== claimDay) continue;
-        if (!(r.note || '').startsWith(t('customerReportedPayment') || 'Customer-reported')) continue;
+        if (requireCustomerReportedNote && !(r.note || '').startsWith(t('customerReportedPayment') || 'Customer-reported')) continue;
         sameDay.push({ loan, repayment: r });
       }
     }
