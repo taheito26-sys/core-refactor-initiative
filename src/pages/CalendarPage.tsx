@@ -17,14 +17,17 @@ export default function CalendarPage() {
     range: settings.range,
     currency: settings.currency,
   });
-  const [cal, setCal] = useState(state.cal);
+  const now = new Date();
+  // Always opens on the current month -- state.cal is persisted tracker
+  // state (synced across devices), so seeding from it here would leave the
+  // page stuck on whatever month was last viewed instead of today's.
+  const [cal, setCal] = useState({ year: now.getFullYear(), month: now.getMonth(), selectedDay: null as number | null });
 
   const mnKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'] as const;
   const dnKeys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
   const mn = mnKeys.map(k => t(k));
   const dn = dnKeys.map(k => t(k));
 
-  const now = new Date();
   const curY = now.getFullYear(), curM = now.getMonth(), curD = now.getDate();
   const { year, month, selectedDay } = cal;
   const daysInM = new Date(year, month + 1, 0).getDate();
