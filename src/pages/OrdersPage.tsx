@@ -3341,10 +3341,11 @@ export default function OrdersPage() {
             )}
             {loan && (
               <span
-                title={`${t('loanLinkedOrderBadge')} · ${loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}`}
-                style={{ fontSize: 10, flexShrink: 0, lineHeight: 1 }}
+                className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
+                title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
+                style={{ fontSize: 9, flexShrink: 0, whiteSpace: 'nowrap' }}
               >
-                🤝
+                🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
               </span>
             )}
           </div>
@@ -3796,7 +3797,7 @@ export default function OrdersPage() {
                                     style={{ fontSize: 9, whiteSpace: 'nowrap' }}
                                     title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
                                   >
-                                    🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
+                                    🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
                                   </span>
                                 )}
                               </span>
