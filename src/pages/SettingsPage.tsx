@@ -51,6 +51,7 @@ import {
   detectOptimalFontSize,
   type ThemeDef,
 } from '@/lib/theme-context';
+import { resolveThemeForLayout } from '@/lib/theme/utils';
 import type { AppSettings } from '@/lib/theme/types';
 
 export default function SettingsPage() {
@@ -173,7 +174,7 @@ export default function SettingsPage() {
               {LAYOUTS.map(l => (
                 <button
                   key={l.id}
-                  onClick={() => update({ layout: l.id })}
+                  onClick={() => update({ layout: l.id, theme: resolveThemeForLayout(l.id, draft.theme) })}
                   className={cn(
                     'relative rounded-lg border p-3 text-left transition-all hover:border-primary/50',
                     draft.layout === l.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'

@@ -1,13 +1,14 @@
 ﻿import { useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
-import { useTheme } from '@/lib/theme-context';
-import { Loader2, LogOut, Bell, Globe, User, ChevronRight } from 'lucide-react';
+import { useTheme, LAYOUTS, THEME_NAMES } from '@/lib/theme-context';
+import { resolveThemeForLayout } from '@/lib/theme/utils';
+import { Loader2, LogOut, Bell, Globe, User, ChevronRight, Check, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES, updateCustomerProfile, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
-  const { settings, update } = useTheme();
+  const { settings, update, currentLayout } = useTheme();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const [displayName,   setDisplayName]   = useState(customerProfile?.display_name ?? '');
@@ -75,6 +76,66 @@ export default function CustomerSettingsPage() {
           <button onClick={save} disabled={saving} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}{L('Save changes', 'حفظ التغييرات')}
           </button>
+        </div>
+      </div>
+
+      {/* Appearance — the same layouts and colour themes the merchant app
+          offers, driven by the one shared ThemeProvider. */}
+      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+          <Palette className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Appearance', 'المظهر')}</p>
+          <span className="ms-auto text-[10px] text-muted-foreground truncate">{currentLayout.name}</span>
+        </div>
+
+        <div className="px-4 py-4 space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{L('Layout', 'التخطيط')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {LAYOUTS.map(l => (
+                <button
+                  key={l.id}
+                  onClick={() => update({ layout: l.id, theme: resolveThemeForLayout(l.id, settings.theme) })}
+                  className={`relative rounded-xl border p-2.5 text-start transition-colors ${settings.layout === l.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border/50 hover:border-primary/40'}`}
+                >
+                  {settings.layout === l.id && (
+                    <span className="absolute top-1.5 end-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                    </span>
+                  )}
+                  <span className="block text-[11px] font-bold truncate pe-4">{l.name}</span>
+                  <span className="block text-[9px] text-muted-foreground truncate">{l.desc}</span>
+                  <span className="mt-1.5 flex gap-0.5">
+                    {l.swatches.map((c, i) => (
+                      <span key={i} className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} />
+                    ))}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{L('Colour theme', 'لون السمة')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(currentLayout.themes).map(([tid, themeDef]) => (
+                <button
+                  key={tid}
+                  onClick={() => update({ theme: tid })}
+                  className={`rounded-xl border p-2 transition-colors ${settings.theme === tid ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border/50 hover:border-primary/40'}`}
+                >
+                  <span className="mb-1 flex gap-0.5">
+                    <span className="h-5 w-5 rounded-sm border border-border/50" style={{ background: themeDef.bg }} />
+                    <span className="h-5 w-5 rounded-sm" style={{ background: themeDef.panel }} />
+                    {[themeDef.brand, themeDef.brand2, themeDef.good, themeDef.bad].map((c, i) => (
+                      <span key={i} className="h-5 flex-1 rounded-sm" style={{ background: c }} />
+                    ))}
+                  </span>
+                  <span className="block text-center text-[10px] font-medium">{THEME_NAMES[tid] || tid}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

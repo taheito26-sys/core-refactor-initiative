@@ -58,6 +58,17 @@ export function getTheme(layoutId: string, themeId: string): { layout: LayoutDef
   return { layout, theme };
 }
 
+/**
+ * The theme id to keep when switching to `layoutId`. Layouts carry different
+ * numbers of themes (Terminal HC has only t1, Flux has five), so carrying a
+ * theme id the new layout doesn't define leaves the picker with nothing
+ * highlighted while getTheme quietly renders t1 instead.
+ */
+export function resolveThemeForLayout(layoutId: string, themeId: string): string {
+  const layout = LAYOUTS.find(l => l.id === layoutId) || LAYOUTS[0];
+  return layout.themes[themeId] ? themeId : 't1';
+}
+
 export function applyThemeToDOM(settings: AppSettings) {
   const root = document.documentElement;
   const { layout, theme } = getTheme(settings.layout, settings.theme);
