@@ -1291,16 +1291,24 @@ export default function CustomerWalletPage() {
                     {displayedLoanPayments.map(p => {
                       const myNote = paymentNoteByKey.get(p.key) ?? "";
                       const isEditingNote = editingNoteKey === p.key;
-                      // Only a payment this customer reported themselves can
-                      // be changed from here, and only through the merchant:
-                      // it's their tracker that holds the repayment.
+                      // A payment this customer submitted through the claim
+                      // flow can be changed via that claim, through the
+                      // merchant: it's their tracker that holds the repayment.
                       const ownClaim = p.addedByCustomer ? claimByPaymentBucket.get(p.bucket) : undefined;
-                      // Merchant-added row: only a single, unambiguous
-                      // payment can be targeted for a correction request --
-                      // a merged multi-payment day has no one amount/date
-                      // to send the merchant.
-                      const merchantSingle = !p.addedByCustomer ? singlePaymentByBucket.get(p.bucket) : undefined;
-                      const merchantRequest = !p.addedByCustomer ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
+                      // Fallback for everything else -- a payment the
+                      // merchant entered directly, but *also* a "Added by
+                      // me" row whose note carries the "Customer-reported"
+                      // prefix without a resolvable claim behind it (e.g.
+                      // one entered before the claims table existed, or
+                      // whose claim was otherwise deleted): either way
+                      // there's no claim id to hang a request on, so it
+                      // goes through the same generic single-payment
+                      // correction path merchant-entered rows use. Still
+                      // only for a single, unambiguous day's payment -- a
+                      // merged multi-payment day has no one amount/date to
+                      // send the merchant.
+                      const merchantSingle = !ownClaim ? singlePaymentByBucket.get(p.bucket) : undefined;
+                      const merchantRequest = !ownClaim ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
                       const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
 
                       // Unifies the two correction flows (a claim the
