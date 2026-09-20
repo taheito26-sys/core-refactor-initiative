@@ -892,6 +892,23 @@ export default function CustomerOrdersPage() {
 
   const grouped = groupByDay(filteredOrders, lang);
 
+  // A stable "Order #N" the buyer can reference in chat/calls, numbered
+  // oldest-first across their whole order history (live workflow orders
+  // plus pre-portal history) — not scoped to the selected month, so an
+  // order's number never changes depending on which filter is active.
+  // Matches the "#" sequence convention already used on statement exports
+  // (monthlyStatementExport.ts).
+  const orderSequence = useMemo(() => {
+    const combined: { key: string; ts: number }[] = [
+      ...orders.map(o => ({ key: `live:${o.id}`, ts: new Date(o.created_at).getTime() })),
+      ...historyOrders.map(o => ({ key: `hist:${o.key}`, ts: o.date })),
+    ];
+    combined.sort((a, b) => a.ts - b.ts);
+    const map = new Map<string, number>();
+    combined.forEach((o, i) => map.set(o.key, i + 1));
+    return map;
+  }, [orders, historyOrders]);
+
   return (
     <div className="space-y-6 pb-16">
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
@@ -1105,6 +1122,7 @@ export default function CustomerOrdersPage() {
                         lang={lang}
                         createdAt={order.created_at}
                         note={order.note}
+                        sequenceNumber={orderSequence.get(`live:${order.id}`)}
                         actions={phasedActions}
                       />
                     );
@@ -1171,7 +1189,12 @@ export default function CustomerOrdersPage() {
                       )}
                     >
                       <div className={cn('flex items-start justify-between gap-2', lang === 'ar' && 'flex-row-reverse')}>
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {orderSequence.get(`live:${order.id}`) != null && (
+                            <span className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-bold text-slate-300">
+                              #{orderSequence.get(`live:${order.id}`)}
+                            </span>
+                          )}
                           {approvalBadge}
                         </div>
                         <div className="flex items-center gap-1 text-[10px] font-medium text-slate-300">
@@ -1303,6 +1326,7 @@ export default function CustomerOrdersPage() {
                       lang={lang}
                       createdAt={order.created_at}
                       note={order.note}
+                      sequenceNumber={orderSequence.get(`live:${order.id}`)}
                       actions={(canApprove || canReject || canEdit) ? (
                         isEditing ? (
                           <div className="space-y-2">
@@ -1384,10 +1408,15 @@ export default function CustomerOrdersPage() {
                   <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
                     <div className="p-3 sm:p-4">
                       {/* Status Badge */}
-                      <div className="mb-3">
+                      <div className="mb-3 flex items-center gap-2">
                         <span className={cn('inline-block rounded-lg px-2.5 py-1 text-xs font-semibold', statusCfg.color)}>
                           {getLocalizedWorkflowStatusLabel(order.workflow_status, lang)}
                         </span>
+                        {orderSequence.get(`live:${order.id}`) != null && (
+                          <span className="inline-block rounded-lg border border-border/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                            #{orderSequence.get(`live:${order.id}`)}
+                          </span>
+                        )}
                       </div>
 
                       {/* Order Details - Clean Layout */}
@@ -1657,8 +1686,15 @@ export default function CustomerOrdersPage() {
                     style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                      <div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
-                        {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        {orderSequence.get(`hist:${o.key}`) != null && (
+                          <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', border: '1px solid color-mix(in srgb, var(--muted) 30%, transparent)', borderRadius: 6, padding: '1px 5px' }}>
+                            #{orderSequence.get(`hist:${o.key}`)}
+                          </span>
+                        )}
+                        <div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
+                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </div>
                       </div>
                       <div className="mono" style={{ fontSize: 15, fontWeight: 800 }}>
                         {Math.round(o.totalAmount).toLocaleString()} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{o.currency}</span>
@@ -1704,6 +1740,7 @@ export default function CustomerOrdersPage() {
               <table>
                 <thead>
                   <tr>
+                    <th className="r">#</th>
                     <th>{L('Date', 'التاريخ')}</th>
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
                     <th className="r">{L('EGP price', 'سعر البيع')}</th>
@@ -1715,6 +1752,9 @@ export default function CustomerOrdersPage() {
                     const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
                     return (
                       <tr key={`${o.key}-${i}`}>
+                        <td className="mono r" style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+                          {orderSequence.get(`hist:${o.key}`) ?? '—'}
+                        </td>
                         <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                           {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </td>

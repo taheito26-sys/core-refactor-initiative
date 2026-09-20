@@ -27,6 +27,8 @@ interface PhasedClientOrderCardProps {
   lang: 'en' | 'ar';
   createdAt: string;
   note?: string | null;
+  /** Stable "Order #N", numbered oldest-first across the buyer's whole order history. */
+  sequenceNumber?: number;
   actions?: React.ReactNode;
 }
 
@@ -90,6 +92,7 @@ export function PhasedClientOrderCard({
   lang,
   createdAt,
   note,
+  sequenceNumber,
   actions,
 }: PhasedClientOrderCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -128,6 +131,11 @@ export function PhasedClientOrderCard({
         {/* Header: status badge + date */}
         <div className={cn('flex items-start justify-between gap-2', isRtl && 'flex-row-reverse')}>
           <div className="flex items-center gap-1.5">
+            {sequenceNumber != null && (
+              <span className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-bold text-slate-300">
+                #{sequenceNumber}
+              </span>
+            )}
             {isFull && (
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-[11px] leading-none text-emerald-400">✓</span>
             )}
