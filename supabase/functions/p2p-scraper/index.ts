@@ -106,8 +106,25 @@ function buildSnapshot(
     topSell.length > 0
       ? topSell.reduce((s, o) => s + o.price, 0) / topSell.length
       : null;
+
+  // Dedicated Banque Misr sell book. The unfiltered top-20 above almost never
+  // contains enough Banque Misr ads to average, so these come from a separate
+  // payTypes-filtered query. Cheapest first, same direction as buyOffers.
+  const banqueMisrSellOffers = parseOffers(banqueMisrRaw).sort(
+    (a, b) => a.price - b.price,
+  );
+
+  // Egypt's buyAvg is the merchant-facing "average selling price" quote, so
+  // it has to reflect a payment method buyers can actually use, not the
+  // generic top-20 book (mixes in low-liquidity/unusable methods and skews
+  // the average up). Banque Misr's own top 8 cheapest ads instead; falls
+  // back to the generic top-N average only when too few Banque Misr ads
+  // exist to average meaningfully.
+  const topBanqueMisr = banqueMisrSellOffers.slice(0, 8);
   const buyAvg =
-    topBuy.length > 0
+    marketId === "egypt" && topBanqueMisr.length > 0
+      ? topBanqueMisr.reduce((s, o) => s + o.price, 0) / topBanqueMisr.length
+      : topBuy.length > 0
       ? topBuy.reduce((s, o) => s + o.price, 0) / topBuy.length
       : null;
 
@@ -123,13 +140,6 @@ function buildSnapshot(
 
   const sellDepth = sellOffers.reduce((s, o) => s + o.available, 0);
   const buyDepth = buyOffers.reduce((s, o) => s + o.available, 0);
-
-  // Dedicated Banque Misr sell book. The unfiltered top-20 above almost never
-  // contains enough Banque Misr ads to average, so these come from a separate
-  // payTypes-filtered query. Cheapest first, same direction as sellOffers.
-  const banqueMisrSellOffers = parseOffers(banqueMisrRaw).sort(
-    (a, b) => a.price - b.price,
-  );
 
   return {
     ts: Date.now(),
