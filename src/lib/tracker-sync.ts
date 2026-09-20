@@ -85,6 +85,49 @@ function stripForeignIds<T extends { id?: string } | Record<string, unknown>>(
   });
 }
 
+/**
+ * Circuit breaker for every deletedXIds tombstone list (customers, batches,
+ * trades, loans, repayments): a save that suddenly wants to tombstone a
+ * large slice of a collection in one shot is far more likely to be a bug
+ * than a real bulk delete — the actual UI actions that tombstone anything
+ * (fold a duplicate customer, delete one batch/trade/loan/repayment) only
+ * ever touch one id at a time. This does not stop a customer's data from
+ * ever being lost outright (a union can't do that on its own — see the
+ * customers merge above), but it is a second, independent line of defense
+ * against a *different* future bug that manages to push many ids into a
+ * tombstone list at once: rather than silently applying it, that save's
+ * new tombstones for this collection are dropped (the ids stay), and it's
+ * logged loudly so the failure is visible instead of quietly destructive.
+ * `latestCount` is the cloud row's current collection size, so a big
+ * tombstone list against a small collection (e.g. genuinely clearing out
+ * 4 of 5 batches) isn't penalized — only an outsized jump is.
+ */
+export function guardTombstones(
+  collectionName: string,
+  latestIds: string[] | undefined,
+  incomingIds: string[] | undefined,
+  latestCount: number,
+): string[] {
+  const latest = latestIds || [];
+  const incoming = incomingIds || [];
+  const newlyTombstoned = incoming.filter(id => !latest.includes(id));
+  const MAX_NEW_ABSOLUTE = 5;
+  const MAX_NEW_FRACTION = 0.2;
+  if (
+    newlyTombstoned.length > MAX_NEW_ABSOLUTE &&
+    newlyTombstoned.length > latestCount * MAX_NEW_FRACTION
+  ) {
+    console.error(
+      `[tracker-sync] Refusing ${newlyTombstoned.length} new ${collectionName} tombstone(s) in one save ` +
+      `(cloud currently has ${latestCount}) — this looks like a bug, not a real bulk delete. ` +
+      `Keeping the existing ${collectionName} tombstone list unchanged this save; if this is genuinely a ` +
+      `deliberate bulk delete, it will need to be applied in smaller batches or via an explicit admin patch.`,
+    );
+    return latest.slice(-500);
+  }
+  return Array.from(new Set([...latest, ...incoming])).slice(-500);
+}
+
 function quickHash(str: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -273,31 +316,29 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
 
   if (latestState && typeof latestState === 'object') {
-    const deletedLoanIds = Array.from(new Set([
-      ...(latestState.deletedLoanIds || []),
-      ...(stripped.deletedLoanIds || []),
-    ])).slice(-500);
-    const deletedRepaymentIds = Array.from(new Set([
-      ...(latestState.deletedRepaymentIds || []),
-      ...(stripped.deletedRepaymentIds || []),
-    ])).slice(-500);
+    const deletedLoanIds = guardTombstones(
+      'customerLoans', latestState.deletedLoanIds, stripped.deletedLoanIds, (latestState.customerLoans || []).length,
+    );
+    const latestRepaymentCount = (latestState.customerLoans || [])
+      .reduce((sum, l) => sum + (l.repayments || []).length, 0);
+    const deletedRepaymentIds = guardTombstones(
+      'repayments', latestState.deletedRepaymentIds, stripped.deletedRepaymentIds, latestRepaymentCount,
+    );
     const mergedLoans = withoutDeletedRepayments(
       mergeLoansByRecency(latestState.customerLoans, stripped.customerLoans)
         .filter(l => !deletedLoanIds.includes(l.id)),
       deletedRepaymentIds,
     );
 
-    const deletedBatchIds = Array.from(new Set([
-      ...(latestState.deletedBatchIds || []),
-      ...(stripped.deletedBatchIds || []),
-    ])).slice(-500);
+    const deletedBatchIds = guardTombstones(
+      'batches', latestState.deletedBatchIds, stripped.deletedBatchIds, (latestState.batches || []).length,
+    );
     const mergedBatches = mergeArrayById(latestState.batches, stripped.batches)
       .filter(b => !deletedBatchIds.includes((b as { id: string }).id));
 
-    const deletedTradeIds = Array.from(new Set([
-      ...(latestState.deletedTradeIds || []),
-      ...(stripped.deletedTradeIds || []),
-    ])).slice(-500);
+    const deletedTradeIds = guardTombstones(
+      'trades', latestState.deletedTradeIds, stripped.deletedTradeIds, (latestState.trades || []).length,
+    );
     const mergedTrades = mergeArrayById(latestState.trades, stripped.trades)
       .filter(tr => !deletedTradeIds.includes((tr as { id: string }).id));
 
@@ -314,10 +355,9 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     // every customer the device didn't currently know about. See
     // deletedCustomerIds for why a plain union still needs its own
     // tombstone list, same as batches/trades/loans.
-    const deletedCustomerIds = Array.from(new Set([
-      ...(latestState.deletedCustomerIds || []),
-      ...(stripped.deletedCustomerIds || []),
-    ])).slice(-500);
+    const deletedCustomerIds = guardTombstones(
+      'customers', latestState.deletedCustomerIds, stripped.deletedCustomerIds, (latestState.customers || []).length,
+    );
     const mergedCustomers = mergeArrayById(latestState.customers, stripped.customers)
       .filter(c => !deletedCustomerIds.includes((c as { id: string }).id));
 

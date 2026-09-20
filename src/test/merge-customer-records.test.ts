@@ -42,4 +42,17 @@ describe('mergeCustomerRecords', () => {
     expect(mergeCustomerRecords(state, '', 'c1')).toBe(state);
     expect(mergeCustomerRecords(state, 'c1', '')).toBe(state);
   });
+
+  it('tombstones the folded-away id so a stale device cannot resurrect it', () => {
+    const state = {
+      customers: [mockCustomer({ id: 'local-1' }), mockCustomer({ id: 'connected-1' })],
+      trades: [mockTrade({ id: 't1', customerId: 'local-1' })],
+      customerLoans: [],
+      deletedCustomerIds: ['already-deleted'],
+    };
+
+    const merged = mergeCustomerRecords(state, 'local-1', 'connected-1');
+
+    expect(merged.deletedCustomerIds).toEqual(['already-deleted', 'local-1']);
+  });
 });
