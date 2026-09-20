@@ -78,6 +78,23 @@ function isCustomerReportedNote(note: string | null): boolean {
   return CUSTOMER_REPORTED_NOTE_PREFIXES.some(p => note.startsWith(p));
 }
 
+// The prefix above is an internal system label CashManagement.claimRepaymentNote
+// stamps onto the repayment note when a claim is accepted -- it's never
+// something the buyer themselves wrote, so it has no business showing up in
+// their own note preview or, worse, sitting inside a note field they can
+// then edit and resend.
+function stripSystemNotePrefix(note: string | null): string | null {
+  if (!note) return null;
+  for (const prefix of CUSTOMER_REPORTED_NOTE_PREFIXES) {
+    if (!note.startsWith(prefix)) continue;
+    let rest = note.slice(prefix.length);
+    if (rest.startsWith(':')) rest = rest.slice(1);
+    rest = rest.trim();
+    return rest && rest.toLowerCase() !== 'payment' ? rest : null;
+  }
+  return note;
+}
+
 function getBalance(accountId: string, ledger: LedgerRow[]): number {
   return ledger
     .filter(e => e.account_id === accountId)
@@ -558,7 +575,7 @@ export default function CustomerWalletPage() {
     const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null; addedByCustomer: boolean }[] = [];
     for (const s of loanStatements) {
       for (const p of s.payments) {
-        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: p.note, ref: p.ref, addedByCustomer: isCustomerReportedNote(p.note) });
+        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: stripSystemNotePrefix(p.note), ref: p.ref, addedByCustomer: isCustomerReportedNote(p.note) });
       }
     }
     return rows.sort((a, b) => b.date - a.date);

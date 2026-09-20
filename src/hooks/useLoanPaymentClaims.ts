@@ -4,6 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { toast } from 'sonner';
 
+// supabase-js's `error` from .rpc()/.from() is a PostgrestError -- it has a
+// `.message`, but isn't always `instanceof Error` depending on the code
+// path that constructed it, so `err instanceof Error` alone silently drops
+// the real reason (an RPC's RAISE EXCEPTION text, an RLS violation, etc.)
+// and falls through to a generic message every time.
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return fallback;
+}
+
 export interface LoanPaymentClaim {
   id: string;
   merchantUserId: string;
@@ -123,7 +136,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment reported to your merchant');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not submit payment'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not submit payment')),
   });
 
   /** Corrects a still-pending claim's amount/note/date -- RLS refuses this once a merchant has reviewed it. */
@@ -143,7 +156,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment updated');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not update payment'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not update payment')),
   });
 
   /** Withdraws a still-pending claim -- RLS refuses this once a merchant has reviewed it. */
@@ -159,7 +172,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment report deleted');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not delete payment'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not delete payment')),
   });
 
   const reviewClaim = useMutation({
@@ -177,7 +190,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'merchant', user?.id] });
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not update payment claim'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not update payment claim')),
   });
 
   /**
@@ -201,7 +214,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success(input.kind === null ? 'Request cancelled' : 'Sent to your merchant for review');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not send the request'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not send the request')),
   });
 
   /**
@@ -232,7 +245,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Sent to your merchant for review');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not send the request'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not send the request')),
   });
 
   /** Customer side: withdraw a still-open request against a merchant-entered payment. */
@@ -245,7 +258,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Request cancelled');
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not cancel the request'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not cancel the request')),
   });
 
   /** Merchant side: close out a change request, after applying it to the tracker or declining it. */
@@ -260,7 +273,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'merchant', user?.id] });
     },
-    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not close the request'),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not close the request')),
   });
 
   return {
