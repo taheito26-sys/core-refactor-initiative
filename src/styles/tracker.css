@@ -687,10 +687,17 @@
   padding: 5px 14px;
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255,255,255,0.45);
-  border: 1px solid rgba(255,255,255,0.08);
+  /* Theme-aware, not hardcoded white -- rgba(255,255,255,...) text on a
+     near-transparent white fill only has contrast against a dark page.
+     Every light preset (theme.bg near-white) made unselected pills
+     nearly invisible: white-on-white text with a background fill so
+     faint it read as blank. --muted/--line/--hover-card already resolve
+     per active theme (dark default or one of the 5 light presets), so
+     this now has correct contrast either way. */
+  color: var(--muted);
+  border: 1px solid var(--line);
   border-radius: 20px;
-  background: rgba(255,255,255,0.04);
+  background: var(--hover-card);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -698,9 +705,9 @@
   letter-spacing: 0.02em;
 }
 .month-pill:hover {
-  color: rgba(255,255,255,0.8);
-  border-color: rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.07);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, var(--hover-card));
 }
 .month-pill.active {
   color: #fff;
