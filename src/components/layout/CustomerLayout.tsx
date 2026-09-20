@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
 import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import '@/styles/tracker.css';
+import '@/styles/customer-portal.css';
 
 // PRD nav: Dashboard, Orders, Cash Management, Chat — 4 primary items
 const PRIMARY_NAV = [
@@ -75,7 +76,7 @@ export function CustomerLayout() {
   );
 
   return (
-    <div className="tracker-root app-shell flex h-dvh overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="tracker-root customer-portal app-shell flex h-dvh overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {!isMobile && sidebar}
       {isMobile && drawerOpen && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setDrawerOpen(false)} />}
       {isMobile && drawerOpen && <div className={cn('fixed top-0 z-50 h-full', isRTL ? 'right-0' : 'left-0')}>{sidebar}</div>}

@@ -1,0 +1,40 @@
+/* ─── Customer portal — light-theme depth ───────────────────────────────
+   The customer portal's page background (theme.bg) and its cards
+   (theme.cardBg) sit within ~1-2% lightness of each other in every light
+   preset (e.g. Flux t1: #f8faff vs #ffffff), and card borders are a very
+   low-opacity hairline (theme.line at ~9% alpha) with no shadow anywhere
+   in the Tailwind-styled customer pages — so cards barely separate from
+   the page, reading as one flat white sheet instead of a layered UI.
+
+   Scoped to `.customer-portal` (added on CustomerLayout's root element)
+   rather than the global theme so the merchant app — which draws its own
+   surfaces from the same --tracker-* variables via tracker.css's
+   `.kpi-card`/`.panel` classes with their own established shadow — is
+   untouched. Uses color-mix() against the live theme variables rather
+   than hardcoded hex, so it tracks whichever of the 5 light presets
+   (t1-t5) the customer has picked, and a customer who happens to be on a
+   dark preset sees no visible change (color-mix toward black on an
+   already-dark background is imperceptible). */
+
+.customer-portal.tracker-root {
+  background: color-mix(in srgb, hsl(var(--background)) 90%, black 10%);
+}
+
+.customer-portal .bg-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.07);
+}
+
+/* Card borders across the portal use border-border/50 (a hairline at
+   half the theme's already-faint line opacity) — nudged up so a card's
+   edge reads as intentional, not accidental. */
+.customer-portal .border-border\/50 {
+  border-color: color-mix(in srgb, hsl(var(--border)) 75%, transparent);
+}
+
+/* Sticky header/bottom-nav bleed a touch of the theme's brand color
+   instead of sitting at plain background white, so the chrome reads as
+   part of the same branded product as the hero card below it. */
+.customer-portal header,
+.customer-portal nav {
+  background: color-mix(in srgb, hsl(var(--background)) 94%, hsl(var(--primary)) 6%);
+}
