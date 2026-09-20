@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users, Info } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -164,6 +164,8 @@ export default function CustomerHomePage() {
   const { data: marketData } = useQuery({ queryKey: ['c-market-kpis'], queryFn: getCustomerMarketKpis, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000 });
   const guideRate = marketData?.guide?.rate ?? null;
   const egyptBuyAvg = marketData?.egypt?.buyAvg ?? null;
+  const egyptEmergencyAvg = marketData?.egypt?.emergencyAvg ?? null;
+  const [showEmergencyInfo, setShowEmergencyInfo] = useState(false);
 
   // Cash accounts — needed to prompt creation when receiving orders
   const qc = useQueryClient();
@@ -321,20 +323,46 @@ export default function CustomerHomePage() {
     <div className="space-y-3">
       {/* Hero: greeting + live rates */}
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-4 text-primary-foreground space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs opacity-80">{L('Welcome back', 'مرحباً')}</p>
-            <h1 className="text-lg font-bold leading-tight">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
-          </div>
-          {/* Avg selling price — the live QAR/EGP guide rate is deliberately
-              not shown here; only the market's average selling price. */}
-          <div className="rounded-xl bg-white/10 px-3 py-2 text-right shrink-0">
+        <div>
+          <p className="text-xs opacity-80">{L('Welcome back', 'مرحباً')}</p>
+          <h1 className="text-lg font-bold leading-tight">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
+        </div>
+
+        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
+            not shown here; only the market's average selling price.
+            Emergency price sits beside it: a second Banque Misr quote from
+            the other side of the book, meant to read as "what you could
+            realistically get if you had to sell right now" -- see the (i)
+            for exactly how it's built. */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/10 px-3 py-2">
             <p className="text-[9px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
-            <p className="text-xl font-black tabular-nums leading-tight">
+            <p className="text-lg font-black tabular-nums leading-tight">
               {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
             </p>
           </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setShowEmergencyInfo(v => !v)}
+              className="flex items-center gap-1 text-[9px] opacity-70 uppercase tracking-wide"
+            >
+              {L('Emergency Price', 'سعر الطوارئ')}
+              <Info className="h-2.5 w-2.5 shrink-0" />
+            </button>
+            <p className="text-lg font-black tabular-nums leading-tight">
+              {egyptEmergencyAvg != null ? fmt(egyptEmergencyAvg, 4) : '—'}
+            </p>
+          </div>
         </div>
+        {showEmergencyInfo && (
+          <p className="text-[10px] leading-snug opacity-80 bg-white/10 rounded-lg px-3 py-2">
+            {L(
+              'Banque Misr sell offers on Binance P2P, ranks 2–9 by price (the single best-priced ad is dropped as an outlier).',
+              'عروض بيع بنك مصر على Binance P2P، من العرض الثاني حتى التاسع سعراً (يُستبعد أفضل عرض باعتباره استثناءً).',
+            )}
+          </p>
+        )}
       </div>
 
       {/* Quick actions — the main navigation surface for the page */}

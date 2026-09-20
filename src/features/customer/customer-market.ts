@@ -16,6 +16,9 @@ export type CustomerMarketCard = {
   label: 'Qatar' | 'Egypt';
   buyAvg: number | null;
   sellAvg: number | null;
+  /** Egypt only — Banque Misr's sell-side book, ranks 2-9 (best ad dropped
+   * as an outlier), highest price first. See p2p-scraper's buildSnapshot. */
+  emergencyAvg: number | null;
   bestBuy: number | null;
   bestSell: number | null;
   spreadPct: number | null;
@@ -124,6 +127,7 @@ function toMarketCard(row: MarketSnapshotRow | null, label: 'Qatar' | 'Egypt'): 
   if (!row?.data) return null;
   const buyAvg = toFiniteNumber(row.data.buyAvg);
   const sellAvg = toFiniteNumber(row.data.sellAvg);
+  const emergencyAvg = toFiniteNumber(row.data.emergencyAvg);
   const bestBuy = toFiniteNumber(row.data.bestBuy);
   const bestSell = toFiniteNumber(row.data.bestSell);
   const spreadPct = toFiniteNumber(row.data.spreadPct);
@@ -133,6 +137,7 @@ function toMarketCard(row: MarketSnapshotRow | null, label: 'Qatar' | 'Egypt'): 
     label,
     buyAvg,
     sellAvg,
+    emergencyAvg,
     bestBuy,
     bestSell,
     spreadPct,

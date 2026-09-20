@@ -94,6 +94,7 @@ function buildSnapshot(
   buyRaw: BinanceP2POffer[],
   marketId: string,
   banqueMisrRaw: BinanceP2POffer[] = [],
+  banqueMisrEmergencyRaw: BinanceP2POffer[] = [],
 ) {
   const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);
   const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);
@@ -128,6 +129,23 @@ function buildSnapshot(
       ? topBuy.reduce((s, o) => s + o.price, 0) / topBuy.length
       : null;
 
+  // "Emergency price" — a second Banque Misr quote from the *other* side of
+  // the book (Binance's own Sell tab: tradeType SELL returns the buyer ads
+  // you'd sell into, highest price first) meant to read as "what you could
+  // realistically get if you had to sell right now", as distinct from
+  // buyAvg above. The single best-priced ad is dropped before averaging --
+  // it's routinely an outlier (tiny limit, unreliable advertiser) that
+  // doesn't reflect what a real trade would clear at -- so this is ranks
+  // 2-9 (skip the first, then take the next 8), highest price first.
+  const banqueMisrEmergencyOffers = parseOffers(banqueMisrEmergencyRaw).sort(
+    (a, b) => b.price - a.price,
+  );
+  const topEmergency = banqueMisrEmergencyOffers.slice(1, 9);
+  const emergencyAvg =
+    marketId === "egypt" && topEmergency.length > 0
+      ? topEmergency.reduce((s, o) => s + o.price, 0) / topEmergency.length
+      : null;
+
   const bestSell = sellOffers.length > 0 ? sellOffers[0].price : null;
   const bestBuy = buyOffers.length > 0 ? buyOffers[0].price : null;
 
@@ -144,8 +162,10 @@ function buildSnapshot(
   return {
     ts: Date.now(),
     banqueMisrSellOffers,
+    banqueMisrEmergencyOffers,
     sellAvg,
     buyAvg,
+    emergencyAvg,
     bestSell,
     bestBuy,
     spread,
@@ -186,15 +206,21 @@ Deno.serve(async (req: Request) => {
     for (const market of marketsToScrape) {
       try {
         const apiRows = market.id === "qatar" ? 10 : 20;
-        const [sellRaw, buyRaw, banqueMisrRaw] = await Promise.all([
+        const [sellRaw, buyRaw, banqueMisrRaw, banqueMisrEmergencyRaw] = await Promise.all([
           fetchBinanceP2P(market.fiat, "SELL", market.asset, apiRows),
           fetchBinanceP2P(market.fiat, "BUY", market.asset, apiRows),
           market.id === "egypt"
             ? fetchBinanceP2P(market.fiat, "BUY", market.asset, 20, ["BanqueMisr"], null)
             : Promise.resolve([]),
+          // "Emergency price" — Binance's own Sell tab (tradeType SELL) for
+          // the same Banque Misr filter, the other side of the book from
+          // banqueMisrRaw above.
+          market.id === "egypt"
+            ? fetchBinanceP2P(market.fiat, "SELL", market.asset, 20, ["BanqueMisr"], null)
+            : Promise.resolve([]),
         ]);
 
-        const snapshot = buildSnapshot(sellRaw, buyRaw, market.id, banqueMisrRaw);
+        const snapshot = buildSnapshot(sellRaw, buyRaw, market.id, banqueMisrRaw, banqueMisrEmergencyRaw);
 
         const { error } = await supabase.from("p2p_snapshots").insert({
           market: market.id,
@@ -208,6 +234,7 @@ Deno.serve(async (req: Request) => {
         results[market.id] = {
           sellAvg: snapshot.sellAvg,
           buyAvg: snapshot.buyAvg,
+          emergencyAvg: snapshot.emergencyAvg,
           spread: snapshot.spread,
           offersCount: {
             sell: snapshot.sellOffers.length,
