@@ -168,7 +168,15 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
         ...(merged.deletedRepaymentIds || []),
         ...(Array.isArray(state.deletedRepaymentIds) ? state.deletedRepaymentIds : []),
       ])).slice(-500),
+      deletedCustomerIds: Array.from(new Set([
+        ...(merged.deletedCustomerIds || []),
+        ...(Array.isArray(state.deletedCustomerIds) ? state.deletedCustomerIds : []),
+      ])).slice(-500),
     };
+  }
+  if (merged.customers && merged.deletedCustomerIds?.length) {
+    const deleted = new Set(merged.deletedCustomerIds);
+    merged.customers = merged.customers.filter(c => !deleted.has(c.id));
   }
   if (merged.customerLoans && merged.deletedLoanIds?.length) {
     const deleted = new Set(merged.deletedLoanIds);
@@ -293,6 +301,26 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     const mergedTrades = mergeArrayById(latestState.trades, stripped.trades)
       .filter(tr => !deletedTradeIds.includes((tr as { id: string }).id));
 
+    // customers/suppliers are unioned by id on every save, exactly like
+    // trades/batches/loans above — NOT only before the first cloud load of
+    // the session. The previous code only merged them pre-load and then
+    // wholesale-overwrote the cloud row with this device's own in-memory
+    // copy on every save after that; if `_cloudLoadedThisSession` flipped
+    // true (trades/batches/loans loaded fine) while `state.customers`
+    // itself was still incomplete in memory for any reason — a slow or
+    // partial reload right after a sign-out/sign-in cycle being the
+    // observed case — the very next save would silently replace the
+    // cloud's full customer list with that incomplete local one, deleting
+    // every customer the device didn't currently know about. See
+    // deletedCustomerIds for why a plain union still needs its own
+    // tombstone list, same as batches/trades/loans.
+    const deletedCustomerIds = Array.from(new Set([
+      ...(latestState.deletedCustomerIds || []),
+      ...(stripped.deletedCustomerIds || []),
+    ])).slice(-500);
+    const mergedCustomers = mergeArrayById(latestState.customers, stripped.customers)
+      .filter(c => !deletedCustomerIds.includes((c as { id: string }).id));
+
     merged = {
       ...merged,
       trades: mergedTrades,
@@ -302,14 +330,15 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       deletedRepaymentIds,
       batches: mergedBatches,
       deletedBatchIds,
+      customers: mergedCustomers,
+      deletedCustomerIds,
+      suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
     };
 
     if (!_cloudLoadedThisSession) {
       merged = {
         ...latestState,
         ...merged,
-        customers: mergeArrayById(latestState.customers, stripped.customers),
-        suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
         cashAccounts: [],
         cashLedger: [],
         cashHistory: [],

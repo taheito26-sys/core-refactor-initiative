@@ -594,15 +594,16 @@ export function getLoanRemaining(loan: CustomerLoan): number {
  * dropped, so the buyer never shows as two separate accounts again.
  */
 export function mergeCustomerRecords(
-  state: Pick<TrackerState, 'customers' | 'trades' | 'customerLoans'>,
+  state: Pick<TrackerState, 'customers' | 'trades' | 'customerLoans' | 'deletedCustomerIds'>,
   fromId: string,
   intoId: string,
-): Pick<TrackerState, 'customers' | 'trades' | 'customerLoans'> {
+): Pick<TrackerState, 'customers' | 'trades' | 'customerLoans' | 'deletedCustomerIds'> {
   if (!fromId || !intoId || fromId === intoId) return state;
   return {
     customers: state.customers.filter(c => c.id !== fromId),
     trades: state.trades.map(t => (t.customerId === fromId ? { ...t, customerId: intoId } : t)),
     customerLoans: (state.customerLoans || []).map(l => (l.customerId === fromId ? { ...l, customerId: intoId } : l)),
+    deletedCustomerIds: Array.from(new Set([...(state.deletedCustomerIds || []), fromId])).slice(-500),
   };
 }
 
@@ -773,6 +774,15 @@ export interface TrackerState {
    * the identical pattern applied one level up.
    */
   deletedRepaymentIds?: string[];
+  /**
+   * Ids of customer records dropped by mergeCustomerRecords (folding a
+   * duplicate buyer into its canonical record). customers is unioned by id
+   * on every save/merge, same as trades/batches/loans — a plain union alone
+   * would let a stale device's still-present copy of the folded-away
+   * duplicate silently resurrect it the next time that device saves
+   * anything. See deletedBatchIds for the identical pattern.
+   */
+  deletedCustomerIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }

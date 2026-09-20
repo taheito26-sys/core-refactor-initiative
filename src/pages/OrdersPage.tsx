@@ -1449,7 +1449,7 @@ export default function OrdersPage() {
     if (!newBuyerName.trim()) return;
     const created = ensureCustomer(newBuyerName, newBuyerPhone, newBuyerTier);
     if (!created.id) return;
-    applyState({ ...state, customers: created.customers, trades: created.trades, customerLoans: created.customerLoans });
+    applyState({ ...state, customers: created.customers, trades: created.trades, customerLoans: created.customerLoans, deletedCustomerIds: created.deletedCustomerIds ?? state.deletedCustomerIds });
     setBuyerName(newBuyerName.trim());
     setBuyerId(created.id);
     setBuyerMenuOpen(false);
@@ -1946,6 +1946,7 @@ export default function OrdersPage() {
     let nextCustomers = state.customers;
     let nextTrades = state.trades;
     let nextCustomerLoans = state.customerLoans;
+    let nextDeletedCustomerIds = state.deletedCustomerIds;
     let customerId = '';
     if (buyerId) {
       // The buyer was picked from the list (a local or connected customer),
@@ -1969,6 +1970,7 @@ export default function OrdersPage() {
       nextCustomers = ensured.customers;
       nextTrades = ensured.trades;
       nextCustomerLoans = ensured.customerLoans;
+      nextDeletedCustomerIds = ensured.deletedCustomerIds ?? state.deletedCustomerIds;
     }
 
     // Remember which customer this exchange counterparty resolved to, so the
@@ -2172,6 +2174,7 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
+          deletedCustomerIds: nextDeletedCustomerIds,
           customerLoans: nextCustomerLoans,
           trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
@@ -2320,6 +2323,7 @@ export default function OrdersPage() {
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
+          deletedCustomerIds: nextDeletedCustomerIds,
           customerLoans: nextCustomerLoans,
           trades: [...nextTrades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
@@ -2386,6 +2390,7 @@ export default function OrdersPage() {
       const next: TrackerState = {
         ...state,
         customers: nextCustomers,
+        deletedCustomerIds: nextDeletedCustomerIds,
         trades: [...state.trades, primaryTrade, secondTrade],
         customerLoans: splitLoans.length ? [...(state.customerLoans || []), ...splitLoans] : state.customerLoans,
         range: inRange(ts, state.range) ? state.range : 'all'
@@ -2410,6 +2415,7 @@ export default function OrdersPage() {
       let next: TrackerState = {
         ...state,
         customers: nextCustomers,
+        deletedCustomerIds: nextDeletedCustomerIds,
         customerLoans: nextCustomerLoans,
         trades: [...nextTrades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
