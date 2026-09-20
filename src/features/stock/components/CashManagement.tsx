@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, fmtP, fmtU, num, computeFIFO,
@@ -2897,6 +2898,23 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
   }, [innerTab, statementLinksLoaded, loadStatementLinks, connectedCustomersLoaded, loadConnectedCustomers]);
+
+  // A loan-payment-claim notification's Accept/Apply button lands here with
+  // ?tab=loans&focusLoanPaymentClaimId=<id> (see notification-router.ts) --
+  // switch to the Loans tab and highlight that exact claim so the merchant
+  // doesn't have to go hunting for it among every other pending claim.
+  const [searchParams] = useSearchParams();
+  const focusClaimId = searchParams.get('focusLoanPaymentClaimId');
+  useEffect(() => {
+    if (searchParams.get('tab') === 'loans') setInnerTab('loans');
+  }, [searchParams]);
+  useEffect(() => {
+    if (!focusClaimId) return;
+    const timer = setTimeout(() => {
+      document.getElementById(`loan-payment-claim-${focusClaimId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [focusClaimId]);
   /** Account whose own ledger is currently open in the drill-down panel. */
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [showNewLoan, setShowNewLoan] = useState(false);
@@ -4134,7 +4152,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
                   const isDelete = claim.changeRequest === 'delete';
                   return (
-                    <div key={`change-${claim.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--warn) 35%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 7%, transparent)' }}>
+                    <div key={`change-${claim.id}`} id={`loan-payment-claim-${claim.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'color-mix(in srgb, var(--warn) 7%, transparent)', ...(focusClaimId === claim.id ? { border: '2px solid var(--warn)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent)' } : { border: '1px solid color-mix(in srgb, var(--warn) 35%, transparent)' }) }}>
                       <div style={{ flex: 1, minWidth: 180 }}>
                         <div style={{ fontSize: 11, fontWeight: 700 }}>
                           {claimCustomer?.name || claim.customerId}
@@ -4164,7 +4182,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 {pendingPaymentClaims.map(claim => {
                   const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
                   return (
-                    <div key={claim.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
+                    <div key={claim.id} id={`loan-payment-claim-${claim.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)', ...(focusClaimId === claim.id ? { border: '2px solid var(--brand)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent)' } : { border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }) }}>
                       <div style={{ flex: 1, minWidth: 180 }}>
                         <div style={{ fontSize: 11, fontWeight: 700 }}>{claimCustomer?.name || claim.customerId}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>
