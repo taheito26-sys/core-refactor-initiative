@@ -893,11 +893,11 @@ export default function CustomerOrdersPage() {
   const grouped = groupByDay(filteredOrders, lang);
 
   // A stable "Order #N" the buyer can reference in chat/calls, numbered
-  // oldest-first across their whole order history (live workflow orders
-  // plus pre-portal history) — not scoped to the selected month, so an
-  // order's number never changes depending on which filter is active.
-  // Matches the "#" sequence convention already used on statement exports
-  // (monthlyStatementExport.ts).
+  // oldest-first *within each calendar month* (live workflow orders plus
+  // pre-portal history combined into one timeline first) — restarting at
+  // #1 every month, matching the "#" sequence convention already used on
+  // statement exports (monthlyStatementExport.ts), which are themselves
+  // always one month's worth of orders.
   const orderSequence = useMemo(() => {
     const combined: { key: string; ts: number }[] = [
       ...orders.map(o => ({ key: `live:${o.id}`, ts: new Date(o.created_at).getTime() })),
@@ -905,7 +905,13 @@ export default function CustomerOrdersPage() {
     ];
     combined.sort((a, b) => a.ts - b.ts);
     const map = new Map<string, number>();
-    combined.forEach((o, i) => map.set(o.key, i + 1));
+    const countByMonth = new Map<string, number>();
+    for (const o of combined) {
+      const monthKey = localMonthKey(o.ts);
+      const next = (countByMonth.get(monthKey) ?? 0) + 1;
+      countByMonth.set(monthKey, next);
+      map.set(o.key, next);
+    }
     return map;
   }, [orders, historyOrders]);
 
