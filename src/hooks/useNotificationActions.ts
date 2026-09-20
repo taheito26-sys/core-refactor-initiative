@@ -221,6 +221,13 @@ export function resolveNotificationActionKind(
   if (cat === 'approval' && et === 'profile') return 'profile_approval';
   if (cat === 'approval' && et === 'settlement') return 'settlement_approval';
   if (cat === 'invite' || cat === 'network') return 'invite_incoming';
-  if (cat === 'settlement') return 'settlement_approval';
+  // category 'settlement' also covers loan_payment_claim notifications (a
+  // customer-reported payment, or a correction request) -- those go
+  // through Cash Management's own Accept/Reject, not this generic
+  // settlement RPC, so this catch-all must stay scoped to et === 'settlement'
+  // (or unset, for older rows predating entity_type on this category).
+  // Routing a claim id into settlementApprove's RPC previously surfaced as
+  // "Settlement <claim id> not found or already processed".
+  if (cat === 'settlement' && (et === 'settlement' || et === '')) return 'settlement_approval';
   return null;
 }
