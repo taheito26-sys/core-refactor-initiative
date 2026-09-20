@@ -700,6 +700,30 @@ export default function CustomerWalletPage() {
     });
   }, [filteredLoanPayments]);
 
+  // A stable "#N" the buyer can reference in chat/calls, one per grouped
+  // day, restarting at #1 each calendar month — same convention as the
+  // Orders page's sequence numbers. Built from the full, unfiltered
+  // loanPayments (not the month-filtered groupedLoanPayments) so a
+  // payment's number never depends on which month filter is active.
+  const paymentSequence = useMemo(() => {
+    const bucketDates = new Map<string, number>();
+    for (const p of loanPayments) {
+      const bucket = `${p.currency}:${localDayKey(p.date)}`;
+      const prev = bucketDates.get(bucket);
+      bucketDates.set(bucket, prev != null ? Math.max(prev, p.date) : p.date);
+    }
+    const entries = Array.from(bucketDates.entries()).sort((a, b) => a[1] - b[1]);
+    const map = new Map<string, number>();
+    const countByMonth = new Map<string, number>();
+    for (const [bucket, date] of entries) {
+      const monthKey = localMonthKey(date);
+      const next = (countByMonth.get(monthKey) ?? 0) + 1;
+      countByMonth.set(monthKey, next);
+      map.set(bucket, next);
+    }
+    return map;
+  }, [loanPayments]);
+
   // Search + sort controls for the Payments Received list — lets the buyer
   // find a specific payment by its note instead of scrolling the whole
   // month, and re-order it (newest/oldest/largest/smallest) rather than
@@ -1359,6 +1383,11 @@ export default function CustomerWalletPage() {
                             <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold truncate flex items-center gap-1.5">
+                                {paymentSequence.get(p.bucket) != null && (
+                                  <span className="shrink-0 rounded-md border border-border/50 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
+                                    #{paymentSequence.get(p.bucket)}
+                                  </span>
+                                )}
                                 {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
                                 {p.count > 1 && (
                                   <span className="text-[10px] font-semibold text-muted-foreground">
