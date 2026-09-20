@@ -71,7 +71,7 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
   const params = new URLSearchParams();
 
   // Add tab context
-  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash', 'agreements', 'clients', 'capital', 'settlements', 'liquidity', 'trades'].includes(target.targetTab)) {
+  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash', 'agreements', 'clients', 'capital', 'settlements', 'liquidity', 'trades', 'loans'].includes(target.targetTab)) {
     params.set('tab', target.targetTab);
   }
 
@@ -135,6 +135,8 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       customer_message: 'messageId',
       chat_message: 'messageId',
       capital_ledger: 'focusLedgerId',
+      loan_payment_claim: 'focusLoanPaymentClaimId',
+      loan_payment_claim_change: 'focusLoanPaymentClaimId',
       os_room: 'roomId',   // legacy — os_rooms migrated to chat_rooms, same UUIDs
       chat_room: 'roomId',
       message: 'messageId',

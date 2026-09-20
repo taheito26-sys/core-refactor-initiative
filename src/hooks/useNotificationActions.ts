@@ -196,6 +196,55 @@ export function useInlineSettlementReject() {
   });
 }
 
+// ─── Loan Payment Claim (Reject / Decline only) ────────────────────────────
+//
+// Accept/Apply are deliberately NOT inline mutations here: accepting a
+// claim allocates the reported amount across the buyer's open loans and
+// writes a real repayment into the merchant's tracker snapshot, logic that
+// only runs safely against the live, cloud-synced state Cash Management
+// already has mounted (see CashManagement's acceptPaymentClaim/
+// applyClaimChange). ActivityCenter is mounted globally with no such
+// state, so its Accept/Apply buttons navigate into Cash Management's Loans
+// tab with the claim focused instead of touching the tracker from here.
+// Reject/Decline are plain status flips on loan_payment_claims and are
+// safe to fire from anywhere.
+
+/** Rejects a still-pending claim the customer reported. */
+export function useInlineLoanPaymentClaimReject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (claimId: string) => {
+      const { error } = await supabase
+        .from('loan_payment_claims' as any)
+        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+        .eq('id', claimId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims'] });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+/** Declines a customer's request to correct/remove a payment already on the books. */
+export function useInlineLoanPaymentClaimChangeDecline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (claimId: string) => {
+      const { error } = await supabase.rpc('resolve_loan_payment_claim_change' as any, {
+        p_claim_id: claimId,
+        p_action: 'declined',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loan-payment-claims'] });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
 // ─── Unified action resolver ───────────────────────────────────────────────
 
 /**
@@ -204,10 +253,12 @@ export function useInlineSettlementReject() {
  * per-type logic into the render tree.
  */
 export type NotificationActionKind =
-  | 'deal_approval'       // incoming deal waiting for my approve/reject
-  | 'invite_incoming'     // incoming merchant invite
-  | 'profile_approval'    // admin: new user waiting for approve/reject
-  | 'settlement_approval' // settlement waiting for my approve/reject
+  | 'deal_approval'                  // incoming deal waiting for my approve/reject
+  | 'invite_incoming'                // incoming merchant invite
+  | 'profile_approval'                // admin: new user waiting for approve/reject
+  | 'settlement_approval'             // settlement waiting for my approve/reject
+  | 'loan_payment_claim_approval'     // a customer-reported payment: Accept navigates, Reject is inline
+  | 'loan_payment_claim_change'       // a correction/removal request: Apply navigates, Decline is inline
   | null;
 
 export function resolveNotificationActionKind(
@@ -222,12 +273,12 @@ export function resolveNotificationActionKind(
   if (cat === 'approval' && et === 'settlement') return 'settlement_approval';
   if (cat === 'invite' || cat === 'network') return 'invite_incoming';
   // category 'settlement' also covers loan_payment_claim notifications (a
-  // customer-reported payment, or a correction request) -- those go
-  // through Cash Management's own Accept/Reject, not this generic
-  // settlement RPC, so this catch-all must stay scoped to et === 'settlement'
-  // (or unset, for older rows predating entity_type on this category).
-  // Routing a claim id into settlementApprove's RPC previously surfaced as
+  // customer-reported payment, or a correction request) -- those need
+  // their own inline actions, not this generic settlement RPC. Routing a
+  // claim id into settlementApprove's RPC previously surfaced as
   // "Settlement <claim id> not found or already processed".
+  if (cat === 'settlement' && et === 'loan_payment_claim') return 'loan_payment_claim_approval';
+  if (cat === 'settlement' && et === 'loan_payment_claim_change') return 'loan_payment_claim_change';
   if (cat === 'settlement' && (et === 'settlement' || et === '')) return 'settlement_approval';
   return null;
 }

@@ -44,6 +44,7 @@ import {
   useInlineInviteAccept, useInlineInviteReject,
   useInlineProfileApprove, useInlineProfileReject,
   useInlineSettlementApprove, useInlineSettlementReject,
+  useInlineLoanPaymentClaimReject, useInlineLoanPaymentClaimChangeDecline,
   resolveNotificationActionKind,
 } from '@/hooks/useNotificationActions';
 import { toast } from 'sonner';
@@ -94,10 +95,11 @@ function colorForCategory(cat: string): string {
 interface ActionAreaProps {
   n: SmartNotification;
   onDone: (ids: string[]) => void;
+  onNavigate: (n: SmartNotification) => void;
   t: ReturnType<typeof useT>;
 }
 
-function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
+function InlineActionArea({ n, onDone, onNavigate, t }: ActionAreaProps) {
   const kind = resolveNotificationActionKind(n.category, n.target.entityType);
 
   // Agreement action (handled here too)
@@ -122,6 +124,12 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
   const settlApprove = useInlineSettlementApprove();
   const settlReject  = useInlineSettlementReject();
 
+  // Loan payment claim — Accept/Apply navigate into Cash Management's
+  // Loans tab instead of mutating here; see useInlineLoanPaymentClaimReject's
+  // doc comment for why.
+  const claimReject = useInlineLoanPaymentClaimReject();
+  const changeDecline = useInlineLoanPaymentClaimChangeDecline();
+
   const entityId = n.target.entityId ?? null;
 
   if (!entityId && !isAgreement) return null;
@@ -132,6 +140,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
     inviteAccept.isPending || inviteReject.isPending ||
     profileApprove.isPending || profileReject.isPending ||
     settlApprove.isPending || settlReject.isPending ||
+    claimReject.isPending || changeDecline.isPending ||
     updateAgreement.isPending;
 
   const ids = n.groupIds?.length ? n.groupIds : [n.id];
@@ -312,6 +321,61 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
     );
   }
 
+  // ── Loan payment claim (a customer-reported payment) ───────────────────────
+  // Accept has to allocate the claimed amount across the buyer's open loans
+  // and write a real repayment -- only safe from the mounted Cash Management
+  // page, so it navigates there with the claim focused instead of mutating.
+  // Reject is a plain status flip and works right here.
+  if (kind === 'loan_payment_claim_approval') {
+    return (
+      <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+        <Button size="sm" variant="default" className="h-6 text-[10px] px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700" disabled={busy}
+          onClick={() => onNavigate(n)}>
+          <Check className="h-3 w-3" />{t('accept') || t('approve')}
+        </Button>
+        <Button size="sm" variant="destructive" className="h-6 text-[10px] px-2.5 gap-1" disabled={busy}
+          onClick={async () => {
+            try {
+              await claimReject.mutateAsync(entityId!);
+              onDone(ids);
+              toast.success(t('rejectedNoMutation'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (e: any) { toast.error(e.message); }
+          }}>
+          <X className="h-3 w-3" />{t('reject')}
+        </Button>
+        <span className="ml-auto text-[9px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  // ── Loan payment claim change request (correct/remove an accepted payment) ─
+  // Apply has to remove the old repayment and, for a correction, re-allocate
+  // the new amount -- same tracker-only constraint as Accept above. Decline
+  // is a plain status flip.
+  if (kind === 'loan_payment_claim_change') {
+    return (
+      <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+        <Button size="sm" variant="default" className="h-6 text-[10px] px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700" disabled={busy}
+          onClick={() => onNavigate(n)}>
+          <Check className="h-3 w-3" />{t('loanPaymentClaimApply') || t('approve')}
+        </Button>
+        <Button size="sm" variant="destructive" className="h-6 text-[10px] px-2.5 gap-1" disabled={busy}
+          onClick={async () => {
+            try {
+              await changeDecline.mutateAsync(entityId!);
+              onDone(ids);
+              toast.success(t('rejectedNoMutation'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (e: any) { toast.error(e.message); }
+          }}>
+          <X className="h-3 w-3" />{t('reject')}
+        </Button>
+        <span className="ml-auto text-[9px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -373,7 +437,7 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: RowProps) {
 
           {/* Inline action buttons */}
           {hasAction && (
-            <InlineActionArea n={n} onDone={onActionDone} t={t} />
+            <InlineActionArea n={n} onDone={onActionDone} onNavigate={onNavigate} t={t} />
           )}
 
           {/* Navigate hint for non-action items */}
