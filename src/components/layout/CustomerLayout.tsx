@@ -98,8 +98,13 @@ export function CustomerLayout() {
           )}
         </header>
 
-        {/* Content */}
-        <main className={cn('flex-1 min-h-0', isChatRoute ? 'overflow-hidden' : 'overflow-y-auto')}>
+        {/* Content. Bottom padding on mobile reserves space for the fixed
+            nav below so it never covers the last bit of content (or, on
+            the chat route, the message composer). */}
+        <main
+          className={cn('flex-1 min-h-0', isChatRoute ? 'overflow-hidden' : 'overflow-y-auto')}
+          style={isMobile ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : undefined}
+        >
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>
           ) : (
@@ -112,9 +117,19 @@ export function CustomerLayout() {
           )}
         </main>
 
-        {/* Mobile bottom nav — 4 primary items + More */}
+        {/* Mobile bottom nav — 4 primary items + More. `fixed` (not just
+            relying on the flex/h-dvh column above to clip exactly right)
+            is deliberate: some mobile browsers under-report `dvh` or don't
+            settle the flex column's height before first paint, and
+            without an explicit viewport-relative anchor here the nav just
+            flowed past the fold, so the user had to scroll the whole page
+            to reach it instead of it always being visible. `main`'s
+            bottom padding above keeps content from sitting underneath it. */}
         {isMobile && (
-          <nav className="flex h-14 items-stretch border-t border-border/50 bg-background/95 backdrop-blur">
+          <nav
+            className="fixed inset-x-0 bottom-0 z-30 flex h-14 items-stretch border-t border-border/50 bg-background/95 backdrop-blur"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
             {PRIMARY_NAV.map(item => {
               const active = isActive(item.path);
               return (
