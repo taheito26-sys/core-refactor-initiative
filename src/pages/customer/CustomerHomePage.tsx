@@ -290,22 +290,50 @@ export default function CustomerHomePage() {
     };
   }, [orders, historyRows, lang, guideRate, egyptBuyAvg]);
 
-  return (
-    <div className="space-y-5">
-      {/* Hero: greeting + live rates */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
-        <div>
-          <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
-          <h1 className="mt-0.5 text-xl font-bold">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
-        </div>
+  // Alert banners share one compact shape -- collected into a list so the
+  // (usually 0-1, rarely all 3) that apply stack tightly with no per-item
+  // boilerplate, instead of three near-identical blocks each carrying their
+  // own margin.
+  const alerts: { key: string; icon: typeof AlertCircle; tone: string; onClick: () => void; title: string; subtitle: string }[] = [];
+  if (metrics.needsAction.length > 0) {
+    alerts.push({
+      key: 'needsAction', icon: AlertCircle, tone: 'amber', onClick: () => navigate('/c/orders'),
+      title: `${metrics.needsAction.length} ${L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}`,
+      subtitle: L('Review quotes', 'راجع العروض'),
+    });
+  }
+  if (agingStats.overdueCount > 0) {
+    alerts.push({
+      key: 'overdue', icon: Clock, tone: 'rose', onClick: () => navigate('/c/wallet'),
+      title: L(`${agingStats.overdueCount} order(s) overdue`, `${agingStats.overdueCount} طلب متأخر السداد`),
+      subtitle: L(`Oldest is ${agingStats.oldestDays} days old`, `الأقدم منذ ${agingStats.oldestDays} يوماً`),
+    });
+  }
+  if (!hasCashAccount && orders.length > 0) {
+    alerts.push({
+      key: 'noCashAccount', icon: Wallet, tone: 'primary', onClick: () => setShowCreateAccount(true),
+      title: L('Set up a cash account to receive funds', 'أنشئ حساباً نقدياً لاستلام الأموال'),
+      subtitle: L('Required to approve incoming orders', 'مطلوب للموافقة على الطلبات الواردة'),
+    });
+  }
 
-        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
-            not shown here; only the market's average selling price. */}
-        <div className="rounded-xl bg-white/10 px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-[11px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
-          <p className="text-2xl font-black tabular-nums">
-            {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
-          </p>
+  return (
+    <div className="space-y-3">
+      {/* Hero: greeting + live rates */}
+      <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-4 text-primary-foreground space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs opacity-80">{L('Welcome back', 'مرحباً')}</p>
+            <h1 className="text-lg font-bold leading-tight">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
+          </div>
+          {/* Avg selling price — the live QAR/EGP guide rate is deliberately
+              not shown here; only the market's average selling price. */}
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-right shrink-0">
+            <p className="text-[9px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
+            <p className="text-xl font-black tabular-nums leading-tight">
+              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -321,55 +349,41 @@ export default function CustomerHomePage() {
           <button
             key={label}
             onClick={onClick}
-            className="flex flex-col items-center gap-1.5 rounded-2xl border border-border/50 bg-card py-3 active:scale-[0.97] transition-transform"
+            className="flex flex-col items-center gap-1 rounded-xl border border-border/50 bg-card py-2.5 active:scale-[0.97] transition-transform"
           >
-            <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}><Icon className="h-4.5 w-4.5" /></div>
-            <span className="text-[10.5px] font-semibold">{label}</span>
+            <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', tone)}><Icon className="h-4 w-4" /></div>
+            <span className="text-[10px] font-semibold">{label}</span>
           </button>
         ))}
       </div>
 
-      {/* Action needed */}
-      {metrics.needsAction.length > 0 && (
-        <button onClick={() => navigate('/c/orders')} className="flex w-full items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left active:scale-[0.99]">
-          <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{metrics.needsAction.length} {L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}</p>
-            <p className="text-xs text-muted-foreground">
-              {metrics.needsAction.length > 0 && L('Review quotes', 'راجع العروض')}
-            </p>
-          </div>
-        </button>
-      )}
-
-      {/* Overdue balance warning — only once something has actually crossed 30 days */}
-      {agingStats.overdueCount > 0 && (
-        <button onClick={() => navigate('/c/wallet')} className="flex w-full items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-left active:scale-[0.99]">
-          <Clock className="h-5 w-5 shrink-0 text-rose-500" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">
-              {L(`${agingStats.overdueCount} order(s) overdue`, `${agingStats.overdueCount} طلب متأخر السداد`)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {L(`Oldest is ${agingStats.oldestDays} days old`, `الأقدم منذ ${agingStats.oldestDays} يوماً`)}
-            </p>
-          </div>
-        </button>
-      )}
-
-      {/* No cash account prompt — shown when customer has no cash account */}
-      {!hasCashAccount && orders.length > 0 && (
-        <button
-          onClick={() => setShowCreateAccount(true)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-left active:scale-[0.99]"
-        >
-          <Wallet className="h-5 w-5 shrink-0 text-primary" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{L('Set up a cash account to receive funds', 'أنشئ حساباً نقدياً لاستلام الأموال')}</p>
-            <p className="text-xs text-muted-foreground">{L('Required to approve incoming orders', 'مطلوب للموافقة على الطلبات الواردة')}</p>
-          </div>
-          <Plus className="h-4 w-4 text-primary shrink-0" />
-        </button>
+      {/* Alert stack — action needed / overdue balance / no cash account */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map(a => (
+            <button
+              key={a.key}
+              onClick={a.onClick}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left active:scale-[0.99]',
+                a.tone === 'amber' && 'border-amber-500/30 bg-amber-500/10',
+                a.tone === 'rose' && 'border-rose-500/30 bg-rose-500/10',
+                a.tone === 'primary' && 'border-primary/30 bg-primary/5',
+              )}
+            >
+              <a.icon className={cn('h-4.5 w-4.5 shrink-0',
+                a.tone === 'amber' && 'text-amber-500',
+                a.tone === 'rose' && 'text-rose-500',
+                a.tone === 'primary' && 'text-primary',
+              )} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold leading-tight truncate">{a.title}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">{a.subtitle}</p>
+              </div>
+              {a.tone === 'primary' && <Plus className="h-4 w-4 text-primary shrink-0" />}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Create Cash Account Modal — step by step */}
@@ -497,38 +511,56 @@ export default function CustomerHomePage() {
 
       {/* Settlement summary — running debt/payment totals, not scoped to
           any month, matching the same figures shown on the Cash tab. */}
+      {/* Balance summary — debt/paid/remaining, the settlement progress bar,
+          and (if any exist) payment-history stats, all in one card instead
+          of three stacked ones. Payments only ever exist alongside a debt,
+          so folding them in as a second row here reads as one account
+          summary rather than a second near-duplicate card further down. */}
       {debtSummary.totalDebt > 0 && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border-t-4 border-t-blue-500 border-x border-b border-border/50 bg-card p-3 text-center">
-              <p className="text-xl font-black tabular-nums text-blue-600">{fmt(debtSummary.totalDebt)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Total Debt', 'إجمالي المستحقات')}</p>
-              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+        <div className="rounded-2xl border border-border/50 bg-card p-3.5 space-y-3">
+          <div className="grid grid-cols-3 divide-x divide-border/40">
+            <div className="text-center">
+              <p className="text-lg font-black tabular-nums text-blue-600 leading-tight">{fmt(debtSummary.totalDebt)}</p>
+              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Total Debt', 'إجمالي المستحقات')}</p>
             </div>
-            <div className="rounded-2xl border-t-4 border-t-emerald-500 border-x border-b border-border/50 bg-card p-3 text-center">
-              <p className="text-xl font-black tabular-nums text-emerald-600">{fmt(debtSummary.totalPaid)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Total Payments Received', 'إجمالي الدفعات المستلمة')}</p>
-              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+            <div className="text-center">
+              <p className="text-lg font-black tabular-nums text-emerald-600 leading-tight">{fmt(debtSummary.totalPaid)}</p>
+              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Paid', 'المدفوع')}</p>
             </div>
-            <div className="rounded-2xl border-t-4 border-t-rose-500 border-x border-b border-border/50 bg-card p-3 text-center">
-              <p className="text-xl font-black tabular-nums text-rose-600">{fmt(debtSummary.outstanding)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{L('Remaining Balance', 'الرصيد المتبقي')}</p>
-              <p className="text-[9px] text-muted-foreground">{debtSummary.currency}</p>
+            <div className="text-center">
+              <p className="text-lg font-black tabular-nums text-rose-600 leading-tight">{fmt(debtSummary.outstanding)}</p>
+              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Remaining', 'المتبقي')}</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/50 bg-card p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-emerald-600">{debtSummary.settledPct}%</span>
-              <span className="text-xs font-semibold text-muted-foreground">{L('Settlement Summary', 'ملخص التسوية')}</span>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-muted-foreground">{L('Settlement', 'التسوية')}</span>
+              <span className="text-xs font-bold text-emerald-600">{debtSummary.settledPct}%</span>
             </div>
-            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${debtSummary.settledPct}%` }} />
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">
-              {L(`${debtSummary.settledPct}% of total debt has been paid`, `${fmt(debtSummary.settledPct)}% من إجمالي المستحقات تم سدادها`)}
-            </p>
           </div>
+
+          {paymentStats.count > 0 && (
+            <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40 pt-2.5">
+              <div className="text-center">
+                <p className="text-sm font-black tabular-nums leading-tight">{paymentStats.count}</p>
+                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Payments', 'الدفعات')}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-black tabular-nums leading-tight">{fmt(paymentStats.avg)}</p>
+                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Average', 'المتوسط')}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold leading-tight">
+                  {paymentStats.lastTs != null ? formatCustomerDate(new Date(paymentStats.lastTs), lang) : '—'}
+                </p>
+                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Last Payment', 'آخر دفعة')}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -538,10 +570,10 @@ export default function CustomerHomePage() {
           used to be three separate cards (Volume tiles, FX summary, Order
           Activity/Order Size) — merged so the page reads as one clear story
           instead of a stack of near-duplicate boxes. */}
-      <div className="rounded-3xl border border-emerald-500/20 bg-card overflow-hidden">
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="rounded-2xl border border-emerald-500/20 bg-card overflow-hidden">
+        <div className="px-4 pt-3.5 pb-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
               {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
             </p>
             {metrics.monthAvgFx != null && (
@@ -551,51 +583,26 @@ export default function CustomerHomePage() {
             )}
           </div>
           <div className="flex items-center gap-1"><ArrowDownLeft className="h-4 w-4 text-emerald-500" /><p className="text-xs font-semibold text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم (جنيه)')}</p></div>
-          <p className="text-4xl font-black tabular-nums text-emerald-600 mt-1">{fmt(metrics.monthEgp)}</p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-3xl font-black tabular-nums text-emerald-600 mt-0.5">{fmt(metrics.monthEgp)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {L('from', 'من')} {fmt(metrics.monthQar)} {getLocalizedCurrencyName('QAR', lang)} {L('received', 'مُستلَم')}
           </p>
         </div>
         <div className="grid grid-cols-3 border-t border-border/40 divide-x divide-border/40">
-          <div className="p-3.5 text-center">
-            <p className="text-[10px] text-muted-foreground mb-1">{L('This week', 'هذا الأسبوع')}</p>
-            <p className="text-base font-black tabular-nums">{fmt(metrics.thisWeekVolEgp)}</p>
+          <div className="p-2.5 text-center">
+            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('This week', 'هذا الأسبوع')}</p>
+            <p className="text-sm font-black tabular-nums">{fmt(metrics.thisWeekVolEgp)}</p>
           </div>
-          <div className="p-3.5 text-center bg-emerald-500/5">
-            <p className="text-[10px] text-muted-foreground mb-1">{L('This month', 'هذا الشهر')}</p>
-            <p className="text-base font-black tabular-nums text-emerald-600">{fmt(metrics.thisMonthVolEgp)}</p>
+          <div className="p-2.5 text-center bg-emerald-500/5">
+            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('This month', 'هذا الشهر')}</p>
+            <p className="text-sm font-black tabular-nums text-emerald-600">{fmt(metrics.thisMonthVolEgp)}</p>
           </div>
-          <div className="p-3.5 text-center">
-            <p className="text-[10px] text-muted-foreground mb-1">{L('Last month', 'الشهر الماضي')}</p>
-            <p className="text-base font-black tabular-nums">{fmt(metrics.lastMonthVolEgp)}</p>
+          <div className="p-2.5 text-center">
+            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('Last month', 'الشهر الماضي')}</p>
+            <p className="text-sm font-black tabular-nums">{fmt(metrics.lastMonthVolEgp)}</p>
           </div>
         </div>
       </div>
-
-      {/* Payments — count, average, last payment date */}
-      {paymentStats.count > 0 && (
-        <div className="rounded-3xl border border-border/50 bg-card overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border/40">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Payment History', 'سجل الدفعات')}</p>
-          </div>
-          <div className="grid grid-cols-3 divide-x divide-border/40">
-            <div className="p-4 text-center">
-              <p className="text-2xl font-black tabular-nums">{paymentStats.count}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">{L('Payments', 'الدفعات')}</p>
-            </div>
-            <div className="p-4 text-center">
-              <p className="text-2xl font-black tabular-nums">{fmt(paymentStats.avg)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">{L('Average', 'المتوسط')}</p>
-            </div>
-            <div className="p-4 text-center">
-              <p className="text-sm font-bold mt-1.5">
-                {paymentStats.lastTs != null ? formatCustomerDate(new Date(paymentStats.lastTs), lang) : '—'}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">{L('Last Payment', 'آخر دفعة')}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* New Order Modal — opens inline without navigating away, triggered from Quick Actions above */}
       {showNewOrder && connections.length > 0 && (
@@ -618,7 +625,7 @@ export default function CustomerHomePage() {
             </div>
           </div>
           <div className="divide-y divide-border/40">
-            {orders.slice(0, 5).map(o => {
+            {orders.slice(0, 4).map(o => {
               const total = o.fx_rate ? o.amount * o.fx_rate : null;
               const rate  = o.fx_rate;
               const sendCur = getLocalizedCurrencyName((o.send_currency ?? 'QAR') as CurrencyCode, lang === 'ar' ? 'ar' : 'en');
@@ -635,7 +642,7 @@ export default function CustomerHomePage() {
                 <button
                   key={o.id}
                   onClick={() => navigate(`/c/orders?id=${o.id}`)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-muted/40 active:scale-[0.98] transition-colors"
+                  className="w-full text-left px-4 py-2 hover:bg-muted/40 active:scale-[0.98] transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">
                     {/* Amounts */}
@@ -665,7 +672,7 @@ export default function CustomerHomePage() {
 
       {/* Empty state */}
       {orders.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border/50 py-12 text-center">
+        <div className="rounded-2xl border border-dashed border-border/50 py-8 text-center">
           <p className="text-sm text-muted-foreground">{L('No orders yet', 'لا توجد طلبات بعد')}</p>
           <p className="text-xs text-muted-foreground mt-1">{L('Place your first QAR → EGP order above', 'قدّم طلبك الأول أعلاه')}</p>
         </div>
