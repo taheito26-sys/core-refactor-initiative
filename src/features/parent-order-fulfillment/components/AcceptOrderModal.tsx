@@ -61,7 +61,6 @@ export function AcceptOrderModal({
       toast.success(L('Account created', 'تم إنشاء الحساب'));
       qc.invalidateQueries({ queryKey: ['customer-cash-accounts-for-user', userId] });
       qc.invalidateQueries({ queryKey: ['c-cash-accounts', userId] });
-      qc.invalidateQueries({ queryKey: ['c-cash-accounts-home', userId] });
       setSelectedId(data.id);
       setCreating(false);
       setStep(1); setNewName(''); setNewType('bank'); setNewCurrency(receiveCurrency || 'EGP');

@@ -189,7 +189,21 @@ const RelationshipWorkspace = createPlaceholderPage('Workspace', 'Relationship w
 
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Default staleTime: 0 (TanStack Query's own default) meant every mount or
+// window refocus refetched every query from scratch, even ones a realtime
+// channel keeps fresh already (e.g. customer_orders) — a customer bouncing
+// Home -> Orders -> Wallet -> Home re-fetched the same cash accounts,
+// connections, etc. on every hop. 30s gives navigation-speed caching while
+// staying well under any staleness a merchant/customer would notice; tables
+// with a realtime subscription invalidate their queries immediately on a
+// real change regardless of this window, so it doesn't mask live updates.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+    },
+  },
+});
 
 // ── Register the PWA service worker unconditionally ──
 // This used to run only inside PwaDebugBadge, which bails out before its

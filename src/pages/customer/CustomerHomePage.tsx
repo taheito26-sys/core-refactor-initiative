@@ -169,8 +169,11 @@ export default function CustomerHomePage() {
 
   // Cash accounts — needed to prompt creation when receiving orders
   const qc = useQueryClient();
+  // Same key as CustomerOrdersPage's identical query (same fetch, same
+  // params) so navigating Home <-> Orders shares the cache instead of
+  // re-fetching the same active cash accounts on every hop.
   const { data: cashAccounts = [] } = useQuery({
-    queryKey: ['c-cash-accounts-home', userId],
+    queryKey: ['c-cash-accounts', userId],
     queryFn: async () => { if (!userId) return []; return getCashAccountsForUser(userId); },
     enabled: !!userId,
   });
@@ -197,7 +200,6 @@ export default function CustomerHomePage() {
       toast.success(L('Cash account created!', 'تم إنشاء الحساب!'));
       setShowCreateAccount(false);
       setNewAccName(''); setNewAccType('bank'); setNewAccCurrency('EGP'); setCreateStep(1);
-      qc.invalidateQueries({ queryKey: ['c-cash-accounts-home', userId] });
       qc.invalidateQueries({ queryKey: ['c-cash-accounts', userId] });
     },
     onError: (e: any) => toast.error(e?.message ?? L('Failed', 'فشل')),
