@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -179,6 +179,13 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
 function localMonthKey(date: number | string): string {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Same local-timezone reasoning as localMonthKey, one level finer — used by
+// the day/amount filter below to match against a buyer-picked calendar day.
+function localDayKey(date: number | string): string {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
@@ -811,17 +818,40 @@ export default function CustomerOrdersPage() {
     setSelectedMonth(prev => (prev === next ? prev : next));
   }, [availableMonths]);
 
-  const filteredOrders = useMemo(() =>
-    selectedMonth ? orders.filter(o => localMonthKey(o.created_at) === selectedMonth) : orders,
-    [orders, selectedMonth],
-  );
+  // Day + amount filter — separate from the month pills above (those narrow
+  // to a whole month; this narrows further, to one specific day and/or an
+  // amount bracket, for a buyer trying to find one order they half-remember
+  // the size or date of).
+  const [showOrderFilter, setShowOrderFilter] = useState(false);
+  const [orderFilterDay, setOrderFilterDay] = useState('');
+  const [orderFilterMinAmount, setOrderFilterMinAmount] = useState('');
+  const [orderFilterMaxAmount, setOrderFilterMaxAmount] = useState('');
+  const activeOrderFilterCount =
+    (orderFilterDay ? 1 : 0) + (orderFilterMinAmount || orderFilterMaxAmount ? 1 : 0);
 
-  const filteredHistoryOrders = useMemo(() =>
-    selectedMonth
-      ? historyOrders.filter(o => localMonthKey(o.date) === selectedMonth)
-      : historyOrders,
-    [historyOrders, selectedMonth],
-  );
+  const filteredOrders = useMemo(() => {
+    const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
+    const maxAmount = orderFilterMaxAmount.trim() ? parseFloat(orderFilterMaxAmount) : null;
+    return orders.filter(o => {
+      if (selectedMonth && localMonthKey(o.created_at) !== selectedMonth) return false;
+      if (orderFilterDay && localDayKey(o.created_at) !== orderFilterDay) return false;
+      if (minAmount != null && Number.isFinite(minAmount) && o.amount < minAmount) return false;
+      if (maxAmount != null && Number.isFinite(maxAmount) && o.amount > maxAmount) return false;
+      return true;
+    });
+  }, [orders, selectedMonth, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
+
+  const filteredHistoryOrders = useMemo(() => {
+    const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
+    const maxAmount = orderFilterMaxAmount.trim() ? parseFloat(orderFilterMaxAmount) : null;
+    return historyOrders.filter(o => {
+      if (selectedMonth && localMonthKey(o.date) !== selectedMonth) return false;
+      if (orderFilterDay && localDayKey(o.date) !== orderFilterDay) return false;
+      if (minAmount != null && Number.isFinite(minAmount) && o.totalAmount < minAmount) return false;
+      if (maxAmount != null && Number.isFinite(maxAmount) && o.totalAmount > maxAmount) return false;
+      return true;
+    });
+  }, [historyOrders, selectedMonth, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
 
   // KPI bar over the currently filtered history — same idea as the merchant
   // Orders page's own COUNT/VOLUME row, EGP + QAR only (no USDT, no margin).
@@ -962,8 +992,24 @@ export default function CustomerOrdersPage() {
                 );
               })}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="month-filter-row !mb-0 items-center gap-1.5">
               <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L('Export', 'تصدير')}</span>
+              <button
+                onClick={() => setShowOrderFilter(true)}
+                className={`h-8 shrink-0 flex items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-colors ${
+                  activeOrderFilterCount > 0
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40'
+                }`}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {L('Filter', 'تصفية')}
+                {activeOrderFilterCount > 0 && (
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                    {activeOrderFilterCount}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
                 disabled={exportingFormat !== null}
@@ -1825,6 +1871,62 @@ export default function CustomerOrdersPage() {
           lang={lang}
           onClose={() => setLinkingOrder(null)}
         />
+      )}
+
+      {showOrderFilter && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOrderFilter(false)}>
+          <div className="w-full max-w-md rounded-t-2xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-sm">🔎 {L('Filter Orders', 'تصفية الطلبات')}</p>
+              <button onClick={() => setShowOrderFilter(false)} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{L('Day', 'اليوم')}</label>
+              <input
+                type="date"
+                value={orderFilterDay}
+                onChange={e => setOrderFilterDay(e.target.value)}
+                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{L('Amount range', 'نطاق المبلغ')}</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  inputMode="decimal"
+                  value={orderFilterMinAmount}
+                  onChange={e => setOrderFilterMinAmount(e.target.value)}
+                  placeholder={L('Min', 'الأدنى')}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <input
+                  inputMode="decimal"
+                  value={orderFilterMaxAmount}
+                  onChange={e => setOrderFilterMaxAmount(e.target.value)}
+                  placeholder={L('Max', 'الأعلى')}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); }}
+                className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
+              >
+                {L('Clear', 'مسح')}
+              </button>
+              <button
+                onClick={() => setShowOrderFilter(false)}
+                className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
+              >
+                {L('Done', 'تم')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
