@@ -18,6 +18,7 @@ import { ExchangeAutoSyncBootstrap } from "@/features/exchanges/components/Excha
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
+import { Loader2 } from "lucide-react";
 
 function PwaDebugBadge() {
   const enabled =
@@ -145,8 +146,10 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import PendingApprovalPage from "./pages/auth/PendingApprovalPage";
 import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
-// Onboarding
-import OnboardingPage from "./pages/merchant/OnboardingPage";
+// Customer portal — kept as eager imports. A customer needs one of these on
+// first paint regardless, so eagerly bundling them costs nothing extra; the
+// win below is keeping the much larger merchant-only pages out of that
+// bundle entirely.
 import { CustomerLayout } from "@/components/layout/CustomerLayout";
 import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
 import CustomerHomePage from "./pages/customer/CustomerHomePage";
@@ -157,30 +160,32 @@ import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
 import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
-// Admin
-import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
-import AdminPage from "./pages/admin/AdminPage";
+// Merchant onboarding, admin, and the merchant app shell's pages were all
+// imported eagerly at module scope, so a customer who never visits any of
+// them still downloaded and parsed all of it on sign-in — OrdersPage.tsx
+// alone is ~6,200 lines. React.lazy defers the import until the route is
+// actually navigated to, and the single Suspense boundary around <Routes>
+// below only engages for these; the customer/auth pages above never
+// suspend, so their first paint is unaffected.
+const OnboardingPage = React.lazy(() => import("./pages/merchant/OnboardingPage"));
+const AdminApprovalsPage = React.lazy(() => import("./pages/admin/AdminApprovalsPage"));
+const AdminPage = React.lazy(() => import("./pages/admin/AdminPage"));
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
+const OrdersPage = React.lazy(() => import('./pages/OrdersPage'));
+const OrdersImportLedgerPage = React.lazy(() => import('./pages/OrdersImportLedgerPage'));
+const StockPage = React.lazy(() => import('./pages/StockPage'));
+const CashPage = React.lazy(() => import('./pages/CashPage'));
+const P2PTrackerPage = React.lazy(() => import('./pages/P2PTrackerPage'));
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+const CalendarPage = React.lazy(() => import('./pages/CalendarPage'));
+const MerchantsPage = React.lazy(() => import('./pages/MerchantsPage'));
+const RelationshipPage = React.lazy(() => import('./pages/RelationshipPage'));
+const ChatPage = React.lazy(() => import('./pages/ChatPage'));
+const ChatPreview = React.lazy(() => import('./pages/ChatPreview'));
+const MarketplacePage = React.lazy(() => import('./features/marketplace/pages/MarketplacePage'));
+const PublicBuyerStatementPage = React.lazy(() => import('./pages/public/PublicBuyerStatementPage'));
+const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 
-// Core pages (exact repo copies)
-import DashboardPage from './pages/DashboardPage';
-import OrdersPage from './pages/OrdersPage';
-import OrdersImportLedgerPage from './pages/OrdersImportLedgerPage';
-import StockPage from './pages/StockPage';
-import CashPage from './pages/CashPage';
-import P2PTrackerPage from './pages/P2PTrackerPage';
-import SettingsPage from './pages/SettingsPage';
-
-// Placeholder pages (will be replaced in later phases)
-import CalendarPage from './pages/CalendarPage';
-import MerchantsPage from './pages/MerchantsPage';
-import RelationshipPage from './pages/RelationshipPage';
-import ChatPage from './pages/ChatPage';
-import ChatPreview from './pages/ChatPreview';
-import MarketplacePage from './features/marketplace/pages/MarketplacePage';
-import PublicBuyerStatementPage from './pages/public/PublicBuyerStatementPage';
-
-
-import NotificationsPage from './pages/NotificationsPage';
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
 const InvitationsPage = createPlaceholderPage('Invitations', 'Manage invitations');
 const ApprovalsPage = createPlaceholderPage('Approvals', 'Pending approvals');
@@ -188,6 +193,14 @@ const RelationshipsPage = createPlaceholderPage('Relationships', 'Manage relatio
 const RelationshipWorkspace = createPlaceholderPage('Workspace', 'Relationship workspace');
 
 import NotFound from "./pages/NotFound";
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 // Default staleTime: 0 (TanStack Query's own default) meant every mount or
 // window refocus refetched every query from scratch, even ones a realtime
@@ -358,6 +371,7 @@ const App = () => (
             <ChatRuntimeBootstrap />
             <ExchangeAutoSyncBootstrap />
             <RouteErrorBoundary>
+              <React.Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
                 {/* OAuth callback — Supabase redirects here after Google consent */}
                 <Route path="/auth/callback" element={<OAuthCallbackPage />} />
@@ -460,6 +474,7 @@ const App = () => (
                 {/* Catch-all */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </React.Suspense>
             </RouteErrorBoundary>
           </AuthProvider>
         </BrowserRouter>
