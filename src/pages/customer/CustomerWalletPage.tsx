@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, Clock, CreditCard, Coins, List as ListIcon, FileText } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -870,8 +870,6 @@ export default function CustomerWalletPage() {
     return m;
   }, [activeAccounts, ledger]);
 
-  const totalCash = useMemo(() => Array.from(balances.values()).reduce((s, v) => s + v, 0), [balances]);
-  const movement24h = useMemo(() => activeAccounts.reduce((s, a) => s + get24hMovement(a.id, ledger), 0), [activeAccounts, ledger]);
 
   // ── Mutations ─────────────────────────────────────────────────
 
@@ -942,39 +940,7 @@ export default function CustomerWalletPage() {
   return (
     <div className="space-y-0 pb-16">
       {/* ── Top summary card ── */}
-      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm space-y-3">
-        <div className="grid grid-cols-3 divide-x divide-border/40 rtl:divide-x-reverse">
-          <div className="flex items-center gap-2 pe-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-              <Clock className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{L("24h Movement", "حركة 24 س")}</p>
-              <p className={cn("flex items-center gap-1 text-sm font-black tabular-nums", movement24h >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                {movement24h >= 0 ? "+" : ""}{fmtTotal(movement24h)}
-                {movement24h >= 0
-                  ? <TrendingUp className="h-3 w-3 shrink-0" />
-                  : <TrendingDown className="h-3 w-3 shrink-0" />}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 px-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <FileDown className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{L("Accounts", "الحسابات")}</p>
-              <p className="text-sm font-black">{activeAccounts.length}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 ps-2">
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{L("Total Balance", "إجمالي العقد")}</p>
-              <p className="text-sm font-black tabular-nums">{fmtTotal(totalCash)}</p>
-            </div>
-          </div>
-        </div>
-
+      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
         {/* Tabs */}
         <div className="flex gap-2">
           {([
