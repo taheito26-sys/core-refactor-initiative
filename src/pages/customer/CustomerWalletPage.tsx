@@ -739,8 +739,14 @@ export default function CustomerWalletPage() {
   const [paymentFilterDay, setPaymentFilterDay] = useState("");
   const [paymentFilterMinAmount, setPaymentFilterMinAmount] = useState("");
   const [paymentFilterMaxAmount, setPaymentFilterMaxAmount] = useState("");
-  const activePaymentFilterCount =
-    (paymentFilterDay ? 1 : 0) + (paymentFilterMinAmount || paymentFilterMaxAmount ? 1 : 0);
+  // Whether the remembered day/amount criteria above are currently being
+  // applied. Kept separate from the criteria themselves so a single tap on
+  // the Filter chip can flip filtering on/off without losing what was
+  // configured — the buyer re-enables the same filter with one tap instead
+  // of re-entering it.
+  const [paymentFilterOn, setPaymentFilterOn] = useState(false);
+  const hasPaymentFilterCriteria = !!(paymentFilterDay || paymentFilterMinAmount || paymentFilterMaxAmount);
+  const activePaymentFilterCount = paymentFilterOn && hasPaymentFilterCriteria ? 1 : 0;
 
   const displayedLoanPayments = useMemo(() => {
     const q = paymentSearch.trim().toLowerCase();
@@ -748,9 +754,11 @@ export default function CustomerWalletPage() {
     const maxAmount = paymentFilterMaxAmount.trim() ? parseFloat(paymentFilterMaxAmount) : null;
     const filtered = groupedLoanPayments.filter(p => {
       if (q && !(p.note ?? "").toLowerCase().includes(q)) return false;
-      if (paymentFilterDay && localDayKey(p.date) !== paymentFilterDay) return false;
-      if (minAmount != null && Number.isFinite(minAmount) && p.amount < minAmount) return false;
-      if (maxAmount != null && Number.isFinite(maxAmount) && p.amount > maxAmount) return false;
+      if (paymentFilterOn) {
+        if (paymentFilterDay && localDayKey(p.date) !== paymentFilterDay) return false;
+        if (minAmount != null && Number.isFinite(minAmount) && p.amount < minAmount) return false;
+        if (maxAmount != null && Number.isFinite(maxAmount) && p.amount > maxAmount) return false;
+      }
       return true;
     });
     const sorted = [...filtered];
@@ -763,7 +771,7 @@ export default function CustomerWalletPage() {
       }
     });
     return sorted;
-  }, [groupedLoanPayments, paymentSearch, paymentSort, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+  }, [groupedLoanPayments, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
   const displayedLoanPaymentsTotal = useMemo(
     () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
     [displayedLoanPayments],
@@ -1278,7 +1286,10 @@ export default function CustomerWalletPage() {
                   <div className="month-filter-row !mb-0 items-center gap-1.5">
                     <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
                     <button
-                      onClick={() => setShowPaymentFilter(true)}
+                      onClick={() => {
+                        if (!hasPaymentFilterCriteria) { setShowPaymentFilter(true); return; }
+                        setPaymentFilterOn(on => !on);
+                      }}
                       className={cn(
                         "h-8 shrink-0 flex items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-colors",
                         activePaymentFilterCount > 0
@@ -1294,15 +1305,16 @@ export default function CustomerWalletPage() {
                         </span>
                       )}
                     </button>
-                    {/* One-tap clear once a filter is active — otherwise
-                        removing it took open sheet → Clear → Done. */}
-                    {activePaymentFilterCount > 0 && (
+                    {/* Edit the remembered criteria without toggling the
+                        filter on/off — the chip itself is now the on/off
+                        switch. */}
+                    {hasPaymentFilterCriteria && (
                       <button
-                        onClick={() => { setPaymentFilterDay(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); }}
-                        title={L("Clear filter", "مسح التصفية")}
-                        className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-rose-600 hover:border-rose-400/40"
+                        onClick={() => setShowPaymentFilter(true)}
+                        title={L("Edit filter", "تعديل التصفية")}
+                        className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
                     <button
@@ -1610,7 +1622,7 @@ export default function CustomerWalletPage() {
                   return (
                     <button
                       key={preset.label}
-                      onClick={() => { setPaymentFilterDay(key); setShowPaymentFilter(false); }}
+                      onClick={() => { setPaymentFilterDay(key); setPaymentFilterOn(true); setShowPaymentFilter(false); }}
                       className={cn(
                         "flex-1 h-9 rounded-xl border text-xs font-semibold transition-colors",
                         paymentFilterDay === key ? "border-primary/40 bg-primary/10 text-primary" : "border-border/50 bg-card hover:border-primary/40",
@@ -1624,7 +1636,10 @@ export default function CustomerWalletPage() {
               <input
                 type="date"
                 value={paymentFilterDay}
-                onChange={e => { setPaymentFilterDay(e.target.value); if (e.target.value) setShowPaymentFilter(false); }}
+                onChange={e => {
+                  setPaymentFilterDay(e.target.value);
+                  if (e.target.value) { setPaymentFilterOn(true); setShowPaymentFilter(false); }
+                }}
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
@@ -1651,16 +1666,16 @@ export default function CustomerWalletPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => { setPaymentFilterDay(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); }}
+                onClick={() => { setPaymentFilterDay(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); setPaymentFilterOn(false); }}
                 className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
               >
                 {L("Clear", "مسح")}
               </button>
               <button
-                onClick={() => setShowPaymentFilter(false)}
+                onClick={() => { setPaymentFilterOn(true); setShowPaymentFilter(false); }}
                 className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
               >
-                {L("Done", "تم")}
+                {L("Apply", "تطبيق")}
               </button>
             </div>
           </div>

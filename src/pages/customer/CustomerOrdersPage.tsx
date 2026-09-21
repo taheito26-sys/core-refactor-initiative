@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -826,32 +826,42 @@ export default function CustomerOrdersPage() {
   const [orderFilterDay, setOrderFilterDay] = useState('');
   const [orderFilterMinAmount, setOrderFilterMinAmount] = useState('');
   const [orderFilterMaxAmount, setOrderFilterMaxAmount] = useState('');
-  const activeOrderFilterCount =
-    (orderFilterDay ? 1 : 0) + (orderFilterMinAmount || orderFilterMaxAmount ? 1 : 0);
+  // Whether the remembered day/amount criteria above are currently being
+  // applied. Kept separate from the criteria themselves so a single tap on
+  // the Filter chip can flip filtering on/off without losing what was
+  // configured — the buyer re-enables the same filter with one tap instead
+  // of re-entering it.
+  const [orderFilterOn, setOrderFilterOn] = useState(false);
+  const hasOrderFilterCriteria = !!(orderFilterDay || orderFilterMinAmount || orderFilterMaxAmount);
+  const activeOrderFilterCount = orderFilterOn && hasOrderFilterCriteria ? 1 : 0;
 
   const filteredOrders = useMemo(() => {
     const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
     const maxAmount = orderFilterMaxAmount.trim() ? parseFloat(orderFilterMaxAmount) : null;
     return orders.filter(o => {
       if (selectedMonth && localMonthKey(o.created_at) !== selectedMonth) return false;
-      if (orderFilterDay && localDayKey(o.created_at) !== orderFilterDay) return false;
-      if (minAmount != null && Number.isFinite(minAmount) && o.amount < minAmount) return false;
-      if (maxAmount != null && Number.isFinite(maxAmount) && o.amount > maxAmount) return false;
+      if (orderFilterOn) {
+        if (orderFilterDay && localDayKey(o.created_at) !== orderFilterDay) return false;
+        if (minAmount != null && Number.isFinite(minAmount) && o.amount < minAmount) return false;
+        if (maxAmount != null && Number.isFinite(maxAmount) && o.amount > maxAmount) return false;
+      }
       return true;
     });
-  }, [orders, selectedMonth, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
+  }, [orders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
 
   const filteredHistoryOrders = useMemo(() => {
     const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
     const maxAmount = orderFilterMaxAmount.trim() ? parseFloat(orderFilterMaxAmount) : null;
     return historyOrders.filter(o => {
       if (selectedMonth && localMonthKey(o.date) !== selectedMonth) return false;
-      if (orderFilterDay && localDayKey(o.date) !== orderFilterDay) return false;
-      if (minAmount != null && Number.isFinite(minAmount) && o.totalAmount < minAmount) return false;
-      if (maxAmount != null && Number.isFinite(maxAmount) && o.totalAmount > maxAmount) return false;
+      if (orderFilterOn) {
+        if (orderFilterDay && localDayKey(o.date) !== orderFilterDay) return false;
+        if (minAmount != null && Number.isFinite(minAmount) && o.totalAmount < minAmount) return false;
+        if (maxAmount != null && Number.isFinite(maxAmount) && o.totalAmount > maxAmount) return false;
+      }
       return true;
     });
-  }, [historyOrders, selectedMonth, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
+  }, [historyOrders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
 
   // KPI bar over the currently filtered history — same idea as the merchant
   // Orders page's own COUNT/VOLUME row, EGP + QAR only (no USDT, no margin).
@@ -995,7 +1005,10 @@ export default function CustomerOrdersPage() {
             <div className="month-filter-row !mb-0 items-center gap-1.5">
               <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L('Export', 'تصدير')}</span>
               <button
-                onClick={() => setShowOrderFilter(true)}
+                onClick={() => {
+                  if (!hasOrderFilterCriteria) { setShowOrderFilter(true); return; }
+                  setOrderFilterOn(on => !on);
+                }}
                 className={`h-8 shrink-0 flex items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-colors ${
                   activeOrderFilterCount > 0
                     ? 'border-primary/40 bg-primary/10 text-primary'
@@ -1010,15 +1023,15 @@ export default function CustomerOrdersPage() {
                   </span>
                 )}
               </button>
-              {/* One-tap clear once a filter is active — otherwise removing
-                  it took open sheet → Clear → Done. */}
-              {activeOrderFilterCount > 0 && (
+              {/* Edit the remembered criteria without toggling the filter
+                  on/off — the chip itself is now the on/off switch. */}
+              {hasOrderFilterCriteria && (
                 <button
-                  onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); }}
-                  title={L('Clear filter', 'مسح التصفية')}
-                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-rose-600 hover:border-rose-400/40"
+                  onClick={() => setShowOrderFilter(true)}
+                  title={L('Edit filter', 'تعديل التصفية')}
+                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </button>
               )}
               <button
@@ -1907,7 +1920,7 @@ export default function CustomerOrdersPage() {
                   return (
                     <button
                       key={preset.label}
-                      onClick={() => { setOrderFilterDay(key); setShowOrderFilter(false); }}
+                      onClick={() => { setOrderFilterDay(key); setOrderFilterOn(true); setShowOrderFilter(false); }}
                       className={`flex-1 h-9 rounded-xl border text-xs font-semibold transition-colors ${
                         orderFilterDay === key ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40'
                       }`}
@@ -1920,7 +1933,10 @@ export default function CustomerOrdersPage() {
               <input
                 type="date"
                 value={orderFilterDay}
-                onChange={e => { setOrderFilterDay(e.target.value); if (e.target.value) setShowOrderFilter(false); }}
+                onChange={e => {
+                  setOrderFilterDay(e.target.value);
+                  if (e.target.value) { setOrderFilterOn(true); setShowOrderFilter(false); }
+                }}
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
@@ -1947,16 +1963,16 @@ export default function CustomerOrdersPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); }}
+                onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); setOrderFilterOn(false); }}
                 className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
               >
                 {L('Clear', 'مسح')}
               </button>
               <button
-                onClick={() => setShowOrderFilter(false)}
+                onClick={() => { setOrderFilterOn(true); setShowOrderFilter(false); }}
                 className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
               >
-                {L('Done', 'تم')}
+                {L('Apply', 'تطبيق')}
               </button>
             </div>
           </div>
