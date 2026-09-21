@@ -543,36 +543,29 @@ export default function CustomerWalletPage() {
     [myPaymentClaims],
   );
 
-  // Which accepted claim produced which row of the payments list. The list
-  // groups by currency + day, so a claim is matched back the same way --
-  // and only when it's the single accepted claim in that bucket, since two
-  // claims on one day collapse into one row with no way to tell which of
-  // them an edit was aimed at.
+  // Which accepted claim produced which row of the payments list. Payment
+  // rows are never merged (see groupedLoanPayments below), so a claim is
+  // matched back to its exact row by currency + timestamp + amount -- the
+  // same identity loanPayments itself keys by -- rather than by day, which
+  // used to collapse two same-day payments into one ambiguous row.
   const claimByPaymentBucket = useMemo(() => {
-    const byBucket = new Map<string, typeof myPaymentClaims>();
+    const map = new Map<string, typeof myPaymentClaims[number]>();
     for (const c of myPaymentClaims) {
       if (c.status !== "accepted") continue;
-      const bucket = `${c.currency}:${localDayKey(c.paidAt)}`;
-      const list = byBucket.get(bucket);
-      if (list) list.push(c); else byBucket.set(bucket, [c]);
+      map.set(`${c.currency}:${c.paidAt}:${c.amount}`, c);
     }
-    const unambiguous = new Map<string, typeof myPaymentClaims[number]>();
-    for (const [bucket, list] of byBucket) {
-      if (list.length === 1) unambiguous.set(bucket, list[0]);
-    }
-    return unambiguous;
+    return map;
   }, [myPaymentClaims]);
 
   // A payment the *merchant* entered directly has no claim of its own --
   // correcting or removing it goes through request_merchant_payment_correction
   // instead, which stages a claim row (source: 'merchant_payment') just to
-  // carry the request. Keyed the same way, one per bucket: two merchant
-  // requests never coexist on one day since the RPC upserts on that key.
+  // carry the request. Keyed the same exact-identity way.
   const merchantPaymentClaimByBucket = useMemo(() => {
     const map = new Map<string, typeof myPaymentClaims[number]>();
     for (const c of myPaymentClaims) {
       if (c.source !== "merchant_payment") continue;
-      map.set(`${c.currency}:${localDayKey(c.paidAt)}`, c);
+      map.set(`${c.currency}:${c.paidAt}:${c.amount}`, c);
     }
     return map;
   }, [myPaymentClaims]);
@@ -588,24 +581,6 @@ export default function CustomerWalletPage() {
     }
     return rows.sort((a, b) => b.date - a.date);
   }, [loanStatements]);
-
-  // The exact underlying payment (date + amount) a merchant-added row's
-  // "Edit"/"Delete" request needs -- only resolvable when the day's group
-  // is a single payment, since a merged multi-payment day has no one
-  // amount/date to target.
-  const singlePaymentByBucket = useMemo(() => {
-    const byBucket = new Map<string, typeof loanPayments>();
-    for (const p of loanPayments) {
-      const bucket = `${p.currency}:${localDayKey(p.date)}`;
-      const list = byBucket.get(bucket);
-      if (list) list.push(p); else byBucket.set(bucket, [p]);
-    }
-    const single = new Map<string, typeof loanPayments[number]>();
-    for (const [bucket, list] of byBucket) {
-      if (list.length === 1) single.set(bucket, list[0]);
-    }
-    return single;
-  }, [loanPayments]);
 
   // The customer's own note on a payment — independent of the merchant's
   // own note field on the same row, which the customer can't edit.
@@ -669,65 +644,39 @@ export default function CustomerWalletPage() {
     [loanPayments, paymentsMonth],
   );
 
-  // Club same-day payments into one row. Grouped by day + currency (not by
-  // the merchant's account, which the customer never sees) — the amounts
-  // sum, and the group's key stays content-based so a note attached to it
-  // survives a refetch the same way a single payment's does.
-  const groupedLoanPayments = useMemo(() => {
-    const groups = new Map<string, { date: number; amount: number; currency: string; notes: string[]; count: number; addedByCustomer: boolean }>();
-    const order: string[] = [];
-    for (const p of filteredLoanPayments) {
-      const gkey = `${p.currency}:${localDayKey(p.date)}`;
-      let g = groups.get(gkey);
-      if (!g) {
-        g = { date: p.date, amount: 0, currency: p.currency, notes: [], count: 0, addedByCustomer: false };
-        groups.set(gkey, g);
-        order.push(gkey);
-      }
-      g.amount = Math.round((g.amount + p.amount) * 100) / 100;
-      g.date = Math.max(g.date, p.date);
-      g.count += 1;
-      if (p.note && !g.notes.includes(p.note)) g.notes.push(p.note);
-      // A day's group is "added by me" only if every payment folded into it
-      // was customer-reported -- one merchant-logged entry alongside it
-      // means the merchant is the one who put the money on the books.
-      g.addedByCustomer = (g.count === 1 ? p.addedByCustomer : g.addedByCustomer && p.addedByCustomer);
-    }
-    return order.map(gkey => {
-      const g = groups.get(gkey)!;
-      return {
-        key: `${gkey}:${g.amount}`,
-        bucket: gkey,
-        date: g.date,
-        amount: g.amount,
-        currency: g.currency,
-        note: g.notes.join(' · ') || null,
-        count: g.count,
-        addedByCustomer: g.addedByCustomer,
-      };
-    });
-  }, [filteredLoanPayments]);
+  // One row per payment -- never merged. Same-day payments used to be
+  // summed into a single row keyed by day + currency, but that made Edit/
+  // Delete impossible whenever two payments landed on the same day (no way
+  // to tell which one a request was aimed at). Each row's "bucket" is the
+  // payment's own exact identity (currency + timestamp + amount), matching
+  // how claimByPaymentBucket/merchantPaymentClaimByBucket above resolve it.
+  const groupedLoanPayments = useMemo(() =>
+    filteredLoanPayments.map(p => ({
+      key: p.key,
+      bucket: p.key,
+      date: p.date,
+      amount: p.amount,
+      currency: p.currency,
+      note: p.note,
+      addedByCustomer: p.addedByCustomer,
+    })),
+    [filteredLoanPayments],
+  );
 
-  // A stable "#N" the buyer can reference in chat/calls, one per grouped
-  // day, restarting at #1 each calendar month — same convention as the
-  // Orders page's sequence numbers. Built from the full, unfiltered
-  // loanPayments (not the month-filtered groupedLoanPayments) so a
-  // payment's number never depends on which month filter is active.
+  // A stable "#N" the buyer can reference in chat/calls, one per payment,
+  // restarting at #1 each calendar month — same convention as the Orders
+  // page's sequence numbers. Built from the full, unfiltered loanPayments
+  // (not the month-filtered groupedLoanPayments) so a payment's number
+  // never depends on which month filter is active.
   const paymentSequence = useMemo(() => {
-    const bucketDates = new Map<string, number>();
-    for (const p of loanPayments) {
-      const bucket = `${p.currency}:${localDayKey(p.date)}`;
-      const prev = bucketDates.get(bucket);
-      bucketDates.set(bucket, prev != null ? Math.max(prev, p.date) : p.date);
-    }
-    const entries = Array.from(bucketDates.entries()).sort((a, b) => a[1] - b[1]);
+    const sorted = [...loanPayments].sort((a, b) => a.date - b.date);
     const map = new Map<string, number>();
     const countByMonth = new Map<string, number>();
-    for (const [bucket, date] of entries) {
-      const monthKey = localMonthKey(date);
+    for (const p of sorted) {
+      const monthKey = localMonthKey(p.date);
       const next = (countByMonth.get(monthKey) ?? 0) + 1;
       countByMonth.set(monthKey, next);
-      map.set(bucket, next);
+      map.set(p.key, next);
     }
     return map;
   }, [loanPayments]);
@@ -1419,11 +1368,11 @@ export default function CustomerWalletPage() {
                       // whose claim was otherwise deleted): either way
                       // there's no claim id to hang a request on, so it
                       // goes through the same generic single-payment
-                      // correction path merchant-entered rows use. Still
-                      // only for a single, unambiguous day's payment -- a
-                      // merged multi-payment day has no one amount/date to
-                      // send the merchant.
-                      const merchantSingle = !ownClaim ? singlePaymentByBucket.get(p.bucket) : undefined;
+                      // correction path merchant-entered rows use. Rows are
+                      // never merged (see groupedLoanPayments above), so `p`
+                      // already *is* the one exact payment this row
+                      // represents -- no separate lookup needed.
+                      const merchantSingle = !ownClaim ? p : undefined;
                       const merchantRequest = !ownClaim ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
                       const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
 
@@ -1464,11 +1413,6 @@ export default function CustomerWalletPage() {
                                   </span>
                                 )}
                                 {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
-                                {p.count > 1 && (
-                                  <span className="text-[10px] font-semibold text-muted-foreground">
-                                    ({p.count} {L("payments", "دفعات")})
-                                  </span>
-                                )}
                                 <span className={cn(
                                   "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold",
                                   p.addedByCustomer ? "bg-violet-500/15 text-violet-600" : "bg-blue-500/15 text-blue-600",
@@ -1599,12 +1543,6 @@ export default function CustomerWalletPage() {
                                 <span>{L("Currency", "العملة")}</span>
                                 <span className="font-semibold text-foreground">{p.currency}</span>
                               </div>
-                              {p.count > 1 && (
-                                <div className="flex justify-between gap-2">
-                                  <span>{L("Payments this day", "دفعات هذا اليوم")}</span>
-                                  <span className="font-semibold text-foreground">{p.count}</span>
-                                </div>
-                              )}
                               <div className="flex justify-between gap-2">
                                 <span>{L("Source", "المصدر")}</span>
                                 <span className="font-semibold text-foreground">
