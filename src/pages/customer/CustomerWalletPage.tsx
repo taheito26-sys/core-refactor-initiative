@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, Clock, CreditCard, Coins } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, Clock, CreditCard, Coins, List as ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -937,20 +937,25 @@ export default function CustomerWalletPage() {
 
   return (
     <div className="space-y-0 pb-16">
-      {/* ── Top summary bar ── */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/40 px-4 py-3 -mx-4 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-              <Wallet2 className="h-4 w-4" />
+      {/* ── Top summary card ── */}
+      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm space-y-3">
+        <div className="grid grid-cols-3 divide-x divide-border/40 rtl:divide-x-reverse">
+          <div className="flex items-center gap-2 pe-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+              <Clock className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{L("Total Cash", "إجمالي النقد")}</p>
-              <p className="text-sm font-black tabular-nums">{fmtTotal(totalCash)}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{L("24h Movement", "حركة 24 س")}</p>
+              <p className={cn("flex items-center gap-1 text-sm font-black tabular-nums", movement24h >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                {movement24h >= 0 ? "+" : ""}{fmtTotal(movement24h)}
+                {movement24h >= 0
+                  ? <TrendingUp className="h-3 w-3 shrink-0" />
+                  : <TrendingDown className="h-3 w-3 shrink-0" />}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="flex items-center gap-2 px-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
               <FileDown className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -958,15 +963,10 @@ export default function CustomerWalletPage() {
               <p className="text-sm font-black">{activeAccounts.length}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-              <Clock className="h-4 w-4" />
-            </div>
+          <div className="flex items-center gap-2 ps-2">
             <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{L("24h Movement", "حركة 24 س")}</p>
-              <p className={cn("text-sm font-black tabular-nums", movement24h >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                {movement24h >= 0 ? "+" : ""}{fmtTotal(movement24h)}
-              </p>
+              <p className="text-[10px] text-muted-foreground truncate">{L("Total Balance", "إجمالي العقد")}</p>
+              <p className="text-sm font-black tabular-nums">{fmtTotal(totalCash)}</p>
             </div>
           </div>
         </div>
@@ -974,8 +974,8 @@ export default function CustomerWalletPage() {
         {/* Tabs */}
         <div className="flex gap-2">
           {([
-            { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
             { id: "payments", icon: HandCoins, en: "Payments", ar: "الدفعات" },
+            { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
           ] as const).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors",
@@ -1156,9 +1156,15 @@ export default function CustomerWalletPage() {
                 <div className="flex items-center gap-3">
                   <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
                     <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+                      <defs>
+                        <linearGradient id="paymentRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#60a5fa" />
+                          <stop offset="100%" stopColor="#22d3ee" />
+                        </linearGradient>
+                      </defs>
                       <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="6" />
                       <circle
-                        cx="32" cy="32" r="27" fill="none" stroke="white" strokeWidth="6" strokeLinecap="round"
+                        cx="32" cy="32" r="27" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="6" strokeLinecap="round"
                         strokeDasharray={2 * Math.PI * 27}
                         strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
                         className="transition-all"
@@ -1195,9 +1201,10 @@ export default function CustomerWalletPage() {
               {statementLinks.length > 0 && (
                 <button
                   onClick={() => setShowLogPayment(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 py-3 text-sm font-bold text-primary hover:bg-primary/10 transition-colors"
+                  className="relative flex w-full items-center justify-center gap-2 rounded-full bg-primary/10 py-3 text-sm font-bold text-primary hover:bg-primary/15 transition-colors"
                 >
-                  💸 {L("Log a Payment", "تسجيل دفعة")}
+                  <ChevronLeft className="absolute left-4 h-4 w-4" />
+                  {L("Log a Payment", "تسجيل دفعة")} 💸
                 </button>
               )}
 
@@ -1372,8 +1379,14 @@ export default function CustomerWalletPage() {
                   scrolling the month's list top to bottom. */}
               <div className="-mx-4 sm:mx-0 rounded-none sm:rounded-2xl border-y sm:border border-border/60 bg-card overflow-hidden">
                 <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Payments Received", "الدفعات المستلمة")}</p>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{displayedLoanPayments.length} {L("payments", "دفعة")}</span>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {L("Registered Payments", "الدفعات المسجلة")}
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                  </p>
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                    <ListIcon className="h-3 w-3" />
+                    {displayedLoanPayments.length} {L("payments", "دفعة")}
+                  </span>
                 </div>
 
                 {groupedLoanPayments.length > 0 && (
