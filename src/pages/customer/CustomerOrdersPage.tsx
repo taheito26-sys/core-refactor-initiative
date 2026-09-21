@@ -1010,6 +1010,17 @@ export default function CustomerOrdersPage() {
                   </span>
                 )}
               </button>
+              {/* One-tap clear once a filter is active — otherwise removing
+                  it took open sheet → Clear → Done. */}
+              {activeOrderFilterCount > 0 && (
+                <button
+                  onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); }}
+                  title={L('Clear filter', 'مسح التصفية')}
+                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-rose-600 hover:border-rose-400/40"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
                 disabled={exportingFormat !== null}
@@ -1881,12 +1892,35 @@ export default function CustomerOrdersPage() {
               <button onClick={() => setShowOrderFilter(false)} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{L('Day', 'اليوم')}</label>
+              {/* One-tap presets for the common case — picks the day and
+                  closes the sheet immediately, since the list is already
+                  filtering live. The date input below stays for anything
+                  further back. */}
+              <div className="flex gap-1.5">
+                {([
+                  { label: L('Today', 'اليوم'), days: 0 },
+                  { label: L('Yesterday', 'أمس'), days: 1 },
+                ] as const).map(preset => {
+                  const key = localDayKey(Date.now() - preset.days * 86400000);
+                  return (
+                    <button
+                      key={preset.label}
+                      onClick={() => { setOrderFilterDay(key); setShowOrderFilter(false); }}
+                      className={`flex-1 h-9 rounded-xl border text-xs font-semibold transition-colors ${
+                        orderFilterDay === key ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
               <input
                 type="date"
                 value={orderFilterDay}
-                onChange={e => setOrderFilterDay(e.target.value)}
+                onChange={e => { setOrderFilterDay(e.target.value); if (e.target.value) setShowOrderFilter(false); }}
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
