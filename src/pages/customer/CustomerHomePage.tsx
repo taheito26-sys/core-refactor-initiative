@@ -73,8 +73,14 @@ export default function CustomerHomePage() {
   // dashboard's own volume/activity KPIs need this too, or a buyer whose
   // history predates the portal (like most of the current customer base)
   // sees every widget stuck at zero even though real orders exist.
+  // Same key as CustomerOrdersPage's identical edge-function call (same
+  // invoke, no params) so navigating Home <-> Orders shares one cached
+  // fetch instead of invoking the (comparatively heavy, server-side
+  // tracker-state-walking) edge function twice. Orders owns the polling
+  // (refetchInterval) since it's the page a buyer actually watches for
+  // merchant-side changes; Home just rides whatever's already cached.
   const { data: historyStatements = [] } = useQuery({
-    queryKey: ['c-dash-history', userId],
+    queryKey: ['c-loan-statement-history', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
       if (error || !data || (data as { error?: string }).error) return [];

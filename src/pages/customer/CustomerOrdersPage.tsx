@@ -543,8 +543,12 @@ export default function CustomerOrdersPage() {
   // is no postgres_changes channel to subscribe to here the way 'c-orders'
   // below has. Poll instead so a merchant-side edit/cancellation shows up
   // without the buyer having to manually refresh the page.
+  // Same key as CustomerHomePage's identical edge-function call, so the two
+  // pages share one cached fetch instead of each invoking the edge function
+  // on its own — Orders keeps the polling since it's the page a buyer
+  // actually watches for merchant-side changes.
   const { data: historyStatements = [], isLoading: isHistoryQueryLoading } = useQuery({
-    queryKey: ['c-order-history', userId],
+    queryKey: ['c-loan-statement-history', userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
       if (error || !data || (data as { error?: string }).error) return [];
@@ -646,16 +650,25 @@ export default function CustomerOrdersPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [userId, qc]);
 
-  // Fetch actual delivered EGP for approved orders from parent_order_summary
-  const approvedOrderIds = useMemo(() =>
-    orders.filter(o => o.workflow_status === 'approved').map(o => o.id),
-    [orders],
-  );
-
+  // Fetch actual delivered EGP for approved orders from parent_order_summary.
+  // This used to derive its id list from the `orders` query above via
+  // useMemo and gate on it with `enabled` — a real waterfall, since React
+  // Query couldn't start this fetch until 'c-orders' had fully resolved,
+  // even though the two queries don't share any client-side state. It now
+  // looks up its own (cheap, indexed, single-column) approved-id list keyed
+  // by userId instead of the already-loaded orders array, so both queries
+  // fire in parallel on mount.
   const { data: orderSummaries = [] } = useQuery({
-    queryKey: ['c-order-summaries', approvedOrderIds],
+    queryKey: ['c-order-summaries', userId],
     queryFn: async () => {
-      if (approvedOrderIds.length === 0) return [];
+      if (!userId) return [];
+      const { data: approved, error: approvedError } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('customer_user_id', userId)
+        .eq('workflow_status', 'approved');
+      if (approvedError || !approved || approved.length === 0) return [];
+      const approvedOrderIds = approved.map(o => o.id);
       const { data, error } = await supabase
         .from('parent_order_summary')
         .select('parent_order_id, total_egp_received')
@@ -663,7 +676,7 @@ export default function CustomerOrdersPage() {
       if (error) return [];
       return data ?? [];
     },
-    enabled: approvedOrderIds.length > 0,
+    enabled: !!userId,
   });
 
   const deliveredEgpMap = useMemo(() => {
