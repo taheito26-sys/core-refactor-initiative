@@ -1275,7 +1275,7 @@ export default function CustomerWalletPage() {
                       );
                     })}
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="month-filter-row !mb-0 items-center gap-1.5">
                     <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
                     <button
                       onClick={() => setShowPaymentFilter(true)}
