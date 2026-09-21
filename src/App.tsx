@@ -146,19 +146,29 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import PendingApprovalPage from "./pages/auth/PendingApprovalPage";
 import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
-// Customer portal — kept as eager imports. A customer needs one of these on
-// first paint regardless, so eagerly bundling them costs nothing extra; the
-// win below is keeping the much larger merchant-only pages out of that
-// bundle entirely.
+// CustomerLayout is the one customer-portal import kept eager — it's the
+// small shell (~150 lines) every /c/* route renders into, so a customer
+// needs it immediately on first navigation into the portal regardless of
+// which page they land on.
 import { CustomerLayout } from "@/components/layout/CustomerLayout";
-import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
-import CustomerHomePage from "./pages/customer/CustomerHomePage";
-import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
-import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
-import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPage";
-import CustomerChatPage from "./pages/customer/CustomerChatPage";
-import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
-import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
+
+// The customer pages themselves used to be eager too, on the reasoning that
+// "a customer needs one of these on first paint regardless" — true once
+// they're inside /c/*, but not for /login itself: that page is the very
+// first thing EVERY visitor sees, merchant or customer, before anyone knows
+// which portal they belong to, and it was paying for all ~5,200 lines of
+// customer-only page code (CustomerOrdersPage + CustomerWalletPage alone
+// are ~3,700 lines) on every single load. Lazy-loading these the same way
+// the merchant routes were split shrinks what /login (and /signup, etc.)
+// has to download before it's interactive.
+const CustomerOnboardingPage = React.lazy(() => import("./pages/customer/CustomerOnboardingPage"));
+const CustomerHomePage = React.lazy(() => import("./pages/customer/CustomerHomePage"));
+const CustomerMerchantsPage = React.lazy(() => import("./pages/customer/CustomerMerchantsPage"));
+const CustomerOrdersPage = React.lazy(() => import("./pages/customer/CustomerOrdersPage"));
+const CustomerNotificationsPage = React.lazy(() => import("./pages/customer/CustomerNotificationsPage"));
+const CustomerChatPage = React.lazy(() => import("./pages/customer/CustomerChatPage"));
+const CustomerSettingsPage = React.lazy(() => import("./pages/customer/CustomerSettingsPage"));
+const CustomerWalletPage = React.lazy(() => import("./pages/customer/CustomerWalletPage"));
 
 // Merchant onboarding, admin, and the merchant app shell's pages were all
 // imported eagerly at module scope, so a customer who never visits any of
