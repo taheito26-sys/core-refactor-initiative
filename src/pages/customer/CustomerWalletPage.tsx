@@ -1156,46 +1156,52 @@ export default function CustomerWalletPage() {
             <div className="space-y-3">
               {/* Hero — gradient summary + settlement ring, same figures the
                   flat cards used to show, now the page's visual anchor. */}
-              <div className="rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-600 p-4 text-white">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
-                    <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+              <div className="rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-600 p-3 text-white">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center">
+                    <svg viewBox="0 0 64 64" className="h-11 w-11 -rotate-90">
                       <defs>
                         <linearGradient id="paymentRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                           <stop offset="0%" stopColor="#60a5fa" />
                           <stop offset="100%" stopColor="#22d3ee" />
                         </linearGradient>
                       </defs>
-                      <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="6" />
+                      <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="7" />
                       <circle
-                        cx="32" cy="32" r="27" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="6" strokeLinecap="round"
+                        cx="32" cy="32" r="27" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="7" strokeLinecap="round"
                         strokeDasharray={2 * Math.PI * 27}
                         strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
                         className="transition-all"
                       />
                     </svg>
-                    <span className="absolute text-sm font-black tabular-nums">{loanTotals.settledPct}%</span>
+                    <span className="absolute text-[10px] font-black tabular-nums">{loanTotals.settledPct}%</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15"><Wallet2 className="h-4 w-4" /></div>
-                    <p className="text-sm font-bold">{L("Payments Overview", "نظرة عامة على الدفعات")}</p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/15"><Wallet2 className="h-3.5 w-3.5" /></div>
+                    <p className="text-xs font-bold">{L("Payments Overview", "نظرة عامة على الدفعات")}</p>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
-                    <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-lg bg-white/15"><Coins className="h-3.5 w-3.5" /></div>
-                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Total Payments", "إجمالي المدفوعات")}</p>
-                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)}</p>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                    <div className="flex items-center gap-1">
+                      <Coins className="h-3 w-3 opacity-75" />
+                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Total Payments", "إجمالي المدفوعات")}</p>
+                    </div>
+                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)}</p>
                   </div>
-                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
-                    <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-lg bg-white/15"><ArrowLeftRight className="h-3.5 w-3.5" /></div>
-                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Paid", "المدفوع")}</p>
-                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalPaid)}</p>
+                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                    <div className="flex items-center gap-1">
+                      <ArrowLeftRight className="h-3 w-3 opacity-75" />
+                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Paid", "المدفوع")}</p>
+                    </div>
+                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalPaid)}</p>
                   </div>
-                  <div className="rounded-xl bg-white/10 px-2.5 py-2">
-                    <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-lg bg-white/15"><CreditCard className="h-3.5 w-3.5" /></div>
-                    <p className="text-[9px] opacity-75 uppercase tracking-wide">{L("Outstanding", "المتبقي")}</p>
-                    <p className="text-sm font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.outstanding)}</p>
+                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                    <div className="flex items-center gap-1">
+                      <CreditCard className="h-3 w-3 opacity-75" />
+                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Outstanding", "المتبقي")}</p>
+                    </div>
+                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.outstanding)}</p>
                   </div>
                 </div>
               </div>
