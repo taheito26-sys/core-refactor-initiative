@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -730,11 +730,29 @@ export default function CustomerWalletPage() {
   // being stuck with insertion order.
   const [paymentSearch, setPaymentSearch] = useState("");
   const [paymentSort, setPaymentSort] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
+
+  // Day + amount-range filter — separate from the month pills above (those
+  // narrow to a whole month; this narrows further, to one specific day
+  // and/or an amount bracket, for a buyer trying to find one payment they
+  // half-remember the size or date of).
+  const [showPaymentFilter, setShowPaymentFilter] = useState(false);
+  const [paymentFilterDay, setPaymentFilterDay] = useState("");
+  const [paymentFilterMinAmount, setPaymentFilterMinAmount] = useState("");
+  const [paymentFilterMaxAmount, setPaymentFilterMaxAmount] = useState("");
+  const activePaymentFilterCount =
+    (paymentFilterDay ? 1 : 0) + (paymentFilterMinAmount || paymentFilterMaxAmount ? 1 : 0);
+
   const displayedLoanPayments = useMemo(() => {
     const q = paymentSearch.trim().toLowerCase();
-    const filtered = q
-      ? groupedLoanPayments.filter(p => (p.note ?? "").toLowerCase().includes(q))
-      : groupedLoanPayments;
+    const minAmount = paymentFilterMinAmount.trim() ? parseFloat(paymentFilterMinAmount) : null;
+    const maxAmount = paymentFilterMaxAmount.trim() ? parseFloat(paymentFilterMaxAmount) : null;
+    const filtered = groupedLoanPayments.filter(p => {
+      if (q && !(p.note ?? "").toLowerCase().includes(q)) return false;
+      if (paymentFilterDay && localDayKey(p.date) !== paymentFilterDay) return false;
+      if (minAmount != null && Number.isFinite(minAmount) && p.amount < minAmount) return false;
+      if (maxAmount != null && Number.isFinite(maxAmount) && p.amount > maxAmount) return false;
+      return true;
+    });
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       switch (paymentSort) {
@@ -745,7 +763,7 @@ export default function CustomerWalletPage() {
       }
     });
     return sorted;
-  }, [groupedLoanPayments, paymentSearch, paymentSort]);
+  }, [groupedLoanPayments, paymentSearch, paymentSort, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
   const displayedLoanPaymentsTotal = useMemo(
     () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
     [displayedLoanPayments],
@@ -1260,6 +1278,23 @@ export default function CustomerWalletPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
                     <button
+                      onClick={() => setShowPaymentFilter(true)}
+                      className={cn(
+                        "h-8 shrink-0 flex items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-colors",
+                        activePaymentFilterCount > 0
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40",
+                      )}
+                    >
+                      <Filter className="h-3.5 w-3.5" />
+                      {L("Filter", "تصفية")}
+                      {activePaymentFilterCount > 0 && (
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                          {activePaymentFilterCount}
+                        </span>
+                      )}
+                    </button>
+                    <button
                       onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
                       disabled={exportingFormat !== null}
                       title={L("Export PDF", "تصدير PDF")}
@@ -1540,6 +1575,61 @@ export default function CustomerWalletPage() {
             addLedgerEntry.mutate(inn);
             toast.success(L("Transfer complete", "تم التحويل"));
           }} />
+      )}
+      {showPaymentFilter && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowPaymentFilter(false)}>
+          <div className="w-full max-w-md rounded-t-2xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-sm">🔎 {L("Filter Payments", "تصفية الدفعات")}</p>
+              <button onClick={() => setShowPaymentFilter(false)} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{L("Day", "اليوم")}</label>
+              <input
+                type="date"
+                value={paymentFilterDay}
+                onChange={e => setPaymentFilterDay(e.target.value)}
+                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{L("Amount range", "نطاق المبلغ")}</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  inputMode="decimal"
+                  value={paymentFilterMinAmount}
+                  onChange={e => setPaymentFilterMinAmount(e.target.value)}
+                  placeholder={L("Min", "الأدنى")}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <input
+                  inputMode="decimal"
+                  value={paymentFilterMaxAmount}
+                  onChange={e => setPaymentFilterMaxAmount(e.target.value)}
+                  placeholder={L("Max", "الأعلى")}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setPaymentFilterDay(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); }}
+                className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
+              >
+                {L("Clear", "مسح")}
+              </button>
+              <button
+                onClick={() => setShowPaymentFilter(false)}
+                className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
+              >
+                {L("Done", "تم")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {showLogPayment && (
         <LogPaymentModal lang={lang} links={statementLinks} saving={submitClaim.isPending}
