@@ -488,9 +488,13 @@ export default function CustomerWalletPage() {
 
   // Payments received against this customer's loaned orders — same
   // USDT-free statement data /c/orders uses, surfaced here since it's real
-  // money movement the customer should see on their Cash tab too.
+  // money movement the customer should see on their Cash tab too. Same key
+  // as CustomerHomePage/CustomerOrdersPage's identical edge-function call
+  // (same invoke, no params) so all three pages share one cached fetch
+  // instead of each independently invoking and polling the (comparatively
+  // heavy, server-side tracker-state-walking) edge function on its own.
   const { data: loanStatements = [] } = useQuery({
-    queryKey: ["customer-cash-loan-statements", userId],
+    queryKey: ["c-loan-statement-history", userId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("customer-loan-statement", { method: "GET" });
       if (error || !data || (data as { error?: string }).error) return [];
