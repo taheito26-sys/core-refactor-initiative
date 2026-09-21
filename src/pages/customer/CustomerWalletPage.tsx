@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, Clock, CreditCard, Coins, List as ListIcon } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, TrendingUp, TrendingDown, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, Clock, CreditCard, Coins, List as ListIcon, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -472,6 +472,10 @@ export default function CustomerWalletPage() {
   // flows below -- keyed by the payment row's own key, not a claim id,
   // since a merchant-added row has no claim until a request creates one.
   const [deletePaymentPromptKey, setDeletePaymentPromptKey] = useState<string | null>(null);
+  // Which payment row's "Details" toggle is expanded — shows the fields
+  // already on the row (exact time, currency, how many payments folded
+  // into this day's group) that don't fit the collapsed line.
+  const [expandedPaymentKey, setExpandedPaymentKey] = useState<string | null>(null);
 
   // ── Data ──────────────────────────────────────────────────────
 
@@ -1514,6 +1518,43 @@ export default function CustomerWalletPage() {
                               way it's a request the merchant applies, since
                               the repayment itself sits in their books. */}
                           <div className="mt-1.5 flex flex-wrap items-center gap-3 ps-10">
+                            {/* Customer's own note — separate from the merchant's note above */}
+                            {isEditingNote ? (
+                              <div className="flex flex-1 min-w-[140px] items-center gap-1.5">
+                                <input
+                                  autoFocus
+                                  value={noteDraft}
+                                  onChange={e => setNoteDraft(e.target.value)}
+                                  placeholder={L("Add a note...", "أضف ملاحظة...")}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
+                                    if (e.key === "Escape") setEditingNoteKey(null);
+                                  }}
+                                  className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                                />
+                                <button
+                                  onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
+                                  className="rounded-lg bg-primary p-1.5 text-primary-foreground"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : myNote ? (
+                              <button
+                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
+                                className="flex min-w-0 items-center gap-1.5 text-[10px] text-primary hover:underline"
+                              >
+                                <Pencil className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{myNote}</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
+                              >
+                                <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
+                              </button>
+                            )}
+
                             {correction && (
                               correction.changeRequest ? (
                                 <>
@@ -1560,43 +1601,46 @@ export default function CustomerWalletPage() {
                               )
                             )}
 
-                            {/* Customer's own note — separate from the merchant's note above */}
-                            {isEditingNote ? (
-                              <div className="flex flex-1 min-w-[140px] items-center gap-1.5">
-                                <input
-                                  autoFocus
-                                  value={noteDraft}
-                                  onChange={e => setNoteDraft(e.target.value)}
-                                  placeholder={L("Add a note...", "أضف ملاحظة...")}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
-                                    if (e.key === "Escape") setEditingNoteKey(null);
-                                  }}
-                                  className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                                />
-                                <button
-                                  onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
-                                  className="rounded-lg bg-primary p-1.5 text-primary-foreground"
-                                >
-                                  <Check className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ) : myNote ? (
-                              <button
-                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
-                                className="flex min-w-0 items-center gap-1.5 text-[10px] text-primary hover:underline"
-                              >
-                                <Pencil className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{myNote}</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
-                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
-                              >
-                                <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
-                              </button>
-                            )}
+                            {/* Details toggle — separated with a divider, matching the
+                                reference design. Shows fields already on this row (exact
+                                time, currency, how many payments folded into the day's
+                                group) that don't fit the collapsed line. */}
+                            <span className="h-3 w-px bg-border/60" />
+                            <button
+                              onClick={() => setExpandedPaymentKey(k => (k === p.key ? null : p.key))}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
+                            >
+                              <FileText className="h-2.5 w-2.5" /> {L("Details", "تفاصيل")}
+                              <ChevronDown className={cn("h-2.5 w-2.5 transition-transform", expandedPaymentKey === p.key && "rotate-180")} />
+                            </button>
                           </div>
+
+                          {expandedPaymentKey === p.key && (
+                            <div className="mt-1.5 ms-10 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[10px] text-muted-foreground">
+                              <div className="flex justify-between gap-2">
+                                <span>{L("Time", "الوقت")}</span>
+                                <span className="font-semibold text-foreground">
+                                  {new Date(p.date).toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <span>{L("Currency", "العملة")}</span>
+                                <span className="font-semibold text-foreground">{p.currency}</span>
+                              </div>
+                              {p.count > 1 && (
+                                <div className="flex justify-between gap-2">
+                                  <span>{L("Payments this day", "دفعات هذا اليوم")}</span>
+                                  <span className="font-semibold text-foreground">{p.count}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between gap-2">
+                                <span>{L("Source", "المصدر")}</span>
+                                <span className="font-semibold text-foreground">
+                                  {p.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر")}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
