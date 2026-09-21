@@ -124,7 +124,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           merchantErr: merchantRes.error?.message,
           customerErr: customerRes.error?.message,
         });
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        // This retries against our own Supabase project, not a rate-limited
+        // external API — a transient failure here (connection-pool hiccup,
+        // brief network blip) typically clears in well under a second, so a
+        // 1s/2s backoff was adding up to ~3s of blocked spinner on top of
+        // every sign-in that hit one. 300ms/600ms keeps the same safety net
+        // at a fraction of the worst-case wait.
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
         continue;
       }
 

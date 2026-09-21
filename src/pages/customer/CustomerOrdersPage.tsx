@@ -689,24 +689,6 @@ export default function CustomerOrdersPage() {
     return map;
   }, [orderSummaries]);
 
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel(`c-orders-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` },
-        () => {
-          qc.invalidateQueries({ queryKey: ['c-orders', userId] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [qc, userId]);
-
   const approveMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
       if (BiometricsService.shouldRequireBiometrics(order.amount)) {
