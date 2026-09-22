@@ -26,6 +26,30 @@ import type { Batch } from './tracker-helpers';
 
 export type UsdtTransferKind = 'borrow_in' | 'borrow_repay' | 'lend_out' | 'lend_return';
 
+/**
+ * The record a movement was tagged from, when it was not typed by hand.
+ *
+ * - batch: a stock batch that was really borrowed / returned USDT. The
+ *   transfer reuses the batch id and computeFIFO drops the batch from the
+ *   purchase layers, so voiding the transfer restores it as a purchase.
+ * - trade: an order that was really a repayment / loan-out. The trade is
+ *   voided (so it stops counting as a sale everywhere) and flagged with
+ *   `usdtTransferKind`; the transfer reuses the trade id.
+ * - exchange: a Binance/OKX Pay or on-chain transfer that was never
+ *   imported as a batch or order; it is dismissed from the exchange inbox.
+ */
+export type UsdtTransferSource =
+  | { type: 'batch'; id: string }
+  | { type: 'trade'; id: string }
+  | {
+      type: 'exchange';
+      exchange: 'binance' | 'okx';
+      transferIds: string[];
+      reference?: string;
+      /** Of transferIds, the ones already dismissed before tagging — left dismissed on undo. */
+      preDismissedIds?: string[];
+    };
+
 export interface UsdtTransfer {
   id: string;
   ts: number;
@@ -41,6 +65,8 @@ export interface UsdtTransfer {
    */
   refPriceQAR?: number;
   note?: string;
+  /** Where this movement was tagged from; absent for a hand-typed one. */
+  source?: UsdtTransferSource;
   voided?: boolean;
   createdAt: number;
   /** Bumped on every edit/void so cross-device merges keep the latest copy. */
@@ -53,6 +79,24 @@ export function isTransferIn(t: Pick<UsdtTransfer, 'kind'>): boolean {
 
 export function isTransferActive(t: UsdtTransfer | null | undefined): t is UsdtTransfer {
   return !!t && !t.voided && Number(t.amountUSDT) > 0 && Number.isFinite(Number(t.ts));
+}
+
+/** Ids of batches (or trades) that an active transfer has taken over from. */
+export function convertedSourceIds(transfers: UsdtTransfer[] | undefined, type: 'batch' | 'trade'): Set<string> {
+  const ids = new Set<string>();
+  for (const t of transfers || []) {
+    if (isTransferActive(t) && t.source?.type === type) ids.add(t.source.id);
+  }
+  return ids;
+}
+
+/** Exchange transfer ids already tagged by an active transfer. */
+export function taggedExchangeTransferIds(transfers: UsdtTransfer[] | undefined): Set<string> {
+  const ids = new Set<string>();
+  for (const t of transfers || []) {
+    if (isTransferActive(t) && t.source?.type === 'exchange') for (const id of t.source.transferIds) ids.add(id);
+  }
+  return ids;
 }
 
 /** Matching key for pairing a borrow with its repayment (or a loan-out with its return). */

@@ -1,5 +1,6 @@
 // Exact helper functions from the TRACKER_CLOUDFLARE- repo
 import {
+  convertedSourceIds,
   isTransferActive,
   isTransferIn,
   provisionalTransferPrice,
@@ -396,6 +397,12 @@ export interface Trade {
   exchangeOrderNumber?: string;
   /** The exchange counterparty's nickname, as reported by the exchange (may differ from the saved buyer name). */
   exchangeCounterparty?: string;
+  /**
+   * Set (together with `voided`) when this order was tagged as a USDT
+   * borrow repayment / loan-out instead of a sale — see UsdtTransferSource.
+   * Its exchange links stay "imported" so the inbox never re-offers it.
+   */
+  usdtTransferKind?: 'borrow_repay' | 'lend_out';
 }
 
 export interface Customer {
@@ -864,11 +871,17 @@ function selectEligibleBatches(
   return sortedBatches;
 }
 
-export function computeFIFO(batches: Batch[], trades: Trade[], transfers?: UsdtTransfer[]): DerivedState {
+export function computeFIFO(allBatches: Batch[], allTrades: Trade[], transfers?: UsdtTransfer[]): DerivedState {
   const activeTransfers = (transfers || []).filter(isTransferActive);
   if (activeTransfers.length === 0) {
-    return runFIFO(batches, trades, [], new Map());
+    return runFIFO(allBatches, allTrades, [], new Map());
   }
+  // A batch or order tagged as a borrow/lend movement is replaced by that
+  // movement (which reuses its id), so it is no longer a purchase / sale.
+  const convertedBatches = convertedSourceIds(activeTransfers, 'batch');
+  const convertedTrades = convertedSourceIds(activeTransfers, 'trade');
+  const batches = convertedBatches.size ? allBatches.filter(b => !convertedBatches.has(b.id)) : allBatches;
+  const trades = convertedTrades.size ? allTrades.filter(t => !convertedTrades.has(t.id)) : allTrades;
   // Inbound transfer layers are priced from the FIFO cost of the outbound
   // transfers they pair with, which in turn can draw on those same layers.
   // Quantities never depend on prices, so iterating the pricing converges.

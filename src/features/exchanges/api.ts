@@ -123,3 +123,13 @@ export async function dismissTransfer(transferId: string) {
     .eq('id', transferId);
   if (error) throw error;
 }
+
+/** Reverses dismissTransfer, e.g. when a borrow/lend tag made from this transfer is undone. */
+export async function undismissTransfer(transferId: string) {
+  const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('exchange_transfers' as any)
+    .update({ dismissed_at: null })
+    .eq('id', transferId);
+  if (error) throw error;
+}

@@ -561,12 +561,14 @@ export default function OrdersPage() {
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
     [connectedCustomers, state.customers, sortByCustomerUsage],
   );
+  // An order tagged as a USDT borrow repayment / loan-out is voided but still
+  // accounts for its exchange record, so the inbox must not re-offer it.
   const activeTradeIds = useMemo(
-    () => new Set(state.trades.filter((t) => !t.voided).map((t) => t.id)),
+    () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => t.id)),
     [state.trades],
   );
   const importedExchangeRefs = useMemo(
-    () => new Set(state.trades.filter((t) => !t.voided).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
+    () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
     [state.trades],
   );
   const saleDraft = useMemo(() => deriveSaleDraft({

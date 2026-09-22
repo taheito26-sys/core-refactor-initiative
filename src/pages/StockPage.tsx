@@ -211,6 +211,15 @@ export default function StockPage() {
     }
     return null;
   }, [state.batches, derived]);
+  /** Batches tagged on the Borrow / Lend tab as borrowed or returned USDT — not purchases. */
+  const borrowTagByBatchId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const x of state.usdtTransfers || []) {
+      if (x.voided || x.source?.type !== 'batch') continue;
+      m.set(x.source.id, `${x.kind === 'borrow_in' ? t('uxferTagBorrowed') : t('uxferTagReturned')} · ${x.counterpartyName}`);
+    }
+    return m;
+  }, [state.usdtTransfers, t]);
   /** Quantity-weighted average buy price of batches added during the selected month (or the current month, if "All"). */
   const monthAvgBuyPrice = useMemo(() => {
     const targetKey = selectedMonth !== 'all' ? selectedMonth : (() => {
@@ -219,13 +228,14 @@ export default function StockPage() {
     })();
     const monthBatches = state.batches.filter(b => {
       if (b.buyPriceQAR <= 0 || b.initialUSDT <= 0) return false;
+      if (borrowTagByBatchId.has(b.id)) return false;
       const d = new Date(b.ts);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return key === targetKey;
     });
     const qty = monthBatches.reduce((s, b) => s + b.initialUSDT, 0);
     return qty > 0 ? monthBatches.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0) / qty : null;
-  }, [state.batches, selectedMonth]);
+  }, [state.batches, selectedMonth, borrowTagByBatchId]);
   /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop, baseFiat as 'QAR' | 'EGP', t.lang), [settings.currency, wacop, baseFiat, t.lang]);
 
@@ -1084,6 +1094,7 @@ export default function StockPage() {
                       <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.source || '—'}</span>
                         {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                        {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 9, flexShrink: 0 }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -1190,6 +1201,7 @@ export default function StockPage() {
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
                             <span style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.source || '—'}>{b.source || '—'}</span>
                             {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                            {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 9, flexShrink: 0 }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
                           </span>
                         </td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
