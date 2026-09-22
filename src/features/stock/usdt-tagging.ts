@@ -14,7 +14,7 @@ import {
   type Trade,
 } from '@/lib/tracker-helpers';
 import { taggedAmountBySource, type UsdtTransfer, type UsdtTransferKind } from '@/lib/usdt-transfers';
-import type { ExchangeTransfer } from '@/features/exchanges/types';
+import type { ExchangeP2POrder, ExchangeTransfer } from '@/features/exchanges/types';
 
 export type IncomingKind = 'borrow_in' | 'lend_return';
 export type OutgoingKind = 'borrow_repay' | 'lend_out';
@@ -24,6 +24,9 @@ export interface TagResult {
   /** Exchange transfers to hide from (dismiss) or return to (undismiss) the exchange inbox. */
   dismiss?: string[];
   undismiss?: string[];
+  /** Split links to add to / remove from Binance/OKX P2P orders. */
+  orderLinks?: { orderId: string; entityType: 'batch' | 'trade'; entityId: string; amount: number; label: string }[];
+  removeOrderLinks?: { orderId: string; entityId: string }[];
 }
 
 export class TagError extends Error {
@@ -185,6 +188,44 @@ export function tagExchangeTransfer(
   };
 }
 
+/**
+ * All or part of a Binance/OKX P2P order that was never imported was really
+ * a borrow/lend movement — e.g. USDT sent to a lender through P2P. `available`
+ * is how much of the order is not yet imported or tagged; the rest of the
+ * order stays in the exchange inbox for normal import.
+ */
+export function tagExchangeOrder(
+  state: TrackerState,
+  order: ExchangeP2POrder,
+  kind: UsdtTransferKind,
+  counterpartyName: string,
+  id: string,
+  available: number,
+  amountUSDT?: number,
+  now = Date.now(),
+): TagResult {
+  const incoming = kind === 'borrow_in' || kind === 'lend_return';
+  if (incoming !== (order.side === 'buy')) throw new TagError('bad_amount');
+  const qty = amountUSDT === undefined ? available : round6(amountUSDT);
+  if (!(qty > 0) || qty > available + EPS) throw new TagError('bad_amount');
+  const amount = Math.min(qty, available);
+  const name = counterpartyName.trim() || order.counterparty || '';
+  const row: UsdtTransfer = {
+    id,
+    ts: order.order_time ? new Date(order.order_time).getTime() : now,
+    kind,
+    amountUSDT: amount,
+    counterpartyName: name,
+    source: { type: 'exchange_order', exchange: order.exchange, orderId: order.id, orderNumber: order.order_number, side: order.side },
+    createdAt: now,
+    updatedAt: now,
+  };
+  return {
+    state: { ...state, usdtTransfers: upsertTransfer(state.usdtTransfers, row) },
+    orderLinks: [{ orderId: order.id, entityType: order.side === 'buy' ? 'batch' : 'trade', entityId: id, amount, label: name }],
+  };
+}
+
 /** Undo a tag (or delete a hand-typed movement), restoring whatever it replaced. */
 export function untagTransfer(state: TrackerState, transferId: string, now = Date.now()): TagResult {
   const row = (state.usdtTransfers || []).find(x => x.id === transferId);
@@ -203,6 +244,9 @@ export function untagTransfer(state: TrackerState, transferId: string, now = Dat
       const { usdtTransferKind: _k, ...rest } = t;
       return { ...rest, voided: false };
     });
+  }
+  if (src?.type === 'exchange_order') {
+    return { state: next, removeOrderLinks: [{ orderId: src.orderId, entityId: row.id }] };
   }
   if (src?.type === 'exchange') {
     const keep = new Set(src.preDismissedIds || []);

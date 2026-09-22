@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeFIFO, kpiFor, totalStock, type Batch, type Trade, type TrackerState } from '@/lib/tracker-helpers';
-import { tagBatch, tagExchangeTransfer, tagTrade, untagTransfer, TagError } from '@/features/stock/usdt-tagging';
-import type { ExchangeTransfer } from '@/features/exchanges/types';
+import { tagBatch, tagExchangeOrder, tagExchangeTransfer, tagTrade, untagTransfer, TagError } from '@/features/stock/usdt-tagging';
+import type { ExchangeP2POrder, ExchangeTransfer } from '@/features/exchanges/types';
 
 function batch(id: string, ts: number, price: number, qty: number, source = ''): Batch {
   return { id, ts, source, note: '', buyPriceQAR: price, initialUSDT: qty, revisions: [] };
@@ -138,5 +138,23 @@ describe('tagging existing records as borrow / lend', () => {
     const pre = tagExchangeTransfer(s, et('e2', '2026-01-01'), 'borrow_repay', 'Ali', 'x2');
     expect(pre.dismiss).toEqual([]);
     expect(untagTransfer(pre.state, 'x2').undismiss).toEqual([]);
+  });
+
+  it('tags part of an unimported P2P order and records it as an order link', () => {
+    const order: ExchangeP2POrder = {
+      id: 'o1', exchange: 'okx', order_number: '777', side: 'sell', asset: 'USDT', fiat: 'QAR', amount: 95000,
+      price: 3.7, total: 95000 * 3.7, status: 'completed', counterparty: 'Abu Tamim', order_time: new Date(21).toISOString(),
+      linked_entity_type: null, linked_entity_id: null, linked_at: null, created_at: '',
+    };
+    const s = makeState([batch('d1', 20, 3.695, 95000)], []);
+    const r = tagExchangeOrder(s, order, 'borrow_repay', 'Abu Tamim', 'x1', 95000, 41000);
+    expect(r.orderLinks).toEqual([{ orderId: 'o1', entityType: 'trade', entityId: 'x1', amount: 41000, label: 'Abu Tamim' }]);
+    const d = derive(r.state);
+    expect(d.transferCalc?.get('x1')?.coveredQty).toBe(41000);
+    expect(totalStock(d)).toBeCloseTo(54000, 9);
+    expect(untagTransfer(r.state, 'x1').removeOrderLinks).toEqual([{ orderId: 'o1', entityId: 'x1' }]);
+    // A sell order can't be tagged as incoming, nor for more than is left.
+    expect(() => tagExchangeOrder(s, order, 'borrow_in', 'X', 'x2', 95000)).toThrow(TagError);
+    expect(() => tagExchangeOrder(s, order, 'borrow_repay', 'X', 'x3', 10000, 20000)).toThrow(TagError);
   });
 });

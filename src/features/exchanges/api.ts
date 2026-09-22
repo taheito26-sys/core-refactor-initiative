@@ -124,6 +124,28 @@ export async function dismissTransfer(transferId: string) {
   if (error) throw error;
 }
 
+/**
+ * Reverses one addOrderLink: removes the split row for this entity and, if
+ * the order's legacy "most recent link" pointer still names it, clears that
+ * too so single-link consumers stop treating the order as imported.
+ */
+export async function removeOrderLink(orderId: string, entityId: string) {
+  const { error: linkError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('exchange_p2p_order_links' as any)
+    .delete()
+    .eq('order_id', orderId)
+    .eq('entity_id', entityId);
+  if (linkError) throw linkError;
+  const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('exchange_p2p_orders' as any)
+    .update({ linked_entity_type: null, linked_entity_id: null, linked_at: null })
+    .eq('id', orderId)
+    .eq('linked_entity_id', entityId);
+  if (error) throw error;
+}
+
 /** Reverses dismissTransfer, e.g. when a borrow/lend tag made from this transfer is undone. */
 export async function undismissTransfer(transferId: string) {
   const { error } = await supabase

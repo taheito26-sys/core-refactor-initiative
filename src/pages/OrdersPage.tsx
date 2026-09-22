@@ -563,9 +563,14 @@ export default function OrdersPage() {
   );
   // An order tagged as a USDT borrow repayment / loan-out is voided but still
   // accounts for its exchange record, so the inbox must not re-offer it.
+  // Borrow/lend movements tagged from a P2P order hold that order's split
+  // link under their own id, so they count as live too.
   const activeTradeIds = useMemo(
-    () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => t.id)),
-    [state.trades],
+    () => new Set([
+      ...state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => t.id),
+      ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id),
+    ]),
+    [state.trades, state.usdtTransfers],
   );
   const importedExchangeRefs = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),

@@ -41,6 +41,10 @@ export type UsdtTransferKind = 'borrow_in' | 'borrow_repay' | 'lend_out' | 'lend
  *   amount, and undo adds it back.
  * - exchange: a Binance/OKX Pay or on-chain transfer that was never
  *   imported as a batch or order; it is dismissed from the exchange inbox.
+ * - exchange_order: all or part of a Binance/OKX P2P order that was never
+ *   imported. The tagged amount is recorded as one of the order's split
+ *   links (entity id = this transfer's id), so the exchange inbox counts it
+ *   as allocated and only offers the rest for import.
  */
 export type UsdtTransferSource =
   | { type: 'batch'; id: string }
@@ -52,7 +56,8 @@ export type UsdtTransferSource =
       reference?: string;
       /** Of transferIds, the ones already dismissed before tagging — left dismissed on undo. */
       preDismissedIds?: string[];
-    };
+    }
+  | { type: 'exchange_order'; exchange: 'binance' | 'okx'; orderId: string; orderNumber: string; side: 'buy' | 'sell' };
 
 export interface UsdtTransfer {
   id: string;

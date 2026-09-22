@@ -179,7 +179,12 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
-  const activeBatchIds = useMemo(() => new Set(state.batches.map((b) => b.id)), [state.batches]);
+  // Borrow/lend movements tagged from a P2P order hold that order's split
+  // link under their own id, so they count as live entities for the inbox.
+  const activeBatchIds = useMemo(
+    () => new Set([...state.batches.map((b) => b.id), ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id)]),
+    [state.batches, state.usdtTransfers],
+  );
   const importedExchangeRefs = useMemo(
     () => new Set(state.batches.map((b) => extractImportedReference(b.note)).filter((r): r is string => !!r)),
     [state.batches],

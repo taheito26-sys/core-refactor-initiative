@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -17,8 +17,31 @@ vi.mock('@/features/exchanges/hooks/useExchangeTransfers', () => ({
     }],
   }),
 }));
+const p2pOrder = (id: string, day: number, amount: number) => ({
+  id, exchange: 'okx', order_number: `N${id}`, side: 'sell', asset: 'USDT', fiat: 'QAR', amount, price: 3.69,
+  total: amount * 3.69, status: 'completed', counterparty: 'Abu Tamim', order_time: new Date(2026, 0, day, 12).toISOString(),
+  linked_entity_type: null, linked_entity_id: null, linked_at: null, created_at: '',
+});
+vi.mock('@/features/exchanges/hooks/useExchangeP2POrders', () => ({
+  useExchangeP2POrders: () => ({
+    data: [p2pOrder('o1', 4, 10000), p2pOrder('o2', 5, 10000), p2pOrder('o3', 6, 3000), p2pOrder('o4', 7, 10000), p2pOrder('o5', 8, 50000)],
+  }),
+}));
+vi.mock('@/features/exchanges/hooks/useExchangeOrderLinks', () => ({
+  useExchangeOrderLinks: () => ({
+    // o5 is half imported already: only 20k of it is left to tag.
+    data: new Map([['o5', [{ id: 'l', order_id: 'o5', entity_type: 'trade', entity_id: 'tr1', allocated_amount: 30000, customer_label: null, linked_at: '' }]]]),
+  }),
+  sumLinkedAmount: (links: { allocated_amount: number }[] = []) => links.reduce((s, l) => s + l.allocated_amount, 0),
+}));
 const dismissTransfer = vi.fn(async (_id: string) => {});
-vi.mock('@/features/exchanges/api', () => ({ dismissTransfer: (id: string) => dismissTransfer(id), undismissTransfer: vi.fn() }));
+const addOrderLink = vi.fn(async (..._args: unknown[]) => {});
+vi.mock('@/features/exchanges/api', () => ({
+  dismissTransfer: (id: string) => dismissTransfer(id),
+  undismissTransfer: vi.fn(),
+  addOrderLink: (...args: unknown[]) => addOrderLink(...args),
+  removeOrderLink: vi.fn(),
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { UsdtTransfersPanel } from '@/features/stock/components/UsdtTransfersPanel';
@@ -48,6 +71,8 @@ function renderPanel(state: TrackerState, apply = vi.fn(async (_next: TrackerSta
 }
 
 describe('UsdtTransfersPanel', () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it('lists received stock batches and tags one as borrowed', async () => {
     const apply = renderPanel(makeState());
     expect(screen.getByText(rowText('20,000 USDT · Ali'))).toBeTruthy();
@@ -74,11 +99,34 @@ describe('UsdtTransfersPanel', () => {
     expect(screen.getByText(rowText('20,000 USDT · Ali'))).toBeTruthy();
     expect(screen.getByText(rowText('5,000 USDT · Omar'))).toBeTruthy();
     const repayButtons = screen.getAllByText(/uxferTagRepaid/);
-    // Newest first: the Jan 3 exchange transfer, then the Jan 2 order.
-    fireEvent.click(repayButtons[0]);
+    // Newest first: five P2P sends (Jan 4-8), the Jan 3 exchange transfer, then the Jan 2 order.
+    fireEvent.click(repayButtons[5]);
     fireEvent.click(screen.getByText('uxferConfirm'));
     await waitFor(() => expect(dismissTransfer).toHaveBeenCalledWith('e1'));
     const next = apply.mock.calls[0][0] as TrackerState;
     expect(next.usdtTransfers![0]).toMatchObject({ kind: 'borrow_repay', counterpartyName: 'Omar', amountUSDT: 5000 });
+  });
+
+  it('lists unimported P2P sends and tags several at once as repayments (Abu Tamim: 10k + 10k + 3k + 10k)', async () => {
+    const apply = renderPanel(makeState());
+    fireEvent.click(screen.getByText(/uxferSent/));
+    expect(screen.getAllByText(rowText('10,000 USDT · Abu Tamim'))).toHaveLength(3);
+    expect(screen.getByText(rowText('3,000 USDT · Abu Tamim'))).toBeTruthy();
+    // The half-imported order only offers what is left of it.
+    expect(screen.getByText(rowText('20,000 USDT · Abu Tamim'))).toBeTruthy();
+
+    const boxes = screen.getAllByLabelText('uxferSelect');
+    // Newest first: o5 (20k left), o4, o3, o2, o1, the Jan 3 transfer, the Jan 2 order.
+    for (const i of [1, 2, 3, 4]) fireEvent.click(boxes[i]);
+    expect(screen.getByText(/33,000 USDT/)).toBeTruthy();
+    fireEvent.click(screen.getAllByText(/uxferTagRepaid/)[0]);
+    fireEvent.click(screen.getByText('uxferConfirm'));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    const next = apply.mock.calls[0][0] as TrackerState;
+    expect(next.usdtTransfers).toHaveLength(4);
+    expect(next.usdtTransfers!.every(x => x.kind === 'borrow_repay' && x.counterpartyName === 'Abu Tamim')).toBe(true);
+    expect(next.usdtTransfers!.reduce((sum, x) => sum + x.amountUSDT, 0)).toBe(33000);
+    await waitFor(() => expect(addOrderLink).toHaveBeenCalledTimes(4));
+    expect(addOrderLink).toHaveBeenCalledWith('o3', 'trade', expect.any(String), 3000, 'Abu Tamim');
   });
 });

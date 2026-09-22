@@ -20,12 +20,15 @@ import {
   type UsdtTransferKind,
 } from '@/lib/usdt-transfers';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
-import { dismissTransfer, undismissTransfer } from '@/features/exchanges/api';
-import { EXCHANGE_LABELS, type ExchangeTransfer } from '@/features/exchanges/types';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { useExchangeOrderLinks, sumLinkedAmount } from '@/features/exchanges/hooks/useExchangeOrderLinks';
+import { addOrderLink, dismissTransfer, removeOrderLink, undismissTransfer } from '@/features/exchanges/api';
+import { EXCHANGE_LABELS, type ExchangeP2POrder, type ExchangeTransfer } from '@/features/exchanges/types';
 import {
   batchUntaggedUSDT,
   isTradeTaggable,
   tagBatch,
+  tagExchangeOrder,
   tagExchangeTransfer,
   tagTrade,
   tradeCounterpartyName,
@@ -52,9 +55,19 @@ type Row =
   | { key: string; ts: number; amount: number; type: 'batch'; id: string; name: string; sub: string; exchange?: string; price?: number; total: number }
   | { key: string; ts: number; amount: number; type: 'trade'; id: string; name: string; sub: string; exchange?: string; locked: boolean }
   | { key: string; ts: number; amount: number; type: 'exchange'; transfer: ExchangeTransfer; name: string; sub: string; exchange: string }
+  | { key: string; ts: number; amount: number; type: 'order'; order: ExchangeP2POrder; name: string; sub: string; exchange: string }
   | { key: string; ts: number; amount: number; type: 'tagged'; transfer: UsdtTransfer; sub: string; exchange?: string };
 
 const PAGE = 40;
+
+/** Tag one listed record (whole or `qty` of it) as `kind`, whatever kind of record it is. */
+function tagOne(state: TrackerState, row: Row, kind: UsdtTransferKind, name: string, qty: number): TagResult {
+  if (row.type === 'batch') return tagBatch(state, row.id, kind as 'borrow_in' | 'lend_return', name, uid(), qty);
+  if (row.type === 'trade') return tagTrade(state, row.id, kind as 'borrow_repay' | 'lend_out', name, uid(), qty);
+  if (row.type === 'order') return tagExchangeOrder(state, row.order, kind, name, uid(), row.amount, qty);
+  if (row.type === 'exchange') return tagExchangeTransfer(state, row.transfer, kind, name, uid());
+  throw new TagError('not_found');
+}
 
 const nowInput = () => {
   const d = new Date();
@@ -82,6 +95,8 @@ export function UsdtTransfersPanel({
   const t = useT();
   const queryClient = useQueryClient();
   const { data: exchangeTransfers } = useExchangeTransfers();
+  const { data: exchangeOrders } = useExchangeP2POrders();
+  const { data: linksByOrder } = useExchangeOrderLinks();
 
   const [direction, setDirection] = useState<Direction>('in');
   const [search, setSearch] = useState('');
@@ -89,6 +104,9 @@ export function UsdtTransfersPanel({
   const [pending, setPending] = useState<{ key: string; kind: UsdtTransferKind; name: string; amount: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  /** Rows ticked for a bulk tag (e.g. several sends to one lender), keyed by row key. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<{ kind: UsdtTransferKind; name: string } | null>(null);
 
   const transfers = useMemo(() => state.usdtTransfers || [], [state.usdtTransfers]);
   const activeTransfers = useMemo(() => transfers.filter(x => !x.voided), [transfers]);
@@ -135,6 +153,9 @@ export function UsdtTransfersPanel({
         if (tr?.importedFrom) exchange = EXCHANGE_LABELS[tr.importedFrom];
       } else if (src?.type === 'exchange') {
         sub = t('uxferSrcTransfer');
+        exchange = EXCHANGE_LABELS[src.exchange];
+      } else if (src?.type === 'exchange_order') {
+        sub = `${t('uxferSrcP2P')} #${src.orderNumber}`;
         exchange = EXCHANGE_LABELS[src.exchange];
       }
       out.push({ key: `x:${x.id}`, ts: x.ts, amount: x.amountUSDT, type: 'tagged', transfer: x, sub, exchange });
@@ -197,6 +218,30 @@ export function UsdtTransfersPanel({
       });
     }
 
+    // P2P orders the exchange inbox still offers — never imported, or only
+    // partly — listed with just the amount not yet imported or tagged, so a
+    // send left unimported on the Orders page can still be tagged here.
+    const orderSide = direction === 'in' ? 'buy' : 'sell';
+    const liveEntityIds = new Set<string>([...liveIds, ...activeTransfers.map(x => x.id)]);
+    for (const o of exchangeOrders || []) {
+      if (o.side !== orderSide || String(o.asset || '').toUpperCase() !== 'USDT') continue;
+      const links = (linksByOrder?.get(o.id) ?? []).filter(l => liveEntityIds.has(l.entity_id));
+      let linked = sumLinkedAmount(links);
+      if (linked <= 1e-6 && o.linked_at && o.linked_entity_id && liveEntityIds.has(o.linked_entity_id)) linked = o.amount;
+      const available = Math.max(0, Math.round((Number(o.amount) - linked) * 1e6) / 1e6);
+      if (available <= 0.01) continue;
+      out.push({
+        key: `o:${o.id}`,
+        ts: o.order_time ? new Date(o.order_time).getTime() : 0,
+        amount: available,
+        type: 'order',
+        order: o,
+        name: o.counterparty || '',
+        sub: `${t('uxferSrcP2P')} #${o.order_number} @ ${fmtPrice(o.price)} ${o.fiat}${linked > 1e-6 ? ` · ${t('uxferLeftOf')} ${fmtTotal(o.amount)}` : ''}`,
+        exchange: EXCHANGE_LABELS[o.exchange],
+      });
+    }
+
     const q = search.trim().toLowerCase();
     return out
       .filter(r => {
@@ -205,7 +250,7 @@ export function UsdtTransfersPanel({
         return [name, r.sub, r.exchange, fmtTotal(r.amount), fmtDate(r.ts)].join(' ').toLowerCase().includes(q);
       })
       .sort((a, b) => b.ts - a.ts);
-  }, [activeTransfers, direction, state, exchangeTransfers, search, t]);
+  }, [activeTransfers, direction, state, exchangeTransfers, exchangeOrders, linksByOrder, search, t]);
 
   const commit = async (result: TagResult, okMsg: TranslationKey) => {
     setBusy(true);
@@ -214,13 +259,20 @@ export function UsdtTransfersPanel({
       const ops = [
         ...(result.dismiss || []).map(id => dismissTransfer(id)),
         ...(result.undismiss || []).map(id => undismissTransfer(id)),
+        ...(result.orderLinks || []).map(l => addOrderLink(l.orderId, l.entityType, l.entityId, l.amount, l.label)),
+        ...(result.removeOrderLinks || []).map(l => removeOrderLink(l.orderId, l.entityId)),
       ];
       if (ops.length) {
-        await Promise.allSettled(ops);
+        const settled = await Promise.allSettled(ops);
+        for (const r of settled) if (r.status === 'rejected') console.error('[UsdtTransfersPanel] exchange link update failed:', r.reason);
         void queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] });
+        void queryClient.invalidateQueries({ queryKey: ['exchange-p2p-orders'] });
+        void queryClient.invalidateQueries({ queryKey: ['exchange-p2p-order-links'] });
       }
       toast.success(t(okMsg));
       setPending(null);
+      setSelected(new Set());
+      setBulk(null);
     } catch (err) {
       console.error('[UsdtTransfersPanel] save failed:', err);
       toast.error(t('uxferSaveFailed'));
@@ -242,11 +294,7 @@ export function UsdtTransfersPanel({
       return;
     }
     try {
-      let result: TagResult;
-      if (row.type === 'batch') result = tagBatch(state, row.id, pending.kind as 'borrow_in' | 'lend_return', name, uid(), qty);
-      else if (row.type === 'trade') result = tagTrade(state, row.id, pending.kind as 'borrow_repay' | 'lend_out', name, uid(), qty);
-      else result = tagExchangeTransfer(state, row.transfer, pending.kind, name, uid());
-      void commit(result, 'uxferRecorded');
+      void commit(tagOne(state, row, pending.kind, name, qty), 'uxferRecorded');
     } catch (err) {
       const code = err instanceof TagError ? err.code : null;
       toast.error(
@@ -254,6 +302,40 @@ export function UsdtTransfersPanel({
           : code === 'bad_amount' ? `${t('uxferErrPart')} ${fmtTotal(row.amount)}`
             : t('uxferSaveFailed'),
       );
+    }
+  };
+
+  const selectedRows = rows.filter(r => selected.has(r.key) && r.type !== 'tagged');
+  const selectedTotal = selectedRows.reduce((sum, r) => sum + r.amount, 0);
+  const toggleSelected = (key: string) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  /** Tag every ticked row, whole, to one merchant in a single save. */
+  const confirmBulk = () => {
+    if (!bulk || selectedRows.length === 0) return;
+    const name = bulk.name.trim();
+    if (!name) {
+      toast.error(t('uxferErrName'));
+      return;
+    }
+    try {
+      let acc: TagResult = { state };
+      for (const row of selectedRows) {
+        const r = tagOne(acc.state, row, bulk.kind, name, row.amount);
+        acc = {
+          state: r.state,
+          dismiss: [...(acc.dismiss || []), ...(r.dismiss || [])],
+          orderLinks: [...(acc.orderLinks || []), ...(r.orderLinks || [])],
+        };
+      }
+      void commit(acc, 'uxferRecorded');
+    } catch (err) {
+      toast.error(err instanceof TagError && err.code === 'merchant_linked' ? t('uxferLockedOrder') : t('uxferSaveFailed'));
     }
   };
 
@@ -294,10 +376,10 @@ export function UsdtTransfersPanel({
 
       <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-          <button type="button" className={direction === 'in' ? 'active' : ''} onClick={() => { setDirection('in'); setPending(null); setLimit(PAGE); }}>
+          <button type="button" className={direction === 'in' ? 'active' : ''} onClick={() => { setDirection('in'); setPending(null); setSelected(new Set()); setBulk(null); setLimit(PAGE); }}>
             ⬇️ {t('uxferReceived')}
           </button>
-          <button type="button" className={direction === 'out' ? 'active' : ''} onClick={() => { setDirection('out'); setPending(null); setLimit(PAGE); }}>
+          <button type="button" className={direction === 'out' ? 'active' : ''} onClick={() => { setDirection('out'); setPending(null); setSelected(new Set()); setBulk(null); setLimit(PAGE); }}>
             ⬆️ {t('uxferSent')}
           </button>
         </div>
@@ -310,6 +392,36 @@ export function UsdtTransfersPanel({
         <datalist id="uxfer-counterparties">
           {nameSuggestions.map(n => <option key={n} value={n} />)}
         </datalist>
+
+        {selectedRows.length > 0 && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)', border: '1px solid var(--brand)', borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 800 }}>
+              {selectedRows.length} {t('uxferSelectedCount')} · <span className="mono">{fmtTotal(selectedTotal)} USDT</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {KINDS_BY_DIR[direction].map(kind => (
+                <button
+                  key={kind}
+                  type="button"
+                  className="rowBtn"
+                  style={bulk?.kind === kind ? { borderColor: 'var(--brand)', color: 'var(--brand)', fontWeight: 800 } : undefined}
+                  onClick={() => setBulk({ kind, name: bulk?.name ?? (selectedRows.find(r => r.type !== 'tagged' && r.name) as { name?: string } | undefined)?.name ?? '' })}
+                >
+                  {KIND_META[kind].icon} {t(KIND_META[kind].short)}
+                </button>
+              ))}
+              {bulk && (
+                <>
+                  <div className="inputBox" style={{ flex: 1, minWidth: 140, padding: '4px 8px' }}>
+                    <input list="uxfer-counterparties" placeholder={t('uxferCounterparty')} value={bulk.name} onChange={e => setBulk({ ...bulk, name: e.target.value })} />
+                  </div>
+                  <button className="btn" type="button" disabled={busy} onClick={confirmBulk}>{t('uxferConfirm')}</button>
+                </>
+              )}
+              <button className="btn secondary" type="button" onClick={() => { setSelected(new Set()); setBulk(null); }}>{t('cancel')}</button>
+            </div>
+          </div>
+        )}
 
         {visible.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('uxferEmpty')}</div>}
 
@@ -341,6 +453,15 @@ export function UsdtTransfersPanel({
           return (
             <div key={row.key} style={{ borderTop: '1px solid var(--line)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {!locked && (
+                  <input
+                    type="checkbox"
+                    aria-label={t('uxferSelect')}
+                    checked={selected.has(row.key)}
+                    onChange={() => toggleSelected(row.key)}
+                    style={{ width: 16, height: 16, flexShrink: 0 }}
+                  />
+                )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 700 }}>
                     <span className="mono">{fmtTotal(row.amount)} USDT</span>
