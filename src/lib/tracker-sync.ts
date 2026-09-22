@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
 import { mergeLoansByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
+import { mergeTransfersByRecency } from './usdt-transfers';
 import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -35,6 +36,7 @@ const _foreignIds: Record<string, Set<string>> = {
   trades: new Set(),
   customers: new Set(),
   suppliers: new Set(),
+  usdtTransfers: new Set(),
   cashAccounts: new Set(),
   cashLedger: new Set(),
   cashHistory: new Set(),
@@ -193,6 +195,7 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
       cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
       customerLoans: mergeLoansByRecency(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
+      usdtTransfers: mergeTransfersByRecency(merged.usdtTransfers, Array.isArray(state.usdtTransfers) ? state.usdtTransfers : []),
       // Union tombstones across every member's row too — a delete recorded
       // by any team member must stick for everyone, not just the deleter.
       deletedLoanIds: Array.from(new Set([
@@ -278,6 +281,7 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     trades: stripForeignIds('trades', state.trades),
     customers: stripForeignIds('customers', state.customers),
     suppliers: stripForeignIds('suppliers', state.suppliers),
+    usdtTransfers: stripForeignIds('usdtTransfers', state.usdtTransfers),
     cashAccounts: [],
     cashLedger: [],
     cashHistory: [],
@@ -373,6 +377,10 @@ async function persistToCloud(state: TrackerState): Promise<void> {
       customers: mergedCustomers,
       deletedCustomerIds,
       suppliers: mergeArrayById(latestState.suppliers, stripped.suppliers),
+      // Borrow/lend transfers are voided, never removed, so a recency merge
+      // (latest updatedAt wins) is all that keeps a stale device from
+      // undoing a newer edit or void.
+      usdtTransfers: mergeTransfersByRecency(latestState.usdtTransfers, stripped.usdtTransfers),
     };
 
     if (!_cloudLoadedThisSession) {
@@ -500,6 +508,7 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
         rememberForeignIds('trades', Array.isArray(s.trades) ? s.trades : []);
         rememberForeignIds('customers', Array.isArray(s.customers) ? s.customers : []);
         rememberForeignIds('suppliers', Array.isArray(s.suppliers) ? s.suppliers : []);
+        rememberForeignIds('usdtTransfers', Array.isArray(s.usdtTransfers) ? s.usdtTransfers : []);
         rememberForeignIds('cashAccounts', Array.isArray(s.cashAccounts) ? s.cashAccounts : []);
         rememberForeignIds('cashLedger', Array.isArray(s.cashLedger) ? s.cashLedger : []);
         rememberForeignIds('cashHistory', Array.isArray(s.cashHistory) ? s.cashHistory : []);

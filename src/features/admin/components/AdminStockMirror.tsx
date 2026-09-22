@@ -12,7 +12,7 @@ export function AdminStockMirror({ trackerState }: Props) {
   const { settings } = useTheme();
   const t = useT();
   const state = trackerState;
-  const derived = useMemo(() => state ? computeFIFO(state.batches, state.trades) : null, [state]);
+  const derived = useMemo(() => state ? computeFIFO(state.batches, state.trades, state.usdtTransfers) : null, [state]);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const availableMonths = useMemo(() => {

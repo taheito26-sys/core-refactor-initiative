@@ -20,6 +20,7 @@ function diffTrackerReason(prev: TrackerState, next: TrackerState): string {
   pair('trades', 'trade');
   pair('customers', 'customer');
   pair('suppliers', 'supplier');
+  pair('usdtTransfers', 'USDT borrow/lend');
   pair('cashAccounts', 'cash account');
   pair('cashLedger', 'cash entry');
   if (parts.length === 0) {
@@ -84,13 +85,13 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (adminMode || options.preloadedState) {
       setState(next);
       stateRef.current = next;
-      setDerived(computeFIFO(next.batches, next.trades));
+      setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
     const prev = stateRef.current;
     setState(next);
     stateRef.current = next;
-    setDerived(computeFIFO(next.batches, next.trades));
+    setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
     // saveTrackerState debounces its cloud write ~2s and the cash save below
     // debounces ~500ms — a realtime event from the faster cash write can
     // trigger refreshFromCloud while the snapshot write is still pending,
@@ -131,7 +132,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (adminMode || options.preloadedState) {
       setState(next);
       stateRef.current = next;
-      setDerived(computeFIFO(next.batches, next.trades));
+      setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
     const prev = stateRef.current;
@@ -154,7 +155,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // Server acknowledged — now update UI.
     setState(next);
     stateRef.current = next;
-    setDerived(computeFIFO(next.batches, next.trades));
+    setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
     triggerVaultBackup(diffTrackerReason(prev, next));
   }, [adminMode, options.preloadedState, options.isCashAuthority]);
 

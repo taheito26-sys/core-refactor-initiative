@@ -1230,7 +1230,7 @@ export default function OrdersPage() {
       linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
       linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
     };
-    const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
+    const calc = computeFIFO(state.batches, [...state.trades, tmpTrade], state.usdtTransfers).tradeCalc.get('__preview__');
     assertPreviewQuantityInvariant(amountUSDT);
     const rev = saleDraft.revenueQar;
     const cost = calc?.totalCost || 0;
@@ -1294,7 +1294,7 @@ export default function OrdersPage() {
       sellPriceQAR: splitSell, feeQAR: 0, note: '', voided: false,
       usesStock: true, revisions: [], customerId: '',
     };
-    const tradeCalc = computeFIFO(state.batches, [...state.trades, remainderTrade, splitTrade]).tradeCalc;
+    const tradeCalc = computeFIFO(state.batches, [...state.trades, remainderTrade, splitTrade], state.usdtTransfers).tradeCalc;
 
     const legFor = (trade: Trade) => {
       const calc = tradeCalc.get(trade.id);
@@ -1905,7 +1905,7 @@ export default function OrdersPage() {
         linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
         linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
       };
-      const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
+      const calc = computeFIFO(state.batches, [...state.trades, previewTrade], state.usdtTransfers).tradeCalc.get(previewTrade.id);
       const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
       return Number.isFinite(fifoAvg) && fifoAvg > 0 ? fifoAvg : 0;
     };
@@ -2678,7 +2678,7 @@ export default function OrdersPage() {
         const customerName = editCustomer ? resolveCustomerName(editCustomer, t.lang) : t('buyer');
         const rev = qty * sell;
 
-        const tempCalc = computeFIFO(state.batches, state.trades);
+        const tempCalc = computeFIFO(state.batches, state.trades, state.usdtTransfers);
         const calc = tempCalc.tradeCalc.get(editingTradeId);
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
@@ -2894,7 +2894,7 @@ export default function OrdersPage() {
       try {
         const existingDeal = allMerchantDeals.find(d => d.id === existingTrade.linkedDealId);
         const oldMeta = parseDealMeta(existingDeal?.notes);
-        const updatedCalc = computeFIFO(state.batches, nextTrades).tradeCalc.get(editingTradeId!);
+        const updatedCalc = computeFIFO(state.batches, nextTrades, state.usdtTransfers).tradeCalc.get(editingTradeId!);
         const updatedAvgBuy = updatedCalc?.ok ? updatedCalc.avgBuyQAR : (existingTrade.manualBuyPrice || Number(oldMeta.avg_buy) || 0);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updatedFifoCost = updatedCalc?.ok ? updatedCalc.slices.reduce((s: number, x: any) => s + x.cost, 0) : 0;

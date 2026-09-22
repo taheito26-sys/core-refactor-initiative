@@ -1,4 +1,13 @@
 // Exact helper functions from the TRACKER_CLOUDFLARE- repo
+import {
+  isTransferActive,
+  isTransferIn,
+  provisionalTransferPrice,
+  resolveTransferInPrices,
+  type UsdtTransfer,
+} from './usdt-transfers';
+
+export type { UsdtTransfer, UsdtTransferKind } from './usdt-transfers';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function num(v: any, def = 0): number {
@@ -434,6 +443,8 @@ export interface DerivedBatch {
   buyPriceQAR: number;
   initialUSDT: number;
   remainingUSDT: number;
+  /** True for a stock layer created by borrowed / returned USDT rather than a purchase. */
+  isTransfer?: boolean;
 }
 
 export interface TradeCalcResult {
@@ -783,13 +794,30 @@ export interface TrackerState {
    * anything. See deletedBatchIds for the identical pattern.
    */
   deletedCustomerIds?: string[];
+  /**
+   * USDT borrowed from / lent to other merchants. Not orders: they move
+   * stock through FIFO but carry no revenue or profit. Voided rather than
+   * removed, and merged by `updatedAt` (see mergeTransfersByRecency).
+   */
+  usdtTransfers?: UsdtTransfer[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }
 
 export interface DerivedState {
+  /** Real batches plus inbound borrow/lend layers (flagged `isTransfer`). */
   batches: DerivedBatch[];
   tradeCalc: Map<string, TradeCalcResult>;
+  /** FIFO cost of each outbound borrow repayment / loan-out, keyed by transfer id. */
+  transferCalc?: Map<string, TransferCalcResult>;
+}
+
+export interface TransferCalcResult {
+  coveredQty: number;
+  shortfallQty: number;
+  totalCost: number;
+  unitCost: number | null;
+  slices: { batchId: string; qty: number; cost: number }[];
 }
 
 // ── FIFO computation ──
@@ -836,16 +864,89 @@ function selectEligibleBatches(
   return sortedBatches;
 }
 
-export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
-  const sortedBatches = [...batches].sort((a, b) => a.ts - b.ts);
+export function computeFIFO(batches: Batch[], trades: Trade[], transfers?: UsdtTransfer[]): DerivedState {
+  const activeTransfers = (transfers || []).filter(isTransferActive);
+  if (activeTransfers.length === 0) {
+    return runFIFO(batches, trades, [], new Map());
+  }
+  // Inbound transfer layers are priced from the FIFO cost of the outbound
+  // transfers they pair with, which in turn can draw on those same layers.
+  // Quantities never depend on prices, so iterating the pricing converges.
+  const provisional = (t: UsdtTransfer) => provisionalTransferPrice(t, batches);
+  let prices = new Map<string, number>();
+  for (const t of activeTransfers) if (isTransferIn(t)) prices.set(t.id, provisional(t));
+  let derived = runFIFO(batches, trades, activeTransfers, prices);
+  for (let i = 0; i < 12; i += 1) {
+    const next = resolveTransferInPrices(activeTransfers, derived.transferCalc, provisional);
+    let delta = 0;
+    for (const [id, p] of next) delta = Math.max(delta, Math.abs(p - (prices.get(id) ?? 0)));
+    prices = next;
+    derived = runFIFO(batches, trades, activeTransfers, prices);
+    if (delta < 1e-9) break;
+  }
+  return derived;
+}
+
+function runFIFO(
+  batches: Batch[],
+  trades: Trade[],
+  transfers: UsdtTransfer[],
+  transferInPrices: Map<string, number>,
+): DerivedState {
+  // Inbound borrow/lend transfers are stock layers alongside real batches.
+  const transferLayers: Batch[] = transfers.filter(isTransferIn).map(t => ({
+    id: t.id,
+    ts: t.ts,
+    source: '',
+    note: '',
+    buyPriceQAR: transferInPrices.get(t.id) ?? 0,
+    initialUSDT: Number(t.amountUSDT),
+    revisions: [],
+  }));
+  const transferLayerIds = new Set(transferLayers.map(l => l.id));
+  const sortedBatches = [...batches, ...transferLayers].sort((a, b) => a.ts - b.ts);
   const remaining = new Map<string, number>();
   for (const b of sortedBatches) remaining.set(b.id, b.initialUSDT);
 
   const tradeCalc = new Map<string, TradeCalcResult>();
+  const transferCalc = new Map<string, TransferCalcResult>();
   // Filter out inactive trades (voided, cancelled, rejected) from stock consumption
   const sortedTrades = [...trades].filter(t => !isTradeInactive(t) && t.usesStock).sort((a, b) => a.ts - b.ts);
+  const outTransfers = transfers.filter(t => !isTransferIn(t));
+  const events: ({ trade: Trade } | { transfer: UsdtTransfer })[] = [
+    ...sortedTrades.map(trade => ({ trade })),
+    ...outTransfers.map(transfer => ({ transfer })),
+  ];
+  if (outTransfers.length > 0) {
+    events.sort((a, b) => ('trade' in a ? a.trade.ts : a.transfer.ts) - ('trade' in b ? b.trade.ts : b.transfer.ts));
+  }
 
-  for (const t of sortedTrades) {
+  for (const ev of events) {
+    if ('transfer' in ev) {
+      // Outbound borrow repayment / loan-out: stock leaves through FIFO at
+      // cost, with no revenue and no profit — it is not a sale.
+      const x = ev.transfer;
+      const layers: StockLayer[] = sortedBatches.map(b => ({
+        id: b.id,
+        ts: b.ts,
+        remainingQty: Math.max(0, remaining.get(b.id) || 0),
+        buyPrice: b.buyPriceQAR,
+      }));
+      const fifo = consumeFifo(layers, Number(x.amountUSDT));
+      for (const row of fifo.consumed) {
+        const rem = remaining.get(row.layerId) || 0;
+        remaining.set(row.layerId, Math.max(0, rem - row.qty));
+      }
+      transferCalc.set(x.id, {
+        coveredQty: fifo.coveredQty,
+        shortfallQty: fifo.shortfallQty,
+        totalCost: fifo.totalCost,
+        unitCost: fifo.unitCost,
+        slices: fifo.consumed.map(row => ({ batchId: row.layerId, qty: row.qty, cost: row.cost })),
+      });
+      continue;
+    }
+    const t = ev.trade;
     // Use merchant-aware batch selection
     const eligibleBatches = selectEligibleBatches(t, sortedBatches, remaining);
     const layers: StockLayer[] = eligibleBatches.map(b => ({
@@ -902,14 +1003,18 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
     });
   }
 
-  const derivedBatches: DerivedBatch[] = sortedBatches.map(b => ({
-    id: b.id,
-    buyPriceQAR: b.buyPriceQAR,
-    initialUSDT: b.initialUSDT,
-    remainingUSDT: Math.max(0, remaining.get(b.id) || 0),
-  }));
+  const derivedBatches: DerivedBatch[] = sortedBatches.map(b => {
+    const row: DerivedBatch = {
+      id: b.id,
+      buyPriceQAR: b.buyPriceQAR,
+      initialUSDT: b.initialUSDT,
+      remainingUSDT: Math.max(0, remaining.get(b.id) || 0),
+    };
+    if (transferLayerIds.has(b.id)) row.isTransfer = true;
+    return row;
+  });
 
-  return { batches: derivedBatches, tradeCalc };
+  return { batches: derivedBatches, tradeCalc, transferCalc };
 }
 
 export function totalStock(derived: DerivedState): number {

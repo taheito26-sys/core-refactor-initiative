@@ -45,6 +45,7 @@ import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, u
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
+import { UsdtTransfersPanel } from '@/features/stock/components/UsdtTransfersPanel';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -119,7 +120,7 @@ export default function StockPage() {
   // (currently dead) `stockTab` constant above, which some pre-existing hint
   // buttons still reference. Suppliers moved here from the old combined CRM
   // page; customers moved to the Orders page instead.
-  const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers'>('batches');
+  const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
   // ── Mobile Add Batch Sheet ────────────────────────────────────────
   const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
@@ -882,6 +883,12 @@ export default function StockPage() {
         >
           🏭 {t('suppliers')}
         </button>
+        <button
+          onClick={() => setActiveStockSection('transfers')}
+          className={`orders-tab-btn ${activeStockSection === 'transfers' ? 'active' : ''}`}
+        >
+          🤝 {t('uxferTab')}
+        </button>
       </div>
 
       {/* ── SUPPLIERS TAB — moved here from the old combined CRM page ── */}
@@ -889,8 +896,12 @@ export default function StockPage() {
         <SuppliersPanel state={state} applyState={applyState} />
       )}
 
+      {activeStockSection === 'transfers' && (
+        <UsdtTransfersPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} />
+      )}
+
       {stockTab === 'batches' && (
-      <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection === 'suppliers' ? { display: 'none' } : undefined) }}>
+      <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection !== 'batches' ? { display: 'none' } : undefined) }}>
         <div>
           <div 
             className="orders-tab-bar" 

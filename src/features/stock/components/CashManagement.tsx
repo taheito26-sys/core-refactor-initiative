@@ -2497,7 +2497,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // chronologically. A loaned order's Buy/Net must come from this, not a
   // blended average, to actually match what the Orders page shows for the
   // same order.
-  const derivedFifo = useMemo(() => computeFIFO(state.batches, state.trades), [state.batches, state.trades]);
+  const derivedFifo = useMemo(() => computeFIFO(state.batches, state.trades, state.usdtTransfers), [state.batches, state.trades, state.usdtTransfers]);
 
   // ── Buyer accounts ──────────────────────────────────────────────
   // One statement per buyer per currency, covering their whole history. The

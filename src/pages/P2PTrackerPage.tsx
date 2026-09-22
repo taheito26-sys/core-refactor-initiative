@@ -192,7 +192,7 @@ export default function P2PTrackerPage() {
       const stateRaw = getCurrentTrackerState(localStorage);
       if (!stateRaw || !Array.isArray((stateRaw as any).batches) || !(stateRaw as any).batches.length) return null;
       const st = stateRaw as unknown as TrackerState;
-      const derived = computeFIFO(st.batches, st.trades || []);
+      const derived = computeFIFO(st.batches, st.trades || [], st.usdtTransfers);
       const stock = totalStock(derived);
       if (stock <= 0) return null;
       const wacop = getWACOP(derived);

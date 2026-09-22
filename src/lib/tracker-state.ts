@@ -1,5 +1,6 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
 import { computeFIFO, mergeLoansByRecency, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
+import { mergeTransfersByRecency } from './usdt-transfers';
 import { getCurrentTrackerState, hasMeaningfulTrackerData, isTrackerDataCleared } from './tracker-backup';
 
 interface StateOverrides {
@@ -101,6 +102,7 @@ export function buildStateFrom(
     deletedLoanIds: Array.isArray(stored?.deletedLoanIds) ? stored.deletedLoanIds : [],
     deletedBatchIds: Array.isArray(stored?.deletedBatchIds) ? stored.deletedBatchIds : [],
     deletedRepaymentIds: Array.isArray(stored?.deletedRepaymentIds) ? stored.deletedRepaymentIds : [],
+    usdtTransfers: Array.isArray(stored?.usdtTransfers) ? stored.usdtTransfers : [],
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? asNumber(stored?.settings?.lowStockThreshold, 5000),
       priceAlertThreshold: overrides?.priceAlertThreshold ?? asNumber(stored?.settings?.priceAlertThreshold, 2),
@@ -112,7 +114,7 @@ export function buildStateFrom(
     },
   };
 
-  const derived = computeFIFO(state.batches, state.trades);
+  const derived = computeFIFO(state.batches, state.trades, state.usdtTransfers);
   return { state, derived };
 }
 
@@ -171,6 +173,7 @@ export function mergeLocalAndCloud(
       deletedLoanIds,
       deletedBatchIds,
       deletedRepaymentIds,
+      usdtTransfers: mergeTransfersByRecency(cleanLocal.usdtTransfers, cleanCloud.usdtTransfers),
     };
   }
 
@@ -194,6 +197,7 @@ export function mergeLocalAndCloud(
     deletedLoanIds,
     deletedBatchIds,
     deletedRepaymentIds,
+    usdtTransfers: mergeTransfersByRecency(local.usdtTransfers, cloud.usdtTransfers),
   };
 }
 
