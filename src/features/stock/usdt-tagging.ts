@@ -13,7 +13,7 @@ import {
   type TrackerState,
   type Trade,
 } from '@/lib/tracker-helpers';
-import type { UsdtTransfer, UsdtTransferKind } from '@/lib/usdt-transfers';
+import { taggedAmountBySource, type UsdtTransfer, type UsdtTransferKind } from '@/lib/usdt-transfers';
 import type { ExchangeTransfer } from '@/features/exchanges/types';
 
 export type IncomingKind = 'borrow_in' | 'lend_return';
@@ -27,7 +27,7 @@ export interface TagResult {
 }
 
 export class TagError extends Error {
-  constructor(public code: 'merchant_linked' | 'not_found' | 'already_tagged') {
+  constructor(public code: 'merchant_linked' | 'not_found' | 'already_tagged' | 'bad_amount') {
     super(code);
   }
 }
@@ -40,6 +40,18 @@ function upsertTransfer(list: UsdtTransfer[] | undefined, row: UsdtTransfer): Us
 
 function activeTransfer(state: TrackerState, id: string): UsdtTransfer | undefined {
   return (state.usdtTransfers || []).find(x => x.id === id && !x.voided);
+}
+
+/** Tolerance for "the whole remaining amount" when a tag is typed or rounded. */
+const EPS = 1e-6;
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/** How much of a batch is still a purchase, i.e. not yet tagged as borrowed / returned. */
+export function batchUntaggedUSDT(state: TrackerState, batchId: string): number {
+  const batch = state.batches.find(b => b.id === batchId);
+  if (!batch) return 0;
+  const tagged = taggedAmountBySource(state.usdtTransfers, 'batch').get(batchId) || 0;
+  return Math.max(0, round6(batch.initialUSDT - tagged));
 }
 
 /** Display name of the buyer on an order, for prefilling the counterparty. */
@@ -59,22 +71,31 @@ export function isTradeTaggable(trade: Trade): boolean {
   return true;
 }
 
-/** A stock batch was really USDT borrowed from / returned by another merchant. */
+/**
+ * All or part of a stock batch was really USDT borrowed from / returned by
+ * another merchant. `amountUSDT` defaults to everything still untagged; the
+ * rest of the batch stays a normal purchase.
+ */
 export function tagBatch(
   state: TrackerState,
   batchId: string,
   kind: IncomingKind,
   counterpartyName: string,
+  id: string,
+  amountUSDT?: number,
   now = Date.now(),
 ): TagResult {
   const batch = state.batches.find(b => b.id === batchId);
   if (!batch) throw new TagError('not_found');
   if (activeTransfer(state, batchId)) throw new TagError('already_tagged');
+  const available = batchUntaggedUSDT(state, batchId);
+  const qty = amountUSDT === undefined ? available : round6(amountUSDT);
+  if (!(qty > 0) || qty > available + EPS) throw new TagError('bad_amount');
   const row: UsdtTransfer = {
-    id: batch.id,
+    id,
     ts: batch.ts,
     kind,
-    amountUSDT: batch.initialUSDT,
+    amountUSDT: Math.min(qty, available),
     counterpartyName: counterpartyName.trim() || batch.source || '',
     // The batch's own price is only a stand-in until a repayment prices it.
     refPriceQAR: batch.buyPriceQAR > 0 ? batch.buyPriceQAR : undefined,
@@ -86,31 +107,41 @@ export function tagBatch(
 }
 
 /**
- * An order was really USDT sent back to a lender / lent to a merchant. The
- * order is voided so it stops counting as a sale everywhere, and any unpaid
- * loan the order created is dropped the same way deleting the order would.
+ * All or part of an order was really USDT sent back to a lender / lent to a
+ * merchant. Tagging the whole order voids it so it stops counting as a sale
+ * everywhere, and drops any unpaid loan it created the same way deleting the
+ * order would. Tagging part of it shrinks the order to the rest, at the same
+ * price, so only that rest still counts as a sale.
  */
 export function tagTrade(
   state: TrackerState,
   tradeId: string,
   kind: OutgoingKind,
   counterpartyName: string,
+  id: string,
+  amountUSDT?: number,
   now = Date.now(),
 ): TagResult {
   const trade = state.trades.find(t => t.id === tradeId);
   if (!trade || trade.voided) throw new TagError('not_found');
   if (!isTradeTaggable(trade)) throw new TagError('merchant_linked');
-  if (activeTransfer(state, tradeId)) throw new TagError('already_tagged');
+  const qty = amountUSDT === undefined ? trade.amountUSDT : round6(amountUSDT);
+  if (!(qty > 0) || qty > trade.amountUSDT + EPS) throw new TagError('bad_amount');
+  const whole = qty >= trade.amountUSDT - EPS;
   const row: UsdtTransfer = {
-    id: trade.id,
+    id,
     ts: trade.ts,
     kind,
-    amountUSDT: trade.amountUSDT,
+    amountUSDT: whole ? trade.amountUSDT : qty,
     counterpartyName: counterpartyName.trim() || tradeCounterpartyName(state, trade),
-    source: { type: 'trade', id: trade.id },
+    source: whole ? { type: 'trade', id: trade.id } : { type: 'trade', id: trade.id, partial: true },
     createdAt: now,
     updatedAt: now,
   };
+  if (!whole) {
+    const trades = state.trades.map(t => (t.id === tradeId ? { ...t, amountUSDT: round6(t.amountUSDT - qty) } : t));
+    return { state: { ...state, trades, usdtTransfers: upsertTransfer(state.usdtTransfers, row) } };
+  }
   const trades = state.trades.map(t => (t.id === tradeId ? { ...t, voided: true, usdtTransferKind: kind } : t));
   const removedLoanIds = (state.customerLoans || [])
     .filter(l => l.tradeId === tradeId && getLoanRepaid(l) === 0)
@@ -163,9 +194,12 @@ export function untagTransfer(state: TrackerState, transferId: string, now = Dat
   );
   const next: TrackerState = { ...state, usdtTransfers };
   const src = row.source;
-  if (src?.type === 'trade') {
+  if (src?.type === 'trade' && !row.voided) {
     next.trades = state.trades.map(t => {
-      if (t.id !== src.id || !t.usdtTransferKind) return t;
+      if (t.id !== src.id) return t;
+      // A partial tag took its amount out of the order; give it back.
+      if (src.partial) return { ...t, amountUSDT: round6(t.amountUSDT + Number(row.amountUSDT)) };
+      if (!t.usdtTransferKind) return t;
       const { usdtTransferKind: _k, ...rest } = t;
       return { ...rest, voided: false };
     });

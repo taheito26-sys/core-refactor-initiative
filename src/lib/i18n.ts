@@ -653,6 +653,12 @@ const translations = {
   uxferUndone: { en: 'Tag removed', ar: 'تمت إزالة التصنيف' },
   uxferShowMore: { en: 'Show more', ar: 'عرض المزيد' },
   uxferManualToggle: { en: 'No matching record? Enter it manually', ar: 'لا يوجد سجل مطابق؟ أدخله يدويًا' },
+  uxferPartHint: { en: 'Only part of it? Change the amount — the rest stays a normal order / purchase.', ar: 'جزء منه فقط؟ غيّر الكمية — الباقي يبقى طلبًا / شراءً عاديًا.' },
+  uxferSplitExchangeHint: { en: 'To tag only part of a transfer, import it as a batch or order first, then tag the part here.', ar: 'لتعليم جزء فقط من التحويل، استورده أولًا كدفعة أو طلب، ثم علّم الجزء هنا.' },
+  uxferErrPart: { en: 'Enter an amount greater than zero and at most', ar: 'أدخل كمية أكبر من صفر وبحد أقصى' },
+  uxferPartOf: { en: 'part of', ar: 'جزء من' },
+  uxferPartOfOrder: { en: 'part of the order', ar: 'جزء من الطلب' },
+  uxferLeftOf: { en: 'untagged part of', ar: 'الجزء غير المُعلَّم من' },
   uxferSaveFailed: { en: 'Could not save — try again', ar: 'تعذر الحفظ — حاول مرة أخرى' },
   uxferCostAt: { en: 'cost', ar: 'التكلفة' },
 

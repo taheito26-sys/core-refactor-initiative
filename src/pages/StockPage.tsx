@@ -295,7 +295,8 @@ export default function StockPage() {
     .map((b) => {
       const db = derived.batches.find((x) => x.id === b.id);
       const rem = db ? Math.max(0, db.remainingUSDT) : b.initialUSDT;
-      const used = b.initialUSDT - rem;
+      // db.initialUSDT excludes any part tagged as borrowed / returned USDT.
+      const used = (db ? db.initialUSDT : b.initialUSDT) - rem;
       let profit = 0;
       for (const [, c] of derived.tradeCalc) {
         if (!c.ok) continue;

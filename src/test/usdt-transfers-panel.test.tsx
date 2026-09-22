@@ -17,7 +17,7 @@ vi.mock('@/features/exchanges/hooks/useExchangeTransfers', () => ({
     }],
   }),
 }));
-const dismissTransfer = vi.fn(async () => {});
+const dismissTransfer = vi.fn(async (_id: string) => {});
 vi.mock('@/features/exchanges/api', () => ({ dismissTransfer: (id: string) => dismissTransfer(id), undismissTransfer: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -37,7 +37,7 @@ function makeState(): TrackerState {
 
 const rowText = (text: string) => (_: string, el: Element | null) => el?.tagName === 'DIV' && el.textContent === text;
 
-function renderPanel(state: TrackerState, apply = vi.fn(async () => {})) {
+function renderPanel(state: TrackerState, apply = vi.fn(async (_next: TrackerState) => {})) {
   const qc = new QueryClient();
   render(
     <QueryClientProvider client={qc}>
@@ -55,7 +55,17 @@ describe('UsdtTransfersPanel', () => {
     fireEvent.click(screen.getByText('uxferConfirm'));
     await waitFor(() => expect(apply).toHaveBeenCalled());
     const next = apply.mock.calls[0][0] as TrackerState;
-    expect(next.usdtTransfers).toEqual([expect.objectContaining({ id: 'b1', kind: 'borrow_in', counterpartyName: 'Ali' })]);
+    expect(next.usdtTransfers).toEqual([expect.objectContaining({ kind: 'borrow_in', counterpartyName: 'Ali', amountUSDT: 20000, source: { type: 'batch', id: 'b1' } })]);
+  });
+
+  it('tags only the amount typed, leaving the rest of the batch', async () => {
+    const apply = renderPanel(makeState());
+    fireEvent.click(screen.getByText(/uxferTagBorrowed/));
+    fireEvent.change(screen.getByLabelText('uxferAmount'), { target: { value: '8000' } });
+    fireEvent.click(screen.getByText('uxferConfirm'));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    const next = apply.mock.calls[0][0] as TrackerState;
+    expect(next.usdtTransfers![0]).toMatchObject({ amountUSDT: 8000, source: { type: 'batch', id: 'b1' } });
   });
 
   it('lists sent orders and exchange transfers, and tags a transfer as a repayment', async () => {

@@ -1,6 +1,6 @@
 // Exact helper functions from the TRACKER_CLOUDFLARE- repo
 import {
-  convertedSourceIds,
+  taggedAmountBySource,
   isTransferActive,
   isTransferIn,
   provisionalTransferPrice,
@@ -876,12 +876,22 @@ export function computeFIFO(allBatches: Batch[], allTrades: Trade[], transfers?:
   if (activeTransfers.length === 0) {
     return runFIFO(allBatches, allTrades, [], new Map());
   }
-  // A batch or order tagged as a borrow/lend movement is replaced by that
-  // movement (which reuses its id), so it is no longer a purchase / sale.
-  const convertedBatches = convertedSourceIds(activeTransfers, 'batch');
-  const convertedTrades = convertedSourceIds(activeTransfers, 'trade');
-  const batches = convertedBatches.size ? allBatches.filter(b => !convertedBatches.has(b.id)) : allBatches;
-  const trades = convertedTrades.size ? allTrades.filter(t => !convertedTrades.has(t.id)) : allTrades;
+  // The part of a batch tagged as borrowed / returned USDT is replaced by
+  // that movement, so only the rest of the batch is still a purchase. Tagged
+  // orders need nothing here: a whole-order tag voids the trade and a
+  // partial one has already shrunk its amountUSDT.
+  // A tag that reuses the batch's own id (made before partial tags existed)
+  // stands in for the whole batch; otherwise the batch keeps its id with the
+  // untagged remainder, zero once fully tagged, so per-batch lookups work.
+  const taggedByBatch = taggedAmountBySource(activeTransfers, 'batch');
+  const transferIds = new Set(activeTransfers.map(t => t.id));
+  const batches: Batch[] = [];
+  for (const b of allBatches) {
+    const tagged = taggedByBatch.get(b.id) || 0;
+    if (tagged <= 0) batches.push(b);
+    else if (!transferIds.has(b.id)) batches.push({ ...b, initialUSDT: Math.max(0, b.initialUSDT - tagged) });
+  }
+  const trades = allTrades;
   // Inbound transfer layers are priced from the FIFO cost of the outbound
   // transfers they pair with, which in turn can draw on those same layers.
   // Quantities never depend on prices, so iterating the pricing converges.

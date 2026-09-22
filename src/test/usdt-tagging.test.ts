@@ -36,7 +36,7 @@ describe('tagging existing records as borrow / lend', () => {
   );
 
   it('tagging an order as a repayment removes it from sales but keeps the stock outflow', () => {
-    const { state } = tagTrade(base, 'repay', 'borrow_repay', 'Ali');
+    const { state } = tagTrade(base, 'repay', 'borrow_repay', 'Ali', 'repay');
     const d = derive(state);
     expect(state.trades.find(t => t.id === 'repay')).toMatchObject({ voided: true, usdtTransferKind: 'borrow_repay' });
     expect(d.tradeCalc.get('sale')!.netQAR).toBeCloseTo(55, 6);
@@ -48,7 +48,7 @@ describe('tagging existing records as borrow / lend', () => {
   });
 
   it('undo restores the order exactly', () => {
-    const tagged = tagTrade(base, 'repay', 'borrow_repay', 'Ali').state;
+    const tagged = tagTrade(base, 'repay', 'borrow_repay', 'Ali', 'repay').state;
     const { state } = untagTransfer(tagged, 'repay');
     const tr = state.trades.find(t => t.id === 'repay')!;
     expect(tr.voided).toBe(false);
@@ -63,29 +63,64 @@ describe('tagging existing records as borrow / lend', () => {
       [batch('borrowed', 10, 3.70, 20000, 'Ali'), batch('d1', 20, 3.695, 20000)],
       [trade('s0', 11, 20000, 3.70), trade('repay', 21, 20000, 3.695)],
     );
-    const s1 = tagBatch(s0, 'borrowed', 'borrow_in', 'Ali').state;
-    const s2 = tagTrade(s1, 'repay', 'borrow_repay', 'Ali').state;
+    const s1 = tagBatch(s0, 'borrowed', 'borrow_in', 'Ali', 'tag-borrowed').state;
+    const s2 = tagTrade(s1, 'repay', 'borrow_repay', 'Ali', 'repay').state;
     const d = derive(s2);
     expect(d.tradeCalc.get('s0')!.avgBuyQAR).toBeCloseTo(3.695, 9);
-    expect(d.batches.find(b => b.id === 'borrowed')?.isTransfer).toBe(true);
+    expect(d.batches.find(b => b.id === 'tag-borrowed')?.isTransfer).toBe(true);
+    expect(d.batches.find(b => b.id === 'borrowed')?.remainingUSDT).toBe(0);
     expect(totalStock(d)).toBeCloseTo(0, 9);
 
-    const back = untagTransfer(s2, 'borrowed').state;
-    expect(derive(back).batches.find(b => b.id === 'borrowed')?.isTransfer).toBeUndefined();
+    const back = untagTransfer(s2, 'tag-borrowed').state;
+    expect(derive(back).batches.find(b => b.id === 'tag-borrowed')).toBeUndefined();
     expect(derive(back).batches.find(b => b.id === 'borrowed')?.buyPriceQAR).toBe(3.70);
   });
 
   it('retagging after an undo reuses the same id without duplicating', () => {
-    const a = tagTrade(base, 'repay', 'borrow_repay', 'Ali').state;
+    const a = tagTrade(base, 'repay', 'borrow_repay', 'Ali', 'repay').state;
     const b = untagTransfer(a, 'repay').state;
-    const c = tagTrade(b, 'repay', 'lend_out', 'Omar').state;
+    const c = tagTrade(b, 'repay', 'lend_out', 'Omar', 'repay').state;
     expect(c.usdtTransfers!.filter(x => x.id === 'repay')).toHaveLength(1);
     expect(c.usdtTransfers!.find(x => x.id === 'repay')).toMatchObject({ kind: 'lend_out', counterpartyName: 'Omar' });
   });
 
+  it('tags only part of an order: the rest stays a sale at the same price', () => {
+    // A 95k order of which 41k was really a loan repayment.
+    const s = makeState([batch('d1', 1, 3.69, 95000)], [trade('big', 2, 95000, 3.70)]);
+    const { state } = tagTrade(s, 'big', 'borrow_repay', 'Ali', 'x1', 41000);
+    const tr = state.trades.find(t => t.id === 'big')!;
+    expect(tr.voided).toBe(false);
+    expect(tr.amountUSDT).toBe(54000);
+    const d = derive(state);
+    expect(d.tradeCalc.get('big')!.netQAR).toBeCloseTo(54000 * 0.01, 6);
+    expect(d.transferCalc?.get('x1')?.coveredQty).toBe(41000);
+    expect(totalStock(d)).toBeCloseTo(0, 9);
+    expect(kpiFor(state, d, 'all').rev).toBeCloseTo(54000 * 3.70, 6);
+
+    // Undo gives the 41k back to the order.
+    const back = untagTransfer(state, 'x1').state;
+    expect(back.trades.find(t => t.id === 'big')!.amountUSDT).toBe(95000);
+    // Two partial tags, then the remainder: the order ends up voided.
+    const a = tagTrade(s, 'big', 'borrow_repay', 'Ali', 'p1', 41000).state;
+    const b = tagTrade(a, 'big', 'lend_out', 'Omar', 'p2', 54000).state;
+    expect(b.trades.find(t => t.id === 'big')).toMatchObject({ voided: true, usdtTransferKind: 'lend_out' });
+    const c = untagTransfer(untagTransfer(b, 'p2').state, 'p1').state;
+    expect(c.trades.find(t => t.id === 'big')).toMatchObject({ voided: false, amountUSDT: 95000 });
+  });
+
+  it('tags only part of a batch: the rest stays a purchase', () => {
+    const s = makeState([batch('okx', 1, 3.69, 95000, 'OKX')], [trade('sale', 2, 54000, 3.70)]);
+    const { state } = tagBatch(s, 'okx', 'borrow_in', 'Ali', 'b1', 41000);
+    const d = derive(state);
+    expect(d.batches.find(b => b.id === 'okx')?.initialUSDT).toBe(54000);
+    expect(d.batches.find(b => b.id === 'b1')).toMatchObject({ isTransfer: true, initialUSDT: 41000 });
+    expect(d.tradeCalc.get('sale')!.avgBuyQAR).toBeCloseTo(3.69, 9);
+    expect(() => tagBatch(state, 'okx', 'borrow_in', 'Ali', 'b2', 60000)).toThrow(TagError);
+  });
+
   it('refuses merchant-linked orders', () => {
     const s = makeState([batch('d1', 1, 3.7, 1000)], [trade('m', 2, 100, 3.8, { linkedRelId: 'rel' })]);
-    expect(() => tagTrade(s, 'm', 'lend_out', 'X')).toThrow(TagError);
+    expect(() => tagTrade(s, 'm', 'lend_out', 'X', 'm')).toThrow(TagError);
   });
 
   it('tagging an exchange transfer dismisses it, undo only undismisses what it dismissed', () => {

@@ -29,18 +29,22 @@ export type UsdtTransferKind = 'borrow_in' | 'borrow_repay' | 'lend_out' | 'lend
 /**
  * The record a movement was tagged from, when it was not typed by hand.
  *
- * - batch: a stock batch that was really borrowed / returned USDT. The
- *   transfer reuses the batch id and computeFIFO drops the batch from the
- *   purchase layers, so voiding the transfer restores it as a purchase.
- * - trade: an order that was really a repayment / loan-out. The trade is
- *   voided (so it stops counting as a sale everywhere) and flagged with
- *   `usdtTransferKind`; the transfer reuses the trade id.
+ * - batch: all or part of a stock batch was really borrowed / returned
+ *   USDT. computeFIFO takes the tagged amount out of the batch's purchase
+ *   layer (dropping the batch once all of it is tagged), so voiding the
+ *   transfer restores it as a purchase. A tag covering the whole batch
+ *   reuses the batch id, so per-batch lookups still find its stock.
+ * - trade: all or part of an order was really a repayment / loan-out. A
+ *   whole-order tag voids the trade (so it stops counting as a sale
+ *   everywhere) and flags it with `usdtTransferKind`; a partial tag
+ *   (`partial: true`) instead shrinks the order's amountUSDT by the tagged
+ *   amount, and undo adds it back.
  * - exchange: a Binance/OKX Pay or on-chain transfer that was never
  *   imported as a batch or order; it is dismissed from the exchange inbox.
  */
 export type UsdtTransferSource =
   | { type: 'batch'; id: string }
-  | { type: 'trade'; id: string }
+  | { type: 'trade'; id: string; partial?: boolean }
   | {
       type: 'exchange';
       exchange: 'binance' | 'okx';
@@ -81,13 +85,15 @@ export function isTransferActive(t: UsdtTransfer | null | undefined): t is UsdtT
   return !!t && !t.voided && Number(t.amountUSDT) > 0 && Number.isFinite(Number(t.ts));
 }
 
-/** Ids of batches (or trades) that an active transfer has taken over from. */
-export function convertedSourceIds(transfers: UsdtTransfer[] | undefined, type: 'batch' | 'trade'): Set<string> {
-  const ids = new Set<string>();
+/** USDT tagged out of each batch (or trade) by active transfers, keyed by source id. */
+export function taggedAmountBySource(transfers: UsdtTransfer[] | undefined, type: 'batch' | 'trade'): Map<string, number> {
+  const out = new Map<string, number>();
   for (const t of transfers || []) {
-    if (isTransferActive(t) && t.source?.type === type) ids.add(t.source.id);
+    if (isTransferActive(t) && t.source?.type === type) {
+      out.set(t.source.id, (out.get(t.source.id) || 0) + Number(t.amountUSDT));
+    }
   }
-  return ids;
+  return out;
 }
 
 /** Exchange transfer ids already tagged by an active transfer. */

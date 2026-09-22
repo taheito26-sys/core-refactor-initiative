@@ -23,6 +23,7 @@ import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTran
 import { dismissTransfer, undismissTransfer } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS, type ExchangeTransfer } from '@/features/exchanges/types';
 import {
+  batchUntaggedUSDT,
   isTradeTaggable,
   tagBatch,
   tagExchangeTransfer,
@@ -48,7 +49,7 @@ const KINDS_BY_DIR: Record<Direction, UsdtTransferKind[]> = {
 
 /** One line in the Received / Sent list: either a record still to tag, or a movement already tagged. */
 type Row =
-  | { key: string; ts: number; amount: number; type: 'batch'; id: string; name: string; sub: string; exchange?: string; price?: number }
+  | { key: string; ts: number; amount: number; type: 'batch'; id: string; name: string; sub: string; exchange?: string; price?: number; total: number }
   | { key: string; ts: number; amount: number; type: 'trade'; id: string; name: string; sub: string; exchange?: string; locked: boolean }
   | { key: string; ts: number; amount: number; type: 'exchange'; transfer: ExchangeTransfer; name: string; sub: string; exchange: string }
   | { key: string; ts: number; amount: number; type: 'tagged'; transfer: UsdtTransfer; sub: string; exchange?: string };
@@ -85,7 +86,7 @@ export function UsdtTransfersPanel({
   const [direction, setDirection] = useState<Direction>('in');
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [pending, setPending] = useState<{ key: string; kind: UsdtTransferKind; name: string } | null>(null);
+  const [pending, setPending] = useState<{ key: string; kind: UsdtTransferKind; name: string; amount: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -125,9 +126,11 @@ export function UsdtTransfersPanel({
       if (src?.type === 'batch') {
         sub = t('uxferSrcBatch');
         const b = state.batches.find(bb => bb.id === src.id);
+        if (b && x.amountUSDT < b.initialUSDT - 1e-6) sub += ` · ${t('uxferPartOf')} ${fmtTotal(b.initialUSDT)}`;
         if (b?.importedFrom) exchange = EXCHANGE_LABELS[b.importedFrom];
       } else if (src?.type === 'trade') {
         sub = t('uxferSrcOrder');
+        if (src.partial) sub += ` · ${t('uxferPartOfOrder')}`;
         const tr = state.trades.find(tt => tt.id === src.id);
         if (tr?.importedFrom) exchange = EXCHANGE_LABELS[tr.importedFrom];
       } else if (src?.type === 'exchange') {
@@ -140,18 +143,32 @@ export function UsdtTransfersPanel({
     if (direction === 'in') {
       for (const b of state.batches) {
         if (taggedIds.has(b.id) || !(b.initialUSDT > 0)) continue;
+        const untagged = batchUntaggedUSDT(state, b.id);
+        if (untagged <= 1e-6) continue;
+        const partly = untagged < b.initialUSDT - 1e-6;
         out.push({
-          key: `b:${b.id}`, ts: b.ts, amount: b.initialUSDT, type: 'batch', id: b.id,
-          name: b.source || '', sub: t('uxferSrcBatch'), price: b.buyPriceQAR,
+          key: `b:${b.id}`, ts: b.ts, amount: untagged, total: b.initialUSDT, type: 'batch', id: b.id,
+          name: b.source || '',
+          sub: partly ? `${t('uxferSrcBatch')} · ${t('uxferLeftOf')} ${fmtTotal(b.initialUSDT)}` : t('uxferSrcBatch'),
+          price: b.buyPriceQAR,
           exchange: b.importedFrom ? EXCHANGE_LABELS[b.importedFrom] : undefined,
         });
       }
     } else {
+      const splitOffByTrade = new Map<string, number>();
+      for (const x of activeTransfers) {
+        if (x.source?.type === 'trade' && x.source.partial) {
+          splitOffByTrade.set(x.source.id, (splitOffByTrade.get(x.source.id) || 0) + x.amountUSDT);
+        }
+      }
       for (const tr of state.trades) {
         if (tr.voided || taggedIds.has(tr.id) || !(tr.amountUSDT > 0)) continue;
+        const splitOff = splitOffByTrade.get(tr.id) || 0;
+        const orderSub = `${t('uxferSrcOrder')} @ ${fmtPrice(tr.sellPriceQAR)}`;
         out.push({
           key: `t:${tr.id}`, ts: tr.ts, amount: tr.amountUSDT, type: 'trade', id: tr.id,
-          name: tradeCounterpartyName(state, tr, t.lang), sub: `${t('uxferSrcOrder')} @ ${fmtPrice(tr.sellPriceQAR)}`,
+          name: tradeCounterpartyName(state, tr, t.lang),
+          sub: splitOff > 0 ? `${orderSub} · ${t('uxferLeftOf')} ${fmtTotal(tr.amountUSDT + splitOff)}` : orderSub,
           exchange: tr.importedFrom ? EXCHANGE_LABELS[tr.importedFrom] : undefined,
           locked: !isTradeTaggable(tr),
         });
@@ -219,14 +236,24 @@ export function UsdtTransfersPanel({
       toast.error(t('uxferErrName'));
       return;
     }
+    const qty = num(pending.amount, 0);
+    if (!(qty > 0) || qty > row.amount + 1e-6) {
+      toast.error(`${t('uxferErrPart')} ${fmtTotal(row.amount)}`);
+      return;
+    }
     try {
       let result: TagResult;
-      if (row.type === 'batch') result = tagBatch(state, row.id, pending.kind as 'borrow_in' | 'lend_return', name);
-      else if (row.type === 'trade') result = tagTrade(state, row.id, pending.kind as 'borrow_repay' | 'lend_out', name);
+      if (row.type === 'batch') result = tagBatch(state, row.id, pending.kind as 'borrow_in' | 'lend_return', name, uid(), qty);
+      else if (row.type === 'trade') result = tagTrade(state, row.id, pending.kind as 'borrow_repay' | 'lend_out', name, uid(), qty);
       else result = tagExchangeTransfer(state, row.transfer, pending.kind, name, uid());
       void commit(result, 'uxferRecorded');
     } catch (err) {
-      toast.error(err instanceof TagError && err.code === 'merchant_linked' ? t('uxferLockedOrder') : t('uxferSaveFailed'));
+      const code = err instanceof TagError ? err.code : null;
+      toast.error(
+        code === 'merchant_linked' ? t('uxferLockedOrder')
+          : code === 'bad_amount' ? `${t('uxferErrPart')} ${fmtTotal(row.amount)}`
+            : t('uxferSaveFailed'),
+      );
     }
   };
 
@@ -335,7 +362,12 @@ export function UsdtTransfersPanel({
                         type="button"
                         className="rowBtn"
                         style={isPending && pending?.kind === kind ? { borderColor: 'var(--brand)', color: 'var(--brand)', fontWeight: 800 } : undefined}
-                        onClick={() => setPending({ key: row.key, kind, name: isPending ? pending!.name : row.name })}
+                        onClick={() => setPending({
+                          key: row.key,
+                          kind,
+                          name: isPending ? pending!.name : row.name,
+                          amount: isPending ? pending!.amount : String(row.amount),
+                        })}
                       >
                         {KIND_META[kind].icon} {t(KIND_META[kind].short)}
                       </button>
@@ -343,6 +375,12 @@ export function UsdtTransfersPanel({
                   </div>
                 )}
               </div>
+              {isPending && row.type !== 'exchange' && (
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('uxferPartHint')}</div>
+              )}
+              {isPending && row.type === 'exchange' && (
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('uxferSplitExchangeHint')}</div>
+              )}
               {isPending && (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 10, fontWeight: 700 }}>{t(KIND_META[pending!.kind].label)} —</span>
@@ -355,6 +393,16 @@ export function UsdtTransfersPanel({
                       autoFocus
                     />
                   </div>
+                  <div className="inputBox" style={{ width: 130, padding: '4px 8px' }} title={row.type === 'exchange' ? t('uxferSplitExchangeHint') : undefined}>
+                    <input
+                      inputMode="decimal"
+                      aria-label={t('uxferAmount')}
+                      value={pending!.amount}
+                      disabled={row.type === 'exchange'}
+                      onChange={e => setPending({ ...pending!, amount: e.target.value })}
+                    />
+                  </div>
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>/ {fmtTotal(row.amount)} USDT</span>
                   <button className="btn" type="button" disabled={busy} onClick={() => confirmTag(row)}>{t('uxferConfirm')}</button>
                   <button className="btn secondary" type="button" onClick={() => setPending(null)}>{t('cancel')}</button>
                 </div>
