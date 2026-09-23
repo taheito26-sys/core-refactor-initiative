@@ -662,6 +662,7 @@ const translations = {
   uxferSrcP2P: { en: 'P2P order', ar: 'طلب P2P' },
   uxferSelect: { en: 'Select', ar: 'تحديد' },
   uxferSelectedCount: { en: 'selected', ar: 'محدد' },
+  uxferInboxTagTitle: { en: 'Loan, not an order — tag it as borrow / lend', ar: 'قرض وليس طلبًا — علّمه كاقتراض / إقراض' },
   uxferSaveFailed: { en: 'Could not save — try again', ar: 'تعذر الحفظ — حاول مرة أخرى' },
   uxferCostAt: { en: 'cost', ar: 'التكلفة' },
 

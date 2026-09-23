@@ -46,6 +46,7 @@ import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalan
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { UsdtTransfersPanel } from '@/features/stock/components/UsdtTransfersPanel';
+import { useBorrowLendCommit } from '@/features/stock/hooks/useBorrowLendCommit';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -179,6 +180,9 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  // "🤝" on an exchange-inbox row: record it as borrowed / returned USDT
+  // instead of importing it as a purchase.
+  const { tagFromInbox: tagLoanFromInbox } = useBorrowLendCommit(applyStateAndCommit);
   // Borrow/lend movements tagged from a P2P order hold that order's split
   // link under their own id, so they count as live entities for the inbox.
   const activeBatchIds = useMemo(
@@ -1285,6 +1289,7 @@ export default function StockPage() {
                   activeEntityIds={activeBatchIds}
                   importedReferences={importedExchangeRefs}
                   monthKey={selectedMonth}
+                  onTagLoan={(req) => tagLoanFromInbox(state, req)}
                 />
                 {activeAccounts.length > 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -1575,6 +1580,7 @@ export default function StockPage() {
                       activeEntityIds={activeBatchIds}
                       importedReferences={importedExchangeRefs}
                       monthKey={selectedMonth}
+                      onTagLoan={(req) => tagLoanFromInbox(state, req)}
                     />
                     {activeAccounts.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>

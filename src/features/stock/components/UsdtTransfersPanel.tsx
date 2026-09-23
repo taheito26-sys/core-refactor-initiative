@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import {
@@ -22,7 +21,7 @@ import {
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeOrderLinks, sumLinkedAmount } from '@/features/exchanges/hooks/useExchangeOrderLinks';
-import { addOrderLink, dismissTransfer, removeOrderLink, undismissTransfer } from '@/features/exchanges/api';
+import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { EXCHANGE_LABELS, type ExchangeP2POrder, type ExchangeTransfer } from '@/features/exchanges/types';
 import {
   batchUntaggedUSDT,
@@ -93,7 +92,7 @@ export function UsdtTransfersPanel({
   applyStateAndCommit: (next: TrackerState) => Promise<void>;
 }) {
   const t = useT();
-  const queryClient = useQueryClient();
+  const { commit: saveTag, busy } = useBorrowLendCommit(applyStateAndCommit);
   const { data: exchangeTransfers } = useExchangeTransfers();
   const { data: exchangeOrders } = useExchangeP2POrders();
   const { data: linksByOrder } = useExchangeOrderLinks();
@@ -102,7 +101,6 @@ export function UsdtTransfersPanel({
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [pending, setPending] = useState<{ key: string; kind: UsdtTransferKind; name: string; amount: string } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [showManual, setShowManual] = useState(false);
   /** Rows ticked for a bulk tag (e.g. several sends to one lender), keyed by row key. */
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -253,31 +251,10 @@ export function UsdtTransfersPanel({
   }, [activeTransfers, direction, state, exchangeTransfers, exchangeOrders, linksByOrder, search, t]);
 
   const commit = async (result: TagResult, okMsg: TranslationKey) => {
-    setBusy(true);
-    try {
-      await applyStateAndCommit(result.state);
-      const ops = [
-        ...(result.dismiss || []).map(id => dismissTransfer(id)),
-        ...(result.undismiss || []).map(id => undismissTransfer(id)),
-        ...(result.orderLinks || []).map(l => addOrderLink(l.orderId, l.entityType, l.entityId, l.amount, l.label)),
-        ...(result.removeOrderLinks || []).map(l => removeOrderLink(l.orderId, l.entityId)),
-      ];
-      if (ops.length) {
-        const settled = await Promise.allSettled(ops);
-        for (const r of settled) if (r.status === 'rejected') console.error('[UsdtTransfersPanel] exchange link update failed:', r.reason);
-        void queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] });
-        void queryClient.invalidateQueries({ queryKey: ['exchange-p2p-orders'] });
-        void queryClient.invalidateQueries({ queryKey: ['exchange-p2p-order-links'] });
-      }
-      toast.success(t(okMsg));
+    if (await saveTag(result, okMsg)) {
       setPending(null);
       setSelected(new Set());
       setBulk(null);
-    } catch (err) {
-      console.error('[UsdtTransfersPanel] save failed:', err);
-      toast.error(t('uxferSaveFailed'));
-    } finally {
-      setBusy(false);
     }
   };
 

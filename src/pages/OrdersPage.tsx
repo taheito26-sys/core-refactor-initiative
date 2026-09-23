@@ -32,6 +32,7 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { useBorrowLendCommit } from '@/features/stock/hooks/useBorrowLendCommit';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
@@ -100,7 +101,7 @@ export default function OrdersPage() {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
-  const { state, derived, applyState } = useTrackerState({
+  const { state, derived, applyState, applyStateAndCommit } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -561,6 +562,9 @@ export default function OrdersPage() {
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
     [connectedCustomers, state.customers, sortByCustomerUsage],
   );
+  // "🤝" on an exchange-inbox row: record it as a borrow/lend movement
+  // (e.g. USDT sent back to a lender) instead of importing it as a sale.
+  const { tagFromInbox: tagLoanFromInbox } = useBorrowLendCommit(applyStateAndCommit);
   // An order tagged as a USDT borrow repayment / loan-out is voided but still
   // accounts for its exchange record, so the inbox must not re-offer it.
   // Borrow/lend movements tagged from a P2P order hold that order's split
@@ -4391,6 +4395,7 @@ export default function OrdersPage() {
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
                     monthKey={selectedMonth}
+                    onTagLoan={(req) => tagLoanFromInbox(state, req)}
                   />
                 </div>
 
