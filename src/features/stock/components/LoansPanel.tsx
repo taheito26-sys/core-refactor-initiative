@@ -59,6 +59,10 @@ export function LoansPanel({
   const open = statements.filter((s) => Math.abs(s.net) > 1e-6);
   const settled = statements.filter((s) => Math.abs(s.net) <= 1e-6);
 
+  // Filter pending items to only show September (09) onwards
+  const septemberCutoff = new Date(new Date().getFullYear(), 8, 1).getTime();
+  const filteredPending = useMemo(() => pending.filter((p) => p.ts >= septemberCutoff), [pending]);
+
   const inPrice = useMemo(() => {
     const m = new Map<string, number>();
     for (const b of derived.batches) if (b.isTransfer) m.set(b.id, b.buyPriceQAR);
@@ -67,7 +71,7 @@ export function LoansPanel({
   const unitCost = (x: UsdtTransfer) =>
     x.kind === 'borrow_in' || x.kind === 'lend_return' ? inPrice.get(x.id) : derived.transferCalc?.get(x.id)?.unitCost ?? undefined;
 
-  const selectedItems = pending.filter((p) => selected.has(p.key));
+  const selectedItems = filteredPending.filter((p) => selected.has(p.key));
   const toggle = (key: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -184,7 +188,7 @@ export function LoansPanel({
     );
   };
 
-  const visiblePending = pending.slice(0, limit);
+  const visiblePending = filteredPending.slice(0, limit);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -197,12 +201,12 @@ export function LoansPanel({
       <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12, fontWeight: 800 }}>{t('mloanNeedsDecision')}</div>
-          <span className="pill" style={{ fontSize: 10, color: pending.length ? 'var(--warn)' : 'var(--good)' }}>
-            {pending.length ? pending.length : '✓'}
+          <span className="pill" style={{ fontSize: 10, color: filteredPending.length ? 'var(--warn)' : 'var(--good)' }}>
+            {filteredPending.length ? filteredPending.length : '✓'}
           </span>
         </div>
-        {pending.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanAllDecided')}</div>}
-        {pending.length > 0 && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanNeedsDecisionHint')}</div>}
+        {filteredPending.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanAllDecided')}</div>}
+        {filteredPending.length > 0 && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanNeedsDecisionHint')}</div>}
 
         {selectedItems.length > 0 && (
           <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)', border: '1px solid var(--brand)', borderRadius: 8, padding: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -242,7 +246,7 @@ export function LoansPanel({
             </div>
           </div>
         ))}
-        {pending.length > limit && (
+        {filteredPending.length > limit && (
           <button type="button" className="btn secondary" onClick={() => setLimit((l) => l + PAGE)}>{t('mloanShowMore')}</button>
         )}
       </div>
