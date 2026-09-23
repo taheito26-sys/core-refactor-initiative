@@ -6,6 +6,7 @@ Guidance for AI assistants working in this repository. Read this before making c
 
 **Standing instruction from the repo owner: commit and push directly to `main`.**
 
+- **Default behavior:** All changes should be pushed to `main` directly unless explicitly told otherwise.
 - Do not park finished work on a feature branch waiting for a merge — the owner
   runs the app off `main`, and anything not on `main` is invisible to them.
 - If a session is started on a designated feature branch, still land the work on
