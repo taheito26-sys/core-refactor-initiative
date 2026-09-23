@@ -116,49 +116,86 @@ export function LoansPanel({
   const renderStatement = (s: MerchantStatement) => {
     const shownGroups = new Set<string>();
     const groups = s.monthGroups || [];
+    const lines = [...s.lines].reverse();
 
+    // If we have monthGroups, show grouped by month. Otherwise fall back to all lines.
+    if (groups.length > 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+          <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start', fontSize: 11 }}
+            onClick={() => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName: s.name })}>
+            ＋ {t('mloanAddMove')}
+          </button>
+          {groups.map((group) => {
+            const groupLines = [...group.lines].reverse();
+            return (
+              <div key={group.yearMonth} style={{ borderTop: '1px solid var(--line)', paddingTop: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                  {group.yearMonth}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {groupLines.map((l) => {
+                    const meta = KIND_META[l.kind];
+                    const cost = unitCost(l.transfer);
+                    const undoable = !l.groupId || !shownGroups.has(l.groupId);
+                    if (l.groupId) shownGroups.add(l.groupId);
+                    return (
+                      <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>
+                            {meta.icon} {t(meta.label)} <span className="mono">{fmtTotal(l.amount)}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                            {fmtDate(l.ts)} · {sourceText(l.transfer)}
+                            {cost ? ` · ${l.estimated ? t('mloanEstCost') : t('mloanCost')} ${fmtPrice(cost)}` : ''}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: balanceColor(l.balanceAfter) }}>
+                            → {balanceText({ net: l.balanceAfter, name: s.name })}
+                          </div>
+                        </div>
+                        {undoable && (
+                          <button type="button" className="rowBtn" disabled={busy} onClick={() => undo(l.transfer)}>{t('mloanUndo')}</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Fallback: show all lines (old format)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
         <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start', fontSize: 11 }}
           onClick={() => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName: s.name })}>
           ＋ {t('mloanAddMove')}
         </button>
-        {groups.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanNoOpen')}</div>}
-        {groups.map((group) => {
-          const lines = [...group.lines].reverse();
+        {lines.map((l) => {
+          const meta = KIND_META[l.kind];
+          const cost = unitCost(l.transfer);
+          const undoable = !l.groupId || !shownGroups.has(l.groupId);
+          if (l.groupId) shownGroups.add(l.groupId);
           return (
-            <div key={group.yearMonth} style={{ borderTop: '1px solid var(--line)', paddingTop: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                {group.yearMonth}
+            <div key={l.id} style={{ borderTop: '1px solid var(--line)', paddingTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>
+                  {meta.icon} {t(meta.label)} <span className="mono">{fmtTotal(l.amount)}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                  {fmtDate(l.ts)} · {sourceText(l.transfer)}
+                  {cost ? ` · ${l.estimated ? t('mloanEstCost') : t('mloanCost')} ${fmtPrice(cost)}` : ''}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: balanceColor(l.balanceAfter) }}>
+                  → {balanceText({ net: l.balanceAfter, name: s.name })}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {lines.map((l) => {
-                  const meta = KIND_META[l.kind];
-                  const cost = unitCost(l.transfer);
-                  // Undo is offered once per group (the parts of one split entry).
-                  const undoable = !l.groupId || !shownGroups.has(l.groupId);
-                  if (l.groupId) shownGroups.add(l.groupId);
-                  return (
-                    <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700 }}>
-                          {meta.icon} {t(meta.label)} <span className="mono">{fmtTotal(l.amount)}</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          {fmtDate(l.ts)} · {sourceText(l.transfer)}
-                          {cost ? ` · ${l.estimated ? t('mloanEstCost') : t('mloanCost')} ${fmtPrice(cost)}` : ''}
-                        </div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: balanceColor(l.balanceAfter) }}>
-                          → {balanceText({ net: l.balanceAfter, name: s.name })}
-                        </div>
-                      </div>
-                      {undoable && (
-                        <button type="button" className="rowBtn" disabled={busy} onClick={() => undo(l.transfer)}>{t('mloanUndo')}</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              {undoable && (
+                <button type="button" className="rowBtn" disabled={busy} onClick={() => undo(l.transfer)}>{t('mloanUndo')}</button>
+              )}
             </div>
           );
         })}
