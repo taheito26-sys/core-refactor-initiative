@@ -32,7 +32,9 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
-import { useBorrowLendCommit } from '@/features/stock/hooks/useBorrowLendCommit';
+import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
+import { isTradeTaggable } from '@/features/stock/usdt-tagging';
+import type { LoanSource } from '@/features/stock/loan-ledger';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
@@ -562,9 +564,10 @@ export default function OrdersPage() {
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
     [connectedCustomers, state.customers, sortByCustomerUsage],
   );
-  // "🤝" on an exchange-inbox row: record it as a borrow/lend movement
-  // (e.g. USDT sent back to a lender) instead of importing it as a sale.
-  const { tagFromInbox: tagLoanFromInbox } = useBorrowLendCommit(applyStateAndCommit);
+  // "🤝 Merchant loan" on an exchange-inbox row or an existing order opens
+  // the merchant-loan dialog (USDT sent back to a lender, or lent out)
+  // instead of recording it as a sale.
+  const [loanSources, setLoanSources] = useState<LoanSource[] | null>(null);
   // An order tagged as a USDT borrow repayment / loan-out is voided but still
   // accounts for its exchange record, so the inbox must not re-offer it.
   // Borrow/lend movements tagged from a P2P order hold that order's split
@@ -4395,7 +4398,7 @@ export default function OrdersPage() {
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
                     monthKey={selectedMonth}
-                    onTagLoan={(req) => tagLoanFromInbox(state, req)}
+                    onLoanClick={(src) => setLoanSources([src])}
                   />
                 </div>
 
@@ -6082,6 +6085,23 @@ export default function OrdersPage() {
                 </div>
               )}
 
+              {(() => {
+                const loanTrade = state.trades.find(x => x.id === editingTradeId);
+                if (!loanTrade || loanTrade.voided || !isTradeTaggable(loanTrade)) return null;
+                return (
+                  <button
+                    type="button"
+                    className="rowBtn"
+                    style={{ alignSelf: 'flex-start', fontSize: 11, fontWeight: 700, marginTop: 6 }}
+                    onClick={() => {
+                      setLoanSources([{ type: 'trade', tradeId: loanTrade.id, available: loanTrade.amountUSDT, ts: loanTrade.ts }]);
+                      setEditingTradeId(null);
+                    }}
+                  >
+                    🤝 {t('mloanOrderWasLoan')}
+                  </button>
+                );
+              })()}
               <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...mobileDialogFooterStyle }}>
                 {!isApproved && (
                   <button
@@ -6257,6 +6277,16 @@ export default function OrdersPage() {
         >
           +
         </button>
+      )}
+
+      {loanSources && (
+        <MerchantLoanDialog
+          open
+          sources={loanSources}
+          state={state}
+          applyStateAndCommit={applyStateAndCommit}
+          onClose={() => setLoanSources(null)}
+        />
       )}
 
     </div>

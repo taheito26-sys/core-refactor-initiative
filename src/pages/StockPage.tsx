@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
@@ -43,15 +44,14 @@ import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchange
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
-import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
-import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
-import { explainReconciliationDelta, findPendingExchangeItems } from '@/features/exchanges/reconcile';
-import { taggedExchangeTransferIds } from '@/lib/usdt-transfers';
+import { explainReconciliationDelta } from '@/features/exchanges/reconcile';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
-import { UsdtTransfersPanel } from '@/features/stock/components/UsdtTransfersPanel';
-import { useBorrowLendCommit } from '@/features/stock/hooks/useBorrowLendCommit';
+import { LoansPanel } from '@/features/stock/components/LoansPanel';
+import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
+import { usePendingExchangeItems } from '@/features/stock/hooks/usePendingExchangeItems';
+import { batchUntaggedUSDT } from '@/features/stock/usdt-tagging';
+import type { LoanSource } from '@/features/stock/loan-ledger';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -185,9 +185,9 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
-  // "🤝" on an exchange-inbox row: record it as borrowed / returned USDT
-  // instead of importing it as a purchase.
-  const { tagFromInbox: tagLoanFromInbox } = useBorrowLendCommit(applyStateAndCommit);
+  // "🤝 Merchant loan" on an exchange-inbox row or a batch card opens the
+  // merchant-loan dialog for it instead of importing it as a purchase.
+  const [loanSources, setLoanSources] = useState<LoanSource[] | null>(null);
   // Borrow/lend movements tagged from a P2P order hold that order's split
   // link under their own id, so they count as live entities for the inbox.
   const activeBatchIds = useMemo(
@@ -218,32 +218,11 @@ export default function StockPage() {
   // Before a mismatch is blamed on the stock batches, net out every Binance /
   // OKX record still unregistered in the tracker (sales and buys both) --
   // those move the exchange balance first and the tracker only once imported.
-  const navigate = useNavigate();
-  const { data: reconcileOrders } = useExchangeP2POrders();
-  const { data: reconcileTransfers } = useExchangeTransfers();
-  const { data: reconcileLinks } = useExchangeOrderLinks();
-  const reconcileExplanation = useMemo(() => {
-    const liveEntityIds = new Set<string>([
-      ...state.batches.map((b) => b.id),
-      ...state.trades.filter((tr) => !tr.voided || tr.usdtTransferKind).map((tr) => tr.id),
-      ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id),
-    ]);
-    const importedReferences = new Set<string>(
-      [
-        ...state.batches.map((b) => extractImportedReference(b.note)),
-        ...state.trades.filter((tr) => !tr.voided || tr.usdtTransferKind).map((tr) => extractImportedReference(tr.note)),
-      ].filter((r): r is string => !!r),
-    );
-    const items = findPendingExchangeItems({
-      orders: reconcileOrders,
-      linksByOrder: reconcileLinks,
-      transfers: reconcileTransfers,
-      liveEntityIds,
-      importedReferences,
-      taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers),
-    });
-    return explainReconciliationDelta(reconciliationDelta, items);
-  }, [state.batches, state.trades, state.usdtTransfers, reconcileOrders, reconcileLinks, reconcileTransfers, reconciliationDelta]);
+  const pendingExchangeItems = usePendingExchangeItems(state);
+  const reconcileExplanation = useMemo(
+    () => explainReconciliationDelta(reconciliationDelta, pendingExchangeItems),
+    [pendingExchangeItems, reconciliationDelta],
+  );
   /** The mismatch left once every unregistered exchange record is imported -- what batches should actually be fixed for. */
   const residualDelta = reconcileExplanation.remaining;
   const residualMismatch = Math.abs(residualDelta) > 1;
@@ -263,10 +242,11 @@ export default function StockPage() {
     const m = new Map<string, string>();
     for (const x of state.usdtTransfers || []) {
       if (x.voided || x.source?.type !== 'batch') continue;
-      m.set(x.source.id, `${x.kind === 'borrow_in' ? t('uxferTagBorrowed') : t('uxferTagReturned')} · ${x.counterpartyName}`);
+      const prev = m.get(x.source.id);
+      m.set(x.source.id, prev ? `${prev} + ${x.counterpartyName} ${fmtTotal(x.amountUSDT)}` : `${x.counterpartyName} ${fmtTotal(x.amountUSDT)}`);
     }
     return m;
-  }, [state.usdtTransfers, t]);
+  }, [state.usdtTransfers]);
   /** Quantity-weighted average buy price of batches added during the selected month (or the current month, if "All"). */
   const monthAvgBuyPrice = useMemo(() => {
     const targetKey = selectedMonth !== 'all' ? selectedMonth : (() => {
@@ -945,7 +925,7 @@ export default function StockPage() {
           onClick={() => setActiveStockSection('transfers')}
           className={`orders-tab-btn ${activeStockSection === 'transfers' ? 'active' : ''}`}
         >
-          🤝 {t('uxferTab')}
+          🤝 {t('mloanTab')}
         </button>
       </div>
 
@@ -955,7 +935,12 @@ export default function StockPage() {
       )}
 
       {activeStockSection === 'transfers' && (
-        <UsdtTransfersPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} />
+        <LoansPanel
+          state={state}
+          derived={derived}
+          applyStateAndCommit={applyStateAndCommit}
+          onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
+        />
       )}
 
       {stockTab === 'batches' && (
@@ -1121,14 +1106,9 @@ export default function StockPage() {
                         : t('reconcileResidual').split('{amount}').join(`${residualDelta >= 0 ? '+' : ''}${fmtU(residualDelta)}`)}
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {reconcileExplanation.items.some((i) => i.direction === 'out') && (
-                        <button className="rowBtn" style={{ fontSize: 10.5, fontWeight: 700 }} onClick={() => navigate('/trading/orders')}>
-                          🧾 {t('reconcileOpenOrders')}
-                        </button>
-                      )}
-                      {reconcileExplanation.items.some((i) => i.direction === 'in') && (
-                        <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>{t('reconcileBuysBelow')}</span>
-                      )}
+                      <button className="rowBtn" style={{ fontSize: 10.5, fontWeight: 800, borderColor: 'var(--brand)', color: 'var(--brand)' }} onClick={() => setActiveStockSection('transfers')}>
+                        📋 {t('mloanDecideThese')}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1195,6 +1175,12 @@ export default function StockPage() {
                           onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>
                           {isOpen ? t('hideDetails') : t('details')}
                         </button>
+                        {batchUntaggedUSDT(state, b.id) > 1e-6 && (
+                          <button className="rowBtn" title={t('mloanTitle')} style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
+                            onClick={() => setLoanSources([{ type: 'batch', batchId: b.id, available: batchUntaggedUSDT(state, b.id), ts: b.ts }])}>
+                            🤝
+                          </button>
+                        )}
                         <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
                           onClick={() => openEdit(b.id)}>
                           {t('edit')}
@@ -1314,6 +1300,10 @@ export default function StockPage() {
                             <span className={`pill ${stCls}`}>{st}</span>
                             {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
                             <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
+                            {batchUntaggedUSDT(state, b.id) > 1e-6 && (
+                              <button className="rowBtn" title={t('mloanTitle')}
+                                onClick={() => setLoanSources([{ type: 'batch', batchId: b.id, available: batchUntaggedUSDT(state, b.id), ts: b.ts }])}>🤝</button>
+                            )}
                             <button className="rowBtn" onClick={() => openEdit(b.id)}>{t('edit')}</button>
                           </div>
                         </td>
@@ -1373,7 +1363,7 @@ export default function StockPage() {
                   activeEntityIds={activeBatchIds}
                   importedReferences={importedExchangeRefs}
                   monthKey={selectedMonth}
-                  onTagLoan={(req) => tagLoanFromInbox(state, req)}
+                  onLoanClick={(src) => setLoanSources([src])}
                 />
                 {activeAccounts.length > 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -1664,7 +1654,7 @@ export default function StockPage() {
                       activeEntityIds={activeBatchIds}
                       importedReferences={importedExchangeRefs}
                       monthKey={selectedMonth}
-                      onTagLoan={(req) => tagLoanFromInbox(state, req)}
+                      onLoanClick={(src) => setLoanSources([src])}
                     />
                     {activeAccounts.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -1969,6 +1959,16 @@ export default function StockPage() {
       })()}
 
       {/* ─── FIX MISMATCH (reconciliation) DIALOG ─── */}
+      {loanSources && (
+        <MerchantLoanDialog
+          open
+          sources={loanSources}
+          state={state}
+          applyStateAndCommit={applyStateAndCommit}
+          onClose={() => setLoanSources(null)}
+        />
+      )}
+
       {showFixMismatchModal && (
         <FixMismatchModal
           targetDelta={residualDelta}

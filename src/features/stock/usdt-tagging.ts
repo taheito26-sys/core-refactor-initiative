@@ -100,8 +100,6 @@ export function tagBatch(
     kind,
     amountUSDT: Math.min(qty, available),
     counterpartyName: counterpartyName.trim() || batch.source || '',
-    // The batch's own price is only a stand-in until a repayment prices it.
-    refPriceQAR: batch.buyPriceQAR > 0 ? batch.buyPriceQAR : undefined,
     source: { type: 'batch', id: batch.id },
     createdAt: now,
     updatedAt: now,
@@ -165,12 +163,17 @@ export function tagExchangeTransfer(
   counterpartyName: string,
   id: string,
   now = Date.now(),
+  /** Part of the transfer, when one transfer is split across repayment + loan. Defaults to all of it. */
+  amountUSDT?: number,
 ): TagResult {
+  const total = Number(transfer.amount);
+  const qty = amountUSDT === undefined ? total : round6(amountUSDT);
+  if (!(qty > 0) || qty > total + EPS) throw new TagError('bad_amount');
   const row: UsdtTransfer = {
     id,
     ts: transfer.transfer_time ? new Date(transfer.transfer_time).getTime() : now,
     kind,
-    amountUSDT: Number(transfer.amount),
+    amountUSDT: Math.min(qty, total),
     counterpartyName: counterpartyName.trim() || transfer.counterparty || '',
     source: {
       type: 'exchange',

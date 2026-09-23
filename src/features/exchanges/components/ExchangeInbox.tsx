@@ -8,9 +8,8 @@ import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer } from '../types';
 import { dismissTransfer } from '../api';
-import { useT, type TranslationKey } from '@/lib/i18n';
-import type { UsdtTransferKind } from '@/lib/usdt-transfers';
-import type { InboxLoanTagRequest } from '@/features/stock/hooks/useBorrowLendCommit';
+import { useT } from '@/lib/i18n';
+import type { LoanSource } from '@/features/stock/loan-ledger';
 
 /** Amounts within this margin of each other are treated as fully matched (floating-point/rounding noise from the exchange). */
 const AMOUNT_EPSILON = 0.01;
@@ -78,97 +77,6 @@ function Chip({ className, children }: { className?: string; children: React.Rea
   );
 }
 
-const LOAN_KINDS: Record<'buy' | 'sell', { kind: UsdtTransferKind; label: TranslationKey; icon: string }[]> = {
-  sell: [
-    { kind: 'borrow_repay', label: 'uxferTagRepaid', icon: '↩️' },
-    { kind: 'lend_out', label: 'uxferTagLent', icon: '⬆️' },
-  ],
-  buy: [
-    { kind: 'borrow_in', label: 'uxferTagBorrowed', icon: '⬇️' },
-    { kind: 'lend_return', label: 'uxferTagReturned', icon: '↪️' },
-  ],
-};
-
-/** Inline "this was a loan, not an order" form under an inbox row. */
-function LoanTagForm({
-  side,
-  maxAmount,
-  amountEditable,
-  defaultName,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  side: 'buy' | 'sell';
-  maxAmount: number;
-  amountEditable: boolean;
-  defaultName: string;
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: (kind: UsdtTransferKind, name: string, amount: number) => void;
-}) {
-  const t = useT();
-  const [kind, setKind] = useState<UsdtTransferKind>(LOAN_KINDS[side][0].kind);
-  const [name, setName] = useState(defaultName);
-  const [amount, setAmount] = useState(String(Math.round(maxAmount * 100) / 100));
-  const boxRef = useRef<HTMLDivElement>(null);
-  // The inbox list scrolls inside a short box; bring the form's buttons into view.
-  useEffect(() => {
-    boxRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, []);
-  return (
-    <div ref={boxRef} className="space-y-1 rounded border border-primary/40 bg-primary/5 p-1.5">
-      <div className="text-[10px] font-semibold text-muted-foreground">{t('uxferInboxTagTitle')}</div>
-      <div className="flex flex-wrap gap-1">
-        {LOAN_KINDS[side].map((k) => (
-          <button
-            key={k.kind}
-            type="button"
-            onClick={() => setKind(k.kind)}
-            className={cn(
-              'rounded border px-1.5 py-0.5 text-[11px] font-semibold',
-              kind === k.kind ? 'border-primary bg-primary/20 text-primary' : 'border-muted-foreground/30 text-muted-foreground',
-            )}
-          >
-            {k.icon} {t(k.label)}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-1">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('uxferCounterparty')}
-          className="min-w-[120px] flex-1 rounded border border-muted-foreground/30 bg-background px-1.5 py-1 text-[12px]"
-        />
-        <input
-          value={amount}
-          inputMode="decimal"
-          aria-label={t('uxferAmount')}
-          disabled={!amountEditable}
-          title={amountEditable ? t('uxferPartHint') : t('uxferSplitExchangeHint')}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-[96px] rounded border border-muted-foreground/30 bg-background px-1.5 py-1 text-[12px] disabled:opacity-60"
-        />
-        <span className="text-[10px] text-muted-foreground">/ {fmtNum(maxAmount)}</span>
-      </div>
-      <div className="flex justify-end gap-1">
-        <button type="button" onClick={onCancel} className="rounded border border-muted-foreground/30 px-2 py-0.5 text-[11px] text-muted-foreground">
-          {t('cancel')}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onConfirm(kind, name, Number(amount))}
-          className="rounded bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
-        >
-          {t('uxferConfirm')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const fmtNum = (n: number, max = 2) => n.toLocaleString(undefined, { maximumFractionDigits: max });
 
 const fmtWhen = (iso: string | null) =>
@@ -196,7 +104,7 @@ export function ExchangeInbox({
   activeEntityIds,
   importedReferences,
   monthKey,
-  onTagLoan,
+  onLoanClick,
 }: {
   side: 'buy' | 'sell';
   onPick: (order: ExchangeOrderPayload) => void;
@@ -230,11 +138,11 @@ export function ExchangeInbox({
    */
   monthKey?: string;
   /**
-   * Tags a row as a borrow/lend movement between merchants instead of an
-   * order or batch (e.g. USDT sent back to a lender). Resolves true once
-   * saved. When omitted, rows carry no loan button.
+   * "🤝 Merchant loan" on a row: the page opens the merchant-loan dialog for
+   * it (USDT lent / borrowed / repaid, not an order). When omitted, rows
+   * carry no loan button.
    */
-  onTagLoan?: (req: InboxLoanTagRequest) => Promise<boolean>;
+  onLoanClick?: (source: LoanSource) => void;
 }) {
   const t = useT();
   const { data: orders } = useExchangeP2POrders();
@@ -242,27 +150,12 @@ export function ExchangeInbox({
   const { data: linksByOrder } = useExchangeOrderLinks();
   const [collapsed, setCollapsed] = useState(false);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
-  /** Row whose inline loan-tag form is open ("o:<id>" or "t:<id>"). */
-  const [loanFor, setLoanFor] = useState<string | null>(null);
-  const [loanBusy, setLoanBusy] = useState(false);
-  const submitLoan = async (req: InboxLoanTagRequest) => {
-    if (!onTagLoan) return;
-    setLoanBusy(true);
-    try {
-      if (await onTagLoan(req)) setLoanFor(null);
-    } finally {
-      setLoanBusy(false);
-    }
-  };
-  const LoanButton = ({ rowKey }: { rowKey: string }) => (
+  const LoanButton = ({ source }: { source: LoanSource }) => (
     <button
       type="button"
-      title={t('uxferInboxTagTitle')}
-      onClick={() => setLoanFor((cur) => (cur === rowKey ? null : rowKey))}
-      className={cn(
-        'flex shrink-0 items-center justify-center rounded border px-1 text-[12px]',
-        loanFor === rowKey ? 'border-primary bg-primary/20' : 'border-dashed border-muted-foreground/30 hover:border-primary/60',
-      )}
+      title={t('mloanInboxButton')}
+      onClick={() => onLoanClick?.(source)}
+      className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-[12px] hover:border-primary/60"
     >
       🤝
     </button>
@@ -470,7 +363,7 @@ export function ExchangeInbox({
         </div>
       )}
       {!collapsed && (
-        <div className={cn('space-y-1 overflow-y-auto overflow-x-hidden p-1', loanFor ? 'max-h-[340px]' : 'max-h-[196px]')}>
+        <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
           {rows.map((row) => row.kind === 'order' ? (() => {
             const o = row.data;
             const { remaining, isFull, isPartial } = orderCoverage(o);
@@ -541,21 +434,10 @@ export function ExchangeInbox({
                   </div>
                 </div>
               </button>
-              {onTagLoan && !imported && <LoanButton rowKey={`o:${o.id}`} />}
-              </div>
-              {onTagLoan && loanFor === `o:${o.id}` && !imported && (
-                <LoanTagForm
-                  side={side}
-                  maxAmount={remaining}
-                  amountEditable
-                  defaultName={o.counterparty ?? ''}
-                  busy={loanBusy}
-                  onCancel={() => setLoanFor(null)}
-                  onConfirm={(kind, name, amount) =>
-                    void submitLoan({ source: 'order', order: o as ExchangeP2POrder, available: remaining, amount, kind, name })
-                  }
-                />
+              {onLoanClick && !imported && (
+                <LoanButton source={{ type: 'exchange_order', order: o as ExchangeP2POrder, available: remaining }} />
               )}
+              </div>
               </div>
             );
           })() : (() => {
@@ -641,21 +523,10 @@ export function ExchangeInbox({
                   <X className="h-3 w-3" />
                 </button>
               )}
-              {onTagLoan && !imported && <LoanButton rowKey={`t:${tr.id}`} />}
-              </div>
-              {onTagLoan && loanFor === `t:${tr.id}` && !imported && (
-                <LoanTagForm
-                  side={side}
-                  maxAmount={tr.amount}
-                  amountEditable={false}
-                  defaultName={tr.counterparty ?? ''}
-                  busy={loanBusy}
-                  onCancel={() => setLoanFor(null)}
-                  onConfirm={(kind, name) =>
-                    void submitLoan({ source: 'transfer', transfer: tr as ExchangeTransfer, kind, name })
-                  }
-                />
+              {onLoanClick && !imported && (
+                <LoanButton source={{ type: 'exchange_transfer', transfer: tr as ExchangeTransfer }} />
               )}
+              </div>
               </div>
             );
           })())}

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/lib/i18n', () => {
@@ -33,49 +33,34 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
 
-function renderInbox(onTagLoan = vi.fn(async (_req: unknown) => true)) {
+function renderInbox(onLoanClick?: (src: unknown) => void) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ExchangeInbox side="sell" onPick={vi.fn()} onPickTransfer={vi.fn()} activeEntityIds={new Set()} onTagLoan={onTagLoan} />
+      <ExchangeInbox side="sell" onPick={vi.fn()} onPickTransfer={vi.fn()} activeEntityIds={new Set()} onLoanClick={onLoanClick} />
     </QueryClientProvider>,
   );
-  return onTagLoan;
 }
 
-describe('ExchangeInbox loan tagging', () => {
+describe('ExchangeInbox merchant-loan button', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('tags an outgoing Network transfer as a loan repayment straight from the inbox', async () => {
-    const onTagLoan = renderInbox();
+  it('hands the page the Network send as a loan source', () => {
+    const onLoanClick = vi.fn();
+    renderInbox(onLoanClick);
     // Rows newest first: the Sep 21 transfer, then the Sep 20 P2P order.
-    fireEvent.click(screen.getAllByTitle('uxferInboxTagTitle')[0]);
-    fireEvent.change(screen.getByPlaceholderText('uxferCounterparty'), { target: { value: 'Abu Tamim' } });
-    fireEvent.click(screen.getByText('uxferConfirm'));
-    await waitFor(() => expect(onTagLoan).toHaveBeenCalled());
-    expect(onTagLoan.mock.calls[0][0]).toMatchObject({
-      source: 'transfer', kind: 'borrow_repay', name: 'Abu Tamim', transfer: expect.objectContaining({ id: 'net1' }),
-    });
-    await waitFor(() => expect(screen.queryByText('uxferConfirm')).toBeNull());
+    fireEvent.click(screen.getAllByTitle('mloanInboxButton')[0]);
+    expect(onLoanClick).toHaveBeenCalledWith({ type: 'exchange_transfer', transfer: expect.objectContaining({ id: 'net1' }) });
   });
 
-  it('tags part of a P2P order as lent, leaving the rest to import', async () => {
-    const onTagLoan = renderInbox();
-    fireEvent.click(screen.getAllByTitle('uxferInboxTagTitle')[1]);
-    fireEvent.click(screen.getByText(/uxferTagLent/));
-    fireEvent.change(screen.getByLabelText('uxferAmount'), { target: { value: '41000' } });
-    fireEvent.click(screen.getByText('uxferConfirm'));
-    await waitFor(() => expect(onTagLoan).toHaveBeenCalled());
-    expect(onTagLoan.mock.calls[0][0]).toMatchObject({
-      source: 'order', kind: 'lend_out', name: 'Abu Tamim', amount: 41000, available: 95000,
-    });
+  it('hands the page a P2P order with the amount still unregistered', () => {
+    const onLoanClick = vi.fn();
+    renderInbox(onLoanClick);
+    fireEvent.click(screen.getAllByTitle('mloanInboxButton')[1]);
+    expect(onLoanClick).toHaveBeenCalledWith({ type: 'exchange_order', order: expect.objectContaining({ id: 'o1' }), available: 95000 });
   });
 
-  it('shows no loan button when the page does not support tagging', () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ExchangeInbox side="sell" onPick={vi.fn()} onPickTransfer={vi.fn()} />
-      </QueryClientProvider>,
-    );
-    expect(screen.queryAllByTitle('uxferInboxTagTitle')).toHaveLength(0);
+  it('shows no loan button when the page does not support it', () => {
+    renderInbox();
+    expect(screen.queryAllByTitle('mloanInboxButton')).toHaveLength(0);
   });
 });

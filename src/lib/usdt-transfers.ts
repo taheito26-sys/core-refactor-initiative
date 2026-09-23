@@ -76,6 +76,12 @@ export interface UsdtTransfer {
   note?: string;
   /** Where this movement was tagged from; absent for a hand-typed one. */
   source?: UsdtTransferSource;
+  /**
+   * Shared by the parts of one merchant-loan entry that crossed zero (e.g.
+   * sending 8k while owing 5k = 5k repayment + 3k lent), so they are shown
+   * and undone together.
+   */
+  groupId?: string;
   voided?: boolean;
   createdAt: number;
   /** Bumped on every edit/void so cross-device merges keep the latest copy. */
@@ -196,9 +202,27 @@ export function nearestBatchPrice(batches: Batch[], ts: number): number {
   return (before || after)?.buyPriceQAR ?? 0;
 }
 
-/** Fallback cost basis for an inbound transfer that no outbound one settles yet. */
+/** Price of the most recent real purchase — the best estimate of what repaying borrowed USDT will cost. */
+export function latestBatchPrice(batches: Batch[]): number {
+  let latest: Batch | null = null;
+  for (const b of batches) {
+    if (!(Number(b.buyPriceQAR) > 0) || !(Number(b.initialUSDT) > 0)) continue;
+    if (!latest || b.ts >= latest.ts) latest = b;
+  }
+  return latest?.buyPriceQAR ?? 0;
+}
+
+/**
+ * Fallback cost basis for an inbound transfer that no outbound one settles
+ * yet. Borrowed USDT not repaid yet is estimated at the latest purchase
+ * price (shown as "estimated until repaid") unless a reference price was
+ * entered on it; returned USDT uses the purchase price nearest its date.
+ */
 export function provisionalTransferPrice(t: UsdtTransfer, batches: Batch[]): number {
-  if (t.kind === 'borrow_in' && Number(t.refPriceQAR) > 0) return Number(t.refPriceQAR);
+  if (t.kind === 'borrow_in') {
+    if (Number(t.refPriceQAR) > 0) return Number(t.refPriceQAR);
+    return latestBatchPrice(batches);
+  }
   return nearestBatchPrice(batches, t.ts);
 }
 

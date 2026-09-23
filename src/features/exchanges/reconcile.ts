@@ -37,6 +37,9 @@ export interface PendingExchangeItem {
   /** P2P only: unit price and fiat, for display. */
   price?: number;
   fiat?: string;
+  /** The record itself, so it can be acted on (imported, tagged, ignored). */
+  order?: ExchangeP2POrder;
+  transfer?: ExchangeTransfer;
 }
 
 /**
@@ -86,6 +89,7 @@ export function findPendingExchangeItems(input: {
       reference: o.order_number,
       price: o.price,
       fiat: o.fiat,
+      order: o,
     });
   }
 
@@ -106,6 +110,7 @@ export function findPendingExchangeItems(input: {
       effect: tr.direction === 'out' ? amount : -amount,
       counterparty: tr.counterparty,
       reference: tr.reference,
+      transfer: tr,
     });
   }
 
