@@ -253,6 +253,13 @@ export interface MerchantStatement {
   net: number;
   lastTs: number;
   lines: StatementLine[];
+  monthGroups?: MonthGroup[];
+}
+
+export interface MonthGroup {
+  yearMonth: string; // "2026-09" format
+  lines: StatementLine[];
+  netAtEnd: number;
 }
 
 /** One bank-statement-style ledger per merchant, oldest line first, with a running balance. */
@@ -298,12 +305,33 @@ export function buildMerchantStatements(transfers: UsdtTransfer[] | undefined): 
     });
     const stillUnpaid = new Set(unpaid.filter(u => u.left > EPS).map(u => u.id));
     for (const l of lines) if (stillUnpaid.has(l.id)) l.estimated = true;
+
+    // Group lines by month
+    const monthGroups = new Map<string, StatementLine[]>();
+    for (const line of lines) {
+      const date = new Date(line.ts);
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthGroups.has(yearMonth)) monthGroups.set(yearMonth, []);
+      monthGroups.get(yearMonth)!.push(line);
+    }
+
+    // Compute net at end of each month
+    const groupArray: MonthGroup[] = [];
+    let netAccum = 0;
+    for (const [yearMonth, monthLines] of Array.from(monthGroups.entries()).sort()) {
+      for (const line of monthLines) {
+        netAccum = line.balanceAfter;
+      }
+      groupArray.push({ yearMonth, lines: monthLines, netAtEnd: round6(netAccum) });
+    }
+
     out.push({
       key,
       name: list[list.length - 1].counterpartyName,
       net: round6(net),
       lastTs: list[list.length - 1].ts,
       lines,
+      monthGroups: groupArray,
     });
   }
   return out.sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.lastTs - a.lastTs);
