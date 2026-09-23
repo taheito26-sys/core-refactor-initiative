@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
@@ -43,6 +43,11 @@ import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchange
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
+import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
+import { explainReconciliationDelta, findPendingExchangeItems } from '@/features/exchanges/reconcile';
+import { taggedExchangeTransferIds } from '@/lib/usdt-transfers';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { UsdtTransfersPanel } from '@/features/stock/components/UsdtTransfersPanel';
@@ -210,6 +215,39 @@ export default function StockPage() {
   const RECONCILIATION_TOLERANCE_USDT = 0.01;
   const reconciliationDelta = availableUsdt - exchangeUsdtTotal;
   const reconciliationMismatch = Math.abs(reconciliationDelta) > RECONCILIATION_TOLERANCE_USDT;
+  // Before a mismatch is blamed on the stock batches, net out every Binance /
+  // OKX record still unregistered in the tracker (sales and buys both) --
+  // those move the exchange balance first and the tracker only once imported.
+  const navigate = useNavigate();
+  const { data: reconcileOrders } = useExchangeP2POrders();
+  const { data: reconcileTransfers } = useExchangeTransfers();
+  const { data: reconcileLinks } = useExchangeOrderLinks();
+  const reconcileExplanation = useMemo(() => {
+    const liveEntityIds = new Set<string>([
+      ...state.batches.map((b) => b.id),
+      ...state.trades.filter((tr) => !tr.voided || tr.usdtTransferKind).map((tr) => tr.id),
+      ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id),
+    ]);
+    const importedReferences = new Set<string>(
+      [
+        ...state.batches.map((b) => extractImportedReference(b.note)),
+        ...state.trades.filter((tr) => !tr.voided || tr.usdtTransferKind).map((tr) => extractImportedReference(tr.note)),
+      ].filter((r): r is string => !!r),
+    );
+    const items = findPendingExchangeItems({
+      orders: reconcileOrders,
+      linksByOrder: reconcileLinks,
+      transfers: reconcileTransfers,
+      liveEntityIds,
+      importedReferences,
+      taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers),
+    });
+    return explainReconciliationDelta(reconciliationDelta, items);
+  }, [state.batches, state.trades, state.usdtTransfers, reconcileOrders, reconcileLinks, reconcileTransfers, reconciliationDelta]);
+  /** The mismatch left once every unregistered exchange record is imported -- what batches should actually be fixed for. */
+  const residualDelta = reconcileExplanation.remaining;
+  const residualMismatch = Math.abs(residualDelta) > 1;
+  const mismatchExplained = reconciliationMismatch && reconcileExplanation.items.length > 0 && !residualMismatch;
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
   const activeFifoBatch = useMemo(() => {
     const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
@@ -960,8 +998,8 @@ export default function StockPage() {
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
-              color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)',
-              valueColor: reconciliationMismatch ? 'var(--bad)' : 'var(--good)',
+              color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)',
+              valueColor: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)',
             })}
             {kpiChip({
               label: t('availableUsdtShort') || 'Available USDT',
@@ -1013,8 +1051,8 @@ export default function StockPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 7,
-                background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 8%, transparent)' : 'color-mix(in srgb, var(--good) 8%, transparent)',
-                border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 25%, transparent)`,
+                background: `color-mix(in srgb, ${!reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)'} 8%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${!reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)'} 25%, transparent)`,
                 borderRadius: 8,
                 fontSize: 11,
               }}>
@@ -1035,7 +1073,7 @@ export default function StockPage() {
                     <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
                       {t('reconciliationDelta') || 'Delta'}
                     </div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
                       {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT
                     </div>
                   </div>
@@ -1043,20 +1081,66 @@ export default function StockPage() {
                     <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
                       {t('reconciliationStatus') || 'Status'}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
-                      {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
+                    <div style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
+                      {!reconciliationMismatch
+                        ? `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`
+                        : mismatchExplained
+                          ? `⏳ ${t('reconcileExplainedStatus')}`
+                          : `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}`}
                     </div>
                   </div>
                 </div>
-                {reconciliationMismatch && (
+                {reconciliationMismatch && reconcileExplanation.items.length > 0 && (
+                  <div style={{ fontSize: 10.5, lineHeight: 1.4, borderTop: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--warn)' }}>
+                      {t('reconcilePendingHeader')
+                        .split('{count}').join(String(reconcileExplanation.items.length))
+                        .split('{amount}').join(`${reconcileExplanation.explained >= 0 ? '+' : ''}${fmtU(reconcileExplanation.explained)}`)}
+                    </div>
+                    {reconcileExplanation.items.slice(0, 8).map((item) => (
+                      <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                          {item.direction === 'out' ? '⬆️' : '⬇️'} {EXCHANGE_LABELS[item.exchange]}{' '}
+                          {item.source === 'order'
+                            ? `P2P ${item.direction === 'out' ? t('reconcileSell') : t('reconcileBuy')}${item.price ? ` @ ${fmtP(item.price)} ${item.fiat ?? ''}` : ''}`
+                            : item.direction === 'out' ? t('reconcileSent') : t('reconcileReceived')}
+                          {item.counterparty ? ` · ${item.counterparty}` : ''}
+                          {item.ts ? ` · ${fmtDate(item.ts)}` : ''}
+                        </span>
+                        <span className="mono" style={{ fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                          {item.effect >= 0 ? '+' : '−'}{fmtU(item.pendingUSDT)}
+                        </span>
+                      </div>
+                    ))}
+                    {reconcileExplanation.items.length > 8 && (
+                      <div style={{ color: 'var(--muted)' }}>+{reconcileExplanation.items.length - 8} {t('reconcileMore')}</div>
+                    )}
+                    <div style={{ fontWeight: 700, color: mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
+                      {mismatchExplained
+                        ? t('reconcileFullyExplained')
+                        : t('reconcileResidual').split('{amount}').join(`${residualDelta >= 0 ? '+' : ''}${fmtU(residualDelta)}`)}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {reconcileExplanation.items.some((i) => i.direction === 'out') && (
+                        <button className="rowBtn" style={{ fontSize: 10.5, fontWeight: 700 }} onClick={() => navigate('/trading/orders')}>
+                          🧾 {t('reconcileOpenOrders')}
+                        </button>
+                      )}
+                      {reconcileExplanation.items.some((i) => i.direction === 'in') && (
+                        <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>{t('reconcileBuysBelow')}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {reconciliationMismatch && residualMismatch && (
                   <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div>
-                      {(reconciliationDelta < 0
+                      {(residualDelta < 0
                         ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
                         : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
-                      ).split('{amount}').join(fmtU(Math.abs(reconciliationDelta)))}
+                      ).split('{amount}').join(fmtU(Math.abs(residualDelta)))}
                     </div>
-                    {reconciliationDelta > 0 && (
+                    {residualDelta > 0 && (
                       <button
                         className="rowBtn"
                         style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
@@ -1065,11 +1149,11 @@ export default function StockPage() {
                         🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}
                       </button>
                     )}
-                    {reconciliationDelta < 0 && (
+                    {residualDelta < 0 && (
                       <button
                         className="rowBtn"
                         style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
-                        onClick={() => prefillReconciliationBatch(Math.abs(reconciliationDelta))}
+                        onClick={() => prefillReconciliationBatch(Math.abs(residualDelta))}
                       >
                         ➕ {t('reconciliationAddMissingBatch') || 'Add missing batch'}
                       </button>
@@ -1887,7 +1971,7 @@ export default function StockPage() {
       {/* ─── FIX MISMATCH (reconciliation) DIALOG ─── */}
       {showFixMismatchModal && (
         <FixMismatchModal
-          targetDelta={reconciliationDelta}
+          targetDelta={residualDelta}
           batches={perf.filter(b => b.remaining > 1e-9)}
           isMobile={isMobile}
           onApply={applyMismatchFix}
