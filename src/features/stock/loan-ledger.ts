@@ -306,9 +306,16 @@ export function buildMerchantStatements(transfers: UsdtTransfer[] | undefined): 
     const stillUnpaid = new Set(unpaid.filter(u => u.left > EPS).map(u => u.id));
     for (const l of lines) if (stillUnpaid.has(l.id)) l.estimated = true;
 
-    // Group lines by month
+    // Only include September (09) and later months, skip earlier months
+    const currentDate = new Date();
+    const currentYearMonth = `${currentDate.getFullYear()}-09`; // Start from September
+    const septemberCutoff = new Date(currentDate.getFullYear(), 8, 1).getTime(); // September 1st of current year
+
+    const filteredLines = lines.filter(line => line.ts >= septemberCutoff);
+
+    // Group lines by month (only Sept onwards)
     const monthGroups = new Map<string, StatementLine[]>();
-    for (const line of lines) {
+    for (const line of filteredLines) {
       const date = new Date(line.ts);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!monthGroups.has(yearMonth)) monthGroups.set(yearMonth, []);
