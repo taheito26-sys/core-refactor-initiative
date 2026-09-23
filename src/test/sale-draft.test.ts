@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft, markupSellPrice } from '@/features/orders/utils/sale-draft';
 import { computeFIFO, type Batch, type Trade } from '@/lib/tracker-helpers';
 
 describe('deriveSaleDraft', () => {
@@ -131,5 +131,35 @@ describe('stock coverage + insufficient FIFO handling', () => {
     expect(calc?.ok).toBe(false);
     expect(calc?.netQAR).toBe(0);
     expect(calc?.margin).toBe(0);
+  });
+});
+
+describe('markupSellPrice', () => {
+  it('prices cost + markup %, rounded up to 3 decimals', () => {
+    // 10,000 USDT costing 3.685 each, 5% markup → 3.86925 → 3.870
+    expect(markupSellPrice({ totalCost: 36850, quantityUsdt: 10000, markupPct: 5 })).toBe(3.87);
+    expect(markupSellPrice({ totalCost: 36900, quantityUsdt: 10000, markupPct: 0.5 })).toBe(3.709);
+  });
+
+  it('folds the fee in so the net is still the full markup', () => {
+    const price = markupSellPrice({ totalCost: 36850, quantityUsdt: 10000, markupPct: 1, feeQar: 50 });
+    const net = price * 10000 - 36850 - 50;
+    expect(net).toBeGreaterThanOrEqual(36850 * 0.01);
+    expect(net).toBeLessThan(36850 * 0.01 + 10000 * 0.001);
+  });
+
+  it('never rounds an exact price up by a whole step because of float noise', () => {
+    expect(markupSellPrice({ totalCost: 3.7 * 1000, quantityUsdt: 1000, markupPct: 0 })).toBe(3.7);
+  });
+
+  it('returns 0 when there is nothing to price', () => {
+    expect(markupSellPrice({ totalCost: 0, quantityUsdt: 100, markupPct: 5 })).toBe(0);
+    expect(markupSellPrice({ totalCost: 100, quantityUsdt: 0, markupPct: 5 })).toBe(0);
+  });
+
+  it('makes qty_markup read the quantity and the (computed) sell price like qty_price', () => {
+    const draft = deriveSaleDraft({ saleEntryMode: 'qty_markup', saleMode: 'USDT', saleUsdtQty: '10000', saleAmount: '', saleSell: '3.87', saleFee: '' });
+    expect(draft).toMatchObject({ quantityUsdt: 10000, sellPriceQar: 3.87 });
+    expect(draft.revenueQar).toBeCloseTo(38700, 6);
   });
 });

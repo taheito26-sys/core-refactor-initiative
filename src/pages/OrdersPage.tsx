@@ -44,7 +44,7 @@ import { insertCustomerOrderWithFallback } from '@/features/customer/customer-po
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
-import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft, markupSellPrice } from '@/features/orders/utils/sale-draft';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { CustomersPanel } from '@/features/customers/CustomersPanel';
 import '@/styles/tracker.css';
@@ -111,7 +111,9 @@ export default function OrdersPage() {
   });
 
   const [saleDate, setSaleDate] = useState(nowInput());
-  const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
+  const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price' | 'qty_markup'>('price_vol');
+  /** USDT + Markup % mode: the % net profit wanted over the real cost of the USDT sold. */
+  const [saleMarkupPct, setSaleMarkupPct] = useState('');
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const [saleMode, setSaleMode] = useState<'USDT' | 'QAR' | 'EGP'>('USDT');
   const activeSaleFiat = saleMode === 'USDT' ? baseFiat : saleMode;
@@ -658,6 +660,40 @@ export default function OrdersPage() {
     () => allAgreements.filter(a => a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)),
     [allAgreements, linkedRelId],
   );
+
+  // USDT + Markup %: the sell price follows from the real cost of the USDT
+  // being sold -- FIFO cost of this quantity (or the manual buy price) plus
+  // the merchant's markup, fee included -- and is written into saleSell so
+  // every downstream path (preview, split, save) treats it like a typed price.
+  const markupPricing = useMemo(() => {
+    if (saleEntryMode !== 'qty_markup') return null;
+    const qty = Number(saleUsdtQty);
+    const pct = Number(saleMarkupPct);
+    if (!(qty > 0) || saleMarkupPct.trim() === '' || !Number.isFinite(pct)) return null;
+    let totalCost = 0;
+    if (priceMode === 'manual') {
+      totalCost = qty * (parseFloat(manualBuyPrice) || 0);
+    } else {
+      const ts = new Date(saleDate).getTime();
+      const probe: Trade = {
+        id: '__markup__', ts: Number.isFinite(ts) ? ts : Date.now(), inputMode: 'USDT', amountUSDT: qty, sellPriceQAR: 1, feeQAR: 0,
+        note: '', voided: false, usesStock: true, revisions: [], customerId: '',
+        linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
+        linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
+      };
+      const calc = computeFIFO(state.batches, [...state.trades, probe], state.usdtTransfers).tradeCalc.get('__markup__');
+      if (!calc?.ok) return { price: 0, unitCost: 0, notEnoughStock: true };
+      totalCost = calc.totalCost;
+    }
+    const price = markupSellPrice({ totalCost, quantityUsdt: qty, markupPct: pct, feeQar: Number(saleFee) || 0 });
+    return { price, unitCost: totalCost / qty, notEnoughStock: false };
+  }, [saleEntryMode, saleUsdtQty, saleMarkupPct, priceMode, manualBuyPrice, saleDate, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, state.batches, state.trades, state.usdtTransfers, saleFee]);
+
+  useEffect(() => {
+    if (saleEntryMode !== 'qty_markup') return;
+    const next = markupPricing && markupPricing.price > 0 ? String(markupPricing.price) : '';
+    setSaleSell(prev => (prev === next ? prev : next));
+  }, [saleEntryMode, markupPricing]);
 
   useEffect(() => {
     if (!merchantOrderEnabled || selectedTemplateId !== 'profit_share_family' || !linkedRelId) return;
@@ -4413,6 +4449,7 @@ export default function OrdersPage() {
                     <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')} style={mobileActionStyle}>{t('entryModePriceVol')}</button>
                     <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')} style={mobileActionStyle}>{saleEntryModeLabel}</button>
                     <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')} style={mobileActionStyle}>{t('entryModeUsdtPrice')}</button>
+                    <button className={saleEntryMode === 'qty_markup' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_markup')} style={mobileActionStyle}>{t('entryModeUsdtMarkup')}</button>
                   </div>
                 </div>
 
@@ -4463,6 +4500,29 @@ export default function OrdersPage() {
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {autoCalcTotalLabel}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} {activeSaleFiat}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {saleEntryMode === 'qty_markup' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('totalUsdtSold')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={handleSaleUsdtQtyChange} style={mobileInputStyle} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('markupPctLabel')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="5" value={saleMarkupPct} onChange={numericOnly(setSaleMarkupPct)} style={mobileInputStyle} /></div>
+                      {markupPricing?.notEnoughStock && (
+                        <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 2 }}>{t('markupNotEnoughStock')}</div>
+                      )}
+                      {markupPricing && markupPricing.price > 0 && (
+                        <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2, lineHeight: 1.4 }}>
+                          {t('markupCostLabel')} {fmtPrice(markupPricing.unitCost)} → {t('markupSellLabel')} <strong>{fmtPrice(markupPricing.price)}</strong> {activeSaleFiat}/USDT
+                          <br />
+                          {t('markupNetLabel')} ≈ {fmtTotal(markupPricing.price * Number(saleUsdtQty) - markupPricing.unitCost * Number(saleUsdtQty) - (Number(saleFee) || 0))} {activeSaleFiat}
                         </div>
                       )}
                     </div>
