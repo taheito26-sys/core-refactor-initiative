@@ -669,6 +669,24 @@ export function mergeLoansByRecency(
   return Array.from(out.values());
 }
 
+export function mergeBatchesByRecency(
+  base: Batch[] | undefined,
+  incoming: Batch[] | undefined,
+): Batch[] {
+  const out = new Map<string, Batch>();
+  for (const batch of base || []) out.set(batch.id, batch);
+  for (const batch of incoming || []) {
+    const existing = out.get(batch.id);
+    // Use most recent revision timestamp, fallback to batch ts if no revisions
+    const incomingTime = (batch.revisions?.[0]?.at || batch.ts || 0);
+    const existingTime = (existing?.revisions?.[0]?.at || existing?.ts || 0);
+    if (!existing || incomingTime >= existingTime) {
+      out.set(batch.id, batch);
+    }
+  }
+  return Array.from(out.values());
+}
+
 /** One customer payment (a loan repayment) landing on a calendar day. */
 export interface DayPayment {
   id: string;

@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
-import { mergeLoansByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
+import { mergeLoansByRecency, mergeBatchesByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { mergeTransfersByRecency } from './usdt-transfers';
 import { uploadVaultBackup } from './supabase-vault';
 
@@ -188,7 +188,7 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
     merged = {
       ...merged,
       ...state,
-      batches: mergeArrayById(merged.batches, Array.isArray(state.batches) ? state.batches : []),
+      batches: mergeBatchesByRecency(merged.batches, Array.isArray(state.batches) ? state.batches : []),
       trades: mergeArrayById(merged.trades, Array.isArray(state.trades) ? state.trades : []),
       customers: mergeArrayById(merged.customers, Array.isArray(state.customers) ? state.customers : []),
       cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
