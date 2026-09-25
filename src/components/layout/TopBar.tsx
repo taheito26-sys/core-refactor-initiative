@@ -149,7 +149,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       </div>
 
       {/* ── Zoom Controls ── */}
-      <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
         <button
           onClick={() => handleZoom('out')}
           title="Zoom out"
@@ -158,7 +158,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         >
           <ZoomOut className="h-4 w-4" />
         </button>
-        <span className="text-[9px] font-semibold text-muted-foreground px-1 min-w-[28px] text-center">
+        <span className="hidden md:inline text-[9px] font-semibold text-muted-foreground px-0.5 min-w-[24px] text-center">
           {Math.round(zoomLevel * 100)}%
         </span>
         <button
