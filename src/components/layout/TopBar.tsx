@@ -49,9 +49,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   }, []);
 
   useEffect(() => {
-    const body = document.body;
-    body.style.transform = `scale(${zoomLevel})`;
-    body.style.transformOrigin = 'top center';
+    const html = document.documentElement;
+    html.style.zoom = String(zoomLevel);
     if (typeof window !== 'undefined') {
       localStorage.setItem('app-zoom-level', String(zoomLevel));
     }
