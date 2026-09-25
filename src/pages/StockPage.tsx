@@ -149,7 +149,6 @@ export default function StockPage() {
   const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
   const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
 
-
   useEffect(() => {
     const focusStockId = searchParams.get('focusStockId');
     if (!focusStockId) return;
@@ -213,15 +212,26 @@ export default function StockPage() {
   const exchangeUsdtTotal = exchangeUsdtTotals.binance + exchangeUsdtTotals.okx;
   /** Anything under a hundredth of a USDT is rounding noise, not a real reconciliation gap. */
   const RECONCILIATION_TOLERANCE_USDT = 0.01;
-  const reconciliationDelta = availableUsdt - exchangeUsdtTotal;
+
+  /** Filter to only recent batches (September 2026 onwards) for reconciliation */
+  const septemberCutoff = new Date('2026-09-01T00:00:00Z').getTime();
+  const recentBatches = derived.batches.filter(b => {
+    const batch = state.batches.find(sb => sb.id === b.id);
+    return batch && batch.ts >= septemberCutoff;
+  });
+  const recentAvailableUsdt = recentBatches.reduce((s, b) => s + Math.max(0, b.remainingUSDT), 0);
+
+  const reconciliationDelta = recentAvailableUsdt - exchangeUsdtTotal;
   const reconciliationMismatch = Math.abs(reconciliationDelta) > RECONCILIATION_TOLERANCE_USDT;
   // Before a mismatch is blamed on the stock batches, net out every Binance /
   // OKX record still unregistered in the tracker (sales and buys both) --
   // those move the exchange balance first and the tracker only once imported.
   const pendingExchangeItems = usePendingExchangeItems(state);
+  // Filter pending items to only recent ones (September onwards)
+  const recentPendingItems = pendingExchangeItems.filter(item => item.ts >= septemberCutoff);
   const reconcileExplanation = useMemo(
-    () => explainReconciliationDelta(reconciliationDelta, pendingExchangeItems),
-    [pendingExchangeItems, reconciliationDelta],
+    () => explainReconciliationDelta(reconciliationDelta, recentPendingItems),
+    [recentPendingItems, reconciliationDelta],
   );
   /** The mismatch left once every unregistered exchange record is imported -- what batches should actually be fixed for. */
   const residualDelta = reconcileExplanation.remaining;
@@ -988,7 +998,7 @@ export default function StockPage() {
             })}
             {kpiChip({
               label: t('availableUsdtShort') || 'Available USDT',
-              value: <>{fmtU(availableUsdt)} {localCur('USDT', t.lang)}</>,
+              value: <>{fmtU(recentAvailableUsdt)} {localCur('USDT', t.lang)}</>,
               color: 'var(--good)',
               valueColor: 'var(--good)',
             })}
@@ -999,7 +1009,7 @@ export default function StockPage() {
             })}
             {wacop > 0 && kpiChip({
               label: t('estValue') || 'Est. Value',
-              value: fmtC(availableUsdt * wacop),
+              value: fmtC(recentAvailableUsdt * wacop),
               color: '#8b5cf6',
             })}
             {activeFifoBatch && kpiChip({
@@ -1046,7 +1056,7 @@ export default function StockPage() {
                     <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
                       {t('reconciliationTrackerQty') || 'Tracker (available stock)'}
                     </div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(availableUsdt)} USDT</div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(recentAvailableUsdt)} USDT</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
