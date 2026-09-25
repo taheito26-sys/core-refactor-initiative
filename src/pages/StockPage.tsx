@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -187,6 +187,29 @@ export default function StockPage() {
   // "🤝 Merchant loan" on an exchange-inbox row or a batch card opens the
   // merchant-loan dialog for it instead of importing it as a purchase.
   const [loanSources, setLoanSources] = useState<LoanSource[] | null>(null);
+
+  // Pagination for batches table
+  const [stockPage, setStockPage] = useState(1);
+  const batchTableRef = useRef<HTMLDivElement>(null);
+  const [batchesPerPage, setBatchesPerPage] = useState(10);
+  useEffect(() => {
+    if (isMobile) return;
+    const ROW_HEIGHT = 38;
+    const FIXED_CHROME = 280; // topbar + tabs + month filter + KPI bar + thead + pagination + gaps
+    const measure = () => {
+      const vh = window.innerHeight;
+      const rows = Math.max(3, Math.floor((vh - FIXED_CHROME) / ROW_HEIGHT));
+      setBatchesPerPage(rows);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isMobile]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setStockPage(1);
+  }, [selectedMonth]);
   // Borrow/lend movements tagged from a P2P order hold that order's split
   // link under their own id, so they count as live entities for the inbox.
   const activeBatchIds = useMemo(
@@ -352,6 +375,14 @@ export default function StockPage() {
       return [fmtDate(b.ts), b.source, b.note].join(' ').toLowerCase().includes(query);
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
+
+  // Paginate batches
+  const displayedBatches = useMemo(() => {
+    const start = (stockPage - 1) * batchesPerPage;
+    return perf.slice(start, start + batchesPerPage);
+  }, [perf, stockPage, batchesPerPage]);
+
+  const maxPage = Math.ceil(perf.length / batchesPerPage) || 1;
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
@@ -1258,7 +1289,7 @@ export default function StockPage() {
               })}
             </div>
           ) : (
-            <div className="tableWrap">
+            <div className="tableWrap" ref={batchTableRef}>
               <table>
                 <thead>
                   <tr>
@@ -1274,7 +1305,7 @@ export default function StockPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {perf.map((b) => {
+                  {displayedBatches.map((b) => {
                     const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                     const consumed = Math.max(0, b.initialUSDT - rem);
                     const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -1341,6 +1372,27 @@ export default function StockPage() {
                   })}
                 </tbody>
               </table>
+              {perf.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '12px 0', fontSize: 12 }}>
+                  <button
+                    onClick={() => setStockPage(p => Math.max(1, p - 1))}
+                    disabled={stockPage <= 1}
+                    style={{ padding: '6px 12px', cursor: stockPage <= 1 ? 'not-allowed' : 'pointer', opacity: stockPage <= 1 ? 0.5 : 1 }}
+                  >
+                    ← Prev
+                  </button>
+                  <span style={{ color: 'var(--muted-foreground)' }}>
+                    {t.lang === 'ar' ? `${maxPage} من ${stockPage}` : `Page ${stockPage} of ${maxPage}`}
+                  </span>
+                  <button
+                    onClick={() => setStockPage(p => Math.min(maxPage, p + 1))}
+                    disabled={stockPage >= maxPage}
+                    style={{ padding: '6px 12px', cursor: stockPage >= maxPage ? 'not-allowed' : 'pointer', opacity: stockPage >= maxPage ? 0.5 : 1 }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
