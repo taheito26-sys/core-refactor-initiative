@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
-import { useMemo, useState } from 'react';
-import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Menu, Bell, Users, TrendingUp, User, ZoomIn, ZoomOut } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -43,6 +43,30 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const zoomLevel = useMemo(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('app-zoom-level') : null;
+    return stored ? parseFloat(stored) : 1;
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.fontSize = `${16 * zoomLevel}px`;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('app-zoom-level', String(zoomLevel));
+    }
+  }, [zoomLevel]);
+
+  const handleZoom = (direction: 'in' | 'out') => {
+    const step = 0.1;
+    const min = 0.8;
+    const max = 1.5;
+    let newZoom = direction === 'in' ? zoomLevel + step : zoomLevel - step;
+    newZoom = Math.max(min, Math.min(max, newZoom));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('app-zoom-level', String(newZoom));
+      window.location.reload();
+    }
+  };
 
   return (
     <header
@@ -121,6 +145,29 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         >
           <span className="md:hidden">EN</span>
           <span className="hidden md:inline">{t('english')}</span>
+        </button>
+      </div>
+
+      {/* ── Zoom Controls ── */}
+      <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+        <button
+          onClick={() => handleZoom('out')}
+          title="Zoom out"
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+          disabled={zoomLevel <= 0.8}
+        >
+          <ZoomOut className="h-4 w-4" />
+        </button>
+        <span className="text-[9px] font-semibold text-muted-foreground px-1 min-w-[28px] text-center">
+          {Math.round(zoomLevel * 100)}%
+        </span>
+        <button
+          onClick={() => handleZoom('in')}
+          title="Zoom in"
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+          disabled={zoomLevel >= 1.5}
+        >
+          <ZoomIn className="h-4 w-4" />
         </button>
       </div>
 
