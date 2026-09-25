@@ -52,13 +52,12 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
     const html = document.documentElement;
     const body = document.body;
 
-    html.style.zoom = String(zoomLevel);
-
-    // Ensure viewport scaling adapts to zoom level
-    html.style.overflowX = 'hidden';
-    body.style.overflowX = 'hidden';
-    body.style.width = '100%';
-    body.style.overflowY = 'auto';
+    // Scale from top-left, adjust width to fit viewport
+    html.style.transformOrigin = '0 0';
+    html.style.transform = `scale(${zoomLevel})`;
+    html.style.width = `${100 / zoomLevel}%`;
+    body.style.margin = '0';
+    body.style.padding = '0';
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('app-zoom-level', String(zoomLevel));
