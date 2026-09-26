@@ -50,14 +50,9 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
   useEffect(() => {
     const html = document.documentElement;
-    const body = document.body;
 
-    // Scale from top-left, adjust width to fit viewport
-    html.style.transformOrigin = '0 0';
-    html.style.transform = `scale(${zoomLevel})`;
-    html.style.width = `${100 / zoomLevel}%`;
-    body.style.margin = '0';
-    body.style.padding = '0';
+    // Use native CSS zoom for proper scaling of all elements
+    html.style.zoom = String(zoomLevel);
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('app-zoom-level', String(zoomLevel));
