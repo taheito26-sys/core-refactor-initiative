@@ -134,6 +134,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         continue;
       }
 
+      // Ensure customer profile exists (auto-create if needed)
+      if (!customerRes.data && !customerRes.error) {
+        try {
+          const { data: ensuredProfile, error: ensureErr } = await supabase
+            .rpc('ensure_customer_profile', { p_user_id: resolvedUserId });
+          if (ensureErr) {
+            console.warn('[Auth] Failed to ensure customer profile:', ensureErr);
+          } else {
+            setCustomerProfile(ensuredProfile as CustomerProfile | null);
+          }
+        } catch (e) {
+          console.warn('[Auth] Exception ensuring customer profile:', e);
+        }
+      }
+
       // On final attempt or success, apply whatever we got
       setProfile(profileRes.data as Profile | null);
       setMerchantProfile(merchantRes.data as MerchantProfile | null);
