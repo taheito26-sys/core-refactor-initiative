@@ -15,6 +15,7 @@ import {
   respondSharedOrder,
   editSharedOrder,
   listSharedOrdersForActor,
+  getOrderHistory,
   getCashAccountsForUser,
   canApproveOrder,
   canRejectOrder,
@@ -454,6 +455,9 @@ export default function CustomerOrdersPage() {
   const userPickedMonth = useRef(false);
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [orderHistory, setOrderHistory] = useState<WorkflowOrder[]>([]);
+  const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<WorkflowOrder | null>(null);
 
   // Query cash ledger entries linked to customer orders — used to show linked account name
   const { data: orderCashLinks = [] } = useQuery({
@@ -1356,6 +1360,23 @@ export default function CustomerOrdersPage() {
                                   {L('Edit', 'تعديل')}
                                 </button>
                               )}
+                              {order.revision_no > 1 && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const history = await getOrderHistory(order.id);
+                                      setOrderHistory(history);
+                                      setSelectedOrderForHistory(order);
+                                      setShowOrderHistory(true);
+                                    } catch (e) {
+                                      toast.error(L('Failed to load history', 'فشل في تحميل السجل'));
+                                    }
+                                  }}
+                                  className="rounded-full border border-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300"
+                                >
+                                  {L('History', 'السجل')}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1455,6 +1476,23 @@ export default function CustomerOrdersPage() {
                                 className="rounded-lg border border-border/50 px-3 py-2 text-xs font-semibold hover:bg-muted"
                               >
                                 {L('Edit', 'تعديل')}
+                              </button>
+                            )}
+                            {order.revision_no > 1 && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const history = await getOrderHistory(order.id);
+                                    setOrderHistory(history);
+                                    setSelectedOrderForHistory(order);
+                                    setShowOrderHistory(true);
+                                  } catch (e) {
+                                    toast.error(L('Failed to load history', 'فشل في تحميل السجل'));
+                                  }
+                                }}
+                                className="rounded-lg border border-border/50 px-3 py-2 text-xs font-semibold hover:bg-muted"
+                              >
+                                {L('History', 'السجل')}
                               </button>
                             )}
                           </div>
@@ -1983,6 +2021,44 @@ export default function CustomerOrdersPage() {
               >
                 {L('Yes', 'نعم')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order History Modal */}
+      {showOrderHistory && orderHistory.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOrderHistory(false)}>
+          <div className="w-full max-w-md max-h-[90dvh] rounded-t-2xl bg-background flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border/30 p-4">
+              <p className="font-bold text-sm">🔄 {L('Order History', 'سجل الطلب')}</p>
+              <button onClick={() => setShowOrderHistory(false)} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-3 p-4">
+              {orderHistory.map((order, idx) => (
+                <div key={order.id} className="rounded-xl border border-border/50 bg-card p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-bold text-muted-foreground">
+                      {idx === orderHistory.length - 1 ? L('Original', 'الأصلي') : `${L('Revision', 'الإصدار')} ${order.revision_no}`}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(order.created_at).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <div className="text-[10px] text-muted-foreground">{L('Amount', 'المبلغ')}</div>
+                      <div className="font-bold">{formatCustomerNumber(order.amount, lang, 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-muted-foreground">{L('Rate', 'السعر')}</div>
+                      <div className="font-bold">{order.fx_rate ? formatCustomerNumber(order.fx_rate, lang, 2) : '—'}</div>
+                    </div>
+                  </div>
+                  {order.note && <div className="text-xs text-muted-foreground italic">💬 {order.note}</div>}
+                  {idx < orderHistory.length - 1 && <div className="text-center text-[10px] text-muted-foreground pt-1 border-t border-border/30">↓</div>}
+                </div>
+              ))}
             </div>
           </div>
         </div>

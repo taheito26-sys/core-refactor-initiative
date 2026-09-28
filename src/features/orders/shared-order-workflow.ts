@@ -375,6 +375,34 @@ export async function getSharedOrderWithLinks(orderId: string): Promise<{
 }
 
 /**
+ * Get complete order history by following the edited_from_order_id chain.
+ * Returns orders from oldest to newest (reverse chronological).
+ */
+export async function getOrderHistory(orderId: string): Promise<WorkflowOrder[]> {
+  const history: WorkflowOrder[] = [];
+  let currentId: string | null = orderId;
+  const visited = new Set<string>();
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const { data, error } = await supabase
+      .from('customer_orders')
+      .select(ORDER_SELECT_FIELDS.join(', '))
+      .eq('id', currentId)
+      .single();
+
+    if (error) throw error;
+    if (!data) break;
+
+    const order = data as WorkflowOrder;
+    history.unshift(order);
+    currentId = order.edited_from_order_id;
+  }
+
+  return history;
+}
+
+/**
  * Get cash links for an order.
  */
 export async function getCashLinksForOrder(orderId: string): Promise<CashLink[]> {
