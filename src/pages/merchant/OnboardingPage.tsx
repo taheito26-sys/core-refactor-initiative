@@ -27,10 +27,10 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => {
-    if (!isLoading && merchantProfile) {
+    if (!isLoading && merchantProfile?.id) {
       navigate('/dashboard', { replace: true });
     }
-  }, [isLoading, merchantProfile, navigate]);
+  }, [isLoading, merchantProfile?.id, navigate]);
 
   const checkNickname = async (nick: string) => {
     if (nick.length < 3) { setNicknameStatus('idle'); return; }
@@ -185,7 +185,11 @@ export default function OnboardingPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading || nicknameStatus === 'taken'}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || nicknameStatus === 'taken' || !form.display_name.trim() || !form.nickname.trim() || nicknameStatus === 'checking'}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('onboardSubmit')}
             </Button>
