@@ -1928,10 +1928,7 @@ export default function CustomerOrdersPage() {
               <input
                 type="date"
                 value={orderFilterDay}
-                onChange={e => {
-                  setOrderFilterDay(e.target.value);
-                  if (e.target.value) { setOrderFilterOn(true); setShowOrderFilter(false); }
-                }}
+                onChange={e => setOrderFilterDay(e.target.value)}
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
@@ -1964,10 +1961,11 @@ export default function CustomerOrdersPage() {
                 {L('Clear', 'مسح')}
               </button>
               <button
-                onClick={() => { setOrderFilterOn(true); setShowOrderFilter(false); }}
-                className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
+                onClick={() => { if (hasOrderFilterCriteria) { setOrderFilterOn(true); setShowOrderFilter(false); } }}
+                disabled={!hasOrderFilterCriteria}
+                className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {L('Apply', 'تطبيق')}
+                {L('Yes', 'نعم')}
               </button>
             </div>
           </div>
