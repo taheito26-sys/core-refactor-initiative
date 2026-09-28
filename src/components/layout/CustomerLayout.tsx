@@ -1,6 +1,6 @@
 ﻿import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -31,6 +31,28 @@ export function CustomerLayout() {
   const { logout, customerProfile } = useAuth();
   const { settings, update } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatDateTime = (date: Date, isRTL: boolean) => {
+    const time = date.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: !isRTL
+    });
+    const dateStr = date.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    return `${dateStr} ${time}`;
+  };
+
   const isRTL = settings.language === 'ar';
   const lang  = isRTL ? 'ar' : 'en';
   const isChatRoute = location.pathname.startsWith('/c/chat');
@@ -87,6 +109,7 @@ export function CustomerLayout() {
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(currentDateTime, isRTL)}</span>
           <CustomerActivityCenter />
           {isMobile && (
             <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
