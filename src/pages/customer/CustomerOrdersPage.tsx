@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
@@ -1902,10 +1904,6 @@ export default function CustomerOrdersPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{L('Day', 'اليوم')}</label>
-              {/* One-tap presets for the common case — picks the day and
-                  closes the sheet immediately, since the list is already
-                  filtering live. The date input below stays for anything
-                  further back. */}
               <div className="flex gap-1.5">
                 {([
                   { label: L('Today', 'اليوم'), days: 0 },
@@ -1925,12 +1923,30 @@ export default function CustomerOrdersPage() {
                   );
                 })}
               </div>
-              <input
-                type="date"
-                value={orderFilterDay}
-                onChange={e => setOrderFilterDay(e.target.value)}
-                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm font-medium flex items-center justify-between hover:border-primary/40 transition-colors">
+                    <span className="text-muted-foreground">{orderFilterDay ? new Date(orderFilterDay + 'T00:00').toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : L('Pick a date', 'اختر تاريخاً')}</span>
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-card border-border/50" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={orderFilterDay ? new Date(orderFilterDay + 'T00:00') : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        setOrderFilterDay(`${year}-${month}-${day}`);
+                      }
+                    }}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-1">
