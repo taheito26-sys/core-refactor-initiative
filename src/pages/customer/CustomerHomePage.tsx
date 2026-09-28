@@ -69,16 +69,15 @@ export default function CustomerHomePage() {
     return () => { void supabase.removeChannel(channel); };
   }, [userId, dashQc]);
 
-  // Pre-portal order/loan history (same source /c/orders folds in) — the
-  // dashboard's own volume/activity KPIs need this too, or a buyer whose
-  // history predates the portal (like most of the current customer base)
-  // sees every widget stuck at zero even though real orders exist.
-  // Same key as CustomerOrdersPage's identical edge-function call (same
-  // invoke, no params) so navigating Home <-> Orders shares one cached
-  // fetch instead of invoking the (comparatively heavy, server-side
-  // tracker-state-walking) edge function twice. Orders owns the polling
-  // (refetchInterval) since it's the page a buyer actually watches for
-  // merchant-side changes; Home just rides whatever's already cached.
+  // Pre-portal order/loan history — load with a slight delay on mobile to
+  // avoid blocking initial render on slow connections. The dashboard shows
+  // core metrics without it, and historical data loads asynchronously.
+  const [historyReady, setHistoryReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setHistoryReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   const { data: historyStatements = [] } = useQuery({
     queryKey: ['c-loan-statement-history', userId],
     queryFn: async () => {
@@ -86,7 +85,8 @@ export default function CustomerHomePage() {
       if (error || !data || (data as { error?: string }).error) return [];
       return (data as { statements: PublicStatement[] }).statements;
     },
-    enabled: !!userId,
+    enabled: !!userId && historyReady,
+    staleTime: 5 * 60_000,
   });
 
   // `paired` marks rows where the QAR and EGP figures come from the same
@@ -167,7 +167,13 @@ export default function CustomerHomePage() {
     enabled: !!userId,
   });
 
-  const { data: marketData } = useQuery({ queryKey: ['c-market-kpis'], queryFn: getCustomerMarketKpis, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000 });
+  const { data: marketData } = useQuery({
+    queryKey: ['c-market-kpis'],
+    queryFn: getCustomerMarketKpis,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    enabled: historyReady,
+  });
   const guideRate = marketData?.guide?.rate ?? null;
   const egyptBuyAvg = marketData?.egypt?.buyAvg ?? null;
   const egyptEmergencyAvg = marketData?.egypt?.emergencyAvg ?? null;
