@@ -41,3 +41,4 @@ ios/DerivedData
 
 # Scratch git worktrees created by isolated background agents
 .claude/worktrees/
+.claude/settings.local.json
