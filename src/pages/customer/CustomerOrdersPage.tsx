@@ -4,6 +4,7 @@ import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { OrderVerificationModal } from './components/OrderVerificationModal';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
@@ -458,6 +459,7 @@ export default function CustomerOrdersPage() {
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [orderHistory, setOrderHistory] = useState<WorkflowOrder[]>([]);
   const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<WorkflowOrder | null>(null);
+  const [verifyingOrder, setVerifyingOrder] = useState<WorkflowOrder | null>(null);
 
   // Query cash ledger entries linked to customer orders — used to show linked account name
   const { data: orderCashLinks = [] } = useQuery({
@@ -1381,20 +1383,28 @@ export default function CustomerOrdersPage() {
                           )}
                         </div>
                       )}
-                      {/* Link to Cash — shown on approved orders */}
+                      {/* Link to Cash & Verify — shown on approved orders */}
                       {order.workflow_status === 'approved' && (
-                        <div className="mt-2 border-t border-white/5 pt-2">
+                        <div className="mt-2 border-t border-white/5 pt-2 space-y-1.5">
+                          {/* Verify Order Receipt */}
+                          <button
+                            onClick={e => { e.stopPropagation(); setVerifyingOrder(order); }}
+                            className="w-full flex items-center gap-1.5 justify-center rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-blue-300 hover:bg-blue-500/20"
+                          >
+                            ✓ {L('Verify Receipt & Amount', 'تحقق من الاستلام والمبلغ')}
+                          </button>
+                          {/* Link to Cash Account */}
                           {orderCashLinkMap.has(order.id) ? (
                             <button
                               onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
-                              className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                              className="w-full flex items-center gap-1.5 justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
                             >
                               ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
                             </button>
                           ) : (
                             <button
                               onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
-                              className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
+                              className="w-full flex items-center gap-1.5 justify-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
                             >
                               💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
                             </button>
@@ -2062,6 +2072,15 @@ export default function CustomerOrdersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Order Verification Modal */}
+      {verifyingOrder && (
+        <OrderVerificationModal
+          order={verifyingOrder}
+          lang={lang}
+          onClose={() => setVerifyingOrder(null)}
+        />
       )}
     </div>
   );
