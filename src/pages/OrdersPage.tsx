@@ -3869,7 +3869,7 @@ export default function OrdersPage() {
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
                             <td className="mono r hide-mobile">{fmtC(rev)}</td>
-                            <td className="mono r hide-mobile">{tr.originalFiat === 'EGP' && tr.totalEGP ? fmtTotal(tr.totalEGP) : (baseFiat === 'EGP' && rev > 0 ? fmtTotal(rev * (1 / (tr.sellPriceQAR || 1))) : '—')}</td>
+                            <td className="mono r hide-mobile">{tr.originalFiat === 'EGP' && tr.originalFiatAmount ? `${fmtTotal(tr.originalFiatAmount)} EGP` : '—'}</td>
                             <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtC(net) : '—'}</td>
                             <td className="hide-mobile">
                               <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
