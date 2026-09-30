@@ -1103,7 +1103,7 @@ export default function CustomerOrdersPage() {
       {monthlyFxRates.size > 0 && !isLoading && !isHistoryLoading && (
         <div className="px-4">
           <div className="rounded-xl border border-border/40 bg-card/50 p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">{L('Average QAR → EGP Rate by Month', 'متوسط سعر الصرف ريال → جنية حسب الشهر')}</h2>
+            <h2 className="text-sm font-semibold text-foreground">{L('Lowest Avg Rate', 'أقل متوسط سعر')}</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {Array.from(monthlyFxRates.entries())
                 .sort((a, b) => b[0].localeCompare(a[0]))
