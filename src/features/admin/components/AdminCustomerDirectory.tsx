@@ -116,17 +116,11 @@ export function AdminCustomerDirectory({ onOpenWorkspace }: Props) {
 
     setDeletingId(userId);
     try {
-      // Delete customer_merchant_connections
-      await supabase.from('customer_merchant_connections').delete().eq('customer_user_id', userId);
+      // Delete customer data via RPC (profile + connections)
+      const { error: rpcError } = await supabase.rpc('delete_customer_by_admin', { p_user_id: userId });
+      if (rpcError) throw rpcError;
 
-      // Delete customer_profiles
-      await supabase.from('customer_profiles').delete().eq('user_id', userId);
-
-      // Delete auth user via admin API
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-      if (authError) throw authError;
-
-      toast.success(`Customer ${email} deleted successfully`);
+      toast.success(`Customer ${email} deleted successfully (profile & connections removed)`);
       qc.invalidateQueries({ queryKey: ['admin-customers'] });
     } catch (error: any) {
       toast.error(`Error deleting customer: ${error?.message}`);
