@@ -102,6 +102,7 @@ export default function StockPage() {
   // month, so months outside the auto-sync's rolling window still show up.
   useExchangeMonthSync(selectedMonth);
   const [reconcileExchangesEnabled, setReconcileExchangesEnabled] = useState(false);
+  const [supplierFilter, setSupplierFilter] = useState('');
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
   const [supplierAddOpen, setSupplierAddOpen] = useState(false);
@@ -209,7 +210,7 @@ export default function StockPage() {
   // Reset pagination when filters change
   useEffect(() => {
     setStockPage(1);
-  }, [selectedMonth]);
+  }, [selectedMonth, supplierFilter]);
   // Borrow/lend movements tagged from a P2P order hold that order's split
   // link under their own id, so they count as live entities for the inbox.
   const activeBatchIds = useMemo(
@@ -371,10 +372,11 @@ export default function StockPage() {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         if (key !== selectedMonth) return false;
       }
+      if (supplierFilter && b.source !== supplierFilter) return false;
       if (!query) return true;
       return [fmtDate(b.ts), b.source, b.note].join(' ').toLowerCase().includes(query);
     })
-    .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
+    .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth, supplierFilter]);
 
   // Paginate batches
   const displayedBatches = useMemo(() => {
@@ -383,6 +385,22 @@ export default function StockPage() {
   }, [perf, stockPage, batchesPerPage]);
 
   const maxPage = Math.ceil(perf.length / batchesPerPage) || 1;
+
+  const supplierFilterOptions = useMemo(() => {
+    const suppliers = new Set<string>();
+    for (const b of state.batches) {
+      if (b.source && b.initialUSDT > 0 && b.buyPriceQAR > 0) {
+        suppliers.add(b.source);
+      }
+    }
+    return Array.from(suppliers).sort();
+  }, [state.batches]);
+
+  const clearStockFilters = useCallback(() => {
+    setSupplierFilter('');
+  }, []);
+
+  const hasActiveStockFilters = Boolean(supplierFilter);
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
@@ -1020,6 +1038,23 @@ export default function StockPage() {
               );
             })}
           </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+            <select
+              value={supplierFilter}
+              onChange={e => setSupplierFilter(e.target.value)}
+              style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
+            >
+              <option value="">{t('allSuppliers') || 'All Suppliers'}</option>
+              {supplierFilterOptions.map(supplier => (
+                <option key={supplier} value={supplier}>{supplier}</option>
+              ))}
+            </select>
+            {hasActiveStockFilters && (
+              <button className="rowBtn" onClick={clearStockFilters}>{t('clearFilters')}</button>
+            )}
+          </div>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
