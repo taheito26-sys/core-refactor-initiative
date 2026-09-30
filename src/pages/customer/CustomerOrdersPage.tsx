@@ -1099,8 +1099,8 @@ export default function CustomerOrdersPage() {
         />
       )}
 
-      {/* Monthly Average FX Rate Display */}
-      {monthlyFxRates.size > 0 && !isLoading && !isHistoryLoading && (
+      {/* Monthly Average FX Rate Display — Hidden by default, admin can enable */}
+      {false && monthlyFxRates.size > 0 && !isLoading && !isHistoryLoading && (
         <div className="px-4">
           <div className="rounded-xl border border-border/40 bg-card/50 p-4 space-y-3">
             <h2 className="text-sm font-semibold text-foreground">{L('Lowest Avg Rate', 'أقل متوسط سعر')}</h2>
