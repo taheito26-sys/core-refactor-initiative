@@ -958,6 +958,35 @@ export default function CustomerOrdersPage() {
     return map;
   }, [orders, historyOrders]);
 
+  // Calculate average QAR→EGP exchange rate per month
+  const monthlyFxRates = useMemo(() => {
+    const rates = new Map<string, { sum: number; count: number; avg: number }>();
+
+    // From current orders (they have fx_rate)
+    for (const o of orders) {
+      if (!o.fx_rate || o.fx_rate <= 0) continue;
+      const monthKey = localMonthKey(o.created_at);
+      const entry = rates.get(monthKey) ?? { sum: 0, count: 0, avg: 0 };
+      entry.sum += o.fx_rate;
+      entry.count += 1;
+      entry.avg = entry.sum / entry.count;
+      rates.set(monthKey, entry);
+    }
+
+    // From history orders (they have qarToEgpRate calculated)
+    for (const o of historyOrders) {
+      if (!o.qarToEgpRate || o.qarToEgpRate <= 0) continue;
+      const monthKey = localMonthKey(o.date);
+      const entry = rates.get(monthKey) ?? { sum: 0, count: 0, avg: 0 };
+      entry.sum += o.qarToEgpRate;
+      entry.count += 1;
+      entry.avg = entry.sum / entry.count;
+      rates.set(monthKey, entry);
+    }
+
+    return rates;
+  }, [orders, historyOrders]);
+
   return (
     <div className="space-y-6 pb-16">
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
@@ -1068,6 +1097,39 @@ export default function CustomerOrdersPage() {
           onClose={() => setShowNewOrder(false)}
           onCreated={() => setShowNewOrder(false)}
         />
+      )}
+
+      {/* Monthly Average FX Rate Display */}
+      {monthlyFxRates.size > 0 && !isLoading && !isHistoryLoading && (
+        <div className="px-4">
+          <div className="rounded-xl border border-border/40 bg-card/50 p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-foreground">{L('Average QAR → EGP Rate by Month', 'متوسط سعر الصرف ريال → جنية حسب الشهر')}</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {Array.from(monthlyFxRates.entries())
+                .sort((a, b) => b[0].localeCompare(a[0]))
+                .map(([monthKey, data]) => {
+                  const [y, mo] = monthKey.split('-');
+                  const monthLabel = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
+                    lang === 'ar' ? 'ar-EG' : 'en-US',
+                    { month: 'short', year: '2-digit' },
+                  );
+                  return (
+                    <div
+                      key={monthKey}
+                      className={cn(
+                        'rounded-lg border border-border/40 p-3 text-center space-y-1 transition-colors',
+                        selectedMonth === monthKey ? 'bg-primary/10 border-primary/40' : 'bg-background/50 hover:bg-background'
+                      )}
+                    >
+                      <p className="text-xs font-medium text-muted-foreground">{monthLabel}</p>
+                      <p className="text-lg font-bold text-primary">{data.avg.toFixed(4)}</p>
+                      <p className="text-[10px] text-muted-foreground">{data.count} {L('orders', 'طلبات')}</p>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
       )}
 
       {isLoading || isHistoryLoading ? (
