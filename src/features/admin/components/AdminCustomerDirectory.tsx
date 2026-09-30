@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Search, ArrowUpRight, Users, ShoppingCart, MessageCircle } from 'lucide-react';
+import { Search, ArrowUpRight, Users, ShoppingCart, MessageCircle, Trash2, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AdminCustomerRow {
   user_id: string;
@@ -104,7 +105,35 @@ interface Props {
 
 export function AdminCustomerDirectory({ onOpenWorkspace }: Props) {
   const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { data: customers, isLoading } = useAdminCustomers(search);
+  const qc = useQueryClient();
+
+  const deleteCustomer = async (userId: string, email: string) => {
+    if (!confirm(`Delete customer ${email}? This will delete the user profile and all connections, but keep orders and stock intact.`)) {
+      return;
+    }
+
+    setDeletingId(userId);
+    try {
+      // Delete customer_merchant_connections
+      await supabase.from('customer_merchant_connections').delete().eq('customer_user_id', userId);
+
+      // Delete customer_profiles
+      await supabase.from('customer_profiles').delete().eq('user_id', userId);
+
+      // Delete auth user via admin API
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+      if (authError) throw authError;
+
+      toast.success(`Customer ${email} deleted successfully`);
+      qc.invalidateQueries({ queryKey: ['admin-customers'] });
+    } catch (error: any) {
+      toast.error(`Error deleting customer: ${error?.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -145,7 +174,7 @@ export function AdminCustomerDirectory({ onOpenWorkspace }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--tracker-line)' }}>
-                {['Email', 'Name', 'Phone', 'Region', 'Status', 'Joined', 'Merchants', 'Orders', 'Messages', ''].map((h, i) => (
+                {['Email', 'Name', 'Phone', 'Region', 'Status', 'Joined', 'Merchants', 'Orders', 'Messages', '', ''].map((h, i) => (
                   <th key={i} style={{
                     padding: '8px 12px', textAlign: i >= 6 ? 'right' : 'left',
                     fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
@@ -218,6 +247,32 @@ export function AdminCustomerDirectory({ onOpenWorkspace }: Props) {
                         View
                       </button>
                     )}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <button
+                      onClick={() => deleteCustomer(c.user_id, c.email)}
+                      disabled={deletingId === c.user_id}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '4px 10px', fontSize: 11, fontWeight: 500,
+                        color: deletingId === c.user_id ? 'var(--tracker-muted)' : 'var(--tracker-bad)',
+                        background: deletingId === c.user_id ? 'color-mix(in srgb, var(--tracker-bad) 5%, transparent)' : 'color-mix(in srgb, var(--tracker-bad) 10%, transparent)',
+                        border: `1px solid color-mix(in srgb, var(--tracker-bad) ${deletingId === c.user_id ? '10%' : '22%'}, transparent)`,
+                        borderRadius: 6, cursor: deletingId === c.user_id ? 'wait' : 'pointer',
+                        transition: 'background 0.15s ease',
+                        fontFamily: 'inherit',
+                        opacity: deletingId === c.user_id ? 0.6 : 1,
+                      }}
+                      onMouseEnter={e => !deletingId && ((e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--tracker-bad) 18%, transparent)')}
+                      onMouseLeave={e => !deletingId && ((e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--tracker-bad) 10%, transparent)')}
+                    >
+                      {deletingId === c.user_id ? (
+                        <Loader2 style={{ width: 11, height: 11, animation: 'spin 1s linear infinite' }} />
+                      ) : (
+                        <Trash2 style={{ width: 11, height: 11 }} />
+                      )}
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
