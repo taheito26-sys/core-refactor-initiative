@@ -6,9 +6,9 @@ import {
   provisionalTransferPrice,
   resolveTransferInPrices,
   type UsdtTransfer,
-} from './usdt-transfers';
+} from './usdt-transfers.ts';
 
-export type { UsdtTransfer, UsdtTransferKind } from './usdt-transfers';
+export type { UsdtTransfer, UsdtTransferKind } from './usdt-transfers.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function num(v: any, def = 0): number {

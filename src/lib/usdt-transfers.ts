@@ -22,7 +22,7 @@
 //      cost. Until it is repaid, a borrow is priced at the reference price
 //      entered on it, else the nearest real purchase price.
 
-import type { Batch } from './tracker-helpers';
+import type { Batch } from './tracker-helpers.ts';
 
 export type UsdtTransferKind = 'borrow_in' | 'borrow_repay' | 'lend_out' | 'lend_return';
 
