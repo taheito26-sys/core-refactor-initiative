@@ -7,6 +7,7 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCustomerDate } from '@/features/customer/customer-portal';
+import { shortRef } from '@/lib/tracker-helpers';
 
 export default function CustomerMerchantsPage() {
   const { userId } = useAuth();
@@ -138,6 +139,7 @@ export default function CustomerMerchantsPage() {
                   {c.merchant?.merchant_code && <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Code', 'الرمز')}</span><span className="font-mono font-semibold">{c.merchant.merchant_code}</span></div>}
                   <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Connected', 'تاريخ الربط')}</span><span>{formatCustomerDate(c.created_at, lang)}</span></div>
                   {c.nickname && <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Nickname', 'اللقب')}</span><span>{c.nickname}</span></div>}
+                  {c.merchant_customer_id && <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Your customer ID', 'رقم العميل الخاص بك')}</span><span className="font-mono font-semibold">{shortRef('CUS', c.merchant_customer_id)}</span></div>}
                 </div>
               )}
             </div>

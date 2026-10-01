@@ -61,12 +61,30 @@ Deno.serve(async (req) => {
     const password = typeof body.password === "string" ? body.password : "";
     const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
     const phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
+    // The merchant's own customer record id (tracker Customer.id, CUS-...)
+    // this login belongs to. Stored on the connection so the database itself
+    // knows which customer record the portal account is linked to.
+    const merchantCustomerId = typeof body.customerId === "string" && body.customerId.trim()
+      ? body.customerId.trim().slice(0, 128)
+      : null;
 
     if (!USERNAME_RE.test(rawUsername)) {
       return json({ error: "Username must be 3-32 characters: lowercase letters, numbers, dots, dashes, or underscores" }, 400);
     }
     if (password.length < 8) return json({ error: "Password must be at least 8 characters" }, 400);
     if (!displayName) return json({ error: "Display name is required" }, 400);
+
+    if (merchantCustomerId) {
+      const { data: alreadyLinked } = await supabase
+        .from("customer_merchant_connections")
+        .select("customer_user_id")
+        .eq("merchant_id", merchantProfile.merchant_id)
+        .eq("merchant_customer_id", merchantCustomerId)
+        .neq("status", "blocked")
+        .limit(1)
+        .maybeSingle();
+      if (alreadyLinked) return json({ error: "This customer already has a portal login" }, 409);
+    }
 
     const email = `${rawUsername}@${USERNAME_EMAIL_DOMAIN}`;
 
@@ -82,36 +100,57 @@ Deno.serve(async (req) => {
     }
     const newUserId = created.user.id;
 
-    // handle_new_user() already inserted a public.profiles row on the
-    // auth.users insert above, defaulted to role='merchant', status='pending'
-    // — flip it to an approved customer account.
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ role: "customer", status: "approved" })
-      .eq("user_id", newUserId);
-    if (profileError) throw profileError;
+    try {
+      // Signup triggers may or may not have created these rows already
+      // (handle_new_user -> profiles, on_auth_user_created -> customer_profiles),
+      // so every write is an upsert rather than an insert that can collide.
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({ user_id: newUserId, email, role: "customer", status: "approved" }, { onConflict: "user_id" });
+      if (profileError) throw profileError;
 
-    const { error: customerProfileError } = await supabase
-      .from("customer_profiles")
-      .insert({ user_id: newUserId, display_name: displayName, phone, status: "active" });
-    if (customerProfileError) throw customerProfileError;
+      const { error: customerProfileError } = await supabase
+        .from("customer_profiles")
+        .upsert({ user_id: newUserId, display_name: displayName, phone, status: "active" }, { onConflict: "user_id" });
+      if (customerProfileError) throw customerProfileError;
 
-    // "active" — not "accepted" — is the status value the order-placement
-    // path actually recognizes (see CustomerOrdersPage's connections query
-    // and the create_customer_order_request RPC, both of which filter on
-    // status IN ('pending','active')). An "accepted" row is invisible to
-    // both, silently blocking every "New Order" button for this customer.
-    const { error: connectionError } = await supabase
-      .from("customer_merchant_connections")
-      .insert({
+      // "active" -- not "accepted" -- is the status value the order-placement
+      // path actually recognizes (see CustomerOrdersPage's connections query
+      // and the create_customer_order_request RPC, both of which filter on
+      // status IN ('pending','active')). An "accepted" row is invisible to
+      // both, silently blocking every "New Order" button for this customer.
+      const connection: Record<string, unknown> = {
         customer_user_id: newUserId,
         merchant_id: merchantProfile.merchant_id,
         status: "active",
         nickname: displayName,
+      };
+      if (merchantCustomerId) connection.merchant_customer_id = merchantCustomerId;
+      let { error: connectionError } = await supabase
+        .from("customer_merchant_connections")
+        .upsert(connection, { onConflict: "customer_user_id,merchant_id" });
+      // Database not migrated yet (no merchant_customer_id column): keep the
+      // login working; the client still stores the link on its own record.
+      if (connectionError && merchantCustomerId && /merchant_customer_id/.test(connectionError.message)) {
+        delete connection.merchant_customer_id;
+        ({ error: connectionError } = await supabase
+          .from("customer_merchant_connections")
+          .upsert(connection, { onConflict: "customer_user_id,merchant_id" }));
+      }
+      if (connectionError) throw connectionError;
+    } catch (setupError) {
+      // Without this the auth user survives a failed setup, and every retry
+      // with the same username is rejected as "already taken". profiles
+      // cascades with the auth user; customer_profiles has no FK, so it goes
+      // explicitly.
+      await supabase.from("customer_profiles").delete().eq("user_id", newUserId);
+      await supabase.auth.admin.deleteUser(newUserId).catch((cleanupError: unknown) => {
+        console.error("admin-create-customer-login cleanup failed:", cleanupError);
       });
-    if (connectionError) throw connectionError;
+      throw setupError;
+    }
 
-    return json({ userId: newUserId, username: rawUsername, displayName });
+    return json({ userId: newUserId, username: rawUsername, displayName, customerId: merchantCustomerId });
   } catch (err) {
     console.error("admin-create-customer-login error:", err);
     return json({ error: "Server error" }, 500);

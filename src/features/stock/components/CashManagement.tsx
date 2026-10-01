@@ -2683,7 +2683,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       .from('customer_merchant_connections')
       .select('customer_user_id, status, nickname')
       .eq('merchant_id', merchantId)
-      .eq('status', 'accepted');
+      // Merchant-created portal logins and accepted invitations are 'active';
+      // 'accepted' only exists on older rows. Filtering on it alone hid
+      // every merchant-created login from the portal-sync picker.
+      .in('status', ['active', 'accepted']);
     if (error || !connections || connections.length === 0) { setConnectedCustomersLoaded(true); return; }
     const nicknameMap = new Map(connections.map(c => [c.customer_user_id, c.nickname]));
     const userIds = [...new Set(connections.map(c => c.customer_user_id))];

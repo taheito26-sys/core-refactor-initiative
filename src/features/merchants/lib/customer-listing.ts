@@ -20,6 +20,8 @@ export type ConnectedCustomerRow = {
   createdAt: number;
   source: 'connected';
   customerUserId: string;
+  /** The merchant's own Customer.id this portal account is linked to, when the link is recorded server-side. */
+  merchantCustomerId?: string | null;
 };
 
 export type LocalCustomerRow = Customer & {
@@ -27,15 +29,6 @@ export type LocalCustomerRow = Customer & {
 };
 
 export type ListedCustomer = LocalCustomerRow | ConnectedCustomerRow;
-
-export type CustomerProfileSummary = {
-  user_id: string;
-  display_name?: string | null;
-  name?: string | null;
-  phone?: string | null;
-  region?: string | null;
-  country?: string | null;
-};
 
 function normalizeCustomerKey(value: string) {
   return value.trim().toLowerCase();
@@ -115,6 +108,7 @@ export function mapConnectedCustomers(
     nickname?: string | null;
     created_at?: string | null;
     status?: string | null;
+    merchant_customer_id?: string | null;
   }>,
   profilesByUserId = new Map<string, CustomerProfileSummary>(),
 ): ConnectedCustomerRow[] {
@@ -136,6 +130,7 @@ export function mapConnectedCustomers(
       createdAt: row.created_at ? Date.parse(row.created_at) || Date.now() : Date.now(),
       source: 'connected',
       customerUserId: row.customer_user_id,
+      merchantCustomerId: row.merchant_customer_id ?? null,
     };
   });
 }

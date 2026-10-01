@@ -424,6 +424,13 @@ export interface Customer {
   dailyLimitUSDT: number;
   notes: string;
   createdAt: number;
+  /**
+   * The customer-portal account (auth user id) this buyer signs in with, once
+   * linked. Separate from `id` (the buyer's permanent identity), from the
+   * display names, and from the login username. See
+   * docs/customer-identity-lifecycle.md.
+   */
+  portalUserId?: string;
 }
 
 /** Picks the name matching the active language, falling back to the other language then the legacy `name`. */

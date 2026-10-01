@@ -134,15 +134,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         continue;
       }
 
-      // Ensure customer profile exists (auto-create if needed)
-      if (!customerRes.data && !customerRes.error) {
+      // Ensure customer profile exists (auto-create if needed) -- only for a
+      // customer-role account. Doing it for everyone gave every merchant a
+      // customer profile, and a brand-new merchant (no merchant profile yet)
+      // was then routed into the customer portal instead of onboarding.
+      const isCustomerAccount = (profileRes.data as { role?: string } | null)?.role === 'customer';
+      let ensuredCustomerProfile: CustomerProfile | null = null;
+      if (!customerRes.data && !customerRes.error && !merchantRes.data && isCustomerAccount) {
         try {
           const { data: ensuredProfile, error: ensureErr } = await supabase
             .rpc('ensure_customer_profile', { p_user_id: resolvedUserId });
           if (ensureErr) {
             console.warn('[Auth] Failed to ensure customer profile:', ensureErr);
           } else {
-            setCustomerProfile(ensuredProfile as CustomerProfile | null);
+            ensuredCustomerProfile = ensuredProfile as CustomerProfile | null;
           }
         } catch (e) {
           console.warn('[Auth] Exception ensuring customer profile:', e);
@@ -152,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // On final attempt or success, apply whatever we got
       setProfile(profileRes.data as Profile | null);
       setMerchantProfile(merchantRes.data as MerchantProfile | null);
-      setCustomerProfile(customerRes.data as CustomerProfile | null);
+      setCustomerProfile((customerRes.data as CustomerProfile | null) ?? ensuredCustomerProfile);
 
       // If all queries errored on the final attempt, keep isLoading true
       // so ProfileGuard shows spinner instead of redirecting to onboarding

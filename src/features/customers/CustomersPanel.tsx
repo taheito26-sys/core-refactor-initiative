@@ -1,15 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
 import {
   fmtTotal, fmtDate, uid, shortRef, resolveCustomerName, customerNameVariants,
   type Customer, type TrackerState, type DerivedState,
 } from '@/lib/tracker-helpers';
 import { canonicalizeName } from '@/lib/text-normalize';
-import { mapConnectedCustomers, mergeListedCustomers } from '@/features/merchants/lib/customer-listing';
+import { mapConnectedCustomers } from '@/features/merchants/lib/customer-listing';
+import {
+  customerHistoryCount, customerIdGroup, resolveCustomerPortalLinks, unlinkedPortalConnections,
+} from '@/features/customers/customer-identity';
+import { syncTradesToPortal } from '@/features/customers/portal-order-sync';
 import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -80,7 +85,13 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-type CustomerRow = Customer & { source?: 'local' | 'connected' };
+/**
+ * A row is either one of the merchant's own customer records (with its
+ * linked portal account, if any) or a portal account connected to this
+ * merchant that no record is linked to yet. The row id is always the
+ * Customer.id for a local row -- the buyer's permanent identity.
+ */
+type CustomerRow = Customer & { source: 'local' | 'connected'; linkedPortalUserId?: string };
 
 /**
  * Customer/buyer management -- moved out of the old combined CRM page so it
@@ -94,8 +105,23 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
   const t = useT();
   const isMobile = useIsMobile();
   const { merchantProfile } = useAuth();
+  const { settings } = useTheme();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  // Latest state for writes that land after an await -- the closure's
+  // `state` is stale by then and would overwrite edits made meanwhile.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const commitState = (next: TrackerState) => {
+    stateRef.current = next;
+    applyState(next);
+  };
+
+  const invalidateConnections = () => {
+    qc.invalidateQueries({ queryKey: ['crm-connected-customers', merchantProfile?.merchant_id] });
+    qc.invalidateQueries({ queryKey: ['merchant-connected-customers', merchantProfile?.merchant_id] });
+  };
 
   const [showCustModal, setShowCustModal] = useState(false);
   const [editingCust, setEditingCust] = useState<Customer | null>(null);
@@ -135,15 +161,31 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
     setLoginSaving(true);
     setLoginError('');
     try {
+      const cust = loginModalCust;
       const { data, error } = await supabase.functions.invoke('admin-create-customer-login', {
-        body: { username, password: loginPassword, displayName: loginModalCust.name, phone: loginModalCust.phone },
+        body: {
+          username, password: loginPassword,
+          displayName: resolveCustomerName(cust, 'en'), phone: cust.phone,
+          customerId: cust.id,
+        },
       });
       if (error || !data || (data as { error?: string }).error) {
         throw new Error(await extractFunctionErrorMessage(error, data, 'Could not create login'));
       }
-      toast.success(`Login created for ${loginModalCust.name}: username "${username}"`);
-      qc.invalidateQueries({ queryKey: ['crm-connected-customers', merchantProfile?.merchant_id] });
+      const portalUserId = (data as { userId?: string }).userId;
+      toast.success(`Login created for ${resolveCustomerName(cust, t.lang)}: username "${username}"`);
       setLoginModalCust(null);
+      if (portalUserId) {
+        // Record the link on the customer record itself, then bring the
+        // buyer's existing orders into their new portal.
+        const latest = stateRef.current;
+        commitState({
+          ...latest,
+          customers: (latest.customers ?? []).map(c => (c.id === cust.id ? { ...c, portalUserId } : c)),
+        });
+        await syncCustomerToPortal(cust, portalUserId);
+      }
+      invalidateConnections();
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Could not create login');
     } finally {
@@ -151,15 +193,17 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
     }
   };
 
-  const customers = state.customers ?? [];
+  const customers = useMemo(() => state.customers ?? [], [state.customers]);
 
   const { data: connectedCustomers = [] } = useQuery({
     queryKey: ['crm-connected-customers', merchantProfile?.merchant_id],
     queryFn: async () => {
       if (!merchantProfile?.merchant_id) return [];
+      // select('*'): merchant_customer_id only exists once the 20261001120000
+      // migration is applied, and naming it before then fails the query.
       const { data: connections, error } = await supabase
         .from('customer_merchant_connections')
-        .select('customer_user_id, created_at, status, nickname')
+        .select('*')
         .eq('merchant_id', merchantProfile.merchant_id)
         .neq('status', 'blocked')
         .order('created_at', { ascending: false });
@@ -173,17 +217,27 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
       const profileMap = new Map((profiles ?? []).map((profile: { user_id: string }) => [profile.user_id, profile]));
 
       return mapConnectedCustomers(
-        connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>,
+        connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null; merchant_customer_id?: string | null }>,
         profileMap,
       );
     },
     enabled: !!merchantProfile?.merchant_id,
   });
 
-  const mergedCustomers = useMemo<CustomerRow[]>(
-    () => mergeListedCustomers(customers, connectedCustomers) as CustomerRow[],
-    [connectedCustomers, customers],
+  const portalLinks = useMemo(
+    () => resolveCustomerPortalLinks(customers, connectedCustomers),
+    [customers, connectedCustomers],
   );
+
+  const mergedCustomers = useMemo<CustomerRow[]>(() => {
+    const local: CustomerRow[] = customers.map(c => ({ ...c, source: 'local', linkedPortalUserId: portalLinks.get(c.id) }));
+    const portalOnly: CustomerRow[] = unlinkedPortalConnections(connectedCustomers, portalLinks).map(c => ({
+      id: c.customerUserId, name: c.name, phone: c.phone, tier: c.tier,
+      dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes, createdAt: c.createdAt,
+      source: 'connected', linkedPortalUserId: c.customerUserId,
+    }));
+    return [...local, ...portalOnly];
+  }, [connectedCustomers, customers, portalLinks]);
 
   const filteredCustomers = useMemo(() => {
     if (!search) return mergedCustomers;
@@ -275,9 +329,68 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
     setShowCustModal(false);
   };
 
-  const deleteCustomer = (id: string) => {
-    if (!window.confirm('Delete this customer? This cannot be undone.')) return;
-    applyState({ ...state, customers: customers.filter(c => c.id !== id) });
+  // Pushes every order of this buyer (all records of the same buyer) into
+  // their portal. Idempotent per trade, so pressing it again is harmless.
+  const syncCustomerToPortal = async (cust: Customer, portalUserId: string) => {
+    if (!merchantProfile?.merchant_id) return;
+    setSyncingId(cust.id);
+    try {
+      const latest = stateRef.current;
+      const group = customerIdGroup(latest.customers ?? [], cust.id);
+      const trades = latest.trades.filter(tr => !tr.voided && group.has(tr.customerId));
+      const result = await syncTradesToPortal({
+        trades, merchantId: merchantProfile.merchant_id, customerUserId: portalUserId,
+        baseFiatCurrency: settings.baseFiatCurrency || 'QAR',
+      });
+      if (!result.connected) { toast.error(t('customerSyncNoConnection')); return; }
+      if (Object.keys(result.statuses).length > 0) {
+        const after = stateRef.current;
+        commitState({
+          ...after,
+          trades: after.trades.map(tr => (result.statuses[tr.id] ? {
+            ...tr,
+            mirrorStatus: result.statuses[tr.id],
+            ...(result.statuses[tr.id] === 'mirrored' ? { buyerType: 'connected_customer' as const, connectedCustomerId: portalUserId } : {}),
+          } : tr)),
+        });
+      }
+      if (result.failed > 0) toast.error(t('customerSyncFailed').replace('{n}', String(result.failed)));
+      toast.success(t('customerSyncDone').replace('{n}', String(result.mirrored)).replace('{name}', resolveCustomerName(cust, t.lang)));
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const deleteCustomer = async (id: string) => {
+    const latest = stateRef.current;
+    const history = customerHistoryCount(latest, id);
+    if (history.trades > 0 || history.loans > 0) {
+      toast.error(t('customerHasHistory').replace('{trades}', String(history.trades)).replace('{loans}', String(history.loans)));
+      return;
+    }
+    const portalUserId = portalLinks.get(id);
+    // Another record of the same buyer still linked to this account keeps it connected.
+    const sharedLink = portalUserId
+      ? [...portalLinks.entries()].some(([otherId, p]) => otherId !== id && p === portalUserId)
+      : false;
+    const disconnect = !!portalUserId && !sharedLink;
+    if (!window.confirm(t(disconnect ? 'customerDeleteLinkedConfirm' : 'customerDeleteConfirm'))) return;
+    if (disconnect && merchantProfile?.merchant_id) {
+      const { error } = await supabase
+        .from('customer_merchant_connections')
+        .update({ status: 'blocked' })
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', portalUserId);
+      if (error) { toast.error(t('customerDisconnectFailed')); return; }
+      invalidateConnections();
+    }
+    const after = stateRef.current;
+    commitState({
+      ...after,
+      customers: (after.customers ?? []).filter(c => c.id !== id),
+      // Tombstoned so another device's older snapshot can't merge it back.
+      deletedCustomerIds: Array.from(new Set([...(after.deletedCustomerIds || []), id])).slice(-500),
+    });
   };
 
   return (
@@ -315,8 +428,8 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{resolveCustomerName(c, t.lang)}</span>
-                      {c.source === 'connected' && (
-                        <span className="pill good" style={{ fontSize: 9 }}>Connected</span>
+                      {c.linkedPortalUserId && (
+                        <span className="pill good" style={{ fontSize: 9 }} title={t('customerPortalLinkedHint')}>Connected</span>
                       )}
                     </div>
                     <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{shortRef('CUS', c.id)}</span>
@@ -351,14 +464,20 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                   Last trade: {s.lastTrade > 0 ? fmtDate(s.lastTrade) : '—'}
                 </div>
 
-                {c.source !== 'connected' ? (
+                {c.source === 'local' ? (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="rowBtn" style={{ flex: 1, minHeight: 36 }} onClick={() => openEditCustomer(c)}>Edit</button>
-                    <button className="rowBtn" style={{ flex: 1, minHeight: 36, color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>Login</button>
+                    {c.linkedPortalUserId ? (
+                      <button className="rowBtn" style={{ flex: 1, minHeight: 36, color: 'var(--brand)' }} disabled={syncingId === c.id} onClick={() => syncCustomerToPortal(c, c.linkedPortalUserId)}>
+                        {syncingId === c.id ? '…' : t('customerSyncToPortal')}
+                      </button>
+                    ) : (
+                      <button className="rowBtn" style={{ flex: 1, minHeight: 36, color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>Login</button>
+                    )}
                     <button className="rowBtn" style={{ minHeight: 36, color: 'var(--bad)', fontWeight: 700, padding: '0 12px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
                   </div>
                 ) : (
-                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>Synced from merchant connection</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('customerPortalOnly')}</span>
                 )}
               </div>
             );
@@ -390,8 +509,8 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                     <td style={{ fontWeight: 700 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>{resolveCustomerName(c, t.lang)}</span>
-                        {c.source === 'connected' && (
-                          <span className="pill good" style={{ fontSize: 10 }}>Connected</span>
+                        {c.linkedPortalUserId && (
+                          <span className="pill good" style={{ fontSize: 10 }} title={t('customerPortalLinkedHint')}>Connected</span>
                         )}
                       </div>
                     </td>
@@ -414,14 +533,20 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {c.source !== 'connected' ? (
+                        {c.source === 'local' ? (
                           <>
                             <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
-                            <button className="rowBtn" style={{ color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>Create login</button>
+                            {c.linkedPortalUserId ? (
+                              <button className="rowBtn" style={{ color: 'var(--brand)' }} disabled={syncingId === c.id} onClick={() => syncCustomerToPortal(c, c.linkedPortalUserId)}>
+                                {syncingId === c.id ? '…' : t('customerSyncToPortal')}
+                              </button>
+                            ) : (
+                              <button className="rowBtn" style={{ color: 'var(--brand)' }} onClick={() => openCreateLogin(c)}>{t('customerCreateLogin')}</button>
+                            )}
                             <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
                           </>
                         ) : (
-                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>Synced from merchant connection</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('customerPortalOnly')}</span>
                         )}
                       </div>
                     </td>
