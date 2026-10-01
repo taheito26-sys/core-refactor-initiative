@@ -816,6 +816,7 @@ const translations = {
   customerSyncToPortal: { en: 'Sync to portal', ar: 'مزامنة مع البوابة' },
   customerSyncDone: { en: '{n} orders synced to {name}\'s portal', ar: 'تمت مزامنة {n} طلب مع بوابة {name}' },
   customerSyncNoConnection: { en: 'No active portal connection for this customer', ar: 'لا يوجد اتصال نشط بالبوابة لهذا العميل' },
+  customerStatementsSynced: { en: '{name}\'s loan statements synced to the portal', ar: 'تمت مزامنة كشوف قروض {name} مع البوابة' },
   customerSyncFailed: { en: '{n} orders could not be synced — try again', ar: 'تعذرت مزامنة {n} طلب — حاول مرة أخرى' },
   customerHasHistory: { en: 'Cannot delete: this customer has {trades} orders and {loans} loans. Their history would be orphaned and disappear from their portal.', ar: 'لا يمكن الحذف: لدى هذا العميل {trades} طلب و{loans} قرض. سيفقد سجله ويختفي من بوابته.' },
   customerDeleteConfirm: { en: 'Delete this customer? This cannot be undone.', ar: 'حذف هذا العميل؟ لا يمكن التراجع عن ذلك.' },

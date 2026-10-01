@@ -14,7 +14,7 @@ import { mapConnectedCustomers } from '@/features/merchants/lib/customer-listing
 import {
   customerHistoryCount, customerIdGroup, resolveCustomerPortalLinks, unlinkedPortalConnections,
 } from '@/features/customers/customer-identity';
-import { ensureStatementLinks, portalSignature, syncTradesToPortal } from '@/features/customers/portal-order-sync';
+import { AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, portalSignature, syncTradesToPortal } from '@/features/customers/portal-order-sync';
 import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -342,11 +342,13 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
     try {
       const latest = stateRef.current;
       const group = customerIdGroup(latest.customers ?? [], cust.id);
-      const trades = latest.trades.filter(tr => !tr.voided && group.has(tr.customerId));
-      const result = await syncTradesToPortal({
-        trades, merchantId: merchantProfile.merchant_id, customerUserId: portalUserId,
-        baseFiatCurrency: settings.baseFiatCurrency || 'QAR',
-      });
+      const trades = AUTO_MIRROR_TRADES_TO_PORTAL ? latest.trades.filter(tr => !tr.voided && group.has(tr.customerId)) : [];
+      const result = AUTO_MIRROR_TRADES_TO_PORTAL
+        ? await syncTradesToPortal({
+          trades, merchantId: merchantProfile.merchant_id, customerUserId: portalUserId,
+          baseFiatCurrency: settings.baseFiatCurrency || 'QAR',
+        })
+        : { statuses: {}, mirrored: 0, failed: 0, connected: true };
       if (!result.connected) { toast.error(t('customerSyncNoConnection')); return; }
       if (Object.keys(result.statuses).length > 0) {
         const after = stateRef.current;
@@ -369,7 +371,9 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
         }).catch(err => console.warn('Could not attach loan statement to customer portal', err));
       }
       if (result.failed > 0) toast.error(t('customerSyncFailed').replace('{n}', String(result.failed)));
-      toast.success(t('customerSyncDone').replace('{n}', String(result.mirrored)).replace('{name}', resolveCustomerName(cust, t.lang)));
+      toast.success(AUTO_MIRROR_TRADES_TO_PORTAL
+        ? t('customerSyncDone').replace('{n}', String(result.mirrored)).replace('{name}', resolveCustomerName(cust, t.lang))
+        : t('customerStatementsSynced').replace('{name}', resolveCustomerName(cust, t.lang)));
     } finally {
       setSyncingId(null);
     }

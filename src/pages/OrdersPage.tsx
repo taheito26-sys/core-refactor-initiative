@@ -51,7 +51,7 @@ import {
   customerIdGroup, resolveCustomerPortalLinks, resolveCustomerPortalUserId, resolveTradePortalUserId,
 } from '@/features/customers/customer-identity';
 import {
-  ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
+  AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
 } from '@/features/customers/portal-order-sync';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
@@ -1639,6 +1639,7 @@ export default function OrdersPage() {
   // A just-recorded trade: mirrored live (the buyer gets the "recorded your
   // order" notification), then its outcome is stored on the trade.
   const syncNewTradeLive = async (trade: Trade) => {
+    if (!AUTO_MIRROR_TRADES_TO_PORTAL) return;
     const status = await syncTradeToCustomerOrders(trade);
     const signature = portalSignature(trade, trade.connectedCustomerId ?? null);
     const latest = latestStateRef.current;
@@ -1686,6 +1687,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;
+    if (!AUTO_MIRROR_TRADES_TO_PORTAL) return;
     if (state.trades.length === 0) return;
     // Until the connections have loaded every trade looks unconnected, and
     // that verdict would be persisted as terminal.

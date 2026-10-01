@@ -12,6 +12,15 @@ import { isUuidLike } from './customer-identity';
  * number of times and still produces exactly one portal order.
  */
 
+/*
+ * Sales are NOT pushed into the buyer's portal as standalone order cards. A
+ * mirrored sale renders as a bare "Received / Sent" card with no repayment
+ * tracking, unlike the loan-statement history every earlier buyer sees. The
+ * buyer's portal history comes from loan statements (ensureStatementLinks).
+ * Turning this on again resumes automatic mirroring everywhere.
+ */
+export const AUTO_MIRROR_TRADES_TO_PORTAL = false;
+
 /** pricing_version for a merchant's bulk sync; the notification trigger stays silent for it. */
 export const BACKFILL_PRICING_VERSION = 'tracker-sync-backfill';
 const LIVE_PRICING_VERSION = 'tracker-sync-v1';
