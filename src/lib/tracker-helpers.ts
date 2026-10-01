@@ -350,6 +350,13 @@ export interface Trade {
   connectedCustomerId?: string;
   /** Mirror status: tracks whether this trade has been mirrored to customer_orders */
   mirrorStatus?: MirrorStatus;
+  /**
+   * What the buyer's portal copy showed after the last successful sync
+   * (see portalSignature in features/customers/portal-order-sync). A trade
+   * whose current signature differs has been edited, voided or reassigned
+   * since, and its portal order is reconciled.
+   */
+  mirrorSignature?: string;
   /** Manual buy price (QAR per USDT) — used when usesStock is false */
   manualBuyPrice?: number;
   /** Linked merchant deal ID (if this is a merchant order — legacy, kept for old data) */

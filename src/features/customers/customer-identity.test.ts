@@ -116,3 +116,13 @@ describe('customer directory helpers', () => {
     expect(customerHistoryCount(state, 'z')).toEqual({ trades: 0, loans: 0 });
   });
 });
+
+describe('explicit links only', () => {
+  it('skips the name fallback when asked', () => {
+    const customers = [cust('local-1', 'Mohamed Taha'), cust('local-2', 'Ahmed', { portalUserId: PORTAL_A })];
+    const connections = [{ customerUserId: PORTAL_C, name: 'Mohamed Taha' }, { customerUserId: PORTAL_A, name: 'x' }];
+    const links = resolveCustomerPortalLinks(customers, connections, { nameFallback: false });
+    expect(links.has('local-1')).toBe(false);
+    expect(links.get('local-2')).toBe(PORTAL_A);
+  });
+});

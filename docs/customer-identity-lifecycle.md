@@ -76,9 +76,34 @@ the link is implicit (`id === portalUserId`).
    recorded sale, not a request) and the buyer gets one "recorded your order"
    notification. The portal Orders page picks it up via its realtime channel.
 
+### 2.4a Edit, void or reassign an order after it reached the portal
+Every synced trade stores a `mirrorSignature` (portal account, amount, rate,
+voided). The Orders page's background pass compares it with the trade's
+current state; on a difference it calls
+`reconcile_mirrored_customer_order(source_trade_id, …)`:
+
+| Change on the Orders page | Portal order |
+| --- | --- |
+| amount / rate edited | updated, `revision_no` bumped, buyer notified "updated an order" |
+| trade voided / cancelled / deleted (any path, incl. a partner cancelling the deal) | marked Cancelled, buyer notified |
+| trade moved to another linked buyer | moves to that buyer's portal |
+| trade moved to an unlinked buyer | removed from the old buyer's portal |
+
+The merchant's own trade note is never sent to the portal (it holds import
+references and cost-basis flags); existing rows are cleared as they reconcile.
+
+### 2.4b Loans in the buyer's wallet
+The portal wallet reads loans through `buyer_statement_links`, one per
+currency. For buyers with an explicit link (created login, server-side link,
+or a record materialized from the portal account), the Orders page attaches
+or creates that link automatically for every currency the buyer has loans in.
+A link already attached to a different portal account is never taken over.
+Name-matched buyers get the same on "Sync to portal".
+
 ### 2.5 Existing customers who get linked later
 Customers tab → "Sync to portal" pushes every non-voided trade of that
-customer's identity group. Idempotent; safe to press repeatedly.
+customer's identity group and attaches their loan statements. Idempotent;
+safe to press repeatedly.
 
 ### 2.6 Edit
 Name/phone/tier edits never touch `Customer.id` or `Customer.name`, so the link
@@ -126,23 +151,25 @@ restricted to platform admins (previously callable by any signed-in user).
   2026-09-28 trigger are left in place; merchants with a merchant profile are
   still routed to the merchant app.
 
-## 5. Known remaining gaps (follow-ups)
+## 5. Previously open gaps, now closed
 
-- **Edits and voids after mirroring are not propagated.** Changing a trade's
-  amount/rate, or voiding it, on the Orders page does not update or cancel the
-  portal order already mirrored from it. Needs an `update/cancel by
-  source_trade_id` RPC called from the edit and void paths.
-- Loan statements in the portal wallet still depend on a
-  `buyer_statement_links` row per currency (Cash Management → sync to
-  wallet). Linking a login does not create those automatically yet.
-- Self-signup buyers who never finish onboarding have no `customer_profiles`
-  row; they are routed to `/c/onboarding`, which is intended.
+| # | Gap | Fix |
+| --- | --- | --- |
+| G11 | Editing or voiding a trade after it was mirrored left the portal order stale | `mirrorSignature` + `reconcile_mirrored_customer_order` (§2.4a) |
+| G12 | Linking a login didn't expose the buyer's loans in their wallet | automatic `buyer_statement_links` (§2.4b) |
+| G13 | The trade's internal note was copied into the buyer's portal | mirrors send no note; reconcile clears old ones |
+
+Self-signup buyers who never finish onboarding have no `customer_profiles`
+row and are routed to `/c/onboarding`; that is intended, not a gap.
 
 ## 6. Deployment
 
-1. Apply migration `supabase/migrations/20261001120000_customer_identity_lifecycle.sql`.
+1. Apply migrations `supabase/migrations/20261001120000_customer_identity_lifecycle.sql`
+   and `supabase/migrations/20261001130000_reconcile_mirrored_customer_orders.sql`.
 2. Deploy the edge function: `supabase functions deploy admin-create-customer-login`.
 3. Ship the web build. The client is backward compatible with an un-migrated
    database (it reads connections with `select('*')` and the mirror RPC
    already accepts `p_source_trade_id`), but mirrored orders only show as
-   "Approved" once the migration is applied.
+   "Approved" once the migration is applied, and edits/voids start
+   propagating once the reconcile migration is applied (until then the
+   client stops calling it for the session and retries on the next load).

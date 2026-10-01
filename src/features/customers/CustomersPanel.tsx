@@ -14,7 +14,7 @@ import { mapConnectedCustomers } from '@/features/merchants/lib/customer-listing
 import {
   customerHistoryCount, customerIdGroup, resolveCustomerPortalLinks, unlinkedPortalConnections,
 } from '@/features/customers/customer-identity';
-import { syncTradesToPortal } from '@/features/customers/portal-order-sync';
+import { ensureStatementLinks, portalSignature, syncTradesToPortal } from '@/features/customers/portal-order-sync';
 import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -104,7 +104,7 @@ type CustomerRow = Customer & { source: 'local' | 'connected'; linkedPortalUserI
 export function CustomersPanel({ state, applyState, derived }: { state: TrackerState; applyState: (next: TrackerState) => void; derived: DerivedState }) {
   const t = useT();
   const isMobile = useIsMobile();
-  const { merchantProfile } = useAuth();
+  const { merchantProfile, userId } = useAuth();
   const { settings } = useTheme();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -350,9 +350,18 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           trades: after.trades.map(tr => (result.statuses[tr.id] ? {
             ...tr,
             mirrorStatus: result.statuses[tr.id],
+            mirrorSignature: portalSignature(tr, portalUserId),
             ...(result.statuses[tr.id] === 'mirrored' ? { buyerType: 'connected_customer' as const, connectedCustomerId: portalUserId } : {}),
           } : tr)),
         });
+      }
+      // Loans go to the buyer's wallet through statement links, one per currency.
+      const loanCurrencies = (latest.customerLoans ?? []).filter(l => group.has(l.customerId)).map(l => l.currency);
+      if (userId && loanCurrencies.length > 0) {
+        await ensureStatementLinks({
+          merchantUserId: userId, customerId: cust.id, customerIdGroup: group,
+          customerUserId: portalUserId, currencies: loanCurrencies,
+        }).catch(err => console.warn('Could not attach loan statement to customer portal', err));
       }
       if (result.failed > 0) toast.error(t('customerSyncFailed').replace('{n}', String(result.failed)));
       toast.success(t('customerSyncDone').replace('{n}', String(result.mirrored)).replace('{name}', resolveCustomerName(cust, t.lang)));

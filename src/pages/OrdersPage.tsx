@@ -47,8 +47,12 @@ import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft, markupSellPrice } from '@/features/orders/utils/sale-draft';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { CustomersPanel } from '@/features/customers/CustomersPanel';
-import { resolveCustomerPortalLinks, resolveCustomerPortalUserId, resolveTradePortalUserId } from '@/features/customers/customer-identity';
-import { syncTradeToPortal } from '@/features/customers/portal-order-sync';
+import {
+  customerIdGroup, resolveCustomerPortalLinks, resolveCustomerPortalUserId, resolveTradePortalUserId,
+} from '@/features/customers/customer-identity';
+import {
+  ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
+} from '@/features/customers/portal-order-sync';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
@@ -473,7 +477,16 @@ export default function OrdersPage() {
 
   // Tracks trades already attempted this session for the customer-order
   // mirror backfill, so a re-render doesn't retry one still in flight.
-  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
+  // Trade id -> portal signature already attempted this session (see
+  // portalSignature), so a re-render doesn't retry a sync still in flight
+  // while an edit (new signature) is still picked up.
+  const backfillAttemptedTradeIdsRef = useRef(new Map<string, string>());
+  // Set once the reconcile RPC turns out to be missing (migration not
+  // applied), so the rest of the session doesn't keep calling it.
+  const reconcileUnavailableRef = useRef(false);
+  // Latest tracker state, for writes that land after an await.
+  const latestStateRef = useRef(state);
+  latestStateRef.current = state;
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -1615,6 +1628,54 @@ export default function OrdersPage() {
     });
   }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
 
+  // A just-recorded trade: mirrored live (the buyer gets the "recorded your
+  // order" notification), then its outcome is stored on the trade.
+  const syncNewTradeLive = async (trade: Trade) => {
+    const status = await syncTradeToCustomerOrders(trade);
+    const signature = portalSignature(trade, trade.connectedCustomerId ?? null);
+    const latest = latestStateRef.current;
+    if (!latest.trades.some(tr => tr.id === trade.id)) return;
+    const next = {
+      ...latest,
+      trades: latest.trades.map(tr => (tr.id === trade.id ? { ...tr, mirrorStatus: status, mirrorSignature: signature } : tr)),
+    };
+    latestStateRef.current = next;
+    applyState(next);
+  };
+
+  // Only links the merchant made explicitly (created login, server-side
+  // link, record materialized from the portal account) -- never a bare name
+  // match -- are trusted to expose loan statements automatically. A
+  // name-matched buyer gets them when the merchant presses Sync to portal.
+  const explicitPortalLinks = useMemo(
+    () => resolveCustomerPortalLinks(state.customers, connectedCustomers, { nameFallback: false }),
+    [state.customers, connectedCustomers],
+  );
+  const statementLinkAttemptsRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!userId || !connectedCustomersFetched) return;
+    const pending = new Map<string, { customerId: string; customerUserId: string; currencies: Set<string> }>();
+    for (const loan of state.customerLoans || []) {
+      const customerUserId = resolveCustomerPortalUserId(state.customers, explicitPortalLinks, loan.customerId);
+      if (!customerUserId || !loan.currency) continue;
+      const attemptKey = `${loan.customerId}|${customerUserId}|${loan.currency}`;
+      if (statementLinkAttemptsRef.current.has(attemptKey)) continue;
+      statementLinkAttemptsRef.current.add(attemptKey);
+      const entry = pending.get(loan.customerId) ?? { customerId: loan.customerId, customerUserId, currencies: new Set<string>() };
+      entry.currencies.add(loan.currency);
+      pending.set(loan.customerId, entry);
+    }
+    for (const entry of pending.values()) {
+      ensureStatementLinks({
+        merchantUserId: userId,
+        customerId: entry.customerId,
+        customerIdGroup: customerIdGroup(state.customers, entry.customerId),
+        customerUserId: entry.customerUserId,
+        currencies: entry.currencies,
+      }).catch(err => console.warn('Could not attach loan statement to customer portal', err));
+    }
+  }, [userId, connectedCustomersFetched, state.customerLoans, state.customers, explicitPortalLinks]);
+
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;
     if (state.trades.length === 0) return;
@@ -1626,36 +1687,61 @@ export default function OrdersPage() {
 
     const restoreMissingMirrors = async () => {
       let mirroredCount = 0;
-      const resolvedStatuses: Record<string, Trade['mirrorStatus']> = {};
+      const results: Record<string, { status: Trade['mirrorStatus']; signature: string }> = {};
 
       for (const trade of state.trades) {
         if (cancelled) return;
-        if (trade.voided) continue;
         if (!trade.customerId) continue;
 
-        // Skip if already processed with terminal status
-        if (trade.mirrorStatus === 'mirrored' || trade.mirrorStatus === 'skipped_not_connected' || trade.mirrorStatus === 'failed') {
+        const portalUserId = resolveMirrorCustomerUserId(trade)?.customerUserId ?? null;
+        const signature = portalSignature(trade, portalUserId);
+        const action = mirrorAction(trade, signature);
+        if (action === 'none') continue;
+        if (backfillAttemptedTradeIdsRef.current.get(trade.id) === signature) continue;
+        backfillAttemptedTradeIdsRef.current.set(trade.id, signature);
+
+        if (action === 'reconcile') {
+          // Already in a portal: edited, voided or reassigned since.
+          if (reconcileUnavailableRef.current) continue;
+          try {
+            const outcome = await reconcileTradeInPortal({ trade, merchantId: merchantProfile.merchant_id, customerUserId: portalUserId });
+            if (outcome === 'deferred') {
+              backfillAttemptedTradeIdsRef.current.delete(trade.id);
+            } else {
+              // 'not_found' is a row mirrored before rows carried
+              // source_trade_id: it can't be matched, and mirroring afresh
+              // would duplicate it, so it is only recorded as settled.
+              results[trade.id] = { status: outcome === 'removed' ? 'skipped_not_connected' : 'mirrored', signature };
+            }
+          } catch (err) {
+            if (isMissingFunctionError(err)) reconcileUnavailableRef.current = true;
+            else console.error('Customer portal reconcile failed', { tradeId: trade.id, err });
+          }
           continue;
         }
 
-        // Prevent duplicate attempts in same session
-        if (backfillAttemptedTradeIdsRef.current.has(trade.id)) continue;
-        backfillAttemptedTradeIdsRef.current.add(trade.id);
-
-        const status = await syncTradeToCustomerOrders(trade, true);
-        resolvedStatuses[trade.id] = status;
-        if (status === 'mirrored') {
-          mirroredCount += 1;
+        if (action === 'mark_skipped') {
+          results[trade.id] = { status: 'skipped_not_connected', signature };
+          continue;
         }
+        const status = await syncTradeToCustomerOrders(trade, true);
+        results[trade.id] = { status, signature };
+        if (status === 'mirrored') mirroredCount += 1;
       }
 
-      // Persist terminal statuses so non-connected trades aren't re-attempted
-      // (and re-logged) on every future mount of this page.
-      if (!cancelled && Object.keys(resolvedStatuses).length > 0) {
-        const nextTrades = state.trades.map((trade) =>
-          resolvedStatuses[trade.id] ? { ...trade, mirrorStatus: resolvedStatuses[trade.id] } : trade,
-        );
-        applyState({ ...state, trades: nextTrades });
+      // Persist statuses + signatures so settled trades aren't re-attempted
+      // on every future mount of this page, onto the latest state rather
+      // than the one this pass started from.
+      if (!cancelled && Object.keys(results).length > 0) {
+        const latest = latestStateRef.current;
+        const next = {
+          ...latest,
+          trades: latest.trades.map((trade) =>
+            results[trade.id] ? { ...trade, mirrorStatus: results[trade.id].status, mirrorSignature: results[trade.id].signature } : trade,
+          ),
+        };
+        latestStateRef.current = next;
+        applyState(next);
       }
 
       if (!cancelled && mirroredCount > 0) {
@@ -1672,7 +1758,7 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, applyState, connectedCustomersFetched]);
+  }, [merchantProfile?.merchant_id, state, syncTradeToCustomerOrders, resolveMirrorCustomerUserId, applyState, connectedCustomersFetched]);
 
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {
@@ -1886,7 +1972,9 @@ export default function OrdersPage() {
     };
     // The live sync below mirrors this trade (with the buyer's notification);
     // the background backfill must not race it with a silent one.
-    if (baseTrade.connectedCustomerId) backfillAttemptedTradeIdsRef.current.add(baseTrade.id);
+    if (baseTrade.connectedCustomerId) {
+      backfillAttemptedTradeIdsRef.current.set(baseTrade.id, portalSignature(baseTrade, baseTrade.connectedCustomerId));
+    }
 
     // ─── NEW: Multi-Merchant Allocation Flow ─────────────────────────
     if (merchantOrderEnabled && isNewAllocFlowActive) {
@@ -2054,9 +2142,7 @@ export default function OrdersPage() {
         showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
 
         // Sync to customer portal (only if buyer is a connected customer)
-        if (baseTrade.connectedCustomerId) {
-          await syncTradeToCustomerOrders(baseTrade);
-        }
+        if (baseTrade.connectedCustomerId) await syncNewTradeLive(baseTrade);
 
         // Reset
         setSaleAmount('');
@@ -2320,9 +2406,7 @@ export default function OrdersPage() {
 
     // ─── Sync to customer_orders when buyer is a connected customer ──────────
     // This makes the trade visible on the customer portal side.
-    if (baseTrade.connectedCustomerId) {
-      await syncTradeToCustomerOrders(baseTrade);
-    }
+    if (baseTrade.connectedCustomerId) await syncNewTradeLive(baseTrade);
 
     // Reset form
     setSaleAmount('');

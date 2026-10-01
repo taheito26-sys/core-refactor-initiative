@@ -53,6 +53,7 @@ export function customerIdGroup(customers: Customer[], customerId: string): Set<
 export function resolveCustomerPortalLinks(
   customers: Customer[],
   connections: PortalConnectionRef[],
+  options: { nameFallback?: boolean } = {},
 ): Map<string, string> {
   const links = new Map<string, string>();
   const connectedIds = new Set(connections.map(c => c.customerUserId));
@@ -73,6 +74,8 @@ export function resolveCustomerPortalLinks(
   for (const c of customers) {
     if (connectedIds.has(c.id)) link(c.id, c.id);
   }
+
+  if (options.nameFallback === false) return links;
 
   // Legacy fallback: one portal account and its name match, nothing else
   // with that name on the portal side. Two portal accounts sharing a name
