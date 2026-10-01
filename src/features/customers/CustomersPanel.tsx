@@ -165,7 +165,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
       const { data, error } = await supabase.functions.invoke('admin-create-customer-login', {
         body: {
           username, password: loginPassword,
-          displayName: resolveCustomerName(cust, 'en'), phone: cust.phone,
+          displayName: cust.name, phone: cust.phone,
           customerId: cust.id,
         },
       });
