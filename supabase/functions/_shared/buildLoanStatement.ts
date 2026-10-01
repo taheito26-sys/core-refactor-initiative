@@ -54,6 +54,10 @@ export async function buildLoanStatementResponse(
   supabase: AnySupabaseClient,
   link: StatementLinkRow,
   clientSafe: boolean,
+  // Opt-in, used only by the buyer's own orders page: also returns every
+  // non-loan sale as `saleOrders`, and a zero-balance statement for a buyer
+  // who has sales but no loans. Every other caller keeps the loan-only shape.
+  options: { includeSaleOrders?: boolean } = {},
 ) {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("tracker_snapshots")
@@ -80,7 +84,17 @@ export async function buildLoanStatementResponse(
   const groupStatements = statements.filter(
     (s) => customerIdGroup.has(s.customerId) && s.currency === link.currency,
   );
-  if (groupStatements.length === 0) return null;
+
+  // Every sale of this buyer that is not a voided trade or a capital
+  // transfer, in the buyer's own fiat when the trade came from an exchange.
+  const saleTrades = options.includeSaleOrders
+    ? (state.trades ?? []).filter(
+      (tr) => tr && customerIdGroup.has(tr.customerId) && !tr.voided
+        && tr.agreementFamily !== "capital_transfer" && (Number(tr.amountUSDT) || 0) > 0,
+    )
+    : [];
+  if (groupStatements.length === 0 && saleTrades.length === 0) return null;
+  const saleOnly = groupStatements.length === 0;
 
   // Merged into the single statement shape the rest of this function (and
   // every caller) already expects, re-sorted chronologically so a buyer split
@@ -89,7 +103,12 @@ export async function buildLoanStatementResponse(
   // downstream reads it, only the loan rows and the payment entries.
   // The linked record stays the source of the buyer-facing name so a stray
   // duplicate's spelling can't override it.
-  const primary = groupStatements.find((s) => s.customerId === link.customer_id) ?? groupStatements[0];
+  const primary = groupStatements.find((s) => s.customerId === link.customer_id) ?? groupStatements[0]
+    ?? {
+      customerId: link.customer_id,
+      customerName: customers.find((c) => c && c.id === link.customer_id)?.name ?? "",
+      currency: link.currency,
+    };
   const statement = {
     customerName: primary.customerName,
     currency: primary.currency,
@@ -232,6 +251,26 @@ export async function buildLoanStatementResponse(
     binanceOrders: binanceOrders.map((o) => (
       clientSafe ? { ...o, usdtAmount: undefined, qarRate: undefined } : o
     )),
+    ...(options.includeSaleOrders
+      ? {
+        saleOnly,
+        saleOrders: saleTrades.map((tr) => {
+          const usdtAmount = Number(tr.amountUSDT) || 0;
+          const qarRate = Number(tr.sellPriceQAR) || 0;
+          const fromExchange = !!tr.originalFiat && tr.originalFiatAmount != null;
+          return {
+            tradeId: tr.id,
+            orderNumber: tr.exchangeOrderNumber ?? "",
+            date: tr.ts ?? null,
+            fiat: fromExchange ? tr.originalFiat : "QAR",
+            fiatAmount: Math.round(fromExchange ? Number(tr.originalFiatAmount) || 0 : usdtAmount * qarRate),
+            fiatPrice: fromExchange ? Number(tr.originalFiatPriceUSDT) || 0 : qarRate,
+            usdtAmount: clientSafe ? undefined : usdtAmount,
+            qarRate: clientSafe ? undefined : qarRate,
+          };
+        }),
+      }
+      : {}),
   };
 }
 

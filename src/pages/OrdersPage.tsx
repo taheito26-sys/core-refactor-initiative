@@ -1683,7 +1683,33 @@ export default function OrdersPage() {
         currencies: entry.currencies,
       }).catch(err => console.warn('Could not attach loan statement to customer portal', err));
     }
-  }, [userId, connectedCustomersFetched, state.customerLoans, state.customers, explicitPortalLinks]);
+
+    // A buyer with sales but no loans still needs a link for their orders to
+    // reach the portal history; it is only created when no link exists yet.
+    const loanBuyerIds = new Set((state.customerLoans || []).map(l => l.customerId));
+    const baseCurrency = settings.baseFiatCurrency || 'QAR';
+    const salesOnly = new Map<string, string>();
+    for (const trade of state.trades || []) {
+      if (!trade.customerId || trade.voided || trade.agreementFamily === 'capital_transfer') continue;
+      if (loanBuyerIds.has(trade.customerId) || salesOnly.has(trade.customerId)) continue;
+      const customerUserId = resolveCustomerPortalUserId(state.customers, explicitPortalLinks, trade.customerId);
+      if (!customerUserId) continue;
+      const attemptKey = `${trade.customerId}|${customerUserId}|sales`;
+      if (statementLinkAttemptsRef.current.has(attemptKey)) continue;
+      statementLinkAttemptsRef.current.add(attemptKey);
+      salesOnly.set(trade.customerId, customerUserId);
+    }
+    for (const [customerId, customerUserId] of salesOnly) {
+      ensureStatementLinks({
+        merchantUserId: userId,
+        customerId,
+        customerIdGroup: customerIdGroup(state.customers, customerId),
+        customerUserId,
+        currencies: [baseCurrency],
+        skipIfAnyLink: true,
+      }).catch(err => console.warn('Could not link sales to customer portal', err));
+    }
+  }, [userId, connectedCustomersFetched, state.customerLoans, state.trades, state.customers, explicitPortalLinks, settings.baseFiatCurrency]);
 
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;

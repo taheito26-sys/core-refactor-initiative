@@ -25,6 +25,19 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
+
+/** The loan statement plus the opt-in sale rows returned for ?sales=1. */
+type HistoryStatement = PublicStatement & {
+  saleOnly?: boolean;
+  saleOrders?: Array<{
+    tradeId: string;
+    orderNumber: string;
+    date: string | number | null;
+    fiat: string;
+    fiatAmount: number;
+    fiatPrice: number;
+  }>;
+};
 import { getP2PRates } from '@/lib/p2p-rates';
 import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
 import { PhasedClientOrderCard } from '@/features/parent-order-fulfillment/components/PhasedClientOrderCard';
@@ -556,11 +569,13 @@ export default function CustomerOrdersPage() {
   // on its own — Orders keeps the polling since it's the page a buyer
   // actually watches for merchant-side changes.
   const { data: historyStatements = [], isLoading: isHistoryQueryLoading } = useQuery({
-    queryKey: ['c-loan-statement-history', userId],
+    // Own key: this call also asks for the buyer's non-loan sales (?sales=1),
+    // which the Home and Wallet pages must not receive from the shared cache.
+    queryKey: ['c-loan-statement-history-with-sales', userId],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
+      const { data, error } = await supabase.functions.invoke('customer-loan-statement?sales=1', { method: 'GET' });
       if (error || !data || (data as { error?: string }).error) return [];
-      return (data as { statements: PublicStatement[] }).statements;
+      return (data as { statements: HistoryStatement[] }).statements;
     },
     enabled: !!userId,
     refetchInterval: 20000,
@@ -572,6 +587,8 @@ export default function CustomerOrdersPage() {
   const isHistoryLoading = isHistoryQueryLoading || !userId;
 
   type HistoryOrderRow = {
+    /** A sale that is not a loan, shown in the same card layout as a loan, fully repaid. */
+    sale?: boolean;
     key: string;
     date: number;
     currency: string;
@@ -589,6 +606,10 @@ export default function CustomerOrdersPage() {
 
   const historyOrders = useMemo<HistoryOrderRow[]>(() => {
     const rows: HistoryOrderRow[] = [];
+    const shownTradeIds = new Set<string>();
+    for (const s of historyStatements) {
+      for (const o of s.orders) if (o.tradeId) shownTradeIds.add(o.tradeId);
+    }
     for (const s of historyStatements) {
       const loanByTradeId = new Map(s.orders.filter(o => o.tradeId).map(o => [o.tradeId as string, o]));
       const seenTradeIds = new Set<string>();
@@ -633,6 +654,29 @@ export default function CustomerOrdersPage() {
           fiatPrice: null,
           qarToEgpRate: null,
           loanPaid: o.paid,
+        });
+      }
+    }
+    // Sales that are not loans appear in the same layout, fully repaid. A
+    // trade that already has a loan row is never repeated, and a trade
+    // arriving through several statement links is added once.
+    for (const s of historyStatements) {
+      for (const sale of s.saleOrders ?? []) {
+        if (shownTradeIds.has(sale.tradeId)) continue;
+        shownTradeIds.add(sale.tradeId);
+        rows.push({
+          key: sale.orderNumber || sale.tradeId,
+          date: typeof sale.date === 'string' ? new Date(sale.date).getTime() : (sale.date ?? 0),
+          currency: sale.fiat,
+          totalAmount: sale.fiatAmount,
+          loaned: false,
+          sale: true,
+          settled: true,
+          loanCurrency: sale.fiat,
+          loanAmount: sale.fiatAmount,
+          loanPaid: sale.fiatAmount,
+          fiatPrice: sale.fiatPrice || null,
+          qarToEgpRate: null,
         });
       }
     }
@@ -889,12 +933,12 @@ export default function CustomerOrdersPage() {
     let totalDebt = 0;
     let totalPaid = 0;
     let outstanding = 0;
-    for (const s of historyStatements) {
+    for (const s of historyStatements.filter(st => !st.saleOnly)) {
       totalDebt += s.totalLoaned;
       totalPaid += s.totalRepaid;
       outstanding += s.outstanding;
     }
-    const currency = historyStatements[0]?.currency ?? 'QAR';
+    const currency = historyStatements.find(st => !st.saleOnly)?.currency ?? 'QAR';
     return { totalDebt, totalPaid, outstanding, currency };
   }, [historyStatements]);
 
@@ -1866,7 +1910,7 @@ export default function CustomerOrdersPage() {
                   <div
                     key={`${o.key}-${i}`}
                     className="panel"
-                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
+                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...((o.loaned || o.sale) ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -1884,7 +1928,7 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {o.loaned && o.loanAmount != null && (
+                    {(o.loaned || o.sale) && o.loanAmount != null && (
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
@@ -1948,7 +1992,7 @@ export default function CustomerOrdersPage() {
                           {o.fiatPrice != null ? o.fiatPrice.toFixed(2) : '—'}
                         </td>
                         <td>
-                          {o.loaned && o.loanAmount != null && (
+                          {(o.loaned || o.sale) && o.loanAmount != null && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
                               <div style={{ flex: 1 }}>
                                 <div className="prog" style={{ height: 7, maxWidth: 'none' }}>

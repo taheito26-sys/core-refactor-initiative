@@ -369,6 +369,13 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           merchantUserId: userId, customerId: cust.id, customerIdGroup: group,
           customerUserId: portalUserId, currencies: loanCurrencies,
         }).catch(err => console.warn('Could not attach loan statement to customer portal', err));
+      } else if (userId && latest.trades.some(tr => !tr.voided && group.has(tr.customerId))) {
+        // Sales but no loans: the link is what carries the orders to the portal.
+        await ensureStatementLinks({
+          merchantUserId: userId, customerId: cust.id, customerIdGroup: group,
+          customerUserId: portalUserId, currencies: [settings.baseFiatCurrency || 'QAR'],
+          skipIfAnyLink: true,
+        }).catch(err => console.warn('Could not link sales to customer portal', err));
       }
       if (result.failed > 0) toast.error(t('customerSyncFailed').replace('{n}', String(result.failed)));
       toast.success(AUTO_MIRROR_TRADES_TO_PORTAL

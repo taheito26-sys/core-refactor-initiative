@@ -204,6 +204,8 @@ export async function ensureStatementLinks(params: {
   customerIdGroup: Iterable<string>;
   customerUserId: string;
   currencies: Iterable<string>;
+  /** Sales-only buyers: create a link only when the buyer has no link at all (the sale rows ride on any link). */
+  skipIfAnyLink?: boolean;
 }): Promise<{ created: number; attached: number }> {
   const { merchantUserId, customerId, customerUserId } = params;
   const groupIds = [...new Set([customerId, ...params.customerIdGroup])];
@@ -219,6 +221,7 @@ export async function ensureStatementLinks(params: {
     .in('customer_id', groupIds)
     .is('revoked_at', null);
   if (error) throw error;
+  if (params.skipIfAnyLink && (links ?? []).some(l => l.customer_user_id === customerUserId)) return { created, attached };
 
   for (const currency of currencies) {
     const forCurrency = (links ?? []).filter(l => l.currency === currency);

@@ -57,9 +57,12 @@ Deno.serve(async (req) => {
     // end up in anyone's hands), this is the buyer's own authenticated
     // portal, so their own order's USDT quantity and QAR rate aren't
     // stripped here.
+    // Only the buyer's orders page asks for ?sales=1; every other caller
+    // keeps the loan-only response.
+    const includeSaleOrders = new URL(req.url).searchParams.get("sales") === "1";
     const statements = [];
     for (const link of links) {
-      const statement = await buildLoanStatementResponse(supabase, link, false);
+      const statement = await buildLoanStatementResponse(supabase, link, false, { includeSaleOrders });
       if (statement) statements.push(statement);
     }
 
