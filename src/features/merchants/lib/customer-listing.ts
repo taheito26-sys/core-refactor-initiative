@@ -22,6 +22,8 @@ export type ConnectedCustomerRow = {
   customerUserId: string;
   /** The merchant's own Customer.id this portal account is linked to, when the link is recorded server-side. */
   merchantCustomerId?: string | null;
+  /** The login name the customer signs into the portal with (no email), when the connection records it. */
+  portalUsername?: string | null;
 };
 
 export type LocalCustomerRow = Customer & {
@@ -109,6 +111,7 @@ export function mapConnectedCustomers(
     created_at?: string | null;
     status?: string | null;
     merchant_customer_id?: string | null;
+    portal_username?: string | null;
   }>,
   profilesByUserId = new Map<string, CustomerProfileSummary>(),
 ): ConnectedCustomerRow[] {
@@ -131,6 +134,7 @@ export function mapConnectedCustomers(
       source: 'connected',
       customerUserId: row.customer_user_id,
       merchantCustomerId: row.merchant_customer_id ?? null,
+      portalUsername: row.portal_username ?? null,
     };
   });
 }

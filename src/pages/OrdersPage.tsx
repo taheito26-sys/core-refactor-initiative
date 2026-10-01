@@ -1242,13 +1242,21 @@ export default function OrdersPage() {
     return (byLocalTrade as MerchantDeal) || null;
   }, [allMerchantDeals, isCreatorInMyMerchant]);
 
+  const portalUsernameFor = useCallback((c: ListedCustomer): string => {
+    if (c.source === 'connected') return c.portalUsername || '';
+    const userId = portalLinks.get(c.id);
+    return userId ? connectedCustomers.find(x => x.customerUserId === userId)?.portalUsername || '' : '';
+  }, [connectedCustomers, portalLinks]);
+
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return allBuyerOptions;
     return allBuyerOptions.filter(
-      c => customerNameVariants(c).some(v => normalizeName(v).includes(q)) || c.phone.includes(buyerName),
+      c => customerNameVariants(c).some(v => normalizeName(v).includes(q))
+        || c.phone.includes(buyerName)
+        || portalUsernameFor(c).toLowerCase().includes(buyerName.trim().toLowerCase()),
     );
-  }, [allBuyerOptions, buyerName]);
+  }, [allBuyerOptions, buyerName, portalUsernameFor]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
     let expectedQty = qty;
@@ -4482,7 +4490,7 @@ export default function OrdersPage() {
                       <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
                           <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.source === 'connected' ? c.customerUserId : c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
-                            <span>{c.name}</span><span className="lookupMeta">{c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
+                            <span>{c.name}</span><span className="lookupMeta">{portalUsernameFor(c) ? `@${portalUsernameFor(c)}` : c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
                       </div>

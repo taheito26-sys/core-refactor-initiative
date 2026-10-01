@@ -91,7 +91,7 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
  * merchant that no record is linked to yet. The row id is always the
  * Customer.id for a local row -- the buyer's permanent identity.
  */
-type CustomerRow = Customer & { source: 'local' | 'connected'; linkedPortalUserId?: string };
+type CustomerRow = Customer & { source: 'local' | 'connected'; linkedPortalUserId?: string; portalUsername?: string };
 
 /**
  * Customer/buyer management -- moved out of the old combined CRM page so it
@@ -230,11 +230,15 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
   );
 
   const mergedCustomers = useMemo<CustomerRow[]>(() => {
-    const local: CustomerRow[] = customers.map(c => ({ ...c, source: 'local', linkedPortalUserId: portalLinks.get(c.id) }));
+    const usernameByUserId = new Map(connectedCustomers.map(c => [c.customerUserId, c.portalUsername || '']));
+    const local: CustomerRow[] = customers.map(c => {
+      const linkedPortalUserId = portalLinks.get(c.id);
+      return { ...c, source: 'local', linkedPortalUserId, portalUsername: linkedPortalUserId ? usernameByUserId.get(linkedPortalUserId) || undefined : undefined };
+    });
     const portalOnly: CustomerRow[] = unlinkedPortalConnections(connectedCustomers, portalLinks).map(c => ({
       id: c.customerUserId, name: c.name, phone: c.phone, tier: c.tier,
       dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes, createdAt: c.createdAt,
-      source: 'connected', linkedPortalUserId: c.customerUserId,
+      source: 'connected', linkedPortalUserId: c.customerUserId, portalUsername: c.portalUsername || undefined,
     }));
     return [...local, ...portalOnly];
   }, [connectedCustomers, customers, portalLinks]);
@@ -246,7 +250,8 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
       c.name.toLowerCase().includes(q)
       || (c.nameEn || '').toLowerCase().includes(q)
       || (c.nameAr || '').toLowerCase().includes(q)
-      || c.phone.includes(q),
+      || c.phone.includes(q)
+      || (c.portalUsername || '').toLowerCase().includes(q),
     );
   }, [mergedCustomers, search]);
 
@@ -442,6 +447,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                       )}
                     </div>
                     <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{shortRef('CUS', c.id)}</span>
+                    {c.portalUsername && <span className="mono" style={{ fontSize: 10, color: 'var(--brand)' }}>@{c.portalUsername}</span>}
                   </div>
                   <span className={`pill ${c.tier === 'A' ? 'good' : c.tier === 'B' ? 'warn' : ''}`}
                     style={{
@@ -518,6 +524,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                     <td style={{ fontWeight: 700 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>{resolveCustomerName(c, t.lang)}</span>
+                        {c.portalUsername && <span className="mono" style={{ fontSize: 10, color: 'var(--brand)' }}>@{c.portalUsername}</span>}
                         {c.linkedPortalUserId && (
                           <span className="pill good" style={{ fontSize: 10 }} title={t('customerPortalLinkedHint')}>Connected</span>
                         )}

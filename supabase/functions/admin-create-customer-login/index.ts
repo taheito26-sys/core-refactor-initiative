@@ -126,13 +126,17 @@ Deno.serve(async (req) => {
         nickname: displayName,
       };
       if (merchantCustomerId) connection.merchant_customer_id = merchantCustomerId;
+      // The login name, so the merchant can see and search it (auth.users is
+      // not readable from the merchant's session).
+      connection.portal_username = rawUsername;
       let { error: connectionError } = await supabase
         .from("customer_merchant_connections")
         .upsert(connection, { onConflict: "customer_user_id,merchant_id" });
       // Database not migrated yet (no merchant_customer_id column): keep the
       // login working; the client still stores the link on its own record.
-      if (connectionError && merchantCustomerId && /merchant_customer_id/.test(connectionError.message)) {
+      if (connectionError && /merchant_customer_id|portal_username/.test(connectionError.message)) {
         delete connection.merchant_customer_id;
+        delete connection.portal_username;
         ({ error: connectionError } = await supabase
           .from("customer_merchant_connections")
           .upsert(connection, { onConflict: "customer_user_id,merchant_id" }));
