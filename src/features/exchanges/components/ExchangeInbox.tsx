@@ -19,6 +19,12 @@ export interface ExchangeOrderPayload {
   orderId: string;
   orderNumber: string;
   amountUSDT: number;
+  /**
+   * The order's full USDT amount. Differs from amountUSDT when this pick is
+   * the continuation of a partly registered order (only the remainder is
+   * asked for); the difference is what is already registered elsewhere.
+   */
+  orderTotalUSDT?: number;
   ts: number;
   /** Counterparty name the exchange reported, used to prefill the buyer/supplier field. */
   assigneeName?: string;
@@ -387,6 +393,7 @@ export function ExchangeInbox({
                     orderId: o.id,
                     orderNumber: o.order_number,
                     amountUSDT: pickAmount,
+                    orderTotalUSDT: o.amount,
                     ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
                     assigneeName: isPartial ? undefined : (o.counterparty ?? undefined),
                     priceFiat: needsQarRate ? 0 : o.price,

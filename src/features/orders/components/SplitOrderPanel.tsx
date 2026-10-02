@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { TranslationKey } from '@/lib/i18n';
 import {
-  allocateFee, exactCustomerMatch, legLoanPrincipal, legRevenue, matchCustomerOptions,
+  allocateFee, exactCustomerMatch, legLoanPrincipal, legRevenue, matchCustomerOptions, round8,
   type SplitCashMode, type SplitCustomerOption, type SplitPlanError,
 } from '../split-plan';
 
@@ -54,6 +54,12 @@ interface Props {
   /** When provided, the order total is editable in the header (a new sale); omitted when it is fixed (editing a saved trade). */
   onTotalChange?: (value: string) => void;
   totalText?: string;
+  /**
+   * USDT of the same order already registered elsewhere (a partly registered
+   * exchange order). The two customers share only what is left, but the
+   * window keeps the whole order in view so the figures visibly add up to it.
+   */
+  registeredUsdt?: number;
   fee: number;
   legs: [SplitLegState, SplitLegState];
   handlers: [SplitLegHandlers, SplitLegHandlers];
@@ -298,15 +304,15 @@ function LegCard({ index, t, leg, handlers, options, excludeId, accounts, feeSha
 }
 
 export function SplitOrderPanel({
-  t, total, onTotalChange, totalText, fee, legs, handlers, options, cashAccounts, fmtMoney, fmtQty, currencyLabel, isMobile, error, onEven, onSwap, children,
+  t, total, onTotalChange, totalText, registeredUsdt = 0, fee, legs, handlers, options, cashAccounts, fmtMoney, fmtQty, currencyLabel, isMobile, error, onEven, onSwap, children,
 }: Props) {
   const qtyA = Number(legs[0].qty) || 0;
   const qtyB = Number(legs[1].qty) || 0;
   const [feeA, feeB] = allocateFee(fee, qtyA, qtyB);
   const revenueA = legRevenue(qtyA, Number(legs[0].sellPrice) || 0);
   const revenueB = legRevenue(qtyB, Number(legs[1].sellPrice) || 0);
-  const pctA = total > 0 ? Math.max(0, Math.min(100, (qtyA / total) * 100)) : 0;
-  const pctB = total > 0 ? Math.max(0, Math.min(100 - pctA, (qtyB / total) * 100)) : 0;
+  const wholeOrder = registeredUsdt + total;
+  const barPct = (n: number) => (wholeOrder > 0 ? Math.max(0, Math.min(100, (n / wholeOrder) * 100)) : 0);
   const button: React.CSSProperties = {
     padding: isMobile ? '9px 12px' : '5px 12px', borderRadius: 999, fontSize: isMobile ? 12 : 11, fontWeight: 700, cursor: 'pointer',
     border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--t2)', minHeight: isMobile ? 38 : undefined,
@@ -319,9 +325,21 @@ export function SplitOrderPanel({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 14 }}>✂️ {t('splitWindowTitle')}</div>
+          {registeredUsdt > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--muted)', display: 'grid', gap: 2, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <span>{t('splitOrderTotal')}</span>
+                <strong className="mono" style={{ color: 'var(--text)' }}>{fmtQty(round8(registeredUsdt + total))} USDT</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <span>{t('splitAlreadyRegistered')}</span>
+                <span className="mono">−{fmtQty(registeredUsdt)} USDT</span>
+              </div>
+            </div>
+          )}
           {onTotalChange ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
-              <span>{t('splitOrderTotal')}</span>
+              <span>{registeredUsdt > 0 ? t('splitToAllocate') : t('splitOrderTotal')}</span>
               <input
                 inputMode="decimal" value={totalText ?? ''} placeholder="0"
                 onChange={e => { if (numeric(e.target.value)) onTotalChange(e.target.value); }}
@@ -331,7 +349,7 @@ export function SplitOrderPanel({
             </div>
           ) : (
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-              {t('splitOrderTotal')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtQty(total)} USDT</strong>
+              {registeredUsdt > 0 ? t('splitToAllocate') : t('splitOrderTotal')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtQty(total)} USDT</strong>
             </div>
           )}
         </div>
@@ -343,10 +361,12 @@ export function SplitOrderPanel({
 
       <div>
         <div style={{ display: 'flex', height: 10, borderRadius: 999, overflow: 'hidden', background: 'var(--line)' }}>
-          <span style={{ width: `${pctA}%`, background: 'var(--brand, #4f8cff)', transition: 'width .15s' }} />
-          <span style={{ width: `${pctB}%`, background: 'var(--warn)', transition: 'width .15s' }} />
+          {registeredUsdt > 0 && <span style={{ width: `${barPct(registeredUsdt)}%`, background: 'var(--muted)', opacity: 0.5 }} />}
+          <span style={{ width: `${barPct(qtyA)}%`, background: 'var(--brand, #4f8cff)', transition: 'width .15s' }} />
+          <span style={{ width: `${barPct(qtyB)}%`, background: 'var(--warn)', transition: 'width .15s' }} />
         </div>
-        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginTop: 4, color: 'var(--muted)' }}>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 10, marginTop: 4, color: 'var(--muted)' }}>
+          {registeredUsdt > 0 && <span>✓ {fmtQty(registeredUsdt)}</span>}
           <span>1 · {fmtQty(qtyA)} USDT</span>
           <span>2 · {fmtQty(qtyB)} USDT</span>
         </div>

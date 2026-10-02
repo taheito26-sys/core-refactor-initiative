@@ -31,7 +31,7 @@ import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
 import { applySplitOffFinancials, getSplitBlockReason } from '@/features/orders/utils/splitOrderFinancials';
 import { SplitOrderPanel, type SplitLegState, type SplitLegHandlers, type SplitPanelOption } from '@/features/orders/components/SplitOrderPanel';
 import {
-  evenSplit, exactCustomerMatch, legLoanPrincipal, otherHalf, round2, validateSplitPlan,
+  evenSplit, exactCustomerMatch, formatQty, legLoanPrincipal, otherHalf, round2, validateSplitPlan,
   type SplitCashMode,
 } from '@/features/orders/split-plan';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
@@ -192,6 +192,8 @@ export default function OrdersPage() {
         kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; note: string;
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
+        /** USDT of this exchange order already registered under other trades. */
+        registeredUsdt?: number;
       }
     | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
@@ -205,6 +207,7 @@ export default function OrdersPage() {
     orderId: string;
     orderNumber: string;
     amountUSDT: number;
+    orderTotalUSDT?: number;
     priceFiat: number;
     ts: number;
     assigneeName?: string;
@@ -213,6 +216,14 @@ export default function OrdersPage() {
     originalPriceFiat?: number;
     originalTotalFiat?: number;
   }) => {
+    // A continuation of a partly registered order asks only for what is left.
+    // What is already registered stays visible in the split window, and the
+    // exchange's fiat total is scaled to this share so the saved record's
+    // fiat figure matches its USDT quantity.
+    const fullUsdt = prefill.orderTotalUSDT && prefill.orderTotalUSDT > 0 ? prefill.orderTotalUSDT : prefill.amountUSDT;
+    const registeredUsdt = Math.max(0, Math.round((fullUsdt - prefill.amountUSDT) * 1e8) / 1e8);
+    const shareOfOrder = fullUsdt > 0 ? Math.min(1, prefill.amountUSDT / fullUsdt) : 1;
+    const originalTotalFiat = prefill.originalTotalFiat != null ? round2(prefill.originalTotalFiat * shareOfOrder) : undefined;
     setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
     setSaleEntryMode('qty_price');
     setSaleUsdtQty(String(prefill.amountUSDT));
@@ -239,8 +250,9 @@ export default function OrdersPage() {
       exchangeOrderNumber: prefill.orderNumber,
       exchangeCounterparty: prefill.assigneeName,
       originalFiat: prefill.originalFiat,
-      originalFiatAmount: prefill.originalTotalFiat,
+      originalFiatAmount: originalTotalFiat,
       originalFiatPriceUSDT: prefill.originalPriceFiat,
+      registeredUsdt,
       note: buildImportNote({
         exchange: prefill.exchange,
         orderNumber: prefill.orderNumber,
@@ -253,12 +265,12 @@ export default function OrdersPage() {
         needsQarRate: prefill.needsQarRate,
         originalFiat: prefill.originalFiat,
         originalPriceFiat: prefill.originalPriceFiat,
-        originalTotalFiat: prefill.originalTotalFiat,
+        originalTotalFiat,
       }),
     });
     setSaleMessage(
       prefill.originalFiat
-        ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${baseFiat}/USDT rate as the sell price.`
+        ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${baseFiat}/USDT rate as the sell price.`
         : '',
     );
     setNewSaleSheetOpen(true);
@@ -4865,7 +4877,8 @@ export default function OrdersPage() {
                       <SplitOrderPanel
                         t={t}
                         total={newSaleSplitAnchorTotal}
-                        totalText={newSaleSplitAnchorTotal > 0 ? String(newSaleSplitAnchorTotal) : ''}
+                        totalText={formatQty(newSaleSplitAnchorTotal)}
+                        registeredUsdt={pendingImport?.kind === 'order' ? pendingImport.registeredUsdt ?? 0 : 0}
                         onTotalChange={changeSplitTotal}
                         fee={Number(saleFee) || 0}
                         legs={[splitLegA, splitLegB]}

@@ -11,7 +11,7 @@ const handlers = (): SplitLegHandlers => ({
   onCashMode: vi.fn(), onCashAmount: vi.fn(), onCashAccount: vi.fn(),
 });
 
-function setup(over: { legs?: [SplitLegState, SplitLegState]; error?: never } = {}) {
+function setup(over: { legs?: [SplitLegState, SplitLegState]; registered?: number; total?: number } = {}) {
   const a = handlers();
   const b = handlers();
   const onEven = vi.fn();
@@ -20,7 +20,8 @@ function setup(over: { legs?: [SplitLegState, SplitLegState]; error?: never } = 
     <SplitOrderPanel
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       t={t as any}
-      total={100}
+      total={over.total ?? 100}
+      registeredUsdt={over.registered}
       fee={10}
       legs={over.legs ?? [leg({ qty: '60', buyerText: 'Sherif' }), leg({ qty: '40', sellPrice: '3.8' })]}
       handlers={[a, b]}
@@ -98,5 +99,12 @@ describe('SplitOrderPanel', () => {
     fireEvent.click(screen.getByText(/splitSwapButton/));
     expect(onEven).toHaveBeenCalled();
     expect(onSwap).toHaveBeenCalled();
+  });
+
+  it('keeps the whole exchange order in view when part of it is already registered', () => {
+    setup({ registered: 1802, total: 2950.85, legs: [leg({ qty: '1148.85', buyerText: 'Sherif' }), leg({ qty: '1802', buyerText: 'Damrawy' })] });
+    expect(screen.getByText('4752.85 USDT')).toBeTruthy(); // 1802 registered + 2950.85 to allocate
+    expect(screen.getByText('−1802 USDT')).toBeTruthy();
+    expect(screen.getByText(/splitToAllocate/)).toBeTruthy();
   });
 });

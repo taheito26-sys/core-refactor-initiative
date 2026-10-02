@@ -1213,6 +1213,8 @@ const translations = {
   splitFeeShare: { en: 'Fee share', ar: 'حصة الرسوم' },
   splitEvenButton: { en: '50 / 50', ar: '٥٠ / ٥٠' },
   splitSwapButton: { en: 'Swap customers', ar: 'تبديل العميلين' },
+  splitAlreadyRegistered: { en: 'Already registered', ar: 'مسجل بالفعل' },
+  splitToAllocate: { en: 'To allocate now', ar: 'المتبقي للتوزيع الآن' },
   splitCombined: { en: 'Both customers together', ar: 'العميلان معًا' },
   splitOwes: { en: 'owes', ar: 'مدين بمبلغ' },
   splitNeedsPrice: { en: 'Enter a sell price for both customers', ar: 'أدخل سعر البيع للعميلين' },
