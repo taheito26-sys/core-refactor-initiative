@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { explainReconciliationDelta, findPendingExchangeItems } from '@/features/exchanges/reconcile';
+import { explainReconciliationDelta, findDismissedExchangeItems, findPendingExchangeItems } from '@/features/exchanges/reconcile';
 import type { ExchangeOrderLink } from '@/features/exchanges/hooks/useExchangeOrderLinks';
 import type { ExchangeP2POrder, ExchangeTransfer } from '@/features/exchanges/types';
 
@@ -83,5 +83,25 @@ describe('explaining a tracker vs. exchange mismatch', () => {
     const e = explainReconciliationDelta(0.5, []);
     expect(e.fullyExplained).toBe(false);
     expect(e.remaining).toBe(0.5);
+  });
+});
+
+describe('resolving records without registering them', () => {
+  it('drops a dismissed order from the pending list and from the explanation', () => {
+    const orders = [order('a', 'sell', 1000), order('b', 'sell', 500, { dismissed_at: '2026-09-30T00:00:00Z', dismiss_reason: 'ignored' })];
+    const items = findPendingExchangeItems({ ...base, orders, transfers: [] });
+    expect(items).toHaveLength(1);
+    expect(explainReconciliationDelta(1500, items).remaining).toBe(500);
+  });
+
+  it('lists dismissed orders and transfers with their reason, ignoring ones tagged as loans', () => {
+    const dismissed = findDismissedExchangeItems({
+      orders: [order('b', 'sell', 500, { dismissed_at: 'x', dismiss_reason: 'adjusted', dismiss_note: 'fixed by hand' }), order('open', 'sell', 10)],
+      transfers: [transfer('t1', 'in', 70, { dismissed_at: 'x' }), transfer('t2', 'in', 80, { dismissed_at: 'x' })],
+      taggedTransferIds: new Set(['t2']),
+    });
+    expect(dismissed.map(d => [d.key, d.reason])).toEqual(expect.arrayContaining([['o:b', 'adjusted'], ['t:t1', 'ignored']]));
+    expect(dismissed).toHaveLength(2);
+    expect(dismissed.find(d => d.key === 'o:b')?.note).toBe('fixed by hand');
   });
 });

@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { ExchangeId } from './types';
+import type { ExchangeDismissReason, ExchangeId } from './types';
 
 export async function connectExchange(params: {
   exchange: ExchangeId;
@@ -153,5 +153,34 @@ export async function undismissTransfer(transferId: string) {
     .from('exchange_transfers' as any)
     .update({ dismissed_at: null })
     .eq('id', transferId);
+  if (error) throw error;
+}
+
+/**
+ * Resolves one exchange record without registering it. Works for both P2P
+ * orders and transfers; the reason and note are kept so it can be listed and
+ * restored later. An order is dismissed whole, including any part of it that
+ * was never registered.
+ */
+export async function dismissExchangeRecord(
+  record: { source: 'order' | 'transfer'; id: string },
+  reason: ExchangeDismissReason,
+  note?: string,
+) {
+  const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from((record.source === 'order' ? 'exchange_p2p_orders' : 'exchange_transfers') as any)
+    .update({ dismissed_at: new Date().toISOString(), dismiss_reason: reason, dismiss_note: note?.trim() || null })
+    .eq('id', record.id);
+  if (error) throw error;
+}
+
+/** Reverses dismissExchangeRecord: the record goes back to "needs a decision". */
+export async function restoreExchangeRecord(record: { source: 'order' | 'transfer'; id: string }) {
+  const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from((record.source === 'order' ? 'exchange_p2p_orders' : 'exchange_transfers') as any)
+    .update({ dismissed_at: null, dismiss_reason: null, dismiss_note: null })
+    .eq('id', record.id);
   if (error) throw error;
 }

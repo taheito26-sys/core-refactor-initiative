@@ -38,13 +38,15 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, dismissExchangeRecord, markTransfersLinked } from '@/features/exchanges/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { buildManualFixBatch, planManualFix } from '@/features/stock/manual-fix';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
-import { explainReconciliationDelta } from '@/features/exchanges/reconcile';
+import { explainReconciliationDelta, type PendingExchangeItem } from '@/features/exchanges/reconcile';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { LoansPanel } from '@/features/stock/components/LoansPanel';
@@ -120,6 +122,9 @@ export default function StockPage() {
 
   /** Correct the tracker-vs-exchange delta by trimming one or more stock batches. */
   const [showFixMismatchModal, setShowFixMismatchModal] = useState(false);
+  const queryClient = useQueryClient();
+  // Exchange records being fixed by hand instead of registered as an order, purchase or loan.
+  const [manualFixItems, setManualFixItems] = useState<PendingExchangeItem[] | null>(null);
 
   const [searchParams] = useSearchParams();
   const stockTab = 'batches' as const;
@@ -830,6 +835,29 @@ export default function StockPage() {
     setShowFixMismatchModal(false);
   };
 
+  /** Marks the records a manual fix covered as resolved, so they leave "needs a decision" and the mismatch explanation. */
+  const finishManualFix = async (items: PendingExchangeItem[]) => {
+    try {
+      await Promise.all(items.map(i => dismissExchangeRecord(
+        { source: i.source, id: (i.order?.id ?? i.transfer?.id) as string },
+        'adjusted',
+      )));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] }),
+        queryClient.invalidateQueries({ queryKey: ['exchange-p2p-orders'] }),
+      ]);
+      toast.success(t('mfixDone'));
+    } catch {
+      toast.error(t('mfixFailed'));
+    }
+    setManualFixItems(null);
+  };
+
+  const applyManualFixAdd = (items: PendingExchangeItem[], amount: number, priceQAR: number, note: string) => {
+    applyState({ ...state, batches: [...state.batches, buildManualFixBatch({ amount, priceQAR, items, note })] });
+    void finishManualFix(items);
+  };
+
   /**
    * Reconciliation fix when exchanges hold more than the tracker: prefill
    * the Add Batch form with the missing quantity so the merchant only has
@@ -999,6 +1027,7 @@ export default function StockPage() {
           derived={derived}
           applyStateAndCommit={applyStateAndCommit}
           onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
+          onManualFix={setManualFixItems}
         />
       )}
 
@@ -2066,6 +2095,35 @@ export default function StockPage() {
         />
       )}
 
+      {manualFixItems && (() => {
+        const plan = planManualFix(manualFixItems);
+        if (plan.mode === 'trim') {
+          return (
+            <FixMismatchModal
+              targetDelta={plan.amount}
+              batches={perf.filter(b => b.remaining > 1e-9)}
+              isMobile={isMobile}
+              onApply={(reductions) => { applyMismatchFix(reductions); void finishManualFix(manualFixItems); }}
+              onClose={() => setManualFixItems(null)}
+            />
+          );
+        }
+        const live = perf.filter(b => b.remaining > 1e-9);
+        const liveQty = live.reduce((sum, b) => sum + b.remaining, 0);
+        const avgCost = liveQty > 0 ? live.reduce((sum, b) => sum + b.remaining * b.buyPriceQAR, 0) / liveQty : 0;
+        return (
+          <ManualFixAddDialog
+            amount={plan.amount}
+            defaultPrice={avgCost}
+            isMobile={isMobile}
+            onApply={(price, note) => (plan.mode === 'add'
+              ? applyManualFixAdd(manualFixItems, plan.amount, price, note)
+              : void finishManualFix(manualFixItems))}
+            onClose={() => setManualFixItems(null)}
+          />
+        );
+      })()}
+
       {showFixMismatchModal && (
         <FixMismatchModal
           targetDelta={residualDelta}
@@ -2086,6 +2144,52 @@ interface FixMismatchBatch {
   buyPriceQAR: number;
   remaining: number;
 }
+/**
+ * Confirms a manual fix that adds stock (the exchange holds more than the
+ * tracker for the chosen records) or, when the records cancel out, just marks
+ * them as fixed. Nothing here registers an order, purchase or loan, and no
+ * cash account is touched.
+ */
+function ManualFixAddDialog({ amount, defaultPrice, isMobile = false, onApply, onClose }: {
+  amount: number; defaultPrice: number; isMobile?: boolean; onApply: (price: number, note: string) => void; onClose: () => void;
+}) {
+  const t = useT();
+  const [price, setPrice] = useState(defaultPrice > 0 ? String(Number(defaultPrice.toFixed(4))) : '');
+  const [note, setNote] = useState('');
+  const adds = amount > 0;
+  const priceNum = Number(price) || 0;
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="tracker-root" style={{ maxWidth: isMobile ? 'min(96vw, 520px)' : 440, width: isMobile ? '96vw' : undefined, background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : 24, gap: 0 }}>
+        <DialogHeader style={{ marginBottom: 12 }}>
+          <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>🛠️ {t('mfixTitle')}</DialogTitle>
+        </DialogHeader>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+          {(adds ? t('mfixHintAdd') : t('mfixHintNone')).split('{amount}').join(fmtU(amount))}
+        </div>
+        {adds && (
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>
+              {t('mfixPriceLabel')}
+              <input inputMode="decimal" value={price} onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setPrice(e.target.value); }}
+                style={{ width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: isMobile ? 16 : 13 }} />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>
+              {t('mfixNoteLabel')}
+              <input value={note} onChange={e => setNote(e.target.value)}
+                style={{ width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: isMobile ? 16 : 13 }} />
+            </label>
+          </div>
+        )}
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={adds && !(priceNum > 0)} onClick={() => onApply(priceNum, note)}>{t('mfixApply')}</button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface FixMismatchModalProps {
   /** Positive USDT the tracker needs to come down by to match the exchanges. */
   targetDelta: number;

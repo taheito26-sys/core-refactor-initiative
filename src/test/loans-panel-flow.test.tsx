@@ -28,8 +28,10 @@ vi.mock('@/features/exchanges/hooks/useExchangeOrderLinks', () => ({
   useExchangeOrderLinks: () => ({ data: new Map() }),
   sumLinkedAmount: (links: { allocated_amount: number }[] = []) => links.reduce((s, l) => s + l.allocated_amount, 0),
 }));
-const api = { dismissTransfer: vi.fn(async () => {}), undismissTransfer: vi.fn(async () => {}), addOrderLink: vi.fn(async () => {}), removeOrderLink: vi.fn(async () => {}) };
+const api = { dismissExchangeRecord: vi.fn(async () => {}), restoreExchangeRecord: vi.fn(async () => {}), dismissTransfer: vi.fn(async () => {}), undismissTransfer: vi.fn(async () => {}), addOrderLink: vi.fn(async () => {}), removeOrderLink: vi.fn(async () => {}) };
 vi.mock('@/features/exchanges/api', () => ({
+  dismissExchangeRecord: (...a: unknown[]) => api.dismissExchangeRecord(...(a as [])),
+  restoreExchangeRecord: (...a: unknown[]) => api.restoreExchangeRecord(...(a as [])),
   dismissTransfer: (...a: unknown[]) => api.dismissTransfer(...(a as [])),
   undismissTransfer: (...a: unknown[]) => api.undismissTransfer(...(a as [])),
   addOrderLink: (...a: unknown[]) => api.addOrderLink(...(a as [])),

@@ -5,7 +5,7 @@ import { extractImportedReference } from '@/features/exchanges/tracker-import';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
-import { findPendingExchangeItems, type PendingExchangeItem } from '@/features/exchanges/reconcile';
+import { findDismissedExchangeItems, findPendingExchangeItems, type DismissedExchangeItem, type PendingExchangeItem } from '@/features/exchanges/reconcile';
 
 /**
  * Every Binance/OKX record that still needs a decision — not yet imported
@@ -37,4 +37,14 @@ export function usePendingExchangeItems(state: TrackerState): PendingExchangeIte
       taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers),
     });
   }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, transfers]);
+}
+
+/** Records the merchant resolved without registering, so they can be reviewed and restored. */
+export function useDismissedExchangeItems(state: TrackerState): DismissedExchangeItem[] {
+  const { data: orders } = useExchangeP2POrders({ includeDismissed: true });
+  const { data: transfers } = useExchangeTransfers();
+  return useMemo(
+    () => findDismissedExchangeItems({ orders, transfers, taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers) }),
+    [orders, transfers, state.usdtTransfers],
+  );
 }

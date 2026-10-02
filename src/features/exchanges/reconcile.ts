@@ -15,7 +15,7 @@
 // Whatever is left after that is the real mismatch.
 
 import { sumLinkedAmount, type ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
-import type { ExchangeId, ExchangeP2POrder, ExchangeTransfer } from './types';
+import type { ExchangeDismissReason, ExchangeId, ExchangeP2POrder, ExchangeTransfer } from './types';
 
 /** Amounts within this margin are rounding noise from the exchange. */
 const AMOUNT_EPSILON = 0.01;
@@ -67,7 +67,7 @@ export function findPendingExchangeItems(input: {
   const isUsdt = (asset: string) => String(asset || '').toUpperCase() === 'USDT';
 
   for (const o of input.orders || []) {
-    if (!isUsdt(o.asset)) continue;
+    if (!isUsdt(o.asset) || o.dismissed_at) continue;
     const links = (input.linksByOrder?.get(o.id) ?? []).filter(l => input.liveEntityIds.has(l.entity_id));
     let linked = sumLinkedAmount(links);
     if (linked <= AMOUNT_EPSILON) {
@@ -146,4 +146,53 @@ export function explainReconciliationDelta(
     fullyExplained: items.length > 0 && Math.abs(remaining) <= tolerance,
     items,
   };
+}
+
+/** A record the merchant resolved without registering it, for the restorable "resolved" list. */
+export interface DismissedExchangeItem {
+  key: string;
+  source: 'order' | 'transfer';
+  id: string;
+  exchange: ExchangeId;
+  direction: 'out' | 'in';
+  ts: number;
+  usdt: number;
+  counterparty: string | null;
+  reference: string;
+  reason: ExchangeDismissReason;
+  note: string | null;
+  price?: number;
+  fiat?: string;
+}
+
+/**
+ * Every USDT order / transfer dismissed by the merchant. A transfer dismissed
+ * by tagging it as a merchant loan is not listed (it is managed in that
+ * loan's statement), and a transfer dismissed before reasons existed counts
+ * as ignored.
+ */
+export function findDismissedExchangeItems(input: {
+  orders: ExchangeP2POrder[] | undefined;
+  transfers: ExchangeTransfer[] | undefined;
+  taggedTransferIds?: Set<string>;
+}): DismissedExchangeItem[] {
+  const out: DismissedExchangeItem[] = [];
+  const isUsdt = (asset: string) => String(asset || '').toUpperCase() === 'USDT';
+  for (const o of input.orders || []) {
+    if (!o.dismissed_at || !isUsdt(o.asset)) continue;
+    out.push({
+      key: `o:${o.id}`, source: 'order', id: o.id, exchange: o.exchange, direction: o.side === 'sell' ? 'out' : 'in',
+      ts: o.order_time ? new Date(o.order_time).getTime() : 0, usdt: Number(o.amount), counterparty: o.counterparty,
+      reference: o.order_number, reason: o.dismiss_reason ?? 'ignored', note: o.dismiss_note ?? null, price: o.price, fiat: o.fiat,
+    });
+  }
+  for (const tr of input.transfers || []) {
+    if (!tr.dismissed_at || !isUsdt(tr.asset) || input.taggedTransferIds?.has(tr.id)) continue;
+    out.push({
+      key: `t:${tr.id}`, source: 'transfer', id: tr.id, exchange: tr.exchange, direction: tr.direction,
+      ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : 0, usdt: Number(tr.amount), counterparty: tr.counterparty,
+      reference: tr.reference, reason: tr.dismiss_reason ?? 'ignored', note: tr.dismiss_note ?? null,
+    });
+  }
+  return out.sort((a, b) => b.ts - a.ts);
 }

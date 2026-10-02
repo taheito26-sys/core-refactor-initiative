@@ -25,6 +25,13 @@ export interface ExchangeBalance {
   updated_at: string;
 }
 
+/**
+ * Why a record was taken out of "needs a decision" without being registered:
+ * ignored (skip it), deleted (remove it from the app), or adjusted (the stock
+ * was corrected by hand instead). All three are restorable.
+ */
+export type ExchangeDismissReason = 'ignored' | 'deleted' | 'adjusted';
+
 export interface ExchangeP2POrder {
   id: string;
   exchange: ExchangeId;
@@ -41,6 +48,10 @@ export interface ExchangeP2POrder {
   linked_entity_type: 'batch' | 'trade' | null;
   linked_entity_id: string | null;
   linked_at: string | null;
+  /** Set when the merchant resolved this order without registering it (see ExchangeDismissReason). */
+  dismissed_at?: string | null;
+  dismiss_reason?: ExchangeDismissReason | null;
+  dismiss_note?: string | null;
   created_at: string;
 }
 
@@ -73,5 +84,7 @@ export interface ExchangeTransfer {
   linked_at: string | null;
   /** Set when the merchant marked this transfer as "not an order" (e.g. a loan repayment received via Pay) — hidden from the inbox, never imported. */
   dismissed_at: string | null;
+  dismiss_reason?: ExchangeDismissReason | null;
+  dismiss_note?: string | null;
   created_at: string;
 }
