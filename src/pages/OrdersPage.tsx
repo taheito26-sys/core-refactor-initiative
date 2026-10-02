@@ -28,6 +28,7 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
+import { applySplitOffFinancials, getSplitBlockReason } from '@/features/orders/utils/splitOrderFinancials';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
@@ -135,9 +136,8 @@ export default function OrdersPage() {
   const [buyerId, setBuyerId] = useState('');
   // Split-at-registration: carve part of a brand-new sale off to a second
   // buyer in the same submit, rather than saving the full amount and then
-  // reopening it in Edit to split afterward. Mirrors splitEditingTrade's
-  // guards (blocked when a loan or cash deposit is also in play) since
-  // correctly pro-rating those alongside a split is a separate, larger job.
+  // reopening it in Edit to split afterward. Loans are created per leg; a
+  // merchant-linked order or a cash deposit still blocks it.
   const [newSaleSplitOpen, setNewSaleSplitOpen] = useState(false);
   const [newSaleSplitAmount, setNewSaleSplitAmount] = useState('');
   const [newSaleSplitCustomerId, setNewSaleSplitCustomerId] = useState('');
@@ -423,7 +423,7 @@ export default function OrdersPage() {
 
   // Split-order state for the edit modal — carves part of this trade off to
   // a second customer (e.g. a Binance order that needs to be shared between
-  // two buyers). See splitEditingTrade below.
+  // two buyers). See saveTradeEdit.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitAmount, setSplitAmount] = useState('');
   const [splitCustomerId, setSplitCustomerId] = useState('');
@@ -1850,7 +1850,6 @@ export default function OrdersPage() {
     const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
     if (newSaleSplitOpen) {
       if (merchantOrderEnabled) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
-      if (isLoanSale) { setSaleMessage(t('splitBlockedComplexOrder')); return; }
       if (cashDepositMode !== 'none') { setSaleMessage(t('splitBlockedComplexOrder')); return; }
       // Validate against the anchor (the true pre-split total), not
       // amountUSDT -- in USDT+Total/USDT+Price modes amountUSDT is already
@@ -2558,63 +2557,49 @@ export default function OrdersPage() {
     setSplitSellPrice('');
   };
 
-  /**
-   * Carves `splitAmount` USDT off the trade currently open in the edit
-   * modal and assigns it to a second customer as its own new trade — e.g. a
-   * Binance order registered in full under one customer that turns out to
-   * need part of it reassigned to someone else. Deliberately narrow: refuses
-   * when the trade already has a cash deposit, a loan, or a linked partner
-   * deal riding on it, since correctly pro-rating those is a different,
-   * larger job than "split this order into two" and silently guessing would
-   * risk real money records.
-   */
-  const splitEditingTrade = () => {
-    if (!editingTradeId) return;
-    const existingTrade = state.trades.find(t => t.id === editingTradeId);
-    if (!existingTrade) return;
-
-    const amount = Number(splitAmount);
-    const validationError = validateSplitOrder(amount, existingTrade.amountUSDT, splitCustomerId);
-    if (validationError === 'invalid_amount') { toast.error(t('splitAmountInvalid')); return; }
-    if (validationError === 'amount_too_large') { toast.error(t('splitAmountTooLarge')); return; }
-    if (validationError === 'no_target_customer') { toast.error(t('splitCustomerRequired')); return; }
-
-    const hasCashDeposit = (state.cashLedger || []).some(e =>
-      e.type === 'sale_deposit' && e.direction === 'in'
-      && (e.tradeId === editingTradeId || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId))
-    );
-    const hasLoan = loanByTradeId.has(editingTradeId);
-    if (hasCashDeposit || hasLoan || existingTrade.linkedDealId) {
-      toast.error(t('splitBlockedComplexOrder'));
-      return;
-    }
-
-    const { primaryTrade, secondTrade } = splitOrder({
-      trade: existingTrade,
-      splitAmountUsdt: amount,
-      targetCustomerId: splitCustomerId,
-      newTradeId: uid(),
-      secondSellPriceQAR: parseFloat(splitSellPrice) || undefined,
-    });
-
-    const nextTrades = state.trades.map(tr => (tr.id === editingTradeId ? primaryTrade : tr));
-    nextTrades.push(secondTrade);
-
-    applyState({ ...state, trades: nextTrades });
-    toast.success(t('splitSuccess'));
-    setEditingTradeId(null);
-  };
-
   const saveTradeEdit = async () => {
     if (!editingTradeId) return;
     const ts = new Date(editDate).getTime();
-    const qty = Number(editQty);
+    let qty = Number(editQty);
     const sell = Number(editSell);
-    const fee = Number(editFee) || 0;
-    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
+    let fee = Number(editFee) || 0;
 
     const existingTrade = state.trades.find(t => t.id === editingTradeId);
     if (!existingTrade) return;
+
+    // ── Split: carve part of this order off to a second customer ──
+    // Runs through the same save as any other correction, so the date, price,
+    // fee, note, loan flag and cash-deposit edits made in this form are kept
+    // rather than discarded, and "Save Correction" can never save the
+    // remainder as the whole order and lose the moved USDT.
+    const splitMoved = splitOpen ? Number(splitAmount) || 0 : 0;
+    let splitResult: ReturnType<typeof splitOrder> | null = null;
+    if (splitOpen && splitMoved > 0) {
+      const validationError = validateSplitOrder(splitMoved, existingTrade.amountUSDT, splitCustomerId);
+      if (validationError === 'invalid_amount') { toast.error(t('splitAmountInvalid')); return; }
+      if (validationError === 'amount_too_large') { toast.error(t('splitAmountTooLarge')); return; }
+      if (validationError === 'no_target_customer') { toast.error(t('splitCustomerRequired')); return; }
+      if (customerIdGroup(state.customers, editCustomerId).has(splitCustomerId)) { toast.error(t('splitSameCustomer')); return; }
+      const blockReason = editLinkEnabled ? 'linked_deal' : getSplitBlockReason(state, existingTrade);
+      if (blockReason === 'linked_deal') { toast.error(t('splitBlockedLinkedDeal')); return; }
+      if (blockReason === 'loan_has_repayments') { toast.error(t('splitBlockedLoanRepaid')); return; }
+      if (!(sell > 0)) return;
+      splitResult = splitOrder({
+        trade: {
+          ...existingTrade,
+          ts, sellPriceQAR: sell, feeQAR: fee, note: editNote,
+          customerId: editCustomerId, usesStock: editUsesStock,
+          manualBuyPrice: !editUsesStock ? (parseFloat(editManualBuyPrice) || 0) : undefined,
+        },
+        splitAmountUsdt: splitMoved,
+        targetCustomerId: splitCustomerId,
+        newTradeId: uid(),
+        secondSellPriceQAR: parseFloat(splitSellPrice) || undefined,
+      });
+      qty = splitResult.primaryTrade.amountUSDT;
+      fee = splitResult.primaryTrade.feeQAR;
+    }
+    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
 
     // ── Loaned-order guards (checked before anything is mutated) ──
     const existingLoan = loanByTradeId.get(editingTradeId);
@@ -2631,6 +2616,7 @@ export default function OrdersPage() {
     let updatedFields: Partial<Trade> = {
       ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
       customerId: editCustomerId, usesStock: editUsesStock,
+      ...(splitResult ? { note: splitResult.primaryTrade.note, originalFiatAmount: splitResult.primaryTrade.originalFiatAmount } : {}),
       // Include manual buy price when not using FIFO stock
       manualBuyPrice: !editUsesStock ? (parseFloat(editManualBuyPrice) || 0) : undefined,
     };
@@ -2804,6 +2790,7 @@ export default function OrdersPage() {
         revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
+    if (splitResult) nextTrades.push(splitResult.secondTrade);
     const baseNextState = { ...state, trades: nextTrades };
     const existingTradeDeposits = (state.cashLedger || [])
       .filter(e =>
@@ -2873,6 +2860,23 @@ export default function OrdersPage() {
       note: `${t('loanFromOrder')} ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
     });
     finalState = loanSync.state;
+    if (splitResult) {
+      // The primary half's loan and deposit were just rescaled to the
+      // remainder; the split-off half gets its own in the same proportion.
+      const secondTrade = splitResult.secondTrade;
+      finalState = applySplitOffFinancials({
+        nextState: finalState,
+        secondTrade,
+        isLoan: editIsLoan,
+        depositRatio: editCashDepositMode === 'none' && previousRevenue > 0
+          ? Math.max(0, Math.min(1, previousDeposited / previousRevenue))
+          : 0,
+        depositAccount: previousDepositAccount,
+        currency: baseFiat as CashCurrency,
+        loanNote: `${t('loanFromOrder')} ${fmtU(secondTrade.amountUSDT)} USDT @ ${fmtP(secondTrade.sellPriceQAR)}`,
+        depositNote: `${t('saleProceeds')}: ${fmtU(secondTrade.amountUSDT)} USDT @ ${fmtP(secondTrade.sellPriceQAR)}`,
+      });
+    }
     const loanToast = loanSync.outcome === 'created' ? t('loanEditCreated')
       : loanSync.outcome === 'removed' ? t('loanEditRemoved')
       : loanSync.outcome === 'updated' ? t('loanEditUpdated')
@@ -2923,6 +2927,31 @@ export default function OrdersPage() {
       applyState(finalState);
     }
 
+    if (splitResult) {
+      toast.success(t('splitSuccess'));
+      const { primaryTrade, secondTrade } = splitResult;
+      const secondBuyerName = state.customers.find(c => c.id === secondTrade.customerId)?.name || '';
+      // An imported exchange order is tracked per allocation: shrink the
+      // original's share and register the moved amount, so the inbox still
+      // sees the whole order accounted for.
+      void (async () => {
+        const { data: links } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from('exchange_p2p_order_links' as any)
+          .select('order_id')
+          .eq('entity_id', primaryTrade.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const link of ((links || []) as any[])) {
+          await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .from('exchange_p2p_order_links' as any)
+            .update({ allocated_amount: primaryTrade.amountUSDT })
+            .eq('order_id', link.order_id)
+            .eq('entity_id', primaryTrade.id);
+          await addOrderLink(link.order_id, 'trade', secondTrade.id, secondTrade.amountUSDT, secondBuyerName || undefined);
+        }
+      })().catch(err => console.warn('Failed to update exchange order links after split', err));
+    }
     if (loanToast) toast.success(loanToast);
     setEditingTradeId(null);
   };
@@ -5557,7 +5586,7 @@ export default function OrdersPage() {
                         // add back up to the original amount.
                         if (splitOpen && editingTrade) {
                           const stays = Number(v) || 0;
-                          const moved = Math.max(0, editingTrade.amountUSDT - stays);
+                          const moved = Math.round(Math.max(0, editingTrade.amountUSDT - stays) * 1e8) / 1e8;
                           setSplitAmount(String(moved));
                         }
                       }}
@@ -5656,7 +5685,7 @@ export default function OrdersPage() {
                                 // merchant can see what stays on this order as they type.
                                 if (editingTrade) {
                                   const moved = Number(v) || 0;
-                                  const remains = Math.max(0, editingTrade.amountUSDT - moved);
+                                  const remains = Math.round(Math.max(0, editingTrade.amountUSDT - moved) * 1e8) / 1e8;
                                   setEditQty(String(remains));
                                 }
                               }}
@@ -5670,7 +5699,7 @@ export default function OrdersPage() {
                             style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                           >
                             <option value="">{t('noCustomerSelected')}</option>
-                            {sortedCustomers.filter(c => c.id !== editCustomerId).map(c => (
+                            {sortedCustomers.filter(c => !customerIdGroup(state.customers, editCustomerId).has(c.id)).map(c => (
                               <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
                             ))}
                           </select>
@@ -5694,7 +5723,7 @@ export default function OrdersPage() {
                         <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('splitSellPriceHint')}</div>
                       </div>
                       <button
-                        onClick={splitEditingTrade}
+                        onClick={saveTradeEdit}
                         style={{ padding: '8px 14px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 11, border: 'none', cursor: 'pointer', width: isMobile ? '100%' : undefined }}
                       >
                         {t('splitOrderButton')}

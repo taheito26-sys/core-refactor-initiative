@@ -76,7 +76,7 @@ describe('splitOrder', () => {
     expect(secondTrade.amountUSDT).toBe(3.33333333);
   });
 
-  it('copies every other field from the original trade onto the new one (rate, date, stock flag, fee)', () => {
+  it('copies every other field from the original trade onto the new one (rate, date, stock flag)', () => {
     const trade = makeTrade({
       ts: 1712345678000,
       sellPriceQAR: 3.91,
@@ -93,7 +93,6 @@ describe('splitOrder', () => {
 
     expect(secondTrade.ts).toBe(trade.ts);
     expect(secondTrade.sellPriceQAR).toBe(trade.sellPriceQAR);
-    expect(secondTrade.feeQAR).toBe(trade.feeQAR);
     expect(secondTrade.usesStock).toBe(trade.usesStock);
     expect(secondTrade.manualBuyPrice).toBe(trade.manualBuyPrice);
   });
@@ -145,6 +144,7 @@ describe('splitOrder', () => {
 
     expect(primaryTrade.note).toBe('Imported from Binance P2P order 999 — split: 300 USDT moved to another customer');
     expect(secondTrade.note).toBe('Imported from Binance P2P order 999 (split from original order)');
+    expect(secondTrade.splitFromTradeId).toBe('trade-1');
   });
 
   it('records a revision history entry on the remainder when splitting an existing (edited) order', () => {
@@ -297,5 +297,55 @@ describe('splitOrder', () => {
     const frozen = JSON.parse(JSON.stringify(trade));
     splitOrder({ trade, splitAmountUsdt: 300, targetCustomerId: 'customer-b', newTradeId: 'trade-2' });
     expect(trade).toEqual(frozen);
+  });
+});
+
+describe('splitOrder: buyer-bound and amount-bound fields', () => {
+  it('shares the fee out pro rata so the halves add back up to the original fee', () => {
+    const trade = makeTrade({ amountUSDT: 1000, feeQAR: 100 });
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade, splitAmountUsdt: 250, targetCustomerId: 'customer-b', newTradeId: 'trade-2',
+    });
+    expect(secondTrade.feeQAR).toBe(25);
+    expect(primaryTrade.feeQAR).toBe(75);
+  });
+
+  it('shares the exchange fiat leg pro rata instead of claiming the full amount on both halves', () => {
+    const trade = makeTrade({ amountUSDT: 100, originalFiat: 'EGP', originalFiatAmount: 5000, importedFrom: 'binance' });
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade, splitAmountUsdt: 40, targetCustomerId: 'customer-b', newTradeId: 'trade-2',
+    });
+    expect(primaryTrade.originalFiatAmount).toBe(3000);
+    expect(secondTrade.originalFiatAmount).toBe(2000);
+  });
+
+  it('does not carry the original buyer\'s portal link, mirror state or partner deal onto the new trade', () => {
+    const trade = makeTrade({
+      buyerType: 'connected_customer',
+      connectedCustomerId: 'portal-user-a',
+      mirrorStatus: 'mirrored',
+      mirrorSignature: 'sig',
+      linkedDealId: 'deal-1',
+      linkedRelId: 'rel-1',
+      approvalStatus: 'approved',
+    });
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade, splitAmountUsdt: 300, targetCustomerId: 'customer-b', newTradeId: 'trade-2',
+    });
+    expect(secondTrade.connectedCustomerId).toBeUndefined();
+    expect(secondTrade.buyerType).toBeUndefined();
+    expect(secondTrade.mirrorStatus).toBeUndefined();
+    expect(secondTrade.mirrorSignature).toBeUndefined();
+    expect(secondTrade.linkedDealId).toBeUndefined();
+    expect(secondTrade.approvalStatus).toBeUndefined();
+    expect(primaryTrade.connectedCustomerId).toBe('portal-user-a');
+  });
+
+  it('records where an edited split-off trade came from', () => {
+    const { secondTrade } = splitOrder({
+      trade: makeTrade(), splitAmountUsdt: 300, targetCustomerId: 'customer-b', newTradeId: 'trade-2',
+    });
+    expect(secondTrade.revisions).toHaveLength(1);
+    expect(secondTrade.revisions[0].splitFromTradeId).toBe('trade-1');
   });
 });

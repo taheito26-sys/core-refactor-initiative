@@ -386,6 +386,8 @@ export interface Trade {
   merchantSettlementAccountId?: string;
   /** Where inventory is held after execution */
   inventoryCustodyMerchantId?: string;
+  /** Id of the trade this one was carved out of by an order split, kept for traceability. */
+  splitFromTradeId?: string;
   /** Set when this trade was imported from a connected exchange, for a visible "already imported" marker. */
   importedFrom?: 'binance' | 'okx';
   /**
