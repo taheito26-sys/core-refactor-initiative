@@ -5811,6 +5811,8 @@ export default function OrdersPage() {
                 const repaid = existingLoan ? getLoanRepaid(existingLoan) : 0;
                 const locked = !!existingLoan && repaid > 0;
                 const owed = Math.max(0, (Number(editQty) || 0) * (Number(editSell) || 0) - (Number(editFee) || 0));
+                const editBuyer = state.customers.find(c => c.id === editCustomerId);
+                const editBuyerName = editBuyer ? resolveCustomerName(editBuyer, t.lang) : '';
                 return (
                   <div style={{
                     marginBottom: 16, padding: 10, borderRadius: 8,
@@ -5830,7 +5832,10 @@ export default function OrdersPage() {
 
                     {editIsLoan && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--t2)', marginTop: 8 }}>
-                        <span>{t('loanEditAmountOwed')}</span>
+                        <span>
+                          {t('loanEditAmountOwed')}
+                          {editBuyerName ? ` — ${editBuyerName}` : ''}
+                        </span>
                         <strong className="mono" style={{ color: 'var(--warn)' }}>{fmtC(owed)}</strong>
                       </div>
                     )}
