@@ -184,3 +184,29 @@ export async function restoreExchangeRecord(record: { source: 'order' | 'transfe
     .eq('id', record.id);
   if (error) throw error;
 }
+
+/**
+ * Asks Binance / OKX directly for one transaction hash (or Pay id) and saves
+ * what it finds into the tracker's exchange history, so a record the rolling
+ * sync never reached becomes searchable and registrable. Returns how many
+ * records were found on that exchange.
+ */
+export async function lookupExchangeReference(exchange: ExchangeId, reference: string): Promise<number> {
+  const { data, error } = await supabase.functions.invoke('exchange-sync', {
+    body: { exchange, action: 'lookup', reference },
+  });
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const body = await context.clone().json();
+        if (body?.error) throw new Error(body.error);
+      } catch (inner) {
+        if (inner instanceof Error && inner.message) throw inner;
+      }
+    }
+    throw error;
+  }
+  if (data?.error) throw new Error(data.error);
+  return Number(data?.found ?? 0);
+}

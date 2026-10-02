@@ -13,6 +13,7 @@ import { buildMerchantStatements, pendingItemToLoanSource, undoLoanMove, type Lo
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
+import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 
 const KIND_META: Record<UsdtTransferKind, { icon: string; label: TranslationKey }> = {
   borrow_in: { icon: '⬇️', label: 'mloanKindBorrowed' },
@@ -228,6 +229,12 @@ export function LoansPanel({
         <div style={{ fontSize: 13, fontWeight: 800 }}>{t('mloanPanelTitle')}</div>
         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanPanelHint')}</div>
       </div>
+
+      <ExchangeReferenceSearch
+        state={state}
+        onMerchantLoan={(hit) => { const item = pending.find((p) => p.key === hit.key); if (item) openLoanFor([item]); }}
+        onManualFix={onManualFix ? (hit) => { const item = pending.find((p) => p.key === hit.key); if (item) onManualFix([item]); } : undefined}
+      />
 
       {/* ── Needs a decision ── */}
       <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>

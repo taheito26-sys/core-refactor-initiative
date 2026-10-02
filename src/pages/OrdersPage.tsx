@@ -28,6 +28,7 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
+import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import { applySplitOffFinancials, getSplitBlockReason } from '@/features/orders/utils/splitOrderFinancials';
 import { SplitOrderPanel, type SplitLegState, type SplitLegHandlers, type SplitPanelOption } from '@/features/orders/components/SplitOrderPanel';
 import {
@@ -3950,6 +3951,8 @@ export default function OrdersPage() {
 
   return (
     <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+
+      <ExchangeReferenceSearch state={state} compact />
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">

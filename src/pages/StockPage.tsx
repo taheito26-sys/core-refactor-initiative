@@ -40,6 +40,7 @@ import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { addOrderLink, dismissExchangeRecord, markTransfersLinked } from '@/features/exchanges/api';
 import { useQueryClient } from '@tanstack/react-query';
+import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import { buildManualFixBatch, planManualFix } from '@/features/stock/manual-fix';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
@@ -993,6 +994,8 @@ export default function StockPage() {
 
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+
+      {activeStockSection !== 'transfers' && <ExchangeReferenceSearch state={state} compact />}
 
       {/* ─── SECTION TAB BAR ─── */}
       <div className="orders-tab-bar">

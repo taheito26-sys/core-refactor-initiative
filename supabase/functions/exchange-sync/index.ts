@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 type Exchange = "binance" | "okx";
-type SyncAction = "balances" | "p2p-orders" | "transfers" | "all";
+type SyncAction = "balances" | "p2p-orders" | "transfers" | "lookup" | "all";
 
 /** USDT moving in/out by means other than a P2P order (Pay / on-chain). */
 interface TransferRow {
@@ -409,6 +409,142 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
   return { rows: rows.filter((r) => r.reference), failures };
 }
 
+// ── Looking up one transfer by its hash ───────────────────────────────────
+//
+// The rolling sync only reaches back 90 days and only the first page of each
+// history, so a transaction the merchant is chasing may simply not have been
+// pulled yet. This asks the exchange for that one reference directly,
+// scanning back a year in 90-day windows where the API has no hash filter.
+
+const LOOKUP_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+const LOOKUP_WINDOWS = 4;
+
+// Compared without case, but the original case is what is sent to the exchange: some chains (Solana) have case-sensitive hashes.
+const sameRef = (a: unknown, b: string) => String(a ?? "").trim().toLowerCase() === b.toLowerCase();
+
+async function lookupBinanceTransfer(creds: Credentials, ref: string): Promise<{ rows: TransferRow[]; failures: string[] }> {
+  const rows: TransferRow[] = [];
+  const failures: string[] = [];
+  const now = Date.now();
+
+  const onChain: { path: string; direction: "in" | "out"; timeKey: string; useTxId: boolean }[] = [
+    { path: "/sapi/v1/capital/deposit/hisrec", direction: "in", timeKey: "insertTime", useTxId: true },
+    { path: "/sapi/v1/capital/withdraw/history", direction: "out", timeKey: "applyTime", useTxId: false },
+  ];
+  for (const src of onChain) {
+    try {
+      for (let w = 0; w < LOOKUP_WINDOWS && !rows.some((r) => r.direction === src.direction); w++) {
+        const endTime = now - w * LOOKUP_WINDOW_MS;
+        const params: Record<string, string | number> = { startTime: endTime - LOOKUP_WINDOW_MS, endTime, limit: 1000 };
+        if (src.useTxId) params.txId = ref;
+        const list = await binanceSignedRequest(creds, src.path, params);
+        for (const d of Array.isArray(list) ? list : []) {
+          if (!sameRef(d.txId, ref) && !sameRef(d.id, ref)) continue;
+          if (d.coin !== TRACKED_ASSET) continue;
+          const raw = d[src.timeKey];
+          const ms = typeof raw === "number" ? raw : Date.parse(raw ?? "");
+          rows.push({
+            kind: "network", direction: src.direction, asset: d.coin, amount: parseFloat(d.amount ?? "0"),
+            status: String(d.status ?? ""), reference: String(d.txId || d.id), counterparty: d.address ?? null,
+            network: d.network ?? null, transfer_time: Number.isFinite(ms) ? new Date(ms).toISOString() : null, raw: d,
+          });
+        }
+      }
+    } catch (err) {
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${errMsg(err)}`);
+    }
+  }
+
+  try {
+    for (let w = 0; w < LOOKUP_WINDOWS && !rows.some((r) => r.kind === "pay"); w++) {
+      const endTimestamp = now - w * LOOKUP_WINDOW_MS;
+      const pay = await binanceSignedRequest(creds, "/sapi/v1/pay/transactions", {
+        startTimestamp: endTimestamp - LOOKUP_WINDOW_MS, endTimestamp, limit: 100,
+      });
+      for (const p of pay.data ?? []) {
+        if (p.currency !== TRACKED_ASSET) continue;
+        if (!sameRef(p.transactionId, ref) && !sameRef(p.orderId, ref)) continue;
+        const amount = parseFloat(p.amount ?? "0");
+        rows.push({
+          kind: "pay", direction: amount < 0 ? "out" : "in", asset: p.currency, amount: Math.abs(amount),
+          status: String(p.orderStatus ?? "SUCCESS"), reference: String(p.transactionId ?? p.orderId),
+          counterparty: p.payerInfo?.name ?? p.receiverInfo?.name ?? null, network: null,
+          transfer_time: p.transactionTime ? new Date(Number(p.transactionTime)).toISOString() : null, raw: p,
+        });
+      }
+    }
+  } catch (err) {
+    failures.push(`pay: ${errMsg(err)}`);
+  }
+  return { rows, failures };
+}
+
+async function lookupOkxTransfer(creds: Credentials, ref: string): Promise<{ rows: TransferRow[]; failures: string[] }> {
+  const rows: TransferRow[] = [];
+  const failures: string[] = [];
+  const sources: { path: string; direction: "in" | "out" }[] = [
+    { path: `/api/v5/asset/deposit-history?txId=${encodeURIComponent(ref)}&limit=100`, direction: "in" },
+    { path: `/api/v5/asset/withdrawal-history?txId=${encodeURIComponent(ref)}&limit=100`, direction: "out" },
+  ];
+  for (const src of sources) {
+    try {
+      const json = await okxSignedRequest(creds, src.path);
+      for (const d of json.data ?? []) {
+        if (d.ccy !== TRACKED_ASSET) continue;
+        rows.push({
+          kind: "network", direction: src.direction, asset: d.ccy, amount: parseFloat(d.amt ?? "0"), status: String(d.state ?? ""),
+          reference: String(d.txId || d.wdId || d.depId || ""), counterparty: (src.direction === "in" ? d.from : d.to) ?? null,
+          network: d.chain ?? null, transfer_time: d.ts ? new Date(Number(d.ts)).toISOString() : null, raw: d,
+        });
+      }
+    } catch (err) {
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${errMsg(err)}`);
+    }
+  }
+  try {
+    const bills = await okxSignedRequest(creds, `/api/v5/asset/bills?ccy=${TRACKED_ASSET}&limit=100`);
+    for (const b of bills.data ?? []) {
+      if (b.type === "1" || b.type === "2" || !sameRef(b.billId, ref)) continue;
+      const balChg = parseFloat(b.balChg ?? "0");
+      if (balChg === 0) continue;
+      rows.push({
+        kind: "pay", direction: balChg > 0 ? "in" : "out", asset: b.ccy, amount: Math.abs(balChg), status: "completed",
+        reference: String(b.billId), counterparty: null, network: null,
+        transfer_time: b.ts ? new Date(Number(b.ts)).toISOString() : null, raw: b,
+      });
+    }
+  } catch (err) {
+    failures.push(`internal transfers: ${errMsg(err)}`);
+  }
+  return { rows: rows.filter((r) => r.reference), failures };
+}
+
+async function upsertTransferRows(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  userId: string,
+  exchange: Exchange,
+  rawTransfers: TransferRow[],
+): Promise<number> {
+  // Postgres rejects an upsert batch that hits the same conflict target
+  // (user_id, exchange, kind, direction, reference) twice in one command,
+  // so dedupe on that key first.
+  const transferByKey = new Map<string, TransferRow>();
+  for (const tr of rawTransfers) transferByKey.set(`${tr.kind}|${tr.direction}|${tr.reference}`, tr);
+  const transfers = Array.from(transferByKey.values());
+  if (transfers.length === 0) return 0;
+  const { error } = await admin.from("exchange_transfers").upsert(
+    transfers.map((tr) => ({
+      user_id: userId, exchange, kind: tr.kind, direction: tr.direction, asset: tr.asset, amount: tr.amount,
+      status: tr.status, reference: tr.reference, counterparty: tr.counterparty, network: tr.network,
+      transfer_time: tr.transfer_time, raw: tr.raw,
+    })),
+    { onConflict: "user_id,exchange,kind,direction,reference", ignoreDuplicates: false },
+  );
+  if (error) throw error;
+  return transfers.length;
+}
+
 async function fetchOkxP2POrders(creds: Credentials) {
   const orders: {
     order_number: string;
@@ -526,6 +662,23 @@ Deno.serve(async (req: Request) => {
       api_secret: credRow.api_secret,
       passphrase: credRow.passphrase,
     };
+
+    if (action === "lookup") {
+      const reference = String(body.reference ?? "").trim();
+      if (reference.length < 6) {
+        return new Response(JSON.stringify({ error: "Reference is too short" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { rows, failures } = exchange === "binance"
+        ? await lookupBinanceTransfer(creds, reference)
+        : await lookupOkxTransfer(creds, reference);
+      const found = await upsertTransferRows(admin, userId, exchange, rows);
+      return new Response(JSON.stringify({ ok: true, found, errors: failures.length ? failures : undefined }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const summary: Record<string, number> = {};
     const errors: Record<string, string> = {};
