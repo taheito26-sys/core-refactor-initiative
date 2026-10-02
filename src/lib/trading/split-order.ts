@@ -8,6 +8,19 @@ export interface SplitOrderInput {
   atRegistration?: boolean;
   /** Sell price for the split-off portion, when it differs from the original order's rate. Defaults to `trade.sellPriceQAR`. */
   secondSellPriceQAR?: number;
+  /**
+   * Divide the fee and the exchange's fiat total between the halves in
+   * proportion to quantity instead of copying them onto both. The two-customer
+   * split window turns this on; it is off by default so existing callers keep
+   * their behaviour.
+   */
+  proportionalAllocation?: boolean;
+  /**
+   * The second buyer's portal account. When provided (including null, meaning
+   * none), the second trade carries it instead of inheriting the original
+   * buyer's connected-customer stamp, which belongs to someone else.
+   */
+  secondPortalUserId?: string | null;
 }
 
 export interface SplitOrderResult {
@@ -50,6 +63,8 @@ export function splitOrder({
   newTradeId,
   atRegistration = false,
   secondSellPriceQAR,
+  proportionalAllocation = false,
+  secondPortalUserId,
 }: SplitOrderInput): SplitOrderResult {
   const error = validateSplitOrder(splitAmountUsdt, trade.amountUSDT, targetCustomerId);
   if (error) {
@@ -85,8 +100,26 @@ export function splitOrder({
         ].slice(0, 20),
   };
 
+  const secondShare = splitAmountUsdt / trade.amountUSDT;
+  const scale = (value: number | undefined, share: number) =>
+    value == null ? value : Math.round(value * share * 100) / 100;
+  const allocation: Partial<Trade> = proportionalAllocation
+    ? {
+        feeQAR: scale(trade.feeQAR, secondShare) ?? 0,
+        ...(trade.originalFiatAmount != null ? { originalFiatAmount: scale(trade.originalFiatAmount, secondShare) } : {}),
+      }
+    : {};
+  if (proportionalAllocation) {
+    const secondFee = scale(trade.feeQAR, secondShare) ?? 0;
+    primaryTrade.feeQAR = Math.round(((trade.feeQAR || 0) - secondFee) * 100) / 100;
+    if (trade.originalFiatAmount != null) {
+      primaryTrade.originalFiatAmount = Math.round((trade.originalFiatAmount - (allocation.originalFiatAmount as number)) * 100) / 100;
+    }
+  }
+
   const secondTrade: Trade = {
     ...trade,
+    ...allocation,
     id: newTradeId,
     amountUSDT: splitAmountUsdt,
     customerId: targetCustomerId,
@@ -94,6 +127,16 @@ export function splitOrder({
     note: trade.note ? `${trade.note} (split from original order)` : 'Split from original order',
     revisions: [],
   };
+
+  if (secondPortalUserId !== undefined) {
+    if (secondPortalUserId) {
+      secondTrade.buyerType = 'connected_customer';
+      secondTrade.connectedCustomerId = secondPortalUserId;
+    } else {
+      delete secondTrade.buyerType;
+      delete secondTrade.connectedCustomerId;
+    }
+  }
 
   return { primaryTrade, secondTrade };
 }

@@ -299,3 +299,43 @@ describe('splitOrder', () => {
     expect(trade).toEqual(frozen);
   });
 });
+
+describe('splitOrder: opt-in allocation', () => {
+  const base = {
+    id: 't1', ts: 1, inputMode: 'USDT' as const, amountUSDT: 100, sellPriceQAR: 3.7, feeQAR: 10,
+    note: '', voided: false, usesStock: true, revisions: [], customerId: 'a',
+    originalFiat: 'EGP', originalFiatAmount: 5000, originalFiatPriceUSDT: 50,
+  };
+
+  it('divides the fee and exchange fiat total by quantity, and the halves sum to the original', () => {
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade: base as never, splitAmountUsdt: 40, targetCustomerId: 'b', newTradeId: 'n', proportionalAllocation: true,
+    });
+    expect(primaryTrade.feeQAR + secondTrade.feeQAR).toBeCloseTo(10, 2);
+    expect(secondTrade.feeQAR).toBeCloseTo(4, 2);
+    expect(primaryTrade.originalFiatAmount! + secondTrade.originalFiatAmount!).toBeCloseTo(5000, 2);
+    expect(secondTrade.originalFiatAmount).toBeCloseTo(2000, 2);
+    expect(secondTrade.originalFiatPriceUSDT).toBe(50);
+  });
+
+  it('is off by default, so existing callers still get the copied values', () => {
+    const { primaryTrade, secondTrade } = splitOrder({
+      trade: base as never, splitAmountUsdt: 40, targetCustomerId: 'b', newTradeId: 'n',
+    });
+    expect(primaryTrade.feeQAR).toBe(10);
+    expect(secondTrade.feeQAR).toBe(10);
+    expect(secondTrade.originalFiatAmount).toBe(5000);
+  });
+
+  it('gives the second trade its own portal stamp instead of the original buyer\'s', () => {
+    const stamped = { ...base, buyerType: 'connected_customer' as const, connectedCustomerId: 'portal-a' };
+    const withNone = splitOrder({ trade: stamped as never, splitAmountUsdt: 40, targetCustomerId: 'b', newTradeId: 'n', secondPortalUserId: null });
+    expect(withNone.secondTrade.connectedCustomerId).toBeUndefined();
+    expect(withNone.secondTrade.buyerType).toBeUndefined();
+    expect(withNone.primaryTrade.connectedCustomerId).toBe('portal-a');
+    const withOwn = splitOrder({ trade: stamped as never, splitAmountUsdt: 40, targetCustomerId: 'b', newTradeId: 'n', secondPortalUserId: 'portal-b' });
+    expect(withOwn.secondTrade.connectedCustomerId).toBe('portal-b');
+    const legacy = splitOrder({ trade: stamped as never, splitAmountUsdt: 40, targetCustomerId: 'b', newTradeId: 'n' });
+    expect(legacy.secondTrade.connectedCustomerId).toBe('portal-a');
+  });
+});
