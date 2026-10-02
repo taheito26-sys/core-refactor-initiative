@@ -124,7 +124,7 @@
   #root {
     width: 100%;
     max-width: none;
-    min-height: 100dvh;
+    min-height: calc(100dvh / var(--app-zoom, 1));
   }
 
   * {
@@ -180,6 +180,10 @@ select:focus {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
+
+html .app-shell {
+  height: calc(100dvh / var(--app-zoom, 1));
+}
 
 .app-shell {
   width: 100%;

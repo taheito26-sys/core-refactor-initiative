@@ -2,6 +2,9 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { applyZoom, getStoredZoom } from "./lib/app-zoom";
+
+applyZoom(getStoredZoom());
 
 const BUILD_STORAGE_KEY = "__app_build_id__";
 const BUILD_RELOAD_GUARD_KEY = "__app_build_reload_guard__";

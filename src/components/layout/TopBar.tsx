@@ -6,6 +6,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
+import { applyZoom, getStoredZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from '@/lib/app-zoom';
 import { UserProfileModal } from '@/features/profile/UserProfileModal';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
@@ -43,32 +44,14 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
   const [profileOpen, setProfileOpen] = useState(false);
-  const zoomLevel = useMemo(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('app-zoom-level') : null;
-    return stored ? parseFloat(stored) : 1;
-  }, []);
+  const [zoomLevel, setZoomLevel] = useState<number>(() => getStoredZoom());
 
   useEffect(() => {
-    const html = document.documentElement;
-
-    // Use native CSS zoom for proper scaling of all elements
-    html.style.zoom = String(zoomLevel);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('app-zoom-level', String(zoomLevel));
-    }
+    applyZoom(zoomLevel);
   }, [zoomLevel]);
 
   const handleZoom = (direction: 'in' | 'out') => {
-    const step = 0.1;
-    const min = 0.8;
-    const max = 1.5;
-    let newZoom = direction === 'in' ? zoomLevel + step : zoomLevel - step;
-    newZoom = Math.max(min, Math.min(max, newZoom));
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('app-zoom-level', String(newZoom));
-      window.location.reload();
-    }
+    setZoomLevel((z) => applyZoom(direction === 'in' ? z + ZOOM_STEP : z - ZOOM_STEP));
   };
 
   return (
@@ -157,7 +140,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
           onClick={() => handleZoom('out')}
           title="Zoom out"
           className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
-          disabled={zoomLevel <= 0.8}
+          disabled={zoomLevel <= ZOOM_MIN}
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -168,7 +151,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
           onClick={() => handleZoom('in')}
           title="Zoom in"
           className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
-          disabled={zoomLevel >= 1.5}
+          disabled={zoomLevel >= ZOOM_MAX}
         >
           <ZoomIn className="h-4 w-4" />
         </button>
