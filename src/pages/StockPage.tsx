@@ -995,7 +995,7 @@ export default function StockPage() {
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
-      {activeStockSection !== 'transfers' && <ExchangeReferenceSearch state={state} compact />}
+      {activeStockSection !== 'transfers' && <ExchangeReferenceSearch state={state} scope="stock" compact />}
 
       {/* ─── SECTION TAB BAR ─── */}
       <div className="orders-tab-bar">

@@ -52,6 +52,8 @@ export interface ExchangeP2POrder {
   dismissed_at?: string | null;
   dismiss_reason?: ExchangeDismissReason | null;
   dismiss_note?: string | null;
+  /** The exchange's own record, exactly as returned. */
+  raw?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -86,5 +88,7 @@ export interface ExchangeTransfer {
   dismissed_at: string | null;
   dismiss_reason?: ExchangeDismissReason | null;
   dismiss_note?: string | null;
+  /** The exchange's own record, exactly as returned. */
+  raw?: Record<string, unknown> | null;
   created_at: string;
 }

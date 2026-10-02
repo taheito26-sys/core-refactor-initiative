@@ -734,6 +734,9 @@ const translations = {
   refLookupFound: { en: 'Found and saved to your exchange history', ar: 'تم العثور عليها وحفظها في سجل المنصة' },
   refLookupNone: { en: 'Neither exchange has a record of it', ar: 'لا يوجد لها سجل في أي من المنصتين' },
   refLookupFailed: { en: 'Lookup failed', ar: 'فشل البحث' },
+  refAllDetails: { en: 'Everything the exchange reported', ar: 'كل ما أبلغت به المنصة' },
+  refHiddenSent: { en: '{count} more match(es) are sent records or sales — search them on the Orders page.', ar: 'يوجد {count} نتيجة أخرى مرسلة أو مبيعات — ابحث عنها في صفحة الطلبات.' },
+  refHiddenReceived: { en: '{count} more match(es) are received records or stock — search them on the Stock page.', ar: 'يوجد {count} نتيجة أخرى مستلمة أو مخزون — ابحث عنها في صفحة المخزون.' },
   mloanDecideThese: { en: 'Decide these in Loans', ar: 'قرّر بشأنها في القروض' },
   mloanImportPurchaseHint: { en: 'Import it from the exchange list in the Add batch form.', ar: 'استورده من قائمة المنصات في نموذج إضافة دفعة.' },
 

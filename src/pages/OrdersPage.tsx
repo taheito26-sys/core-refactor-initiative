@@ -3952,7 +3952,7 @@ export default function OrdersPage() {
   return (
     <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
-      <ExchangeReferenceSearch state={state} compact />
+      <ExchangeReferenceSearch state={state} scope="orders" compact />
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeReferenceQuery, searchReferences } from '@/features/exchanges/reference-search';
+import { describeRaw, normalizeReferenceQuery, searchReferences } from '@/features/exchanges/reference-search';
 import type { ExchangeP2POrder, ExchangeTransfer } from '@/features/exchanges/types';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
@@ -58,6 +58,38 @@ describe('searchReferences', () => {
   });
 
   it('does not search on a query too short to be a reference', () => {
-    expect(searchReferences({ query: '0xf2', orders: [], transfers: [transfer()], state: state() })).toEqual({ exchange: [], tracker: [] });
+    expect(searchReferences({ query: '0xf2', orders: [], transfers: [transfer()], state: state() })).toEqual({ exchange: [], tracker: [], hiddenByScope: 0 });
+  });
+
+  it('keeps received records on the stock page and sent ones on the orders page, and says what it left out', () => {
+    const inbound = transfer({ id: 'in', reference: `${HASH}a`, direction: 'in' });
+    const outbound = transfer({ id: 'out', reference: `${HASH}b`, direction: 'out' });
+    const stock = searchReferences({ query: HASH, orders: [], transfers: [inbound, outbound], state: state(), scope: 'stock' });
+    expect(stock.exchange.map(h => h.id)).toEqual(['in']);
+    expect(stock.hiddenByScope).toBe(1);
+    const sent = searchReferences({ query: HASH, orders: [], transfers: [inbound, outbound], state: state(), scope: 'orders' });
+    expect(sent.exchange.map(h => h.id)).toEqual(['out']);
+    expect(searchReferences({ query: HASH, orders: [], transfers: [inbound, outbound], state: state() }).exchange).toHaveLength(2);
+  });
+
+  it('does not list a batch on the orders page, or an order on the stock page', () => {
+    const batch = { id: 'b1', ts: 1, source: 'S', note: `tx ${HASH}`, buyPriceQAR: 3.7, initialUSDT: 5, revisions: [] };
+    const trade = { id: 'tr1', ts: 1, inputMode: 'USDT', amountUSDT: 5, sellPriceQAR: 3.8, feeQAR: 0, note: `tx ${HASH}`, voided: false, usesStock: true, revisions: [], customerId: '' };
+    const st = state({ batches: [batch], trades: [trade] } as never);
+    expect(searchReferences({ query: HASH, orders: [], transfers: [], state: st, scope: 'stock' }).tracker.map(h => h.kind)).toEqual(['batch']);
+    expect(searchReferences({ query: HASH, orders: [], transfers: [], state: st, scope: 'orders' }).tracker.map(h => h.kind)).toEqual(['trade']);
+  });
+
+  it('returns every field the exchange reported, and the batch it was registered as in full', () => {
+    const batch = { id: 'b1', ts: 1, source: 'Supplier', note: 'n', buyPriceQAR: 3.7, initialUSDT: 1999, revisions: [] };
+    const r = searchReferences({
+      query: HASH, orders: [],
+      transfers: [transfer({ raw: { txId: HASH, transactionFee: '1', insertTime: 1759140000000, empty: '', nested: { a: 1 } }, linked_at: 'x', linked_entity_id: 'b1', linked_entity_type: 'batch' })],
+      state: state({ batches: [batch] as never }),
+    });
+    const labels = r.exchange[0].details.map(d => d.label);
+    expect(labels).toEqual(['txId', 'transactionFee', 'insertTime', 'nested']);
+    expect(r.exchange[0].linked?.details.find(d => d.label === 'Cost (QAR/USDT)')?.value).toBe('3.7');
+    expect(describeRaw(null)).toEqual([]);
   });
 });
