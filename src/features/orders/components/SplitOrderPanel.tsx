@@ -51,9 +51,6 @@ export interface SplitCashAccount {
 interface Props {
   t: (key: TranslationKey) => string;
   total: number;
-  /** When provided, the order total is editable in the header (a new sale); omitted when it is fixed (editing a saved trade). */
-  onTotalChange?: (value: string) => void;
-  totalText?: string;
   /**
    * USDT of the same order already registered elsewhere (a partly registered
    * exchange order). The two customers share only what is left, but the
@@ -304,7 +301,7 @@ function LegCard({ index, t, leg, handlers, options, excludeId, accounts, feeSha
 }
 
 export function SplitOrderPanel({
-  t, total, onTotalChange, totalText, registeredUsdt = 0, fee, legs, handlers, options, cashAccounts, fmtMoney, fmtQty, currencyLabel, isMobile, error, onEven, onSwap, children,
+  t, total, registeredUsdt = 0, fee, legs, handlers, options, cashAccounts, fmtMoney, fmtQty, currencyLabel, isMobile, error, onEven, onSwap, children,
 }: Props) {
   const qtyA = Number(legs[0].qty) || 0;
   const qtyB = Number(legs[1].qty) || 0;
@@ -337,21 +334,9 @@ export function SplitOrderPanel({
               </div>
             </div>
           )}
-          {onTotalChange ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
-              <span>{registeredUsdt > 0 ? t('splitToAllocate') : t('splitOrderTotal')}</span>
-              <input
-                inputMode="decimal" value={totalText ?? ''} placeholder="0"
-                onChange={e => { if (numeric(e.target.value)) onTotalChange(e.target.value); }}
-                style={{ ...inputStyle(isMobile), width: isMobile ? 130 : 110, minHeight: isMobile ? 40 : 30, padding: '4px 8px', fontWeight: 800 }}
-              />
-              <span>USDT</span>
-            </div>
-          ) : (
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
               {registeredUsdt > 0 ? t('splitToAllocate') : t('splitOrderTotal')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtQty(total)} USDT</strong>
-            </div>
-          )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button type="button" style={button} onClick={onEven}>{t('splitEvenButton')}</button>

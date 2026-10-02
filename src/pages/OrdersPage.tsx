@@ -194,6 +194,8 @@ export default function OrdersPage() {
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
         /** USDT of this exchange order already registered under other trades. */
         registeredUsdt?: number;
+        /** USDT of this order still to register, which is exactly what a split must allocate. */
+        remainingUsdt?: number;
       }
     | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
@@ -253,6 +255,7 @@ export default function OrdersPage() {
       originalFiatAmount: originalTotalFiat,
       originalFiatPriceUSDT: prefill.originalPriceFiat,
       registeredUsdt,
+      remainingUsdt: prefill.amountUSDT,
       note: buildImportNote({
         exchange: prefill.exchange,
         orderNumber: prefill.orderNumber,
@@ -1432,7 +1435,11 @@ export default function OrdersPage() {
       resetNewSaleSplit();
       return;
     }
-    const anchor = saleDraft.quantityUsdt || 0;
+    // A split always allocates exactly the order's own USDT: for an exchange
+    // order that is what is still unregistered, whatever the quantity field
+    // currently says.
+    const importedRemaining = pendingImport?.kind === 'order' ? pendingImport.remainingUsdt ?? 0 : 0;
+    const anchor = importedRemaining > 0 ? importedRemaining : saleDraft.quantityUsdt || 0;
     const price = saleDraft.sellPriceQar || 0;
     // A total-received or markup entry derives the price from the quantity,
     // so halving the quantity would silently change the price. Fix the price
@@ -1507,12 +1514,6 @@ export default function OrdersPage() {
     },
     onCashAmount: setNewSaleSplitCashAmount,
     onCashAccount: setNewSaleSplitCashAccountId,
-  };
-  const changeSplitTotal = (value: string) => {
-    const total = Number(value) || 0;
-    const b = Math.min(splitQtyBNum, total);
-    setNewSaleSplitAnchorTotal(total);
-    setSplitHalves(otherHalf(total, String(b)), b > 0 ? String(b) : '');
   };
   const evenNewSaleSplit = () => {
     const [a, b] = evenSplit(newSaleSplitAnchorTotal);
@@ -4877,9 +4878,7 @@ export default function OrdersPage() {
                       <SplitOrderPanel
                         t={t}
                         total={newSaleSplitAnchorTotal}
-                        totalText={formatQty(newSaleSplitAnchorTotal)}
                         registeredUsdt={pendingImport?.kind === 'order' ? pendingImport.registeredUsdt ?? 0 : 0}
-                        onTotalChange={changeSplitTotal}
                         fee={Number(saleFee) || 0}
                         legs={[splitLegA, splitLegB]}
                         handlers={[splitHandlerA, splitHandlerB]}

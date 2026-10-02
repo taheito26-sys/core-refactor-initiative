@@ -107,4 +107,10 @@ describe('SplitOrderPanel', () => {
     expect(screen.getByText('−1802 USDT')).toBeTruthy();
     expect(screen.getByText(/splitToAllocate/)).toBeTruthy();
   });
+
+  it('has no editable order total: the only inputs are each half\'s customer, quantity and price', () => {
+    setup({ registered: 1802, total: 2950.85 });
+    expect(screen.getAllByRole('textbox')).toHaveLength(6);
+    expect(screen.getByText(/splitToAllocate/)).toBeTruthy();
+  });
 });
