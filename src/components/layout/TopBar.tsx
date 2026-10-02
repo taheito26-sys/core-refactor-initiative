@@ -56,7 +56,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
   return (
     <header
-      className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden max-md:[&>*]:shrink-0 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5"
+      className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 max-md:flex-wrap max-md:justify-start border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5"
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -90,7 +90,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
       {/* ── Currency Toggle ── */}
       <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
-        {(['QAR', 'EGP', 'USDT'] as const).map(c => (
+        {(['QAR', 'USDT'] as const).map(c => (
           <button
             key={c}
             onClick={() => update({ currency: c, ...(c !== 'USDT' ? { baseFiatCurrency: c } : {}) })}
