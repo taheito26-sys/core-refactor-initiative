@@ -56,7 +56,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
   return (
     <header
-      className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5"
+      className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden max-md:[&>*]:shrink-0 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5"
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -64,7 +64,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       } : undefined}
     >
       {isMobile && onMenuClick && (
-        <button onClick={onMenuClick} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+        <button onClick={onMenuClick} className="order-[-2] p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
           <Menu className="h-4 w-4" />
         </button>
       )}
@@ -158,7 +158,9 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       </div>
 
       {/* ── Activity ── */}
-      <ActivityCenter />
+      <div className="max-md:order-[-1] shrink-0">
+        <ActivityCenter />
+      </div>
 
       {/* ── Spacer ── */}
       <div className="flex-1" />
