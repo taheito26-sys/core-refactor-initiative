@@ -945,6 +945,10 @@ export default function CustomerOrdersPage() {
     return { totalDebt, totalPaid, outstanding, currency };
   }, [historyStatements]);
 
+  // Loan-only UI (debt tiles, repayment bars, settled counts, per-order
+  // repayment) is hidden for a buyer with no loaned order at all.
+  const hasLoans = useMemo(() => historyOrders.some(o => o.loaned), [historyOrders]);
+
   // Repayment progress — month-scoped (from the currently filtered orders)
   // and all-time (from debtKpi's running totals), plus a couple of
   // secondary stats a buyer can act on: how many of their orders are fully
@@ -1828,6 +1832,8 @@ export default function CustomerOrdersPage() {
               </div>
             ))}
           </div>
+          {hasLoans && (
+            <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
             {[
               { label: `${L('Total Debt', 'إجمالي المديونية')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalDebt).toLocaleString() },
@@ -1904,6 +1910,8 @@ export default function CustomerOrdersPage() {
               </div>
             </div>
           </div>
+            </>
+          )}
 
           {isMobile ? (
             <div>
@@ -1913,7 +1921,7 @@ export default function CustomerOrdersPage() {
                   <div
                     key={`${o.key}-${i}`}
                     className="panel"
-                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...((o.loaned || o.sale) ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
+                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -1931,7 +1939,24 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {(o.loaned || o.sale) && o.loanAmount != null && (
+                    {(o.fiatPrice != null || (o.qarToEgpRate != null && o.qarToEgpRate > 0)) && (
+                      <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 10 }}>
+                        {o.fiatPrice != null && (
+                          <span>
+                            <span style={{ color: 'var(--muted)' }}>{L('EGP price', 'سعر البيع')}: </span>
+                            <span className="mono" style={{ fontWeight: 700 }}>{o.fiatPrice.toFixed(2)}</span>
+                          </span>
+                        )}
+                        {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
+                          <span>
+                            <span style={{ color: 'var(--muted)' }}>{L('QAR → EGP', 'ريال → جنيه')}: </span>
+                            <span className="mono" style={{ fontWeight: 700 }}>{o.qarToEgpRate.toFixed(2)}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {o.loaned && o.loanAmount != null && (
                       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
@@ -1940,20 +1965,6 @@ export default function CustomerOrdersPage() {
                           <div className="prog" style={{ height: 8, maxWidth: 'none' }}>
                             <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
                           </div>
-                          {o.fiatPrice != null && (
-                            <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10 }}>
-                              <span>
-                                <span style={{ color: 'var(--muted)' }}>{L('EGP price', 'سعر البيع')}: </span>
-                                <span className="mono" style={{ fontWeight: 700 }}>{o.fiatPrice.toFixed(2)}</span>
-                              </span>
-                              {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
-                                <span>
-                                  <span style={{ color: 'var(--muted)' }}>{L('QAR → EGP', 'ريال → جنيه')}: </span>
-                                  <span className="mono" style={{ fontWeight: 700 }}>{o.qarToEgpRate.toFixed(2)}</span>
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
                         <span
                           className="mono"
@@ -1981,7 +1992,7 @@ export default function CustomerOrdersPage() {
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
                     <th className="r">{L('EGP price', 'سعر البيع')}</th>
                     <th className="r">{L('QAR → EGP', 'ريال → جنيه')}</th>
-                    <th>{L('Repayment', 'السداد')}</th>
+                    {hasLoans && <th>{L('Repayment', 'السداد')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -2004,27 +2015,29 @@ export default function CustomerOrdersPage() {
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {o.qarToEgpRate != null && o.qarToEgpRate > 0 ? o.qarToEgpRate.toFixed(2) : '—'}
                         </td>
-                        <td>
-                          {(o.loaned || o.sale) && o.loanAmount != null && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
-                              <div style={{ flex: 1 }}>
-                                <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
-                                  <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                        {hasLoans && (
+                          <td>
+                            {o.loaned && o.loanAmount != null && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 170 }}>
+                                <div style={{ flex: 1 }}>
+                                  <div className="prog" style={{ height: 7, maxWidth: 'none' }}>
+                                    <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
+                                  </div>
                                 </div>
+                                <span
+                                  className="mono"
+                                  style={{
+                                    flexShrink: 0, fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                                    color: o.settled ? 'var(--good)' : 'var(--warn)',
+                                    background: o.settled ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'color-mix(in srgb, var(--warn) 12%, transparent)',
+                                  }}
+                                >
+                                  {settledPct ?? 0}%
+                                </span>
                               </div>
-                              <span
-                                className="mono"
-                                style={{
-                                  flexShrink: 0, fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-                                  color: o.settled ? 'var(--good)' : 'var(--warn)',
-                                  background: o.settled ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'color-mix(in srgb, var(--warn) 12%, transparent)',
-                                }}
-                              >
-                                {settledPct ?? 0}%
-                              </span>
-                            </div>
-                          )}
-                        </td>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
