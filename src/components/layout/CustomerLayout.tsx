@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNotifications } from '@/hooks/useNotifications';
 import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
 import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import '@/styles/tracker.css';
@@ -31,6 +32,7 @@ export function CustomerLayout() {
   const { logout, customerProfile } = useAuth();
   const { settings, update } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { unreadCount } = useNotifications();
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   useEffect(() => {
@@ -79,6 +81,9 @@ export function CustomerLayout() {
           <button key={item.path} onClick={() => go(item.path)} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', isActive(item.path) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
             <item.icon className="h-4 w-4 shrink-0" />
             <span className="truncate">{item[lang]}</span>
+            {item.path === '/c/notifications' && unreadCount > 0 && (
+              <span className="ms-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
+            )}
           </button>
         ))}
       </nav>
@@ -109,7 +114,7 @@ export function CustomerLayout() {
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
-          <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(currentDateTime, isRTL)}</span>
+          <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(currentDateTime, isRTL)}</span>
           <CustomerActivityCenter />
           {isMobile && (
             <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
@@ -164,7 +169,10 @@ export function CustomerLayout() {
               );
             })}
             <button onClick={() => setDrawerOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold text-muted-foreground">
-              <Menu className="h-[18px] w-[18px]" />
+              <span className="relative">
+                <Menu className="h-[18px] w-[18px]" />
+                {unreadCount > 0 && <span className="absolute -end-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />}
+              </span>
               <span>{isRTL ? 'المزيد' : 'More'}</span>
             </button>
           </nav>
