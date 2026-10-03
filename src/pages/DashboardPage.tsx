@@ -36,55 +36,6 @@ interface DashboardPageProps {
   isAdminView?: boolean;
 }
 
-// ─── Month-over-month KPI card ───
-interface MonthComparisonCardProps {
-  title: string;
-  currentLabel: string;
-  previousLabel: string;
-  current: number;
-  previous: number;
-  format: (n: number) => string;
-  signed?: boolean;
-}
-
-function MonthComparisonCard({ title, currentLabel, previousLabel, current, previous, format, signed }: MonthComparisonCardProps) {
-  const tone = (v: number) => (signed ? (v >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--t1)');
-  const sign = (v: number) => (signed && v >= 0 ? '+' : '');
-  const change = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : null;
-  const up = (change ?? 0) >= 0;
-  return (
-    <div className="kpi-band">
-      <div className="kpi-band-title">{title}</div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <div className="kpi-period">{currentLabel}</div>
-          <div className="mono" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, color: tone(current) }}>
-            {sign(current)}{format(current)}
-          </div>
-          {change !== null && (
-            <div
-              className="mono"
-              style={{
-                display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
-                color: up ? 'var(--good)' : 'var(--bad)',
-                background: `color-mix(in srgb, ${up ? 'var(--good)' : 'var(--bad)'} 12%, transparent)`,
-              }}
-            >
-              {up ? '▲' : '▼'} {Math.abs(change).toFixed(0)}%
-            </div>
-          )}
-        </div>
-        <div style={{ textAlign: 'end' }}>
-          <div className="kpi-period">{previousLabel}</div>
-          <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--muted)' }}>
-            {sign(previous)}{format(previous)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardPage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView }: DashboardPageProps = {}) {
   const { settings } = useTheme();
   const t = useT();
@@ -667,29 +618,97 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   return (
     <div className={`tracker-root${isMobile ? ' dashboard-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div className="kpi-band-grid">
-        <MonthComparisonCard
-          title={t('tradingVolume')}
-          currentLabel={curMo}
-          previousLabel={prevMo}
-          current={segmentedProfit.thisMonth.totalRev}
-          previous={segmentedProfit.lastMonth.totalRev}
-          format={fmtDashboardAmount}
-        />
-        <MonthComparisonCard
-          title={t('myNetProfit')}
-          currentLabel={curMo}
-          previousLabel={prevMo}
-          current={segmentedProfit.thisMonth.total}
-          previous={segmentedProfit.lastMonth.total}
-          format={fmtDashboardAmount}
-          signed
-        />
+        <div className="kpi-band">
+          <div className="kpi-band-title">{t('tradingVolume')}</div>
+          <div className="kpi-band-cols">
+            <div>
+              <div className="kpi-period">{curMo}</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtDashboardAmount(segmentedProfit.thisMonth.totalRev)}</span>
+              </div>
+            </div>
+            <div>
+              <div className="kpi-period">{prevMo}</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtDashboardAmount(segmentedProfit.lastMonth.totalRev)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="kpi-band">
+          <div className="kpi-band-title">{t('myNetProfit')}</div>
+          <div className="kpi-band-cols">
+            {/* Current Month */}
+            <div>
+              <div className="kpi-period">{curMo}</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownNet },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
+                  </span>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className={`mono ${segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.thisMonth.total)}
+                </span>
+              </div>
+            </div>
+            {/* Previous Month */}
+            <div>
+              <div className="kpi-period">{prevMo}</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownNet },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
+                  </span>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className={`mono ${segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.lastMonth.total)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="kpis kpis-dashboard">
         <div className="kpi-card">
           <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
+          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
         <BanqueMisrInstaPayKPI />
         <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
