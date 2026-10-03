@@ -36,6 +36,7 @@ type HistoryStatement = PublicStatement & {
     fiat: string;
     fiatAmount: number;
     fiatPrice: number;
+    qarRate?: number;
   }>;
 };
 import { getP2PRates } from '@/lib/p2p-rates';
@@ -676,7 +677,9 @@ export default function CustomerOrdersPage() {
           loanAmount: sale.fiatAmount,
           loanPaid: sale.fiatAmount,
           fiatPrice: sale.fiatPrice || null,
-          qarToEgpRate: null,
+          // EGP per QAR, same cross-rate as a loan row. A QAR-denominated sale
+          // has no EGP leg, so it stays blank.
+          qarToEgpRate: sale.fiat !== 'QAR' && sale.qarRate && sale.fiatPrice ? sale.fiatPrice / sale.qarRate : null,
         });
       }
     }
