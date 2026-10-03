@@ -921,6 +921,7 @@ export default function CustomerOrdersPage() {
     for (const o of filteredHistoryOrders) {
       if (o.currency === 'EGP') volumeEgp += o.totalAmount;
       if (o.loanAmount != null && o.loanCurrency === 'QAR') totalQar += o.loanAmount;
+      else if (o.sale && o.currency === 'EGP' && o.qarToEgpRate && o.qarToEgpRate > 0) totalQar += o.totalAmount / o.qarToEgpRate;
     }
     // Effective EGP received per QAR across every order in view — the rate
     // that actually matters to the customer, not the merchant's own
@@ -948,6 +949,21 @@ export default function CustomerOrdersPage() {
   // Loan-only UI (debt tiles, repayment bars, settled counts, per-order
   // repayment) is hidden for a buyer with no loaned order at all.
   const hasLoans = useMemo(() => historyOrders.some(o => o.loaned), [historyOrders]);
+
+  // Stand-in KPIs for a buyer with no loans: what the orders in view cost
+  // and how good the rates were, all derived from the same filtered rows.
+  const salesKpi = useMemo(() => {
+    const egpRows = filteredHistoryOrders.filter(o => o.currency === 'EGP');
+    const rates = filteredHistoryOrders.map(o => o.qarToEgpRate).filter((r): r is number => r != null && r > 0);
+    const volume = egpRows.reduce((sum, o) => sum + o.totalAmount, 0);
+    return {
+      avgOrderEgp: egpRows.length > 0 ? volume / egpRows.length : null,
+      largestOrderEgp: egpRows.length > 0 ? Math.max(...egpRows.map(o => o.totalAmount)) : null,
+      bestRate: rates.length > 0 ? Math.max(...rates) : null,
+      lowestRate: rates.length > 0 ? Math.min(...rates) : null,
+      lastOrderDate: filteredHistoryOrders.length > 0 ? Math.max(...filteredHistoryOrders.map(o => o.date)) : null,
+    };
+  }, [filteredHistoryOrders]);
 
   // Repayment progress — month-scoped (from the currently filtered orders)
   // and all-time (from debtKpi's running totals), plus a couple of
@@ -1832,6 +1848,35 @@ export default function CustomerOrdersPage() {
               </div>
             ))}
           </div>
+          {!hasLoans && filteredHistoryOrders.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
+              {[
+                { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.avgRate != null ? historyKpi.avgRate.toFixed(2) : '—', color: 'var(--brand)' },
+                { label: L('Best rate', 'أفضل سعر'), value: salesKpi.bestRate != null ? salesKpi.bestRate.toFixed(2) : '—', color: 'var(--good)' },
+                { label: L('Lowest rate', 'أقل سعر'), value: salesKpi.lowestRate != null ? salesKpi.lowestRate.toFixed(2) : '—' },
+                { label: `${L('Avg order', 'متوسط الطلب')} (EGP)`, value: salesKpi.avgOrderEgp != null ? Math.round(salesKpi.avgOrderEgp).toLocaleString() : '—' },
+                { label: `${L('Largest order', 'أكبر طلب')} (EGP)`, value: salesKpi.largestOrderEgp != null ? Math.round(salesKpi.largestOrderEgp).toLocaleString() : '—' },
+                {
+                  label: L('Last order', 'آخر طلب'),
+                  value: salesKpi.lastOrderDate != null
+                    ? new Date(salesKpi.lastOrderDate).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' })
+                    : '—',
+                },
+              ].map(k => (
+                <div key={k.label} style={{
+                  minWidth: 0, boxSizing: 'border-box',
+                  padding: '6px 8px',
+                  background: 'color-mix(in srgb, var(--good) 5%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--good) 14%, transparent)',
+                  borderRadius: 8,
+                }}>
+                  <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.label}</div>
+                  <div className="mono" style={{ fontSize: 12, fontWeight: 800, overflowWrap: 'anywhere', color: k.color || 'var(--fg)' }}>{k.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {hasLoans && (
             <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
