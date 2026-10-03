@@ -11,17 +11,17 @@ import { resolveCustomerDisplayName } from '@/features/customer/customer-portal'
 import '@/styles/tracker.css';
 import '@/styles/customer-portal.css';
 
-// PRD nav: Dashboard, Orders, Cash Management, Chat — 4 primary items
+// Primary nav order: Home, Orders, Cash, Notifications, Chat; the rest live under More
 const PRIMARY_NAV = [
   { path: '/c/home',    icon: Home,          en: 'Home',   ar: 'الرئيسية' },
   { path: '/c/orders',  icon: ShoppingCart,  en: 'Orders', ar: 'الطلبات' },
   { path: '/c/wallet',  icon: Wallet,        en: 'Cash',   ar: 'النقد' },
+  { path: '/c/notifications', icon: Bell, en: 'Notifications', ar: 'التنبيهات' },
   { path: '/c/chat',    icon: MessageCircle, en: 'Chat',   ar: 'المحادثات' },
 ] as const;
 
 const DRAWER_NAV = [
   { path: '/c/merchants',     icon: Store,      en: 'Merchants',     ar: 'التجار' },
-  { path: '/c/notifications', icon: Bell,       en: 'Notifications', ar: 'التنبيهات' },
   { path: '/c/settings',      icon: Settings,   en: 'Settings',      ar: 'الإعدادات' },
 ] as const;
 
@@ -163,7 +163,12 @@ export function CustomerLayout() {
               const active = isActive(item.path);
               return (
                 <button key={item.path} onClick={() => go(item.path)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', active ? 'text-primary' : 'text-muted-foreground')}>
-                  <item.icon className="h-[18px] w-[18px]" />
+                  <span className="relative">
+                    <item.icon className="h-[18px] w-[18px]" />
+                    {item.path === '/c/notifications' && unreadCount > 0 && (
+                      <span className="absolute -end-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black leading-none text-white ring-2 ring-background">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                    )}
+                  </span>
                   <span>{item[lang]}</span>
                 </button>
               );
@@ -171,7 +176,6 @@ export function CustomerLayout() {
             <button onClick={() => setDrawerOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold text-muted-foreground">
               <span className="relative">
                 <Menu className="h-[18px] w-[18px]" />
-                {unreadCount > 0 && <span className="absolute -end-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />}
               </span>
               <span>{isRTL ? 'المزيد' : 'More'}</span>
             </button>
