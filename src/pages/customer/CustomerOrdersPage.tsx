@@ -1943,6 +1943,12 @@ export default function CustomerOrdersPage() {
                                 <span style={{ color: 'var(--muted)' }}>{L('EGP price', 'سعر البيع')}: </span>
                                 <span className="mono" style={{ fontWeight: 700 }}>{o.fiatPrice.toFixed(2)}</span>
                               </span>
+                              {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
+                                <span>
+                                  <span style={{ color: 'var(--muted)' }}>{L('QAR → EGP', 'ريال → جنيه')}: </span>
+                                  <span className="mono" style={{ fontWeight: 700 }}>{o.qarToEgpRate.toFixed(2)}</span>
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1971,6 +1977,7 @@ export default function CustomerOrdersPage() {
                     <th>{L('Date', 'التاريخ')}</th>
                     <th className="r">{L('Total (EGP)', 'الإجمالي (جنيه)')}</th>
                     <th className="r">{L('EGP price', 'سعر البيع')}</th>
+                    <th className="r">{L('QAR → EGP', 'ريال → جنيه')}</th>
                     <th>{L('Repayment', 'السداد')}</th>
                   </tr>
                 </thead>
@@ -1990,6 +1997,9 @@ export default function CustomerOrdersPage() {
                         </td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
                           {o.fiatPrice != null ? o.fiatPrice.toFixed(2) : '—'}
+                        </td>
+                        <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
+                          {o.qarToEgpRate != null && o.qarToEgpRate > 0 ? o.qarToEgpRate.toFixed(2) : '—'}
                         </td>
                         <td>
                           {(o.loaned || o.sale) && o.loanAmount != null && (
