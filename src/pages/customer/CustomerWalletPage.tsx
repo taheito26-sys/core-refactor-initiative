@@ -887,22 +887,7 @@ export default function CustomerWalletPage() {
   return (
     <div className="space-y-0 pb-16">
       {/* ── Top summary card ── */}
-      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-        {/* Tabs */}
-        <div className="flex gap-2">
-          {([
-            { id: "payments", icon: HandCoins, en: "Payments", ar: "الدفعات" },
-            { id: "accounts", icon: BookOpen, en: "Accounts", ar: "الحسابات" },
-          ] as const).map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors",
-                tab === t.id ? "bg-primary text-primary-foreground shadow-sm" : "border border-border/50 text-muted-foreground hover:bg-muted")}>
-              <t.icon className="h-3.5 w-3.5" />
-              {lang === "ar" ? t.ar : t.en}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* The Accounts tab is hidden; with Payments the only tab left there is nothing to switch between. */}
 
       {isLoading ? (
         <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
