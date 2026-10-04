@@ -107,24 +107,43 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
  * losslessly through the relational table without a schema change. Every
  * consumer of CashLedgerEntry.note only ever sees the decoded, clean note.
  */
-export function encodeNoteWithBreakdown(note: string | undefined, breakdown: Record<number, number> | undefined): string | null {
+export function encodeNoteWithBreakdown(
+  note: string | undefined,
+  breakdown: Record<number, number> | undefined,
+  expenseCategory?: string,
+): string | null {
   const base = (note ?? '').trim();
   const parts = Object.entries(breakdown ?? {})
     .filter(([, count]) => count > 0)
     .map(([denom, count]) => `${denom}x${count}`)
     .join(',');
-  if (!parts) return base || null;
-  const marker = `[[bn:${parts}]]`;
-  return base ? `${base} ${marker}` : marker;
+  // The expense category rides the same way (a withdrawal's reason), as a
+  // second trailing marker; decoding strips markers in either order.
+  const markers = [
+    expenseCategory && /^[a-z_]+$/.test(expenseCategory) ? `[[cat:${expenseCategory}]]` : '',
+    parts ? `[[bn:${parts}]]` : '',
+  ].filter(Boolean).join(' ');
+  if (!markers) return base || null;
+  return base ? `${base} ${markers}` : markers;
 }
 
-export function decodeNoteWithBreakdown(raw: string | null | undefined): { note?: string; banknoteBreakdown?: Record<number, number> } {
+export function decodeNoteWithBreakdown(
+  raw: string | null | undefined,
+): { note?: string; banknoteBreakdown?: Record<number, number>; expenseCategory?: string } {
   if (!raw) return {};
-  const match = raw.match(/\[\[bn:([^\]]*)\]\]\s*$/);
-  if (!match) return { note: raw };
-  const cleaned = raw.slice(0, match.index).trim();
+  let rest = raw;
+  let breakdownText: string | null = null;
+  let expenseCategory: string | undefined;
+  for (;;) {
+    const match = rest.match(/\s*\[\[(bn|cat):([^\]]*)\]\]\s*$/);
+    if (!match) break;
+    if (match[1] === 'bn') breakdownText = match[2]; else expenseCategory = match[2];
+    rest = rest.slice(0, match.index);
+  }
+  if (breakdownText === null && expenseCategory === undefined) return { note: raw };
+  const cleaned = rest.trim();
   const breakdown: Record<number, number> = {};
-  for (const pair of match[1].split(',')) {
+  for (const pair of (breakdownText ?? '').split(',')) {
     const [denomStr, countStr] = pair.split('x');
     const denom = Number(denomStr);
     const count = Number(countStr);
@@ -133,6 +152,7 @@ export function decodeNoteWithBreakdown(raw: string | null | undefined): { note?
   return {
     note: cleaned || undefined,
     banknoteBreakdown: Object.keys(breakdown).length > 0 ? breakdown : undefined,
+    expenseCategory,
   };
 }
 
@@ -157,7 +177,7 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
     direction: e.direction,
     amount: e.amount,
     currency: e.currency,
-    note: encodeNoteWithBreakdown(e.note, e.banknoteBreakdown),
+    note: encodeNoteWithBreakdown(e.note, e.banknoteBreakdown, e.expenseCategory),
     linked_entity_id: linkedEntityType ? e.linkedEntityId ?? null : null,
     linked_entity_type: linkedEntityType,
     batch_id: e.batchId ?? null,
@@ -165,7 +185,7 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
 }
 
 function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
-  const { note, banknoteBreakdown } = decodeNoteWithBreakdown(row.note as string | null);
+  const { note, banknoteBreakdown, expenseCategory } = decodeNoteWithBreakdown(row.note as string | null);
   return {
     id: row.id as string,
     ts: row.ts as number,
@@ -177,6 +197,7 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
     currency: row.currency as CashLedgerEntry['currency'],
     note,
     banknoteBreakdown,
+    expenseCategory,
     linkedEntityId: (row.linked_entity_id as string | null) ?? undefined,
     linkedEntityType: (row.linked_entity_type as CashLedgerEntry['linkedEntityType']) ?? undefined,
     merchantId: (row.merchant_id as string | null) ?? undefined,

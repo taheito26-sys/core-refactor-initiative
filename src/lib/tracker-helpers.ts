@@ -220,6 +220,8 @@ export interface CashLedgerEntry {
   orderId?: string;
   batchId?: string;
   settlementId?: string;
+  /** Why the money left, for a withdrawal: a key from lib/trading/expense-categories. Absent means not yet categorised. */
+  expenseCategory?: string;
   /** Optional physical banknote breakdown for this entry, denomination -> count */
   banknoteBreakdown?: Record<number, number>;
 }

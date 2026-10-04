@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { USD_QAR_PEG, computeMonthPosition, computeMonthlyPositions, computeNetPosition } from '@/lib/trading/net-position';
+import { USD_QAR_PEG, computeMonthBridge, computeMonthPosition, computeMonthlyPositions, computeNetPosition } from '@/lib/trading/net-position';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
 const D = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12).getTime();
@@ -122,5 +122,35 @@ describe('monthly positions', () => {
     const months = computeMonthlyPositions(state(), '2026-08', {}, D(2026, 10, 15));
     expect(months.map(m => m.key)).toEqual(['2026-08', '2026-09', '2026-10']);
     expect(months[2].open).toBe(true);
+  });
+});
+
+describe('computeMonthBridge', () => {
+  const bridgeState = () => state({
+    cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+    cashLedger: [
+      led('hand', D(2026, 8, 20), 'in', 100000),
+      { ...led('hand', D(2026, 9, 10), 'in', 19000), type: 'sale_deposit' },
+      { ...led('hand', D(2026, 9, 12), 'out', 300), type: 'withdrawal', expenseCategory: 'rent' },
+      { ...led('hand', D(2026, 9, 13), 'out', 200), type: 'withdrawal', expenseCategory: 'owner_draw' },
+      { ...led('hand', D(2026, 9, 14), 'out', 100), type: 'withdrawal' },
+    ] as never,
+    batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
+    trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
+  });
+
+  it('separates business expenses, personal money and uncategorised withdrawals, and explains the whole change', () => {
+    const s = bridgeState();
+    const m = computeMonthPosition(s, 2026, 8, {}, D(2026, 10, 15));
+    const b = computeMonthBridge(s, m);
+    expect(b.business).toEqual([{ key: 'rent', amountQAR: 300 }]);
+    expect(b.personal).toEqual([{ key: 'owner_draw', amountQAR: 200 }]);
+    expect(b.uncategorisedQAR).toBe(100);
+    expect(b.uncategorisedCount).toBe(1);
+    expect(b.netRevenueQAR).toBe(1000);
+    // The sale's 19,000 lands in cash as sale proceeds and 18,000 of stock leaves: that is the 1,000 revenue, nothing extra.
+    expect(b.depositsQAR).toBe(0);
+    expect(b.otherQAR).toBe(0);
+    expect(b.closingQAR).toBe(b.openingQAR + 1000 - 300 - 200 - 100);
   });
 });

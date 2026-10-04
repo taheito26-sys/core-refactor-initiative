@@ -68,3 +68,14 @@ describe('encodeNoteWithBreakdown / decodeNoteWithBreakdown', () => {
     expect(encoded).toBe('note [[bn:100x5]]');
   });
 });
+
+describe('expense category marker', () => {
+  it('round-trips a category, alone or with a banknote breakdown', () => {
+    expect(decodeNoteWithBreakdown(encodeNoteWithBreakdown('Office', undefined, 'rent'))).toEqual({ note: 'Office', expenseCategory: 'rent' });
+    const both = encodeNoteWithBreakdown('Office', { 100: 5 }, 'rent');
+    expect(decodeNoteWithBreakdown(both)).toEqual({ note: 'Office', banknoteBreakdown: { 100: 5 }, expenseCategory: 'rent' });
+  });
+  it('leaves a note with no category untouched', () => {
+    expect(encodeNoteWithBreakdown('Office', undefined, undefined)).toBe('Office');
+  });
+});

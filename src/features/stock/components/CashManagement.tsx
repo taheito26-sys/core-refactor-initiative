@@ -10,7 +10,7 @@ import {
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
   getLoanRepaid, getLoanRemaining, customerNameVariants,
 } from '@/lib/tracker-helpers';
-import { useT } from '@/lib/i18n';
+import { useT, type TranslationKey } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -32,6 +32,7 @@ import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/st
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { canonicalizeName } from '@/lib/text-normalize';
+import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
 
 interface PublicStatementLink {
   id: string;
@@ -365,6 +366,11 @@ interface DepositWithdrawModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
+const EXPENSE_CATEGORY_LABEL: Record<string, TranslationKey> = {
+  rent: 'expCatRent', salaries: 'expCatSalaries', fees: 'expCatFees', transport: 'expCatTransport',
+  communication: 'expCatCommunication', loss: 'expCatLoss', business_other: 'expCatBusinessOther',
+  owner_draw: 'expCatOwnerDraw', personal_spending: 'expCatPersonalSpending',
+};
 const BANKNOTE_DENOMS: Record<string, number[]> = {
   QAR: [500, 200, 100, 50, 10, 5, 1],
   EGP: [200, 100, 50, 20, 10, 5],
@@ -376,6 +382,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const t = useT();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('');
   const [err, setErr] = useState('');
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -464,6 +471,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       amount: amtNum,
       currency: account.currency,
       note: note.trim() || undefined,
+      ...(mode === 'withdrawal' && expenseCategory ? { expenseCategory } : {}),
       merchantId: account.merchantId,
       relationshipId: account.relationshipId,
       ...(hasBanknoteCounts ? { banknoteBreakdown } : {}),
@@ -551,6 +559,22 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
                 )}
               </div>
             )}
+          </div>
+        )}
+        {mode === 'withdrawal' && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('expenseCategoryLabel')}</div>
+            <div className="inputBox">
+              <select value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)} style={{ width: '100%' }}>
+                <option value="">{t('npPick')}</option>
+                <optgroup label={t('expGroupBusiness')}>
+                  {EXPENSE_CATEGORIES.filter(c => c.group === 'business').map(c => <option key={c.key} value={c.key}>{t(EXPENSE_CATEGORY_LABEL[c.key])}</option>)}
+                </optgroup>
+                <optgroup label={t('expGroupPersonal')}>
+                  {EXPENSE_CATEGORIES.filter(c => c.group === 'personal').map(c => <option key={c.key} value={c.key}>{t(EXPENSE_CATEGORY_LABEL[c.key])}</option>)}
+                </optgroup>
+              </select>
+            </div>
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>

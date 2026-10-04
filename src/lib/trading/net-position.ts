@@ -1,8 +1,9 @@
 import {
   computeFIFO, getAccountBalance, getLoanRepaid,
-  type CashAccount, type CustomerLoan, type TrackerState,
+  type CashAccount, type CashCurrency, type CustomerLoan, type TrackerState,
 } from '../tracker-helpers';
 import { isTransferActive, transferCounterpartyKey, type UsdtTransfer } from '../usdt-transfers';
+import { expenseCategoryOf, isExpenseCandidate, type ExpenseGroup } from './expense-categories';
 
 // ─── Net position: everything owned minus everything owed ───
 //
@@ -274,3 +275,101 @@ export function computeMonthlyPositions(
   }
   return out;
 }
+
+// ─── The bridge: opening + revenue - spending ... = closing ───
+
+export interface BridgeCategoryTotal {
+  key: string;
+  amountQAR: number;
+}
+
+export interface MonthBridge {
+  openingQAR: number;
+  netRevenueQAR: number;
+  /** Business expenses by category, largest first. */
+  business: BridgeCategoryTotal[];
+  businessTotalQAR: number;
+  /** Owner draws and personal spending, kept apart from the business. */
+  personal: BridgeCategoryTotal[];
+  personalTotalQAR: number;
+  /** Withdrawals nobody has categorised yet. */
+  uncategorisedQAR: number;
+  uncategorisedCount: number;
+  /** Money put into cash accounts by hand (deposits). */
+  depositsQAR: number;
+  /** Positive cash adjustments (reconciliation surpluses). */
+  adjustmentsInQAR: number;
+  /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
+  otherQAR: number;
+  closingQAR: number;
+}
+
+/** A cash amount in QAR, using the conversion rates a position was valued with. */
+export function amountToQar(
+  rates: Pick<NetPosition, 'usdToQar' | 'egpPerUsdt' | 'usdtRateQAR'>,
+  currency: CashCurrency,
+  amount: number,
+): number {
+  if (currency === 'USD') return amount * rates.usdToQar;
+  if (currency === 'USDT') return amount * rates.usdtRateQAR;
+  if (currency === 'EGP') return rates.egpPerUsdt > 0 ? (amount / rates.egpPerUsdt) * rates.usdtRateQAR : 0;
+  return amount;
+}
+
+/**
+ * Explains a month's change in net position: its revenue, what left the
+ * cash accounts and why, and whatever remains. Business spending and the
+ * owner's personal money are totalled separately.
+ */
+export function computeMonthBridge(
+  state: Pick<TrackerState, 'cashLedger'>,
+  month: MonthPosition,
+): MonthBridge {
+  const rates = month.closing;
+  const business = new Map<string, number>();
+  const personal = new Map<string, number>();
+  let uncategorisedQAR = 0;
+  let uncategorisedCount = 0;
+  let depositsQAR = 0;
+  let adjustmentsInQAR = 0;
+
+  for (const e of state.cashLedger || []) {
+    if (e.ts < month.start || e.ts > month.end) continue;
+    const qar = amountToQar(rates, e.currency, e.amount);
+    if (isExpenseCandidate(e)) {
+      const cat = expenseCategoryOf(e.expenseCategory);
+      if (!cat) { uncategorisedQAR += qar; uncategorisedCount++; continue; }
+      const bucket = cat.group === 'personal' ? personal : business;
+      bucket.set(cat.key, (bucket.get(cat.key) ?? 0) + qar);
+    } else if (e.direction === 'in' && e.type === 'deposit') {
+      depositsQAR += qar;
+    } else if (e.direction === 'in' && e.type === 'reconcile') {
+      adjustmentsInQAR += qar;
+    }
+  }
+
+  const toList = (m: Map<string, number>): BridgeCategoryTotal[] =>
+    [...m.entries()].map(([key, v]) => ({ key, amountQAR: round2(v) })).sort((a, b) => b.amountQAR - a.amountQAR);
+  const sum = (list: BridgeCategoryTotal[]) => round2(list.reduce((s, c) => s + c.amountQAR, 0));
+  const businessList = toList(business);
+  const personalList = toList(personal);
+  const businessTotalQAR = sum(businessList);
+  const personalTotalQAR = sum(personalList);
+  uncategorisedQAR = round2(uncategorisedQAR);
+  depositsQAR = round2(depositsQAR);
+  adjustmentsInQAR = round2(adjustmentsInQAR);
+
+  const explained = month.opening.netQAR + month.netRevenueQAR - businessTotalQAR - personalTotalQAR
+    - uncategorisedQAR + depositsQAR + adjustmentsInQAR;
+  return {
+    openingQAR: month.opening.netQAR,
+    netRevenueQAR: month.netRevenueQAR,
+    business: businessList, businessTotalQAR,
+    personal: personalList, personalTotalQAR,
+    uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR,
+    otherQAR: round2(month.closing.netQAR - explained),
+    closingQAR: month.closing.netQAR,
+  };
+}
+
+export type { ExpenseGroup };
