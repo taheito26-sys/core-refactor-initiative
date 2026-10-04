@@ -19,6 +19,12 @@ const state = {
   ],
   batches: [], trades: [], customerLoans: [], deletedLoanIds: [], usdtTransfers: [],
 };
+const closeMonth = vi.fn(async () => {});
+const snapshots = new Map<string, unknown>();
+vi.mock('@/features/net-position/api', () => ({
+  useMonthlySnapshots: () => ({ snapshots, unavailable: false, loading: false }),
+  useMonthClosing: () => ({ close: closeMonth, reopen: vi.fn(async () => {}) }),
+}));
 vi.mock('@/lib/useTrackerState', () => ({ useTrackerState: () => ({ state, applyState }) }));
 
 import NetPositionPage from '@/pages/NetPositionPage';
@@ -34,5 +40,19 @@ describe('NetPositionPage', () => {
     expect(applyState).toHaveBeenCalled();
     const next = applyState.mock.calls[0][0];
     expect(next.cashLedger.find((e: { id: string }) => e.id === 'w').expenseCategory).toBe('rent');
+  });
+
+  it('closes a finished month with its figures, and cannot close the month still running', async () => {
+    render(<NetPositionPage />);
+    expect((screen.getByText('npCloseMonth', { exact: false }).closest('button') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText('previous month'));
+    const button = screen.getByText('npCloseMonth', { exact: false }).closest('button') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    expect(closeMonth).toHaveBeenCalledTimes(1);
+    const [month, position, bridge] = closeMonth.mock.calls[0] as unknown as [string, { closing: unknown }, { closingQAR: number }];
+    expect(month).toMatch(/^\d{4}-\d{2}$/);
+    expect(position.closing).toBeTruthy();
+    expect(typeof bridge.closingQAR).toBe('number');
   });
 });

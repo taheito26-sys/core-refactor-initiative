@@ -299,6 +299,8 @@ export interface MonthBridge {
   depositsQAR: number;
   /** Positive cash adjustments (reconciliation surpluses). */
   adjustmentsInQAR: number;
+  /** Changes to earlier, already-closed months since they were frozen. Zero until a month is chained to a frozen one. */
+  priorCorrectionsQAR?: number;
   /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
   otherQAR: number;
   closingQAR: number;

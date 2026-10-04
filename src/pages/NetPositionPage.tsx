@@ -9,6 +9,8 @@ import {
   computeMonthBridge, computeMonthPosition, type NetPositionLineKey,
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
+import { useMonthClosing, useMonthlySnapshots } from '@/features/net-position/api';
+import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
 
 const OVERRIDES_KEY = 'net_position_rates';
@@ -89,8 +91,29 @@ export default function NetPositionPage() {
     egpPerUsdt: Number(rates.egp) > 0 ? Number(rates.egp) : undefined,
   }), [rates]);
 
-  const month = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
-  const bridge = useMemo(() => computeMonthBridge(state, month), [state, month]);
+  const live = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
+  const liveBridge = useMemo(() => computeMonthBridge(state, live), [state, live]);
+
+  // A closed month shows the figures it was frozen with; any other month
+  // opens from the frozen closing of the month before it.
+  const { snapshots, unavailable } = useMonthlySnapshots();
+  const closing = useMonthClosing();
+  const snap = snapshots.get(live.key);
+  const frozen = !!snap?.frozen;
+  const chained = useMemo(
+    () => chainToFrozenOpening({ opening: live.opening.netQAR, bridge: liveBridge }, snapshots.get(previousMonthKey(live.key))),
+    [live, liveBridge, snapshots],
+  );
+  const month = frozen && snap ? snap.position : live;
+  const bridge = frozen && snap ? snap.bridge : chained.bridge;
+  const openingQAR = bridge.openingQAR;
+  const changeQAR = Math.round((month.closing.netQAR - openingQAR) * 100) / 100;
+  const drift = frozen && snap ? closingDrift(snap, live) : 0;
+  const [closingBusy, setClosingBusy] = useState(false);
+  const runClosing = async (fn: () => Promise<void>, message: string) => {
+    setClosingBusy(true);
+    try { await fn(); toast.success(message); } catch { toast.error(t('npClosingFailed')); } finally { setClosingBusy(false); }
+  };
   const monthLabel = `${t(MONTH_KEYS[ym.month])} ${ym.year}`;
   const isCurrent = ym.year === now.getFullYear() && ym.month === now.getMonth();
   const shift = (delta: number) => setYm(prev => {
@@ -170,10 +193,55 @@ export default function NetPositionPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {card(t('npOpening'), `${money(month.opening.netQAR)} QAR`)}
+        {card(t('npOpening'), `${money(openingQAR)} QAR`)}
         {card(t('npClosing'), `${money(month.closing.netQAR)} QAR`)}
-        {card(t('npChange'), `${money(month.changeQAR, true)} QAR`, signColor(month.changeQAR))}
-        {card(t('npRevenue'), `${money(month.netRevenueQAR, true)} QAR`, signColor(month.netRevenueQAR))}
+        {card(t('npChange'), `${money(changeQAR, true)} QAR`, signColor(changeQAR))}
+        {card(t('npRevenue'), `${money(bridge.netRevenueQAR, true)} QAR`, signColor(bridge.netRevenueQAR))}
+      </div>
+
+      {/* ── Closing ── */}
+      <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {unavailable && <div style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npClosingUnavailable')}</div>}
+        {!unavailable && frozen && snap && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>🔒 {t('npClosedOn').split('{date}').join(new Date(snap.closedAt).toLocaleDateString())}</div>
+            {drift !== 0 && (
+              <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>
+                ⚠ {t('npDrift').split('{amount}').join(money(drift, true))}
+              </div>
+            )}
+          </>
+        )}
+        {!unavailable && !frozen && snap && snap.reopenCount > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('npReopened').split('{count}').join(String(snap.reopenCount))}</div>
+        )}
+        {!unavailable && !frozen && chained.priorCorrectionsQAR !== 0 && (
+          <div style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npPriorCorrections').split('{amount}').join(money(chained.priorCorrectionsQAR, true))}</div>
+        )}
+        {!unavailable && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {frozen && snap ? (
+              <>
+                {drift !== 0 && (
+                  <button type="button" className="btn secondary" disabled={closingBusy}
+                    onClick={() => { void runClosing(() => closing.close(live.key, live, chained.bridge, snapshotRates(live), snap), t('npClosed')); }}>
+                    {t('npRefreeze')}
+                  </button>
+                )}
+                <button type="button" className="btn secondary" disabled={closingBusy}
+                  onClick={() => { void runClosing(() => closing.reopen(snap), t('npReopenedDone')); }}>
+                  {t('npReopen')}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn" disabled={closingBusy || live.open}
+                onClick={() => { void runClosing(() => closing.close(live.key, live, chained.bridge, snapshotRates(live), snap), t('npClosed')); }}>
+                🔒 {t('npCloseMonth')}
+              </button>
+            )}
+            {live.open && !frozen && <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center' }}>{t('npCloseAfterMonth')}</span>}
+          </div>
+        )}
       </div>
 
       {warnings.includes('egp_unpriced') && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npWarnEgp')}</div>}
@@ -183,6 +251,7 @@ export default function NetPositionPage() {
       <div className="panel" style={{ padding: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>{t('npBridge')}</div>
         {row(t('npOpening'), bridge.openingQAR, { bold: true })}
+        {!!bridge.priorCorrectionsQAR && row(t('npPriorCorrectionsRow'), bridge.priorCorrectionsQAR, { muted: true })}
         {row(t('npRevenue'), bridge.netRevenueQAR, { sign: '+' })}
         {bridge.depositsQAR > 0 && row(t('npDeposits'), bridge.depositsQAR, { sign: '+' })}
         {bridge.adjustmentsInQAR > 0 && row(t('npAdjustments'), bridge.adjustmentsInQAR, { sign: '+' })}
