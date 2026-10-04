@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTheme } from '@/lib/theme-context';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -10,6 +11,7 @@ import {
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
 import { useMonthClosing, useMonthlySnapshots } from '@/features/net-position/api';
+import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
 
@@ -80,7 +82,12 @@ export default function NetPositionPage() {
   });
 
   const now = new Date();
-  const [ym, setYm] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  // A reminder links here with ?month=YYYY-MM so the month to close is already open.
+  const [searchParams] = useSearchParams();
+  const [ym, setYm] = useState(() => {
+    const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(searchParams.get('month') || '');
+    return m ? { year: Number(m[1]), month: Number(m[2]) - 1 } : { year: now.getFullYear(), month: now.getMonth() };
+  });
   const [rates, setRates] = useState(readOverrides);
   useEffect(() => {
     try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(rates)); } catch { /* per-viewer convenience only */ }
@@ -110,6 +117,33 @@ export default function NetPositionPage() {
   const changeQAR = Math.round((month.closing.netQAR - openingQAR) * 100) / 100;
   const drift = frozen && snap ? closingDrift(snap, live) : 0;
   const [closingBusy, setClosingBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      const labels = {
+        title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
+        opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
+        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'),
+        deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
+        breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
+        usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
+        footer: t('npReportFooter'), generatedOn: t('npReportGenerated'),
+        lines: Object.fromEntries((Object.keys(LINE_LABEL) as NetPositionLineKey[]).map(k => [k, t(LINE_LABEL[k])])) as Record<NetPositionLineKey, string>,
+        categories: Object.fromEntries(Object.entries(CATEGORY_LABEL).map(([k, v]) => [k, t(v)])),
+      };
+      const html = buildNetPositionReportHtml({
+        labels, monthLabel, month, bridge, dir: t.isRTL ? 'rtl' : 'ltr', generatedOn: new Date().toLocaleDateString(),
+        frozenAt: frozen && snap ? new Date(snap.closedAt).toLocaleDateString() : null,
+      });
+      await exportNetPositionPdf(html, `net-position-${month.key}.pdf`);
+    } catch (err) {
+      console.error('Net position export failed', err);
+      toast.error(t('npExportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  };
   const runClosing = async (fn: () => Promise<void>, message: string) => {
     setClosingBusy(true);
     try { await fn(); toast.success(message); } catch { toast.error(t('npClosingFailed')); } finally { setClosingBusy(false); }
@@ -197,6 +231,12 @@ export default function NetPositionPage() {
         {card(t('npClosing'), `${money(month.closing.netQAR)} QAR`)}
         {card(t('npChange'), `${money(changeQAR, true)} QAR`, signColor(changeQAR))}
         {card(t('npRevenue'), `${money(bridge.netRevenueQAR, true)} QAR`, signColor(bridge.netRevenueQAR))}
+      </div>
+
+      <div>
+        <button type="button" className="btn secondary" disabled={exporting} onClick={() => { void exportPdf(); }}>
+          📄 {exporting ? t('npExporting') : t('npExportPdf')}
+        </button>
       </div>
 
       {/* ── Closing ── */}

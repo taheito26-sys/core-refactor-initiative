@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render as rtlRender, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
+
+const render = (ui: ReactElement, route = '/trading/net-position') => rtlRender(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>);
 
 vi.mock('@/lib/i18n', () => {
   const t = Object.assign((key: string) => key, { lang: 'en', isRTL: false });
@@ -54,5 +58,10 @@ describe('NetPositionPage', () => {
     expect(month).toMatch(/^\d{4}-\d{2}$/);
     expect(position.closing).toBeTruthy();
     expect(typeof bridge.closingQAR).toBe('number');
+  });
+
+  it('opens the month named in the reminder link', () => {
+    render(<NetPositionPage />, '/trading/net-position?month=2026-03');
+    expect(screen.getByText('march 2026')).toBeTruthy();
   });
 });
