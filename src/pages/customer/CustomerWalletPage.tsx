@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { fmtTotal } from "@/lib/tracker-helpers";
+import { QuickDateField } from "@/components/shared/QuickDateField";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
 import { useMonthlyStatementExport } from "@/features/stock/utils/useMonthlyStatementExport";
 import { useLoanPaymentClaims } from "@/hooks/useLoanPaymentClaims";
@@ -410,17 +411,14 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
             </select>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">{L("Amount", "المبلغ")} {existing?.currency || link ? `(${existing?.currency ?? link?.currency})` : ""}</label>
-            <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">{L("Date paid", "تاريخ الدفع")}</label>
-            <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} max={dateInputValue(Date.now())}
-              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">{L("Amount", "المبلغ")} {existing?.currency || link ? `(${existing?.currency ?? link?.currency})` : ""}</label>
+          <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+            placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">{L("Date paid", "تاريخ الدفع")}</label>
+          <QuickDateField value={dateStr} onChange={setDateStr} lang={lang === "ar" ? "ar" : "en"} />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{L("Note (optional)", "ملاحظة (اختياري)")}</label>
@@ -1628,14 +1626,14 @@ export default function CustomerWalletPage() {
                   );
                 })}
               </div>
-              <input
-                type="date"
+              <QuickDateField
                 value={paymentFilterDay}
-                onChange={e => {
-                  setPaymentFilterDay(e.target.value);
-                  if (e.target.value) { setPaymentFilterOn(true); setShowPaymentFilter(false); }
+                lang={lang === "ar" ? "ar" : "en"}
+                quickDays={[]}
+                onChange={day => {
+                  setPaymentFilterDay(day);
+                  if (day) { setPaymentFilterOn(true); setShowPaymentFilter(false); }
                 }}
-                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
