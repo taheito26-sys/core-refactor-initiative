@@ -1,3 +1,4 @@
+import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -74,7 +75,7 @@ export function OrderVerificationModal({ order, lang, onClose }: OrderVerificati
             </div>
             {order.fx_rate && (
               <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">{order.amount} {order.send_currency} × {formatCustomerNumber(order.fx_rate, lang, 2)}</span>
+                <span className="text-muted-foreground">{order.amount} {order.send_currency} × {formatCustomerNumber(displayQarEgpRate(order.fx_rate, order.created_at), lang, 2)}</span>
               </div>
             )}
           </div>

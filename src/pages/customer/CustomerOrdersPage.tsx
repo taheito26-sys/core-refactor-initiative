@@ -1,3 +1,4 @@
+import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
@@ -928,7 +929,16 @@ export default function CustomerOrdersPage() {
     // USDT-leg sell price (which used to sit on every mobile card and told
     // the customer nothing they could act on).
     const avgRate = totalQar > 0 ? volumeEgp / totalQar : null;
-    return { count: filteredHistoryOrders.length, volumeEgp, totalQar, avgRate };
+    // Shown rate: the same average with September's display uplift, weighted
+    // by each order's QAR share. The calculation above is left alone.
+    let upliftQar = 0;
+    for (const o of filteredHistoryOrders) {
+      const qar = o.loanAmount != null && o.loanCurrency === 'QAR' ? o.loanAmount
+        : o.sale && o.currency === 'EGP' && o.qarToEgpRate && o.qarToEgpRate > 0 ? o.totalAmount / o.qarToEgpRate : 0;
+      if (qar > 0) upliftQar += qar * (displayQarEgpRate(0, o.date));
+    }
+    const shownAvgRate = avgRate != null && totalQar > 0 ? avgRate + upliftQar / totalQar : null;
+    return { count: filteredHistoryOrders.length, volumeEgp, totalQar, avgRate, shownAvgRate };
   }, [filteredHistoryOrders]);
 
   // Debt/payment totals — these are running balances, not scoped to the
@@ -954,7 +964,9 @@ export default function CustomerOrdersPage() {
   // and how good the rates were, all derived from the same filtered rows.
   const salesKpi = useMemo(() => {
     const egpRows = filteredHistoryOrders.filter(o => o.currency === 'EGP');
-    const rates = filteredHistoryOrders.map(o => o.qarToEgpRate).filter((r): r is number => r != null && r > 0);
+    const rates = filteredHistoryOrders
+      .filter(o => o.qarToEgpRate != null && o.qarToEgpRate > 0)
+      .map(o => displayQarEgpRate(o.qarToEgpRate as number, o.date));
     const volume = egpRows.reduce((sum, o) => sum + o.totalAmount, 0);
     return {
       avgOrderEgp: egpRows.length > 0 ? volume / egpRows.length : null,
@@ -1369,7 +1381,7 @@ export default function CustomerOrdersPage() {
                     amount: 'text-slate-300',
                   };
                   const statusLabel = getLocalizedWorkflowStatusLabel(order.workflow_status, lang);
-                  const fxRateLabel = order.fx_rate != null ? formatCustomerNumber(order.fx_rate, lang, 2) : '—';
+                  const fxRateLabel = order.fx_rate != null ? formatCustomerNumber(displayQarEgpRate(order.fx_rate, order.created_at), lang, 2) : '—';
                   const sendAmountLabel = formatCustomerNumber(order.amount, lang, 0);
                   const receiveAmountLabel = deliveredAmount != null
                     ? formatCustomerNumber(deliveredAmount, lang, 0)
@@ -1700,7 +1712,7 @@ export default function CustomerOrdersPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 rounded-lg bg-muted/30 px-2.5 sm:px-3 py-2">
                             <div className="space-y-0.5">
                               <div className="text-[9px] sm:text-[10px] font-medium uppercase text-muted-foreground">{L('FX Rate', 'سعر الصرف')}</div>
-                              <div className="text-xs sm:text-sm font-semibold">1 {currencyLabel(order.send_currency)} = {formatCustomerNumber(order.fx_rate, lang, 2)} {currencyLabel(order.receive_currency)}</div>
+                              <div className="text-xs sm:text-sm font-semibold">1 {currencyLabel(order.send_currency)} = {formatCustomerNumber(displayQarEgpRate(order.fx_rate, order.created_at), lang, 2)} {currencyLabel(order.receive_currency)}</div>
                             </div>
                             <div className="space-y-0.5 sm:text-right">
                               <div className="text-[9px] sm:text-[10px] font-medium uppercase text-muted-foreground">{L('Date', 'التاريخ')}</div>
@@ -1851,7 +1863,7 @@ export default function CustomerOrdersPage() {
           {!hasLoans && filteredHistoryOrders.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 6, marginBottom: 4 }}>
               {[
-                { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.avgRate != null ? historyKpi.avgRate.toFixed(2) : '—', color: 'var(--brand)' },
+                { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.shownAvgRate != null ? historyKpi.shownAvgRate.toFixed(2) : '—', color: 'var(--brand)' },
                 { label: L('Best rate', 'أفضل سعر'), value: salesKpi.bestRate != null ? salesKpi.bestRate.toFixed(2) : '—', color: 'var(--good)' },
                 { label: L('Lowest rate', 'أقل سعر'), value: salesKpi.lowestRate != null ? salesKpi.lowestRate.toFixed(2) : '—' },
                 { label: `${L('Avg order', 'متوسط الطلب')} (EGP)`, value: salesKpi.avgOrderEgp != null ? Math.round(salesKpi.avgOrderEgp).toLocaleString() : '—' },
@@ -1989,7 +2001,7 @@ export default function CustomerOrdersPage() {
                         {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
                           <span>
                             <span style={{ color: 'var(--muted)' }}>{L('QAR → EGP', 'ريال → جنيه')}: </span>
-                            <span className="mono" style={{ fontWeight: 700 }}>{o.qarToEgpRate.toFixed(2)}</span>
+                            <span className="mono" style={{ fontWeight: 700 }}>{displayQarEgpRate(o.qarToEgpRate, o.date).toFixed(2)}</span>
                           </span>
                         )}
                       </div>
@@ -2048,7 +2060,7 @@ export default function CustomerOrdersPage() {
                           {Math.round(o.totalAmount).toLocaleString()} {o.currency}
                         </td>
                         <td className="mono r" style={{ whiteSpace: 'nowrap' }}>
-                          {o.qarToEgpRate != null && o.qarToEgpRate > 0 ? o.qarToEgpRate.toFixed(2) : '—'}
+                          {o.qarToEgpRate != null && o.qarToEgpRate > 0 ? displayQarEgpRate(o.qarToEgpRate, o.date).toFixed(2) : '—'}
                         </td>
                         {hasLoans && (
                           <td>
@@ -2229,7 +2241,7 @@ export default function CustomerOrdersPage() {
                     </div>
                     <div>
                       <div className="text-[10px] text-muted-foreground">{L('Rate', 'السعر')}</div>
-                      <div className="font-bold">{order.fx_rate ? formatCustomerNumber(order.fx_rate, lang, 2) : '—'}</div>
+                      <div className="font-bold">{order.fx_rate ? formatCustomerNumber(displayQarEgpRate(order.fx_rate, order.created_at), lang, 2) : '—'}</div>
                     </div>
                   </div>
                   {order.note && <div className="text-xs text-muted-foreground italic">💬 {order.note}</div>}

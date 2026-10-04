@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { displayQarEgpRate } from '@/features/customer/display-rate';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, AlertCircle, Plus, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users, Info } from 'lucide-react';
@@ -701,7 +702,7 @@ export default function CustomerHomePage() {
                     {/* Rate */}
                     {rate != null && (
                       <div className="text-right">
-                        <p className="text-[11px] text-muted-foreground tabular-nums">@{fmt(rate, 4)}</p>
+                        <p className="text-[11px] text-muted-foreground tabular-nums">@{fmt(displayQarEgpRate(rate, o.created_at), 4)}</p>
                       </div>
                     )}
                   </div>
