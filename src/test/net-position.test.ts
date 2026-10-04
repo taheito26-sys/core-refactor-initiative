@@ -17,7 +17,7 @@ const state = (over: Partial<TrackerState> = {}) =>
 const line = (p: ReturnType<typeof computeNetPosition>, key: string) => p.lines.find(l => l.key === key)?.amountQAR ?? 0;
 
 describe('computeNetPosition', () => {
-  it('adds cash, bank and stock at cost, and counts USD at the peg', () => {
+  it('adds cash, bank and stock at cost, and values USD at the average USDT buying price', () => {
     const s = state({
       cashAccounts: [acc('hand', 'hand', 'QAR'), acc('bank', 'bank', 'QAR'), acc('usd', 'bank', 'USD')] as never,
       cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('bank', D(2026, 9, 1), 'in', 5000), led('usd', D(2026, 9, 1), 'in', 100)] as never,
@@ -25,20 +25,38 @@ describe('computeNetPosition', () => {
     });
     const p = computeNetPosition(s, D(2026, 9, 30));
     expect(line(p, 'cash_hand')).toBe(1000);
-    expect(line(p, 'cash_bank')).toBe(5000 + 100 * USD_QAR_PEG);
+    expect(p.usdToQar).toBe(3.6);
+    expect(line(p, 'cash_bank')).toBe(5000 + 100 * 3.6);
     expect(line(p, 'stock')).toBe(3600);
-    expect(p.netQAR).toBe(1000 + 5000 + 364 + 3600);
+    expect(p.netQAR).toBe(1000 + 5000 + 360 + 3600);
+    expect(computeNetPosition(s, D(2026, 9, 30), { usdToQar: 3.7 }).usdToQar).toBe(3.7);
+    expect(computeNetPosition(state(), D(2026, 9, 30)).usdToQar).toBe(USD_QAR_PEG);
   });
 
-  it('leaves EGP accounts and EGP loans out and says so', () => {
+  it('counts an EGP loan by the USDT it cost at its own sale rate, priced at the USDT buying price', () => {
+    // 1,000 USDT sold at 50 EGP/USDT = 50,000 EGP owed; 20,000 repaid; 30,000 EGP left = 600 USDT = 2,160 QAR at 3.6.
     const s = state({
-      cashAccounts: [acc('egp', 'bank', 'EGP')] as never,
-      cashLedger: [led('egp', D(2026, 9, 1), 'in', 999999)] as never,
-      customerLoans: [{ id: 'l', ts: D(2026, 9, 1), customerId: 'c', principal: 5000, currency: 'EGP', repayments: [], status: 'open', createdAt: 0 }] as never,
+      batches: [batch('b', D(2026, 9, 1), 1000, 3.6)] as never,
+      trades: [{ ...trade('t', D(2026, 9, 2), 1000, 3.8), originalFiat: 'EGP', originalFiatPriceUSDT: 50, originalFiatAmount: 50000 }] as never,
+      customerLoans: [{
+        id: 'l', ts: D(2026, 9, 2), customerId: 'c', tradeId: 't', principal: 50000, currency: 'EGP', status: 'open', createdAt: 0,
+        repayments: [{ id: 'r', ts: D(2026, 9, 10), amount: 20000 }],
+      }] as never,
     });
     const p = computeNetPosition(s, D(2026, 9, 30));
-    expect(p.netQAR).toBe(0);
-    expect(p.ignored).toEqual({ egpAccounts: 1, egpLoans: 1 });
+    expect(p.warnings).toEqual([]);
+    expect(line(p, 'customer_loans')).toBe(0 + 30000 / 50 * p.usdtRateQAR);
+  });
+
+  it('lets the EGP rate be overridden, and prices EGP cash by it', () => {
+    const s = state({
+      batches: [batch('b', D(2026, 9, 1), 1000, 3.6)] as never,
+      cashAccounts: [acc('egp', 'bank', 'EGP')] as never,
+      cashLedger: [led('egp', D(2026, 9, 1), 'in', 5200)] as never,
+    });
+    const p = computeNetPosition(s, D(2026, 9, 30), { egpPerUsdt: 52 });
+    expect(line(p, 'cash_bank')).toBe(100 * 3.6);
+    expect(computeNetPosition(s, D(2026, 9, 30)).warnings).toContain('egp_unpriced');
   });
 
   it('values only what existed at the date: later cash, repayments and sales do not count', () => {

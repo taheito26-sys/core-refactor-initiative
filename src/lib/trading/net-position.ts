@@ -11,13 +11,16 @@ import { isTransferActive, transferCounterpartyKey, type UsdtTransfer } from '..
 // tracker knows about into one QAR figure as of any moment, so a month's
 // opening and closing positions can be compared against its revenue.
 //
-// Only QAR and USD are counted (USD at the QAR peg, overridable); EGP
-// accounts and EGP loans are left out on purpose and reported in `ignored`.
-// Stock is valued at FIFO cost. The position is rebuilt from dated records,
+// Every currency is brought to QAR by what it costs in USDT. A USD amount is
+// worth the average price USDT is being bought at (the stock's weighted
+// average cost, the app's WACOP), and can be overridden. An EGP loan is
+// worth the USDT it cost, at the EGP rate of the sale that created it, and
+// that USDT is then priced the same way; EGP cash uses one EGP rate, also
+// overridable. Stock is valued at FIFO cost. The position is rebuilt from dated records,
 // so a later edit to an old record moves an old month; a frozen month-end
 // snapshot is what keeps history stable.
 
-/** QAR has been pegged to the US dollar at this rate since 2001. */
+/** QAR has been pegged to the US dollar at this rate since 2001; used only when there is no USDT price to go by. */
 export const USD_QAR_PEG = 3.64;
 
 export type NetPositionLineKey =
@@ -49,13 +52,18 @@ export interface NetPosition {
   stockUSDT: number;
   /** QAR per USDT used to value USDT held outside stock layers. */
   usdtRateQAR: number;
+  /** QAR per 1 USD used: the override, else the average USDT buying price. */
   usdToQar: number;
-  ignored: { egpAccounts: number; egpLoans: number };
-  warnings: string[];
+  /** EGP per 1 USDT used for EGP cash and for EGP loans with no sale rate of their own; 0 when unknown. */
+  egpPerUsdt: number;
+  warnings: Array<'usdt_unpriced' | 'egp_unpriced'>;
 }
 
 export interface NetPositionOptions {
+  /** QAR per 1 USD. Defaults to the average USDT buying price (WACOP). */
   usdToQar?: number;
+  /** EGP per 1 USDT. Overrides every EGP conversion; by default each EGP loan uses the rate of its own sale. */
+  egpPerUsdt?: number;
   /** QAR per USDT for USDT held in cash accounts or lent / borrowed; defaults to the stock's average cost. */
   usdtRateQAR?: number;
 }
@@ -74,9 +82,7 @@ export function computeNetPosition(
   asOf: number,
   options: NetPositionOptions = {},
 ): NetPosition {
-  const usdToQar = options.usdToQar && options.usdToQar > 0 ? options.usdToQar : USD_QAR_PEG;
-  const warnings: string[] = [];
-  const ignored = { egpAccounts: 0, egpLoans: 0 };
+  const warnings: NetPosition['warnings'] = [];
   const sums = new Map<string, { side: 'asset' | 'liability'; amount: number }>();
   const add = (key: NetPositionLineKey, side: 'asset' | 'liability', amount: number) => {
     const slot = sums.get(key) ?? { side, amount: 0 };
@@ -104,16 +110,28 @@ export function computeNetPosition(
     const latest = [...batches].sort((a, b) => b.ts - a.ts)[0];
     usdtRateQAR = latest?.buyPriceQAR || 0;
   }
+  const usdToQar = options.usdToQar && options.usdToQar > 0 ? options.usdToQar : usdtRateQAR || USD_QAR_PEG;
+
+  // EGP per USDT: the override, else the most recent EGP sale before asOf.
+  let egpPerUsdt = options.egpPerUsdt && options.egpPerUsdt > 0 ? options.egpPerUsdt : 0;
+  if (!egpPerUsdt) {
+    const lastEgpSale = [...trades]
+      .filter(t => t.originalFiat === 'EGP' && (t.originalFiatPriceUSDT || 0) > 0)
+      .sort((a, b) => b.ts - a.ts)[0];
+    egpPerUsdt = lastEgpSale?.originalFiatPriceUSDT || 0;
+  }
+  /** What an amount of EGP cost, in QAR: the USDT it stands for, priced at the USDT buying price. */
+  const egpToQar = (egp: number, ratePerUsdt: number) => (ratePerUsdt > 0 ? (egp / ratePerUsdt) * usdtRateQAR : 0);
 
   // ── Cash and bank, from the ledger up to asOf ──
   const ledger = (state.cashLedger || []).filter(e => e.ts <= asOf);
   let usdtAccountBalance = 0;
   for (const acc of state.cashAccounts || []) {
-    if (acc.currency === 'EGP') { ignored.egpAccounts++; continue; }
     const balance = getAccountBalance(acc.id, ledger);
     if (!balance) continue;
     if (acc.currency === 'USDT') { usdtAccountBalance += balance; continue; }
-    const qar = acc.currency === 'USD' ? balance * usdToQar : balance;
+    if (acc.currency === 'EGP' && !egpPerUsdt && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
+    const qar = acc.currency === 'USD' ? balance * usdToQar : acc.currency === 'EGP' ? egpToQar(balance, egpPerUsdt) : balance;
     // A negative balance is an overdraft: owed, not owned.
     if (qar >= 0) add(ACCOUNT_LINE[acc.type] ?? 'cash_hand', 'asset', qar);
     else add('merchant_borrowed', 'liability', -qar);
@@ -127,11 +145,22 @@ export function computeNetPosition(
   const deleted = new Set(state.deletedLoanIds || []);
   for (const loan of (state.customerLoans || []) as CustomerLoan[]) {
     if (deleted.has(loan.id) || loan.ts > asOf) continue;
-    if (loan.currency === 'EGP') { ignored.egpLoans++; continue; }
     const repaid = getLoanRepaid({ ...loan, repayments: (loan.repayments || []).filter(r => r.ts <= asOf) });
     const outstanding = Math.max(0, loan.principal - repaid);
     if (!outstanding) continue;
-    const qar = loan.currency === 'USD' ? outstanding * usdToQar : loan.currency === 'USDT' ? outstanding * usdtRateQAR : outstanding;
+    let qar: number;
+    if (loan.currency === 'EGP') {
+      // The loan's own sale rate, unless the merchant overrode the EGP rate.
+      const sale = loan.tradeId ? trades.find(t => t.id === loan.tradeId) : undefined;
+      const ownRate = sale?.originalFiat === 'EGP' && (sale.originalFiatPriceUSDT || 0) > 0
+        ? sale.originalFiatPriceUSDT as number
+        : sale && sale.amountUSDT > 0 ? loan.principal / sale.amountUSDT : 0;
+      const rate = options.egpPerUsdt && options.egpPerUsdt > 0 ? options.egpPerUsdt : ownRate || egpPerUsdt;
+      if (!rate && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
+      qar = egpToQar(outstanding, rate);
+    } else {
+      qar = loan.currency === 'USD' ? outstanding * usdToQar : loan.currency === 'USDT' ? outstanding * usdtRateQAR : outstanding;
+    }
     add('customer_loans', 'asset', qar);
   }
 
@@ -159,7 +188,7 @@ export function computeNetPosition(
   const liabilitiesQAR = round2(lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amountQAR, 0));
   return {
     asOf, lines, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR),
-    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, usdtRateQAR, usdToQar, ignored, warnings,
+    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
   };
 }
 
