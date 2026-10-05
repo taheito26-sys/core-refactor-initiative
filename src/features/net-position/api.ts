@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import type { MonthBridge, MonthPosition } from '@/lib/trading/net-position';
 import type { MonthlySnapshot } from './snapshots';
+import type { OpeningOverride } from './overrides';
 
 const KEY = ['monthly-positions'];
 
@@ -65,4 +66,51 @@ export function useMonthClosing() {
   };
 
   return { close, reopen };
+}
+
+// ─── Opening positions entered by hand ───
+
+const OPENINGS_KEY = ['net-position-openings'];
+
+type OpeningRow = { month: string; manual: OpeningOverride['manual']; offsets: OpeningOverride['offsets']; updated_at: string };
+
+export function useOpeningOverrides() {
+  const query = useQuery({
+    queryKey: OPENINGS_KEY,
+    queryFn: async (): Promise<Map<string, OpeningOverride>> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await supabase.from('net_position_openings' as any).select('*');
+      if (error) throw error;
+      return new Map(((data ?? []) as unknown as OpeningRow[]).map(r => [r.month, { month: r.month, manual: r.manual, offsets: r.offsets, updatedAt: r.updated_at }]));
+    },
+    retry: false,
+  });
+  return { overrides: query.data ?? new Map<string, OpeningOverride>(), unavailable: query.isError };
+}
+
+export function useOpeningOverrideSaving() {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: OPENINGS_KEY });
+
+  const save = async (month: string, manual: OpeningOverride['manual'], offsets: OpeningOverride['offsets']) => {
+    if (!userId) throw new Error('Not signed in');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('net_position_openings' as any).upsert(
+      { user_id: userId, month, manual, offsets, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,month' },
+    );
+    if (error) throw error;
+    await refresh();
+  };
+
+  const clear = async (month: string) => {
+    if (!userId) throw new Error('Not signed in');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('net_position_openings' as any).delete().eq('user_id', userId).eq('month', month);
+    if (error) throw error;
+    await refresh();
+  };
+
+  return { save, clear };
 }

@@ -33,7 +33,9 @@ export type NetPositionLineKey =
   | 'stock'
   | 'customer_loans'
   | 'merchant_lent'
-  | 'merchant_borrowed';
+  | 'merchant_borrowed'
+  /** Only ever set by hand, to make an opening position match what the merchant knows. */
+  | 'manual_other';
 
 export interface NetPositionLine {
   key: NetPositionLineKey;
@@ -375,3 +377,39 @@ export function computeMonthBridge(
 }
 
 export type { ExpenseGroup };
+
+// ─── Setting a position by hand ───
+
+/** QAR to add to each line (negative takes away), in the signed form where an asset is positive and a liability negative. */
+export type LineOffsets = Partial<Record<NetPositionLineKey, number>>;
+
+const signedAmount = (line: NetPositionLine) => (line.side === 'asset' ? line.amountQAR : -line.amountQAR);
+
+/** A position with each line moved by its offset; assets, liabilities and net are recomputed. */
+export function applyLineOffsets(position: NetPosition, offsets: LineOffsets): NetPosition {
+  const signed = new Map<NetPositionLineKey, number>(position.lines.map(l => [l.key, signedAmount(l)]));
+  for (const [key, offset] of Object.entries(offsets) as Array<[NetPositionLineKey, number]>) {
+    if (!offset) continue;
+    signed.set(key, (signed.get(key) ?? 0) + offset);
+  }
+  const lines: NetPositionLine[] = [...signed.entries()]
+    .map(([key, value]) => ({ key, side: (value >= 0 ? 'asset' : 'liability') as 'asset' | 'liability', amountQAR: round2(Math.abs(value)) }))
+    .filter(l => l.amountQAR !== 0);
+  const assetsQAR = round2(lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amountQAR, 0));
+  const liabilitiesQAR = round2(lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amountQAR, 0));
+  return { ...position, lines, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR) };
+}
+
+/**
+ * A month whose starting position was set by hand. The offsets are what the
+ * merchant's figures differ from the records by at the start of the month;
+ * they are carried through the whole month, so the closing position moves by
+ * the same amount and the change during the month is still what the records
+ * say it was.
+ */
+export function applyOpeningOverride(month: MonthPosition, offsets: LineOffsets): MonthPosition {
+  const opening = applyLineOffsets(month.opening, offsets);
+  const closing = applyLineOffsets(month.closing, offsets);
+  const changeQAR = round2(closing.netQAR - opening.netQAR);
+  return { ...month, opening, closing, changeQAR, unexplainedQAR: round2(changeQAR - month.netRevenueQAR) };
+}

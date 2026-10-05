@@ -10,7 +10,7 @@ const labels: NetPositionReportLabels = {
   revenue: 'Revenue', bridge: 'Bridge', business: 'Business', personal: 'Personal', uncategorised: 'Uncategorised', deposits: 'Deposits',
   adjustments: 'Adjustments', other: 'Other', priorCorrections: 'Corrections', breakdown: 'Breakdown', assets: 'Assets', liabilities: 'Liabilities',
   rates: 'Rates', usdRate: 'USD', usdtRate: 'USDT', egpRate: 'EGP', footer: 'f', generatedOn: 'on',
-  lines: { cash_hand: 'Hand', cash_bank: 'Bank', cash_vault: 'Vault', cash_custody: 'Custody', usdt_in_accounts: 'USDT', stock: 'Stock', customer_loans: 'Loans', merchant_lent: 'Lent', merchant_borrowed: 'Owed' },
+  lines: { cash_hand: 'Hand', cash_bank: 'Bank', cash_vault: 'Vault', cash_custody: 'Custody', usdt_in_accounts: 'USDT', stock: 'Stock', customer_loans: 'Loans', merchant_lent: 'Lent', merchant_borrowed: 'Owed', manual_other: 'Other' },
   categories: { rent: 'Rent', owner_draw: 'Owner draw' },
 };
 const pos = (net: number, lines: Array<{ key: string; side: 'asset' | 'liability'; amountQAR: number }>) =>

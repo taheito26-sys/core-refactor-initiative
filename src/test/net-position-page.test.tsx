@@ -25,9 +25,12 @@ const state = {
 };
 const closeMonth = vi.fn(async () => {});
 const snapshots = new Map<string, unknown>();
+const saveOpening = vi.fn(async () => {});
 vi.mock('@/features/net-position/api', () => ({
   useMonthlySnapshots: () => ({ snapshots, unavailable: false, loading: false }),
   useMonthClosing: () => ({ close: closeMonth, reopen: vi.fn(async () => {}) }),
+  useOpeningOverrides: () => ({ overrides: new Map(), unavailable: false }),
+  useOpeningOverrideSaving: () => ({ save: saveOpening, clear: vi.fn(async () => {}) }),
 }));
 vi.mock('@/lib/useTrackerState', () => ({ useTrackerState: () => ({ state, applyState }) }));
 
@@ -63,5 +66,18 @@ describe('NetPositionPage', () => {
   it('opens the month named in the reminder link', () => {
     render(<NetPositionPage />, '/trading/net-position?month=2026-03');
     expect(screen.getByText('march 2026')).toBeTruthy();
+  });
+
+  it('saves a starting position typed by hand as the difference from the records', async () => {
+    render(<NetPositionPage />);
+    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
+    fireEvent.change(screen.getByLabelText('npLineCashHand'), { target: { value: '9000' } });
+    fireEvent.click(screen.getByText('npSaveOpening'));
+    await Promise.resolve();
+    expect(saveOpening).toHaveBeenCalledTimes(1);
+    const [month, manual, offsets] = saveOpening.mock.calls[0] as unknown as [string, Record<string, number>, Record<string, number>];
+    expect(month).toMatch(/^\d{4}-\d{2}$/);
+    expect(manual.cash_hand).toBe(9000);
+    expect(offsets.cash_hand).toBeTypeOf('number');
   });
 });

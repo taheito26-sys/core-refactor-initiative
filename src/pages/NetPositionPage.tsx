@@ -7,10 +7,11 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { deriveCashQAR, fmtTotal, getAccountBalance, uid, type CashLedgerEntry } from '@/lib/tracker-helpers';
 import {
-  computeMonthBridge, computeMonthPosition, type NetPositionLineKey,
+  applyOpeningOverride, computeMonthBridge, computeMonthPosition, type NetPositionLineKey,
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
-import { useMonthClosing, useMonthlySnapshots } from '@/features/net-position/api';
+import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides } from '@/features/net-position/api';
+import { MANUAL_LINE_KEYS, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
@@ -27,6 +28,7 @@ const LINE_LABEL: Record<NetPositionLineKey, TranslationKey> = {
   customer_loans: 'npLineCustomerLoans',
   merchant_lent: 'npLineMerchantLent',
   merchant_borrowed: 'npLineMerchantBorrowed',
+  manual_other: 'npLineManualOther',
 };
 
 const CATEGORY_LABEL: Record<string, TranslationKey> = {
@@ -98,7 +100,12 @@ export default function NetPositionPage() {
     egpPerUsdt: Number(rates.egp) > 0 ? Number(rates.egp) : undefined,
   }), [rates]);
 
-  const live = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
+  const recorded = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
+  // A starting position entered by hand moves the month (and every later one) by what it differs from the records.
+  const { overrides, unavailable: overridesUnavailable } = useOpeningOverrides();
+  const openingSaving = useOpeningOverrideSaving();
+  const manual = useMemo(() => offsetsFor(overrides, recorded.key), [overrides, recorded.key]);
+  const live = useMemo(() => (manual ? applyOpeningOverride(recorded, manual.offsets) : recorded), [recorded, manual]);
   const liveBridge = useMemo(() => computeMonthBridge(state, live), [state, live]);
 
   // A closed month shows the figures it was frozen with; any other month
@@ -116,6 +123,41 @@ export default function NetPositionPage() {
   const openingQAR = bridge.openingQAR;
   const changeQAR = Math.round((month.closing.netQAR - openingQAR) * 100) / 100;
   const drift = frozen && snap ? closingDrift(snap, live) : 0;
+  // ── Setting the starting position by hand ──
+  const [editingOpening, setEditingOpening] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const ownOverride = overrides.get(recorded.key);
+  const startEditingOpening = () => {
+    const next: Record<string, string> = {};
+    for (const key of MANUAL_LINE_KEYS) {
+      const value = ownOverride?.manual[key] ?? recordedLineValue(live.opening, key);
+      next[key] = value ? String(value) : '';
+    }
+    setDraft(next);
+    setEditingOpening(true);
+  };
+  const draftManual = useMemo(() => {
+    const out: OpeningOverride['manual'] = {};
+    for (const key of MANUAL_LINE_KEYS) out[key] = Number(draft[key]) || 0;
+    return out;
+  }, [draft]);
+  const saveOpening = async () => {
+    setOpeningBusy(true);
+    try {
+      await openingSaving.save(recorded.key, draftManual, offsetsFromManual(recorded.opening, draftManual));
+      setEditingOpening(false);
+      toast.success(t('npOpeningSaved'));
+    } catch { toast.error(t('npClosingFailed')); } finally { setOpeningBusy(false); }
+  };
+  const clearOpening = async () => {
+    setOpeningBusy(true);
+    try {
+      await openingSaving.clear(recorded.key);
+      setEditingOpening(false);
+      toast.success(t('npOpeningCleared'));
+    } catch { toast.error(t('npClosingFailed')); } finally { setOpeningBusy(false); }
+  };
+  const [openingBusy, setOpeningBusy] = useState(false);
   const [closingBusy, setClosingBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportPdf = async () => {
@@ -237,6 +279,57 @@ export default function NetPositionPage() {
         <button type="button" className="btn secondary" disabled={exporting} onClick={() => { void exportPdf(); }}>
           📄 {exporting ? t('npExporting') : t('npExportPdf')}
         </button>
+      </div>
+
+      {/* ── Starting position by hand ── */}
+      <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {manual && (
+          <div style={{ fontSize: 11, color: 'var(--warn)' }}>
+            ✎ {(manual.from === recorded.key ? t('npManualActive') : t('npManualCarried')).split('{month}').join(manual.from)}
+          </div>
+        )}
+        {overridesUnavailable && <div style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npOpeningsUnavailable')}</div>}
+        {!editingOpening && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" className="btn secondary" disabled={frozen || overridesUnavailable} onClick={startEditingOpening}>
+              ✎ {t('npSetOpening')}
+            </button>
+            {frozen && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npManualFrozenNote')}</span>}
+          </div>
+        )}
+        {editingOpening && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>{t('npOpeningEditTitle').split('{month}').join(monthLabel)}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npOpeningEditHint')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 120px', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
+              <span />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColRecords')}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('npColYours')}</span>
+              {MANUAL_LINE_KEYS.map(key => (
+                <div key={key} style={{ display: 'contents' }}>
+                  <span>{t(LINE_LABEL[key])}</span>
+                  <span className="mono" style={{ textAlign: 'end', color: 'var(--muted)' }}>{money(recordedLineValue(recorded.opening, key))}</span>
+                  <input inputMode="decimal" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
+                    onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
+                    style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
+              <span>{t('npTotalYours')}</span>
+              <span className="mono">{money(manualOpeningTotal(draftManual))} QAR</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+              <span>{t('npDiffFromRecords')}</span>
+              <span className="mono">{money(Math.round((manualOpeningTotal(draftManual) - recorded.opening.netQAR) * 100) / 100, true)} QAR</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className="btn" disabled={openingBusy} onClick={() => { void saveOpening(); }}>{t('npSaveOpening')}</button>
+              <button type="button" className="btn secondary" disabled={openingBusy} onClick={() => setEditingOpening(false)}>{t('cancel')}</button>
+              {ownOverride && <button type="button" className="rowBtn" disabled={openingBusy} onClick={() => { void clearOpening(); }}>{t('npUseRecords')}</button>}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Closing ── */}
