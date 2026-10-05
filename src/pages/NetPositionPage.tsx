@@ -132,8 +132,8 @@ export default function NetPositionPage() {
   const drift = frozen && snap ? closingDrift(snap, live) : 0;
   // Why the customer-loans line can differ from the Unpaid figure on the loans screen: that one is as of today,
   // this one as of the start of the month, so repayments dated since then are the gap.
+  const todayPos = useMemo(() => computeNetPosition(state, Date.now(), options), [state, options]);
   const loanRecon = useMemo(() => {
-    const todayPos = computeNetPosition(state, Date.now(), options);
     const todayLoans = todayPos.lines.find(l => l.key === 'customer_loans')?.amountQAR ?? 0;
     const deleted = new Set(state.deletedLoanIds || []);
     let repaidSince = 0;
@@ -144,7 +144,7 @@ export default function NetPositionPage() {
       }
     }
     return { todayLoans, repaidSince: Math.round(repaidSince * 100) / 100 };
-  }, [state, options, recorded.opening.asOf]);
+  }, [state, todayPos, recorded.opening.asOf]);
 
   // ── Setting the starting position by hand ──
   const [editingOpening, setEditingOpening] = useState(false);
@@ -338,31 +338,38 @@ export default function NetPositionPage() {
           <>
             <div style={{ fontSize: 12, fontWeight: 800 }}>{t('npOpeningEditTitle').split('{month}').join(monthLabel)}</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npOpeningEditHint')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 120px', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto 120px', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
               <span />
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColRecords')}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColToday')}</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('npColYours')}</span>
               {MANUAL_LINE_KEYS.map(key => (
                 <div key={key} style={{ display: 'contents' }}>
                   <span>{t(LINE_LABEL[key])}</span>
                   <span className="mono" style={{ textAlign: 'end', color: 'var(--muted)' }}>{money(recordedLineValue(recorded.opening, key))}</span>
+                  <button type="button" className="rowBtn mono" style={{ fontSize: 11, justifySelf: 'end' }} title={t('npUseToday')}
+                    onClick={() => setDraft({ ...draft, [key]: String(recordedLineValue(todayPos, key)) })}>
+                    {money(recordedLineValue(todayPos, key))}
+                  </button>
                   <input inputMode="decimal" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
                     onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
                     style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
                   {key === 'customer_loans' && (
-                    <div style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span>
-                        {t('npLoansToday').split('{today}').join(money(loanRecon.todayLoans)).split('{repaid}').join(money(loanRecon.repaidSince))}
-                      </span>
-                      <button type="button" className="rowBtn" style={{ fontSize: 10 }}
-                        onClick={() => setDraft({ ...draft, customer_loans: String(loanRecon.todayLoans) })}>
-                        {t('npUseToday')}
-                      </button>
+                    <div style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)' }}>
+                      {t('npLoansToday').split('{today}').join(money(loanRecon.todayLoans)).split('{repaid}').join(money(loanRecon.repaidSince))}
                     </div>
                   )}
                 </div>
               ))}
             </div>
+            <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}
+              onClick={() => {
+                const next: Record<string, string> = {};
+                for (const key of MANUAL_LINE_KEYS) { const v = recordedLineValue(todayPos, key); next[key] = v ? String(v) : ''; }
+                setDraft(next);
+              }}>
+              {t('npUseTodayAll')}
+            </button>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
               <span>{t('npTotalYours')}</span>
               <span className="mono">{money(manualOpeningTotal(draftManual))} QAR</span>

@@ -872,6 +872,8 @@ const translations = {
   npStockUnpaid: { en: 'Stock added with no payment recorded', ar: 'مخزون أُضيف بلا دفعة مسجّلة' },
   npStockUnpaidHint: { en: 'These batches were added without a cash account paying for them, so your stock rose without your cash falling.', ar: 'أُضيفت هذه الدفعات دون حساب نقدي يدفع ثمنها، فارتفع مخزونك دون أن ينقص نقدك.' },
   npColChange: { en: 'Change', ar: 'التغيّر' },
+  npColToday: { en: 'Today', ar: 'اليوم' },
+  npUseTodayAll: { en: 'Use today\'s figure for every line', ar: 'استخدم رقم اليوم لكل البنود' },
   mloanDecideThese: { en: 'Decide these in Loans', ar: 'قرّر بشأنها في القروض' },
   mloanImportPurchaseHint: { en: 'Import it from the exchange list in the Add batch form.', ar: 'استورده من قائمة المنصات في نموذج إضافة دفعة.' },
 

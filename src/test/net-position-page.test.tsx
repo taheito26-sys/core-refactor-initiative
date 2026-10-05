@@ -82,4 +82,14 @@ describe('NetPositionPage', () => {
     expect(manual.cash_hand).toBe(9000);
     expect(offsets.cash_hand).toBeTypeOf('number');
   });
+
+  it('fills a line with what the tracker holds today when its Today figure is pressed', () => {
+    render(<NetPositionPage />);
+    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
+    // The test ledger holds 5,000 in minus 200 out in the one hand account.
+    fireEvent.click(screen.getAllByTitle('npUseToday')[0]);
+    expect((screen.getByLabelText('npLineCashHand') as HTMLInputElement).value).toBe('4800');
+    fireEvent.click(screen.getByText('npUseTodayAll'));
+    expect((screen.getByLabelText('npLineCashHand') as HTMLInputElement).value).toBe('4800');
+  });
 });
