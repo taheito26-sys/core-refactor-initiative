@@ -10,9 +10,10 @@ const pos = (lines: Array<{ key: string; side: 'asset' | 'liability'; amountQAR:
 
 describe('applyLineOffsets', () => {
   it('moves a line, adds a missing one, and recomputes the totals', () => {
-    const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { cash_hand: 500, manual_other: 200 });
+    const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { cash_hand: 500, exchange_usdt: 200, manual_other: 999 });
     expect(p.lines.find(l => l.key === 'cash_hand')?.amountQAR).toBe(1500);
-    expect(p.lines.find(l => l.key === 'manual_other')?.amountQAR).toBe(200);
+    expect(p.lines.find(l => l.key === 'exchange_usdt')?.amountQAR).toBe(200)
+    expect(p.lines.find(l => l.key === 'manual_other')).toBeUndefined();
     expect(p.netQAR).toBe(1700);
   });
   it('flips a line to a liability when pushed below zero', () => {
@@ -54,7 +55,7 @@ describe('entering a position by hand', () => {
   });
 
   it('totals an entered position', () => {
-    expect(manualOpeningTotal({ cash_hand: 1000, customer_loans: 500, manual_other: -200 })).toBe(1300);
+    expect(manualOpeningTotal({ cash_hand: 1000, customer_loans: 500, manual_other: -200 })).toBe(1500);
   });
 });
 

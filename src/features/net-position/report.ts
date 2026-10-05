@@ -1,6 +1,6 @@
 import { renderHtmlReportToPdf } from '@/lib/htmlReportToPdf';
 import { fmtTotal } from '@/lib/tracker-helpers';
-import type { MonthBridge, MonthPosition, NetPositionLineKey } from '@/lib/trading/net-position';
+import { lineChangesOf, type MonthBridge, type MonthPosition, type NetPositionLineKey } from '@/lib/trading/net-position';
 
 export interface NetPositionReportLabels {
   title: string;
@@ -11,13 +11,10 @@ export interface NetPositionReportLabels {
   change: string;
   revenue: string;
   bridge: string;
+  reference?: string;
   business: string;
   personal: string;
   uncategorised: string;
-  usdtMovement?: string;
-  deposits: string;
-  adjustments: string;
-  other: string;
   priorCorrections: string;
   breakdown: string;
   assets: string;
@@ -65,18 +62,18 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
   const bridgeRows: Array<{ label: string; amount: number; kind?: 'plus' | 'minus' | 'sub' | 'total' | 'muted' }> = [
     { label: L.opening, amount: bridge.openingQAR, kind: 'total' },
     ...(bridge.priorCorrectionsQAR ? [{ label: L.priorCorrections, amount: bridge.priorCorrectionsQAR, kind: 'muted' as const }] : []),
-    { label: L.revenue, amount: bridge.netRevenueQAR, kind: 'plus' },
-    ...(bridge.usdtMovementQAR && L.usdtMovement ? [{ label: L.usdtMovement, amount: Math.abs(bridge.usdtMovementQAR), kind: (bridge.usdtMovementQAR > 0 ? 'plus' : 'minus') as 'plus' | 'minus' }] : []),
-    ...(bridge.depositsQAR > 0 ? [{ label: L.deposits, amount: bridge.depositsQAR, kind: 'plus' as const }] : []),
-    ...(bridge.adjustmentsInQAR > 0 ? [{ label: L.adjustments, amount: bridge.adjustmentsInQAR, kind: 'plus' as const }] : []),
-    { label: L.business, amount: bridge.businessTotalQAR, kind: 'minus' },
-    ...bridge.business.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
-    { label: L.personal, amount: bridge.personalTotalQAR, kind: 'minus' },
-    ...bridge.personal.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
-    ...(bridge.uncategorisedQAR > 0 ? [{ label: `${L.uncategorised} (${bridge.uncategorisedCount})`, amount: bridge.uncategorisedQAR, kind: 'minus' as const }] : []),
-    { label: L.other, amount: bridge.otherQAR, kind: 'muted' },
-    { label: L.closing, amount: bridge.closingQAR, kind: 'total' },
+    ...lineChangesOf(month).map(c => ({ label: L.lines[c.key] ?? c.key, amount: Math.abs(c.changeQAR), kind: (c.changeQAR > 0 ? 'plus' : 'minus') as 'plus' | 'minus' })),
+    { label: L.closing, amount: month.closing.netQAR, kind: 'total' },
   ];
+  const referenceRows: Array<{ label: string; amount: number; kind: 'muted' | 'sub' }> = [
+    { label: L.revenue, amount: bridge.netRevenueQAR, kind: 'muted' },
+    { label: L.business, amount: bridge.businessTotalQAR, kind: 'muted' },
+    ...bridge.business.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
+    { label: L.personal, amount: bridge.personalTotalQAR, kind: 'muted' },
+    ...bridge.personal.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
+    ...(bridge.uncategorisedQAR > 0 ? [{ label: `${L.uncategorised} (${bridge.uncategorisedCount})`, amount: bridge.uncategorisedQAR, kind: 'muted' as const }] : []),
+  ];
+  const referenceHtml = referenceRows.map(r => `<tr class="${r.kind}"><td>${escapeHtml(r.label)}</td><td class="num">${escapeHtml(fmtTotal(r.amount))}</td></tr>`).join('');
   const bridgeHtml = bridgeRows.map(r => {
     const shown = r.kind === 'minus' || r.kind === 'sub' ? (r.amount ? `−${fmtTotal(r.amount)}` : '0') : money(r.amount, r.kind === 'plus');
     return `<tr class="${r.kind ?? ''}"><td>${escapeHtml(r.label)}</td><td class="num">${escapeHtml(shown)}</td></tr>`;
@@ -142,6 +139,8 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
   </div>
   <h2>${escapeHtml(L.bridge)}</h2>
   <table><tbody>${bridgeHtml}</tbody></table>
+  <h2>${escapeHtml(L.reference ?? '')}</h2>
+  <table><tbody>${referenceHtml}</tbody></table>
   <h2>${escapeHtml(L.breakdown)}</h2>
   <table>
     <thead><tr><th>&nbsp;</th><th class="num">${escapeHtml(L.opening)}</th><th class="num">${escapeHtml(L.closing)}</th></tr></thead>

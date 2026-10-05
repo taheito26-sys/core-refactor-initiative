@@ -7,10 +7,13 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { deriveCashQAR, fmtTotal, getAccountBalance, uid, type CashLedgerEntry } from '@/lib/tracker-helpers';
 import {
-  amountToQar, applyOpeningOverride, computeMonthBridge, computeNetPosition, loanLedgerEntryIds, computeMonthPosition, type NetPositionLineKey,
+  amountToQar, applyOpeningOverride, computeMonthBridge, computeNetPosition, lineChangesOf, loanLedgerEntryIds, computeMonthPosition, type NetPositionLineKey,
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
 import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides, usePersonalLoans } from '@/features/net-position/api';
+import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 import { PersonalLoansPanel } from '@/features/net-position/components/PersonalLoansPanel';
 import { MANUAL_LINE_KEYS, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
@@ -29,6 +32,7 @@ const LINE_LABEL: Record<NetPositionLineKey, TranslationKey> = {
   customer_loans: 'npLineCustomerLoans',
   merchant_lent: 'npLineMerchantLent',
   merchant_borrowed: 'npLineMerchantBorrowed',
+  exchange_usdt: 'npLineExchangeUsdt',
   personal_loans: 'npLinePersonalLoans',
   manual_other: 'npLineManualOther',
 };
@@ -98,11 +102,31 @@ export default function NetPositionPage() {
   }, [rates]);
 
   const { loans: personalLoans, unavailable: personalLoansUnavailable } = usePersonalLoans();
+  // USDT on Binance and OKX: today's synced balance, and every recorded movement so earlier balances can be worked back from it.
+  const { data: exchangeBalances } = useExchangeBalances();
+  const { data: exchangeOrders } = useExchangeP2POrders({ includeDismissed: true });
+  const { data: exchangeTransfers } = useExchangeTransfers();
+  const exchangeUsdt = useMemo(() => {
+    if (!exchangeBalances) return undefined;
+    const byExchange = { binance: 0, okx: 0 };
+    for (const b of exchangeBalances) if (b.asset === 'USDT') byExchange[b.exchange] += b.free + b.locked;
+    const flows: Array<{ ts: number; deltaUSDT: number }> = [];
+    for (const o of exchangeOrders ?? []) {
+      if (String(o.asset).toUpperCase() !== 'USDT' || !o.order_time) continue;
+      flows.push({ ts: new Date(o.order_time).getTime(), deltaUSDT: o.side === 'sell' ? -Number(o.amount) : Number(o.amount) });
+    }
+    for (const tr of exchangeTransfers ?? []) {
+      if (String(tr.asset).toUpperCase() !== 'USDT' || !tr.transfer_time) continue;
+      flows.push({ ts: new Date(tr.transfer_time).getTime(), deltaUSDT: tr.direction === 'out' ? -Number(tr.amount) : Number(tr.amount) });
+    }
+    return { nowUSDT: byExchange.binance + byExchange.okx, byExchange, flows };
+  }, [exchangeBalances, exchangeOrders, exchangeTransfers]);
   const options = useMemo(() => ({
     usdToQar: Number(rates.usd) > 0 ? Number(rates.usd) : undefined,
     egpPerUsdt: Number(rates.egp) > 0 ? Number(rates.egp) : undefined,
     personalLoans,
-  }), [rates, personalLoans]);
+    exchangeUsdt,
+  }), [rates, personalLoans, exchangeUsdt]);
 
   const recorded = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
   // A starting position entered by hand moves the month (and every later one) by what it differs from the records.
@@ -202,8 +226,8 @@ export default function NetPositionPage() {
       const labels = {
         title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
         opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
-        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), usdtMovement: t('npUsdtMovement'),
-        deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
+        bridge: t('npBridge'), reference: t('npForReference'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'),
+        priorCorrections: t('npPriorCorrectionsRow'),
         breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
         usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
         footer: t('npReportFooter'), generatedOn: t('npReportGenerated'),
@@ -442,29 +466,22 @@ export default function NetPositionPage() {
       {warnings.includes('egp_unpriced') && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npWarnEgp')}</div>}
       {warnings.includes('usdt_unpriced') && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npWarnUsdt')}</div>}
 
-      {/* ── Bridge ── */}
+      {/* ── What moved ── */}
       <div className="panel" style={{ padding: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>{t('npBridge')}</div>
         {row(t('npOpening'), bridge.openingQAR, { bold: true })}
-        {!!bridge.usdtMovementQAR && row(t('npUsdtMovement'), bridge.usdtMovementQAR, { sign: bridge.usdtMovementQAR > 0 ? '+' : '-' })}
         {!!bridge.priorCorrectionsQAR && row(t('npPriorCorrectionsRow'), bridge.priorCorrectionsQAR, { muted: true })}
-        {row(t('npRevenue'), bridge.netRevenueQAR, { sign: '+' })}
-        {bridge.depositsQAR > 0 && row(t('npDeposits'), bridge.depositsQAR, { sign: '+' })}
-        {bridge.adjustmentsInQAR > 0 && row(t('npAdjustments'), bridge.adjustmentsInQAR, { sign: '+' })}
-
-        {row(t('npBusiness'), bridge.businessTotalQAR, { sign: '-' })}
-        {bridge.business.map(c => row(t(CATEGORY_LABEL[c.key]), c.amountQAR, { muted: true, indent: true }))}
-
-        <div style={{ borderTop: '1px dashed var(--line)', margin: '6px 0' }} />
-        {row(t('npPersonal'), bridge.personalTotalQAR, { sign: '-' })}
-        {bridge.personal.map(c => row(t(CATEGORY_LABEL[c.key]), c.amountQAR, { muted: true, indent: true }))}
-        <div style={{ borderTop: '1px dashed var(--line)', margin: '6px 0' }} />
-
-        {bridge.uncategorisedQAR > 0 && row(`${t('npUncategorised')} (${bridge.uncategorisedCount})`, bridge.uncategorisedQAR, { sign: '-' })}
-        {row(t('npOther'), bridge.otherQAR, { muted: true })}
-        <div style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4 }}>{t('npOtherWhy')}</div>
+        {lineChangesOf(month).map(c => row(t(LINE_LABEL[c.key]), c.changeQAR, { sign: c.changeQAR > 0 ? '+' : '-' }))}
         <div style={{ borderTop: '1px solid var(--line)', margin: '6px 0' }} />
-        {row(t('npClosing'), bridge.closingQAR, { bold: true })}
+        {row(t('npClosing'), month.closing.netQAR, { bold: true })}
+
+        <div style={{ fontSize: 11, fontWeight: 800, margin: '12px 0 4px', color: 'var(--muted)' }}>{t('npForReference')}</div>
+        {row(t('npRevenue'), bridge.netRevenueQAR, { muted: true })}
+        {row(t('npBusiness'), bridge.businessTotalQAR, { muted: true })}
+        {bridge.business.map(c => row(t(CATEGORY_LABEL[c.key]), c.amountQAR, { muted: true, indent: true }))}
+        {row(t('npPersonal'), bridge.personalTotalQAR, { muted: true })}
+        {bridge.personal.map(c => row(t(CATEGORY_LABEL[c.key]), c.amountQAR, { muted: true, indent: true }))}
+        {bridge.uncategorisedQAR > 0 && row(`${t('npUncategorised')} (${bridge.uncategorisedCount})`, bridge.uncategorisedQAR, { muted: true })}
       </div>
 
       {/* ── Categorise ── */}

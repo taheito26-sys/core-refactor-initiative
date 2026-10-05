@@ -20,8 +20,7 @@ export interface OpeningOverride {
 
 /** Lines the merchant can state, in the order the form shows them. */
 export const MANUAL_LINE_KEYS: NetPositionLineKey[] = [
-  'cash_hand', 'cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts',
-  'customer_loans', 'personal_loans', 'manual_other',
+  'cash_hand', 'exchange_usdt', 'customer_loans', 'personal_loans',
 ];
 
 /** What the records say a line was at the start of the month. */

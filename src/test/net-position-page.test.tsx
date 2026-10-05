@@ -34,6 +34,9 @@ vi.mock('@/features/net-position/api', () => ({
   usePersonalLoans: () => ({ loans: [], unavailable: false }),
   usePersonalLoanActions: () => ({ add: vi.fn(async () => 'x'), setRepayments: vi.fn(async () => {}), remove: vi.fn(async () => {}) }),
 }));
+vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({ useExchangeBalances: () => ({ data: [] }) }));
+vi.mock('@/features/exchanges/hooks/useExchangeP2POrders', () => ({ useExchangeP2POrders: () => ({ data: [] }) }));
+vi.mock('@/features/exchanges/hooks/useExchangeTransfers', () => ({ useExchangeTransfers: () => ({ data: [] }) }));
 vi.mock('@/lib/useTrackerState', () => ({ useTrackerState: () => ({ state, applyState }) }));
 
 import NetPositionPage from '@/pages/NetPositionPage';

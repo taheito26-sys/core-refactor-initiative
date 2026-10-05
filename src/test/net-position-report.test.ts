@@ -7,10 +7,9 @@ import type { MonthlySnapshot } from '@/features/net-position/snapshots';
 
 const labels: NetPositionReportLabels = {
   title: 'Net position', statusFrozen: 'Frozen {date}', statusLive: 'Live', opening: 'Opening', closing: 'Closing', change: 'Change',
-  revenue: 'Revenue', bridge: 'Bridge', business: 'Business', personal: 'Personal', uncategorised: 'Uncategorised', deposits: 'Deposits',
-  adjustments: 'Adjustments', other: 'Other', priorCorrections: 'Corrections', breakdown: 'Breakdown', assets: 'Assets', liabilities: 'Liabilities',
+  revenue: 'Revenue', bridge: 'Bridge', business: 'Business', personal: 'Personal', uncategorised: 'Uncategorised', priorCorrections: 'Corrections', breakdown: 'Breakdown', assets: 'Assets', liabilities: 'Liabilities',
   rates: 'Rates', usdRate: 'USD', usdtRate: 'USDT', egpRate: 'EGP', footer: 'f', generatedOn: 'on',
-  lines: { cash_hand: 'Hand', cash_bank: 'Bank', cash_vault: 'Vault', cash_custody: 'Custody', usdt_in_accounts: 'USDT', stock: 'Stock', customer_loans: 'Loans', personal_loans: 'Personal', merchant_lent: 'Lent', merchant_borrowed: 'Owed', manual_other: 'Other' },
+  lines: { cash_hand: 'Hand', cash_bank: 'Bank', cash_vault: 'Vault', cash_custody: 'Custody', usdt_in_accounts: 'USDT', stock: 'Stock', customer_loans: 'Loans', personal_loans: 'Personal', merchant_lent: 'Lent', merchant_borrowed: 'Owed', manual_other: 'Other', exchange_usdt: 'Exchanges' },
   categories: { rent: 'Rent', owner_draw: 'Owner draw' },
 };
 const pos = (net: number, lines: Array<{ key: string; side: 'asset' | 'liability'; amountQAR: number }>) =>
@@ -19,7 +18,7 @@ const month = { key: '2026-09', opening: pos(100, [{ key: 'cash_hand', side: 'as
 const bridge = {
   openingQAR: 100, netRevenueQAR: 20, business: [{ key: 'rent', amountQAR: 6 }], businessTotalQAR: 6,
   personal: [{ key: 'owner_draw', amountQAR: 4 }], personalTotalQAR: 4, uncategorisedQAR: 0, uncategorisedCount: 0,
-  depositsQAR: 0, adjustmentsInQAR: 0, otherQAR: 0, closingQAR: 110,
+  closingQAR: 110,
 } as unknown as MonthBridge;
 const base = { labels, monthLabel: 'September 2026', month, bridge, dir: 'ltr' as const, generatedOn: 'today' };
 

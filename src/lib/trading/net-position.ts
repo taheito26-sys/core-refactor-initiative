@@ -1,33 +1,34 @@
 import {
   computeFIFO, getAccountBalance, getLoanRepaid,
-  type CashAccount, type CashCurrency, type CustomerLoan, type TrackerState,
+  type CashCurrency, type CustomerLoan, type TrackerState,
 } from '../tracker-helpers';
-import { isTransferActive, transferCounterpartyKey, type UsdtTransfer } from '../usdt-transfers';
 import { personalLoanOutstanding, type PersonalLoan } from './personal-loans';
 import { expenseCategoryOf, isExpenseCandidate, type ExpenseGroup } from './expense-categories';
 
-// ─── Net position: everything owned minus everything owed ───
+// ─── Net position ───
 //
-// Net revenue says what a month earned; it cannot say what the merchant
-// owns, or why that changed. This sums every asset and liability the
-// tracker knows about into one QAR figure as of any moment, so a month's
-// opening and closing positions can be compared against its revenue.
+// The position is four things and nothing else, in QAR:
+//   - cash in hand (hand accounts),
+//   - USDT available on the exchanges (Binance + OKX),
+//   - loaned orders (customer loans still owed),
+//   - personal loans (money lent by hand to people who are not customers).
 //
-// Every currency is brought to QAR by what it costs in USDT. A USD amount is
-// worth the average price USDT is being bought at (the stock's weighted
-// average cost, the app's WACOP), and can be overridden. An EGP loan is
-// worth the USDT it cost, at the EGP rate of the sale that created it, and
-// that USDT is then priced the same way; EGP cash uses one EGP rate, also
-// overridable. USDT stock and USDT lent to merchants are not counted in
-// the position; they are only used to price USD and to explain a month. The position is rebuilt from dated records,
-// so a later edit to an old record moves an old month; a frozen month-end
-// snapshot is what keeps history stable.
+// Bank and vault accounts, USDT stock, USDT lent to or borrowed from merchants
+// and any other figure are not part of it. Other currencies are brought to QAR
+// by what they cost in USDT: USD is worth the average price USDT is being
+// bought at (the stock's weighted average cost, only used as a price), and can
+// be overridden; an EGP loan is worth the USDT it cost, at the EGP rate of the
+// sale that created it. The position is rebuilt from dated records, so a later
+// edit to an old record moves an old month; a frozen month-end snapshot is
+// what keeps history stable.
 
 /** QAR has been pegged to the US dollar at this rate since 2001; used only when there is no USDT price to go by. */
 export const USD_QAR_PEG = 3.64;
 
 export type NetPositionLineKey =
   | 'cash_hand'
+  /** USDT sitting on Binance and OKX. */
+  | 'exchange_usdt'
   | 'cash_bank'
   | 'cash_vault'
   | 'cash_custody'
@@ -38,7 +39,7 @@ export type NetPositionLineKey =
   | 'personal_loans'
   | 'merchant_lent'
   | 'merchant_borrowed'
-  /** Only ever set by hand, to make an opening position match what the merchant knows. */
+  /** No longer part of the position; kept so positions saved earlier still load. */
   | 'manual_other';
 
 export interface NetPositionLine {
@@ -66,13 +67,8 @@ export interface NetPosition {
   assetsQAR: number;
   liabilitiesQAR: number;
   netQAR: number;
-  /** USDT held in stock at that moment. */
+  /** USDT held in stock at that moment; used only to price USDT. */
   stockUSDT: number;
-  /**
-   * Values left out of the position on purpose (USDT stock at cost, USDT lent to
-   * merchants), kept so a month's bridge can still explain the revenue.
-   */
-  excluded?: { stockQAR: number; merchantLentQAR: number; merchantBorrowedQAR?: number };
   /** QAR per USDT used to value USDT held outside stock layers. */
   usdtRateQAR: number;
   /** QAR per 1 USD used: the override, else the average USDT buying price. */
@@ -82,7 +78,17 @@ export interface NetPosition {
   warnings: Array<'usdt_unpriced' | 'egp_unpriced'>;
 }
 
+/** USDT on the exchanges now, and the movements that let an earlier balance be worked back from it. */
+export interface ExchangeUsdtInput {
+  nowUSDT: number;
+  byExchange?: { binance: number; okx: number };
+  /** Every recorded movement of USDT in (+) or out (−) of the exchanges. */
+  flows: Array<{ ts: number; deltaUSDT: number }>;
+}
+
 export interface NetPositionOptions {
+  /** USDT held on Binance and OKX. */
+  exchangeUsdt?: ExchangeUsdtInput;
   /** Loans to friends and other non-customers, entered by hand. */
   personalLoans?: PersonalLoan[];
   /** QAR per 1 USD. Defaults to the average USDT buying price (WACOP). */
@@ -94,13 +100,6 @@ export interface NetPositionOptions {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-
-const ACCOUNT_LINE: Record<CashAccount['type'], NetPositionLineKey> = {
-  hand: 'cash_hand',
-  bank: 'cash_bank',
-  vault: 'cash_vault',
-  merchant_custody: 'cash_custody',
-};
 
 export function computeNetPosition(
   state: Pick<TrackerState, 'cashAccounts' | 'cashLedger' | 'batches' | 'trades' | 'customerLoans' | 'deletedLoanIds' | 'usdtTransfers'>,
@@ -148,25 +147,34 @@ export function computeNetPosition(
   /** What an amount of EGP cost, in QAR: the USDT it stands for, priced at the USDT buying price. */
   const egpToQar = (egp: number, ratePerUsdt: number) => (ratePerUsdt > 0 ? (egp / ratePerUsdt) * usdtRateQAR : 0);
 
-  // ── Cash and bank, from the ledger up to asOf ──
+  // ── Cash in hand, from the ledger up to asOf ──
   const ledger = (state.cashLedger || []).filter(e => e.ts <= asOf);
-  let usdtAccountBalance = 0;
   for (const acc of state.cashAccounts || []) {
-    // Same rule as the dashboard's cash total: closed accounts are not counted.
-    if (acc.status !== 'active') continue;
+    // Closed accounts are not counted (same rule as the dashboard), and only hand accounts are cash in hand.
+    if (acc.status !== 'active' || acc.type !== 'hand' || acc.currency === 'USDT') continue;
     const balance = getAccountBalance(acc.id, ledger);
     if (!balance) continue;
-    if (acc.currency === 'USDT') { usdtAccountBalance += balance; continue; }
     if (acc.currency === 'EGP' && !egpPerUsdt && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
     const qar = acc.currency === 'USD' ? balance * usdToQar : acc.currency === 'EGP' ? egpToQar(balance, egpPerUsdt) : balance;
-    // A negative balance is an overdraft: owed, not owned.
-    const original = { amount: balance, unit: acc.currency };
-    // An overdrawn account takes away from its own line rather than forming a line of its own.
-    add(ACCOUNT_LINE[acc.type] ?? 'cash_hand', 'asset', qar, { label: qar < 0 ? `${acc.name} (overdrawn)` : acc.name, amountQAR: Math.abs(qar), original });
+    // An overdrawn account takes away from the line rather than forming a line of its own.
+    add('cash_hand', 'asset', qar, {
+      label: qar < 0 ? `${acc.name} (overdrawn)` : acc.name, amountQAR: Math.abs(qar), original: { amount: balance, unit: acc.currency },
+    });
   }
-  if (usdtAccountBalance) {
-    if (!usdtRateQAR) warnings.push('usdt_unpriced');
-    add('usdt_in_accounts', usdtAccountBalance >= 0 ? 'asset' : 'liability', Math.abs(usdtAccountBalance) * usdtRateQAR);
+
+  // ── USDT available on the exchanges ──
+  const exchange = options.exchangeUsdt;
+  if (exchange) {
+    // The synced balance is today's; an earlier balance is today's less what moved in since, plus what moved out.
+    let usdt = exchange.nowUSDT;
+    for (const f of exchange.flows) if (f.ts > asOf) usdt -= f.deltaUSDT;
+    usdt = Math.max(0, usdt);
+    if (usdt > 0 && !usdtRateQAR && !warnings.includes('usdt_unpriced')) warnings.push('usdt_unpriced');
+    if (usdt > 0) {
+      add('exchange_usdt', 'asset', usdt * usdtRateQAR, {
+        label: 'Binance + OKX', amountQAR: usdt * usdtRateQAR, original: { amount: usdt, unit: 'USDT' },
+      });
+    }
   }
 
   // ── Customer loans still owed at asOf ──
@@ -204,25 +212,6 @@ export function computeNetPosition(
     add('personal_loans', 'asset', qar, { label: loan.person, amountQAR: qar, original: { amount: outstanding, unit: loan.currency } });
   }
 
-  // ── USDT lent to / borrowed from other merchants, net per merchant ──
-  const byMerchant = new Map<string, number>();
-  for (const t of transfers as UsdtTransfer[]) {
-    if (!isTransferActive(t)) continue;
-    const key = transferCounterpartyKey(t);
-    // Positive means the merchant owes me: lending out USDT, or repaying a
-    // borrow, leaves them (or less of my debt) in my favour; borrowing in, or
-    // getting a lend returned, goes the other way.
-    const net = t.kind === 'lend_out' || t.kind === 'borrow_repay' ? t.amountUSDT : -t.amountUSDT;
-    byMerchant.set(key, (byMerchant.get(key) ?? 0) + net);
-  }
-  if (byMerchant.size > 0 && !usdtRateQAR) warnings.push('usdt_unpriced');
-  let merchantLentQAR = 0;
-  let merchantBorrowedQAR = 0;
-  for (const net of byMerchant.values()) {
-    if (Math.abs(net) < 1e-9) continue;
-    if (net > 0) merchantLentQAR += net * usdtRateQAR; else merchantBorrowedQAR += -net * usdtRateQAR;
-  }
-
   const lines: NetPositionLine[] = [...sums.entries()]
     .map(([key, v]) => {
       const amount = round2(v.amount);
@@ -234,7 +223,7 @@ export function computeNetPosition(
   const liabilitiesQAR = round2(lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amountQAR, 0));
   return {
     asOf, lines, details, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR),
-    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, excluded: { stockQAR: round2(stockCost), merchantLentQAR: round2(merchantLentQAR), merchantBorrowedQAR: round2(merchantBorrowedQAR) }, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
+    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
   };
 }
 
@@ -321,7 +310,12 @@ export function computeMonthlyPositions(
   return out;
 }
 
-// ─── The bridge: opening + revenue - spending ... = closing ───
+// ─── What moved in the month ───
+//
+// The position is four lines, so how it changed is simply how each line
+// moved. Spending recorded in the month is shown beside it for reference: it
+// is not an equation, because most spending (and most revenue) never touches
+// those four lines directly.
 
 export interface BridgeCategoryTotal {
   key: string;
@@ -330,6 +324,8 @@ export interface BridgeCategoryTotal {
 
 export interface MonthBridge {
   openingQAR: number;
+  closingQAR: number;
+  /** Net revenue of the month, for reference. */
   netRevenueQAR: number;
   /** Business expenses by category, largest first. */
   business: BridgeCategoryTotal[];
@@ -340,17 +336,25 @@ export interface MonthBridge {
   /** Withdrawals nobody has categorised yet. */
   uncategorisedQAR: number;
   uncategorisedCount: number;
-  /** Money put into cash accounts by hand (deposits). */
-  depositsQAR: number;
-  /** Positive cash adjustments (reconciliation surpluses). */
-  adjustmentsInQAR: number;
-  /** USDT stock and USDT lent to or borrowed from merchants are not in the position, so what they gained or lost in the month is shown here to keep the bridge adding up (positive when stock was sold). */
-  usdtMovementQAR?: number;
   /** Changes to earlier, already-closed months since they were frozen. Zero until a month is chained to a frozen one. */
   priorCorrectionsQAR?: number;
-  /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
-  otherQAR: number;
-  closingQAR: number;
+  /** Figures saved by earlier versions of the bridge; no longer shown. */
+  depositsQAR?: number;
+  adjustmentsInQAR?: number;
+  usdtMovementQAR?: number;
+  otherQAR?: number;
+}
+
+/** How each line of the position moved over the month (signed: an asset that grew is positive). */
+export function lineChangesOf(month: Pick<MonthPosition, 'opening' | 'closing'>): Array<{ key: NetPositionLineKey; changeQAR: number }> {
+  const keys = new Set<NetPositionLineKey>([...month.opening.lines.map(l => l.key), ...month.closing.lines.map(l => l.key)]);
+  const value = (p: NetPosition, key: NetPositionLineKey) => {
+    const line = p.lines.find(l => l.key === key);
+    return line ? signedAmount(line) : 0;
+  };
+  return [...keys]
+    .map(key => ({ key, changeQAR: round2(value(month.closing, key) - value(month.opening, key)) }))
+    .filter(c => c.changeQAR !== 0);
 }
 
 /** A cash amount in QAR, using the conversion rates a position was valued with. */
@@ -366,12 +370,11 @@ export function amountToQar(
 }
 
 /**
- * Explains a month's change in net position: its revenue, what left the
- * cash accounts and why, and whatever remains. Business spending and the
- * owner's personal money are totalled separately.
+ * The spending recorded in a month, by category, with business spending and
+ * the owner's personal money totalled separately, next to the month's revenue.
  */
 export function computeMonthBridge(
-  state: Pick<TrackerState, 'cashLedger'> & Partial<Pick<TrackerState, 'trades' | 'batches' | 'customerLoans' | 'deletedLoanIds' | 'usdtTransfers'>>,
+  state: Pick<TrackerState, 'cashLedger'>,
   month: MonthPosition,
   /**
    * Ledger entries that belong to a loan (given out or repaid). The cloud
@@ -385,25 +388,14 @@ export function computeMonthBridge(
   const personal = new Map<string, number>();
   let uncategorisedQAR = 0;
   let uncategorisedCount = 0;
-  let depositsQAR = 0;
-  let adjustmentsInQAR = 0;
 
   for (const e of state.cashLedger || []) {
-    if (e.ts < month.start || e.ts > month.end) continue;
-    if (loanLedgerEntryIds.has(e.id)) continue;
+    if (e.ts < month.start || e.ts > month.end || loanLedgerEntryIds.has(e.id) || !isExpenseCandidate(e)) continue;
     const qar = amountToQar(rates, e.currency, e.amount);
-    if (isExpenseCandidate(e)) {
-      const cat = expenseCategoryOf(e.expenseCategory);
-      if (!cat) { uncategorisedQAR += qar; uncategorisedCount++; continue; }
-      const bucket = cat.group === 'personal' ? personal : business;
-      bucket.set(cat.key, (bucket.get(cat.key) ?? 0) + qar);
-    } else if (e.direction === 'in' && e.type === 'deposit' && !e.linkedEntityType && !e.tradeId && !e.orderId && !e.batchId) {
-      // The cloud stores a sale's cash deposit as a plain 'deposit' too, but it keeps the link to the
-      // sale, which is how it is told apart from money the merchant really put in.
-      depositsQAR += qar;
-    } else if (e.direction === 'in' && e.type === 'reconcile') {
-      adjustmentsInQAR += qar;
-    }
+    const cat = expenseCategoryOf(e.expenseCategory);
+    if (!cat) { uncategorisedQAR += qar; uncategorisedCount++; continue; }
+    const bucket = cat.group === 'personal' ? personal : business;
+    bucket.set(cat.key, (bucket.get(cat.key) ?? 0) + qar);
   }
 
   const toList = (m: Map<string, number>): BridgeCategoryTotal[] =>
@@ -411,24 +403,13 @@ export function computeMonthBridge(
   const sum = (list: BridgeCategoryTotal[]) => round2(list.reduce((s, c) => s + c.amountQAR, 0));
   const businessList = toList(business);
   const personalList = toList(personal);
-  const businessTotalQAR = sum(businessList);
-  const personalTotalQAR = sum(personalList);
-  uncategorisedQAR = round2(uncategorisedQAR);
-  depositsQAR = round2(depositsQAR);
-  adjustmentsInQAR = round2(adjustmentsInQAR);
-
-  const ex = (p: MonthPosition['opening']) => (p.excluded?.stockQAR ?? 0) + (p.excluded?.merchantLentQAR ?? 0) - (p.excluded?.merchantBorrowedQAR ?? 0);
-  const usdtMovementQAR = round2(-(ex(month.closing) - ex(month.opening)));
-  const explained = month.opening.netQAR + month.netRevenueQAR - businessTotalQAR - personalTotalQAR
-    - uncategorisedQAR + depositsQAR + adjustmentsInQAR + usdtMovementQAR;
   return {
     openingQAR: month.opening.netQAR,
-    netRevenueQAR: month.netRevenueQAR,
-    business: businessList, businessTotalQAR,
-    personal: personalList, personalTotalQAR,
-    uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR, usdtMovementQAR,
-    otherQAR: round2(month.closing.netQAR - explained),
     closingQAR: month.closing.netQAR,
+    netRevenueQAR: month.netRevenueQAR,
+    business: businessList, businessTotalQAR: sum(businessList),
+    personal: personalList, personalTotalQAR: sum(personalList),
+    uncategorisedQAR: round2(uncategorisedQAR), uncategorisedCount,
   };
 }
 
@@ -437,7 +418,7 @@ export type { ExpenseGroup };
 // ─── Setting a position by hand ───
 
 /** Lines that are no longer part of the position; offsets saved for them earlier are ignored. */
-const NOT_COUNTED_LINES: ReadonlySet<NetPositionLineKey> = new Set<NetPositionLineKey>(['stock', 'merchant_lent', 'merchant_borrowed']);
+const NOT_COUNTED_LINES: ReadonlySet<NetPositionLineKey> = new Set<NetPositionLineKey>(['cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts', 'stock', 'merchant_lent', 'merchant_borrowed', 'manual_other']);
 
 /** QAR to add to each line (negative takes away), in the signed form where an asset is positive and a liability negative. */
 export type LineOffsets = Partial<Record<NetPositionLineKey, number>>;
