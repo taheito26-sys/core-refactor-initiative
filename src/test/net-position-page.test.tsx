@@ -100,4 +100,12 @@ describe('NetPositionPage', () => {
     fireEvent.change(screen.getByLabelText('npLineCashHand'), { target: { value: '-9999' } });
     expect(screen.getByText('npNegativeWarn', { exact: false })).toBeTruthy();
   });
+
+  it('flags a figure typed equal to today\'s balance when the month has moved it', () => {
+    render(<NetPositionPage />);
+    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
+    expect(screen.queryByText('npLooksTodayWarn', { exact: false })).toBeNull();
+    fireEvent.click(screen.getAllByTitle('npUseToday')[0]);
+    expect(screen.getByText('npLooksTodayWarn', { exact: false })).toBeTruthy();
+  });
 });

@@ -873,6 +873,8 @@ const translations = {
   npNegativeWarn: { en: 'A line would end the month below zero. The figure you entered is probably not the balance on the first day. Check the Closing would be column, or go back to the records.', ar: 'سينتهي أحد البنود الشهر بقيمة أقل من صفر. على الأرجح الرقم المُدخل ليس رصيد أول يوم. راجع عمود «سيُغلق على» أو ارجع إلى السجلات.' },
   npMadeOfOpening: { en: 'What it is made of at the start of the month', ar: 'مم يتكوّن في بداية الشهر' },
   npMadeOfClosing: { en: 'What it is made of at the end of the month', ar: 'مم يتكوّن في نهاية الشهر' },
+  npLooksToday: { en: 'This is today\'s balance, not the balance on the first day. This month\'s movements would be added on top of it.', ar: 'هذا رصيد اليوم وليس رصيد أول يوم. ستُضاف حركات هذا الشهر فوقه.' },
+  npLooksTodayWarn: { en: 'A figure you entered equals today\'s balance (marked ⚠). That counts what already happened this month twice — for example cash you already recorded as a deposit this month. Clear it to use the records, or enter the real balance of the first day.', ar: 'رقم أدخلته يساوي رصيد اليوم (معلَّم بـ ⚠). هذا يحسب ما حدث هذا الشهر مرتين — مثلًا نقد سجلته بالفعل كإيداع هذا الشهر. امسحه لاستخدام السجلات، أو أدخل رصيد أول يوم الفعلي.' },
   mloanDecideThese: { en: 'Decide these in Loans', ar: 'قرّر بشأنها في القروض' },
   mloanImportPurchaseHint: { en: 'Import it from the exchange list in the Add batch form.', ar: 'استورده من قائمة المنصات في نموذج إضافة دفعة.' },
 

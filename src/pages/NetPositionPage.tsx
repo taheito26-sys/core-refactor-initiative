@@ -162,6 +162,14 @@ export default function NetPositionPage() {
   /** What a line would close the month at if the starting figure typed for it were used: the month's own movement is added on top. */
   const closingPreview = (key: NetPositionLineKey) =>
     Math.round((recordedLineValue(recorded.closing, key) + ((Number(draft[key]) || 0) - recordedLineValue(recorded.opening, key))) * 100) / 100;
+  /** The figure typed is today's balance although the line has moved since the first day: the month's movement would be counted twice. */
+  const looksLikeToday = (key: NetPositionLineKey) => {
+    const typed = Number(draft[key]);
+    if (!draft[key] || !Number.isFinite(typed)) return false;
+    const today = recordedLineValue(todayPos, key);
+    return Math.abs(typed - today) < 1 && Math.abs(today - recordedLineValue(recorded.opening, key)) >= 1;
+  };
+  const anyLooksLikeToday = MANUAL_LINE_KEYS.some(looksLikeToday);
   const previewBelowZero = MANUAL_LINE_KEYS.some(k => k !== 'manual_other' && closingPreview(k) < -0.005);
 
   const draftManual = useMemo(() => {
@@ -347,6 +355,7 @@ export default function NetPositionPage() {
                     onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
                     style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
                   <span className="mono" style={{ textAlign: 'end', color: closingPreview(key) < -0.005 && key !== 'manual_other' ? 'var(--bad)' : 'var(--muted)' }}>
+                    {looksLikeToday(key) && <span title={t('npLooksToday')} style={{ color: 'var(--warn)', marginInlineEnd: 4 }}>⚠</span>}
                     {money(closingPreview(key))}
                   </span>
                   {key === 'customer_loans' && (
@@ -358,6 +367,7 @@ export default function NetPositionPage() {
               ))}
             </div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npTodayCaution')}</div>
+            {anyLooksLikeToday && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npLooksTodayWarn')}</div>}
             {previewBelowZero && <div role="alert" style={{ fontSize: 11, color: 'var(--bad)' }}>⚠ {t('npNegativeWarn')}</div>}
             <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}
               onClick={() => {
