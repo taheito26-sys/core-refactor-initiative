@@ -159,6 +159,11 @@ export default function NetPositionPage() {
     setDraft(next);
     setEditingOpening(true);
   };
+  /** What a line would close the month at if the starting figure typed for it were used: the month's own movement is added on top. */
+  const closingPreview = (key: NetPositionLineKey) =>
+    Math.round((recordedLineValue(recorded.closing, key) + ((Number(draft[key]) || 0) - recordedLineValue(recorded.opening, key))) * 100) / 100;
+  const previewBelowZero = MANUAL_LINE_KEYS.some(k => k !== 'manual_other' && closingPreview(k) < -0.005);
+
   const draftManual = useMemo(() => {
     const out: OpeningOverride['manual'] = {};
     for (const key of MANUAL_LINE_KEYS) out[key] = Number(draft[key]) || 0;
@@ -338,11 +343,12 @@ export default function NetPositionPage() {
           <>
             <div style={{ fontSize: 12, fontWeight: 800 }}>{t('npOpeningEditTitle').split('{month}').join(monthLabel)}</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npOpeningEditHint')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto 120px', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto 120px auto', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
               <span />
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColRecords')}</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColToday')}</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('npColYours')}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColClosingWould')}</span>
               {MANUAL_LINE_KEYS.map(key => (
                 <div key={key} style={{ display: 'contents' }}>
                   <span>{t(LINE_LABEL[key])}</span>
@@ -354,6 +360,9 @@ export default function NetPositionPage() {
                   <input inputMode="decimal" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
                     onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
                     style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
+                  <span className="mono" style={{ textAlign: 'end', color: closingPreview(key) < -0.005 && key !== 'manual_other' ? 'var(--bad)' : 'var(--muted)' }}>
+                    {money(closingPreview(key))}
+                  </span>
                   {key === 'customer_loans' && (
                     <div style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)' }}>
                       {t('npLoansToday').split('{today}').join(money(loanRecon.todayLoans)).split('{repaid}').join(money(loanRecon.repaidSince))}
@@ -362,6 +371,8 @@ export default function NetPositionPage() {
                 </div>
               ))}
             </div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npTodayCaution')}</div>
+            {previewBelowZero && <div role="alert" style={{ fontSize: 11, color: 'var(--bad)' }}>⚠ {t('npNegativeWarn')}</div>}
             <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}
               onClick={() => {
                 const next: Record<string, string> = {};

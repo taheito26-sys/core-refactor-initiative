@@ -92,4 +92,12 @@ describe('NetPositionPage', () => {
     fireEvent.click(screen.getByText('npUseTodayAll'));
     expect((screen.getByLabelText('npLineCashHand') as HTMLInputElement).value).toBe('4800');
   });
+
+  it('previews the closing for the figures typed and warns when a line would go below zero', () => {
+    render(<NetPositionPage />);
+    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
+    expect(screen.queryByText('npNegativeWarn', { exact: false })).toBeNull();
+    fireEvent.change(screen.getByLabelText('npLineCashHand'), { target: { value: '-9999' } });
+    expect(screen.getByText('npNegativeWarn', { exact: false })).toBeTruthy();
+  });
 });
