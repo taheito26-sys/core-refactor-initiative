@@ -194,7 +194,7 @@ export default function NetPositionPage() {
       const labels = {
         title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
         opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
-        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), salesUnreceived: t('npSalesUnreceived'), outsideStock: t('npOutsideStock'), stockUnpaid: t('npStockUnpaid'),
+        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), outsideStock: t('npOutsideStock'),
         deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
         breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
         usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
@@ -464,12 +464,8 @@ export default function NetPositionPage() {
         <div style={{ borderTop: '1px dashed var(--line)', margin: '6px 0' }} />
 
         {bridge.uncategorisedQAR > 0 && row(`${t('npUncategorised')} (${bridge.uncategorisedCount})`, bridge.uncategorisedQAR, { sign: '-' })}
-        {!!bridge.salesUnreceivedQAR && row(t('npSalesUnreceived'), bridge.salesUnreceivedQAR, { sign: '-' })}
-        {!!bridge.salesUnreceivedQAR && explain(t('npSalesUnreceivedHint'), (bridge.diagnostics?.sales ?? []).map(x => ({ key: x.id, ts: x.ts, text: `${fmtTotal(x.usdt)} USDT`, amount: x.missingQAR })))}
         {!!bridge.outsideStockQAR && row(t('npOutsideStock'), bridge.outsideStockQAR, { sign: '+' })}
         {!!bridge.outsideStockQAR && explain(t('npOutsideStockHint'), (bridge.diagnostics?.outsideStock ?? []).map(x => ({ key: x.id, ts: x.ts, text: `${fmtTotal(x.usdt)} USDT`, amount: x.costQAR })))}
-        {!!bridge.stockUnpaidQAR && row(t('npStockUnpaid'), bridge.stockUnpaidQAR, { sign: '+' })}
-        {!!bridge.stockUnpaidQAR && explain(t('npStockUnpaidHint'), (bridge.diagnostics?.unpaidStock ?? []).map(x => ({ key: x.id, ts: x.ts, text: x.source || '—', amount: x.costQAR })))}
         {row(t('npOther'), bridge.otherQAR, { muted: true })}
         <div style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4 }}>{t('npOtherWhy')}</div>
         <div style={{ borderTop: '1px solid var(--line)', margin: '6px 0' }} />

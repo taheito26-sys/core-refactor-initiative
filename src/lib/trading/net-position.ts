@@ -323,9 +323,7 @@ export interface BridgeCategoryTotal {
 }
 
 export interface BridgeDiagnostics {
-  sales: Array<{ id: string; ts: number; usdt: number; missingQAR: number }>;
   outsideStock: Array<{ id: string; ts: number; usdt: number; costQAR: number }>;
-  unpaidStock: Array<{ id: string; ts: number; source: string; costQAR: number }>;
 }
 
 export interface MonthBridge {
@@ -346,17 +344,9 @@ export interface MonthBridge {
   adjustmentsInQAR: number;
   /** Changes to earlier, already-closed months since they were frozen. Zero until a month is chained to a frozen one. */
   priorCorrectionsQAR?: number;
-  /**
-   * Sales this month whose price was neither put into a cash account nor
-   * recorded as a loan. The stock left, but nothing came in, so the position
-   * fell by this much more than the revenue suggests.
-   */
-  salesUnreceivedQAR?: number;
   /** Cost of USDT sold that was never in your stock records (bought elsewhere). The stock did not fall, so the position rose by this much more. */
   outsideStockQAR?: number;
-  /** Stock added this month with no cash payment recorded for it. The stock rose without cash falling. */
-  stockUnpaidQAR?: number;
-  /** The records behind the three lines above, for the page to list. */
+  /** The records behind the line above, for the page to list. */
   diagnostics?: BridgeDiagnostics;
   /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
   otherQAR: number;
@@ -427,48 +417,25 @@ export function computeMonthBridge(
   depositsQAR = round2(depositsQAR);
   adjustmentsInQAR = round2(adjustmentsInQAR);
 
-  // ── Records that leave a gap between revenue and the change in position ──
-  const diagnostics: BridgeDiagnostics = { sales: [], outsideStock: [], unpaidStock: [] };
-  const ledger = state.cashLedger || [];
-  const deletedLoans = new Set(state.deletedLoanIds || []);
+  // ── USDT sold that never came out of stock ──
+  const diagnostics: BridgeDiagnostics = { outsideStock: [] };
   const derived = computeFIFO(state.batches || [], state.trades || [], state.usdtTransfers);
   for (const t of state.trades || []) {
-    if (t.voided || t.ts < month.start || t.ts > month.end) continue;
-    const proceeds = t.amountUSDT * t.sellPriceQAR - (t.feeQAR || 0);
-    if (!(proceeds > 0)) continue;
-    const received = ledger
-      .filter(e => e.direction === 'in' && (e.tradeId === t.id || (e.linkedEntityType === 'trade' && e.linkedEntityId === t.id)))
-      .reduce((sum, e) => sum + amountToQar(rates, e.currency, e.amount), 0);
-    const lent = (state.customerLoans || [])
-      .filter(l => l.tradeId === t.id && !deletedLoans.has(l.id))
-      .reduce((sum, l) => sum + amountToQar(rates, l.currency, l.principal), 0);
-    const missing = Math.max(0, proceeds - received - lent);
-    if (missing >= 1) diagnostics.sales.push({ id: t.id, ts: t.ts, usdt: t.amountUSDT, missingQAR: round2(missing) });
-    if (t.usesStock === false) {
-      const cost = derived.tradeCalc.get(t.id)?.totalCost ?? 0;
-      if (cost >= 1) diagnostics.outsideStock.push({ id: t.id, ts: t.ts, usdt: t.amountUSDT, costQAR: round2(cost) });
-    }
+    if (t.voided || t.ts < month.start || t.ts > month.end || t.usesStock !== false) continue;
+    const cost = derived.tradeCalc.get(t.id)?.totalCost ?? 0;
+    if (cost >= 1) diagnostics.outsideStock.push({ id: t.id, ts: t.ts, usdt: t.amountUSDT, costQAR: round2(cost) });
   }
-  for (const b of state.batches || []) {
-    if (b.ts < month.start || b.ts > month.end) continue;
-    const paid = !!b.fundingAccountId
-      || ledger.some(e => e.direction === 'out' && e.linkedEntityType === 'batch' && e.linkedEntityId === b.id);
-    const cost = b.initialUSDT * b.buyPriceQAR;
-    if (!paid && cost >= 1) diagnostics.unpaidStock.push({ id: b.id, ts: b.ts, source: b.source, costQAR: round2(cost) });
-  }
-  const salesUnreceivedQAR = round2(diagnostics.sales.reduce((s, x) => s + x.missingQAR, 0));
   const outsideStockQAR = round2(diagnostics.outsideStock.reduce((s, x) => s + x.costQAR, 0));
-  const stockUnpaidQAR = round2(diagnostics.unpaidStock.reduce((s, x) => s + x.costQAR, 0));
 
   const explained = month.opening.netQAR + month.netRevenueQAR - businessTotalQAR - personalTotalQAR
-    - uncategorisedQAR + depositsQAR + adjustmentsInQAR - salesUnreceivedQAR + outsideStockQAR + stockUnpaidQAR;
+    - uncategorisedQAR + depositsQAR + adjustmentsInQAR + outsideStockQAR;
   return {
     openingQAR: month.opening.netQAR,
     netRevenueQAR: month.netRevenueQAR,
     business: businessList, businessTotalQAR,
     personal: personalList, personalTotalQAR,
     uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR,
-    salesUnreceivedQAR, outsideStockQAR, stockUnpaidQAR, diagnostics,
+    outsideStockQAR, diagnostics,
     otherQAR: round2(month.closing.netQAR - explained),
     closingQAR: month.closing.netQAR,
   };

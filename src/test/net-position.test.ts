@@ -188,34 +188,6 @@ describe('computeMonthBridge', () => {
       });
       const b = computeMonthBridge(s, month(s));
       expect(b.depositsQAR).toBe(500);
-      expect(b.salesUnreceivedQAR).toBe(0);
-    });
-
-    it('lists a sale with no cash deposit and no loan as proceeds that never arrived, and the position falls by them', () => {
-      const s = state({
-        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
-        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
-        batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
-        trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
-      });
-      const m = month(s);
-      const b = computeMonthBridge(s, m);
-      expect(b.salesUnreceivedQAR).toBe(19000);
-      expect(b.diagnostics?.sales[0]).toMatchObject({ id: 't', missingQAR: 19000 });
-      expect(b.otherQAR).toBe(0);
-    });
-
-    it('does not call a sale unreceived when it is a loan', () => {
-      const s = state({
-        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
-        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
-        batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
-        trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
-        customerLoans: [{ id: 'l', ts: D(2026, 9, 10), customerId: 'c', tradeId: 't', principal: 19000, currency: 'QAR', repayments: [], status: 'open', createdAt: 0 }] as never,
-      });
-      const b = computeMonthBridge(s, month(s));
-      expect(b.salesUnreceivedQAR).toBe(0);
-      expect(b.otherQAR).toBe(0);
     });
 
     it('lists stock added with no payment recorded, and sales of USDT that was never in stock', () => {
@@ -226,9 +198,8 @@ describe('computeMonthBridge', () => {
         trades: [{ ...trade('t', D(2026, 9, 10), 500, 3.8), usesStock: false, manualBuyPrice: 3.6 }] as never,
       });
       const b = computeMonthBridge(s, month(s));
-      expect(b.stockUnpaidQAR).toBe(3600);
       expect(b.outsideStockQAR).toBe(1800);
-      expect(b.diagnostics?.unpaidStock[0].id).toBe('b');
+      expect(b.diagnostics?.outsideStock[0].id).toBe('t');
     });
   });
 });
