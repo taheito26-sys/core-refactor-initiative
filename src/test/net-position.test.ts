@@ -77,7 +77,7 @@ describe('computeNetPosition', () => {
     expect(line(oct, 'customer_loans')).toBe(1500);
   });
 
-  it('does not count USDT lent to merchants, but still counts USDT borrowed as owed', () => {
+  it('does not count USDT lent to or borrowed from merchants', () => {
     const s = state({
       batches: [batch('b', D(2026, 9, 1), 1000, 3.7)] as never,
       usdtTransfers: [
@@ -87,9 +87,10 @@ describe('computeNetPosition', () => {
     });
     const p = computeNetPosition(s, D(2026, 9, 30));
     expect(line(p, 'merchant_lent')).toBe(0);
+    expect(line(p, 'merchant_borrowed')).toBe(0);
     expect(p.excluded?.merchantLentQAR).toBeGreaterThan(0);
-    expect(line(p, 'merchant_borrowed')).toBeGreaterThan(0);
-    expect(p.liabilitiesQAR).toBe(line(p, 'merchant_borrowed'));
+    expect(p.excluded?.merchantBorrowedQAR).toBeGreaterThan(0);
+    expect(p.liabilitiesQAR).toBe(0);
   });
 
   it('counts an overdrawn account as owed, not owned', () => {
@@ -197,7 +198,7 @@ describe('computeMonthBridge', () => {
 });
 
 describe('what each line is made of', () => {
-  it('names the accounts, merchants and people behind a line, including an overdrawn account under what is owed', () => {
+  it('names the accounts, merchants and people behind a line, including an overdrawn account under its own line', () => {
     const s = state({
       cashAccounts: [acc('hand', 'hand', 'QAR'), acc('b', 'bank', 'QAR')] as never,
       cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('b', D(2026, 9, 1), 'out', 431)] as never,
@@ -206,8 +207,10 @@ describe('what each line is made of', () => {
     });
     const p = computeNetPosition(s, D(2026, 9, 30), { personalLoans: [{ id: 'p', person: 'Friend', principal: 7000, currency: 'QAR', lentAt: D(2026, 9, 5), repayments: [] }] });
     expect(p.details?.cash_hand?.[0]).toMatchObject({ label: 'hand', amountQAR: 1000 });
-    expect(p.details?.merchant_borrowed?.[0].label).toBe('b (overdrawn)');
-    expect(p.details?.merchant_borrowed?.[0].amountQAR).toBe(431);
+    // An overdrawn account takes away from its own line instead of forming an 'owed' line.
+    expect(p.details?.cash_bank?.[0]).toMatchObject({ label: 'b (overdrawn)', amountQAR: 431 });
+    expect(p.lines.find(l => l.key === 'cash_bank')).toMatchObject({ side: 'liability', amountQAR: 431 });
+    expect(p.lines.find(l => l.key === 'merchant_borrowed')).toBeUndefined();
     expect(p.details?.merchant_lent).toBeUndefined();
     expect(p.details?.personal_loans?.[0].label).toBe('Friend');
   });

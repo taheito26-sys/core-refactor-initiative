@@ -38,24 +38,23 @@ describe('applyOpeningOverride', () => {
 });
 
 describe('entering a position by hand', () => {
-  const recorded = pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }, { key: 'merchant_borrowed', side: 'liability', amountQAR: 300 }]);
+  const recorded = pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }, { key: 'customer_loans', side: 'asset', amountQAR: 300 }]);
 
-  it('reads recorded values in the entered form, a debt as a positive amount owed', () => {
+  it('reads what the records say a line was', () => {
     expect(recordedLineValue(recorded, 'cash_hand')).toBe(1000);
-    expect(recordedLineValue(recorded, 'merchant_borrowed')).toBe(300);
-    expect(recordedLineValue(recorded, 'customer_loans')).toBe(0);
+    expect(recordedLineValue(recorded, 'customer_loans')).toBe(300);
+    expect(recordedLineValue(recorded, 'personal_loans')).toBe(0);
   });
 
-  it('turns what was typed into signed offsets from the records', () => {
-    const offsets = offsetsFromManual(recorded, { cash_hand: 1500, merchant_borrowed: 100, customer_loans: 800, manual_other: 0 });
-    expect(offsets).toEqual({ cash_hand: 500, merchant_borrowed: 200, customer_loans: 800 });
-    // Owing 200 less is worth +200 to the net position.
+  it('turns what was typed into offsets from the records', () => {
+    const offsets = offsetsFromManual(recorded, { cash_hand: 1500, customer_loans: 100, personal_loans: 800, manual_other: 0 });
+    expect(offsets).toEqual({ cash_hand: 500, customer_loans: -200, personal_loans: 800 });
     const adjusted = applyLineOffsets(recorded, offsets);
-    expect(adjusted.netQAR).toBe(recorded.netQAR + 500 + 200 + 800);
+    expect(adjusted.netQAR).toBe(recorded.netQAR + 500 - 200 + 800);
   });
 
-  it('totals an entered position as assets minus what is owed', () => {
-    expect(manualOpeningTotal({ cash_hand: 1000, customer_loans: 500, merchant_borrowed: 200 })).toBe(1300);
+  it('totals an entered position', () => {
+    expect(manualOpeningTotal({ cash_hand: 1000, customer_loans: 500, manual_other: -200 })).toBe(1300);
   });
 });
 
@@ -73,7 +72,7 @@ describe('offsetsFor', () => {
 
 describe('lines that are no longer counted', () => {
   it('ignores offsets saved earlier for USDT stock and USDT lent', () => {
-    const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { stock: -114856, merchant_lent: 37267, cash_hand: 50 });
+    const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { stock: -114856, merchant_lent: 37267, merchant_borrowed: 431, cash_hand: 50 });
     expect(p.lines.map(l => l.key)).toEqual(['cash_hand']);
     expect(p.netQAR).toBe(1050);
   });

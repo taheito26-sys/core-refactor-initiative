@@ -21,18 +21,15 @@ export interface OpeningOverride {
 /** Lines the merchant can state, in the order the form shows them. */
 export const MANUAL_LINE_KEYS: NetPositionLineKey[] = [
   'cash_hand', 'cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts',
-  'customer_loans', 'personal_loans', 'merchant_borrowed', 'manual_other',
+  'customer_loans', 'personal_loans', 'manual_other',
 ];
 
-/** Liabilities are typed as a positive amount owed. */
-const isLiabilityLine = (key: NetPositionLineKey) => key === 'merchant_borrowed';
-
-/** What the records say a line was at the start of the month, in the entered form. */
+/** What the records say a line was at the start of the month. */
 export function recordedLineValue(opening: Pick<NetPosition, 'lines'>, key: NetPositionLineKey): number {
   const line = opening.lines.find(l => l.key === key);
   if (!line) return 0;
   const signed = line.side === 'asset' ? line.amountQAR : -line.amountQAR;
-  return isLiabilityLine(key) ? -signed : signed;
+  return signed;
 }
 
 /** The signed offsets that turn the recorded opening into the entered one. */
@@ -44,8 +41,7 @@ export function offsetsFromManual(
   for (const key of MANUAL_LINE_KEYS) {
     const entered = manual[key];
     if (entered === undefined || !Number.isFinite(entered)) continue;
-    const sign = isLiabilityLine(key) ? -1 : 1;
-    const diff = Math.round(sign * (entered - recordedLineValue(recordedOpening, key)) * 100) / 100;
+    const diff = Math.round((entered - recordedLineValue(recordedOpening, key)) * 100) / 100;
     if (diff) offsets[key] = diff;
   }
   return offsets;
@@ -56,7 +52,7 @@ export function manualOpeningTotal(manual: Partial<Record<NetPositionLineKey, nu
   let total = 0;
   for (const key of MANUAL_LINE_KEYS) {
     const v = manual[key] ?? 0;
-    total += isLiabilityLine(key) ? -v : v;
+    total += v;
   }
   return Math.round(total * 100) / 100;
 }
