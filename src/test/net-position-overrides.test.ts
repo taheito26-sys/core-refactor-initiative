@@ -43,19 +43,19 @@ describe('entering a position by hand', () => {
   it('reads recorded values in the entered form, a debt as a positive amount owed', () => {
     expect(recordedLineValue(recorded, 'cash_hand')).toBe(1000);
     expect(recordedLineValue(recorded, 'merchant_borrowed')).toBe(300);
-    expect(recordedLineValue(recorded, 'stock')).toBe(0);
+    expect(recordedLineValue(recorded, 'customer_loans')).toBe(0);
   });
 
   it('turns what was typed into signed offsets from the records', () => {
-    const offsets = offsetsFromManual(recorded, { cash_hand: 1500, merchant_borrowed: 100, stock: 800, manual_other: 0 });
-    expect(offsets).toEqual({ cash_hand: 500, merchant_borrowed: 200, stock: 800 });
+    const offsets = offsetsFromManual(recorded, { cash_hand: 1500, merchant_borrowed: 100, customer_loans: 800, manual_other: 0 });
+    expect(offsets).toEqual({ cash_hand: 500, merchant_borrowed: 200, customer_loans: 800 });
     // Owing 200 less is worth +200 to the net position.
     const adjusted = applyLineOffsets(recorded, offsets);
     expect(adjusted.netQAR).toBe(recorded.netQAR + 500 + 200 + 800);
   });
 
   it('totals an entered position as assets minus what is owed', () => {
-    expect(manualOpeningTotal({ cash_hand: 1000, stock: 500, merchant_borrowed: 200 })).toBe(1300);
+    expect(manualOpeningTotal({ cash_hand: 1000, customer_loans: 500, merchant_borrowed: 200 })).toBe(1300);
   });
 });
 
@@ -68,5 +68,13 @@ describe('offsetsFor', () => {
     expect(offsetsFor(map, '2026-03')).toEqual({ offsets: { cash_hand: 100 }, from: '2026-03' });
     expect(offsetsFor(map, '2026-05')?.from).toBe('2026-03');
     expect(offsetsFor(map, '2026-09')).toEqual({ offsets: { cash_hand: 250 }, from: '2026-06' });
+  });
+});
+
+describe('lines that are no longer counted', () => {
+  it('ignores offsets saved earlier for USDT stock and USDT lent', () => {
+    const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { stock: -114856, merchant_lent: 37267, cash_hand: 50 });
+    expect(p.lines.map(l => l.key)).toEqual(['cash_hand']);
+    expect(p.netQAR).toBe(1050);
   });
 });

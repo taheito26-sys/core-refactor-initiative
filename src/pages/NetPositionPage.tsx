@@ -202,7 +202,7 @@ export default function NetPositionPage() {
       const labels = {
         title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
         opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
-        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'),
+        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), usdtMovement: t('npUsdtMovement'),
         deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
         breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
         usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
@@ -446,6 +446,7 @@ export default function NetPositionPage() {
       <div className="panel" style={{ padding: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>{t('npBridge')}</div>
         {row(t('npOpening'), bridge.openingQAR, { bold: true })}
+        {!!bridge.usdtMovementQAR && row(t('npUsdtMovement'), bridge.usdtMovementQAR, { sign: bridge.usdtMovementQAR > 0 ? '+' : '-' })}
         {!!bridge.priorCorrectionsQAR && row(t('npPriorCorrectionsRow'), bridge.priorCorrectionsQAR, { muted: true })}
         {row(t('npRevenue'), bridge.netRevenueQAR, { sign: '+' })}
         {bridge.depositsQAR > 0 && row(t('npDeposits'), bridge.depositsQAR, { sign: '+' })}

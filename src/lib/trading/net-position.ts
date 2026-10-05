@@ -18,7 +18,8 @@ import { expenseCategoryOf, isExpenseCandidate, type ExpenseGroup } from './expe
 // average cost, the app's WACOP), and can be overridden. An EGP loan is
 // worth the USDT it cost, at the EGP rate of the sale that created it, and
 // that USDT is then priced the same way; EGP cash uses one EGP rate, also
-// overridable. Stock is valued at FIFO cost. The position is rebuilt from dated records,
+// overridable. USDT stock and USDT lent to merchants are not counted in
+// the position; they are only used to price USD and to explain a month. The position is rebuilt from dated records,
 // so a later edit to an old record moves an old month; a frozen month-end
 // snapshot is what keeps history stable.
 
@@ -67,6 +68,11 @@ export interface NetPosition {
   netQAR: number;
   /** USDT held in stock at that moment. */
   stockUSDT: number;
+  /**
+   * Values left out of the position on purpose (USDT stock at cost, USDT lent to
+   * merchants), kept so a month's bridge can still explain the revenue.
+   */
+  excluded?: { stockQAR: number; merchantLentQAR: number };
   /** QAR per USDT used to value USDT held outside stock layers. */
   usdtRateQAR: number;
   /** QAR per 1 USD used: the override, else the average USDT buying price. */
@@ -123,20 +129,6 @@ export function computeNetPosition(
     stockUSDT += qty;
     stockCost += qty * b.buyPriceQAR;
   }
-  // One entry per stock layer still held, oldest first, so the figure can be checked against the batches.
-  const batchById = new Map(batches.map(b => [b.id, b]));
-  const layers = derived.batches.filter(b => b.remainingUSDT > 1e-9).map(b => {
-    const src = batchById.get(b.id);
-    const day = src ? new Date(src.ts).toLocaleDateString() : '';
-    return {
-      label: `${src?.source || (b.isTransfer ? 'Merchant loan' : 'Batch')}${day ? ` · ${day}` : ''}`,
-      amountQAR: b.remainingUSDT * b.buyPriceQAR,
-      original: { amount: b.remainingUSDT, unit: `USDT @ ${Math.round(b.buyPriceQAR * 10000) / 10000}` },
-      ts: src?.ts ?? 0,
-    };
-  }).sort((a, b) => a.ts - b.ts);
-  for (const layer of layers) add('stock', 'asset', layer.amountQAR, { label: layer.label, amountQAR: layer.amountQAR, original: layer.original });
-
   let usdtRateQAR = options.usdtRateQAR && options.usdtRateQAR > 0 ? options.usdtRateQAR : 0;
   if (!usdtRateQAR && stockUSDT > 0) usdtRateQAR = stockCost / stockUSDT;
   if (!usdtRateQAR) {
@@ -226,9 +218,11 @@ export function computeNetPosition(
     if (!merchantNames.has(key)) merchantNames.set(key, t.counterpartyName);
   }
   if (byMerchant.size > 0 && !usdtRateQAR) warnings.push('usdt_unpriced');
+  let merchantLentQAR = 0;
   for (const [key, net] of byMerchant) {
     if (Math.abs(net) < 1e-9) continue;
-    add(net > 0 ? 'merchant_lent' : 'merchant_borrowed', net > 0 ? 'asset' : 'liability', Math.abs(net) * usdtRateQAR, {
+    if (net > 0) { merchantLentQAR += net * usdtRateQAR; continue; }
+    add('merchant_borrowed', 'liability', Math.abs(net) * usdtRateQAR, {
       label: merchantNames.get(key) || key, amountQAR: Math.abs(net) * usdtRateQAR, original: { amount: Math.abs(net), unit: 'USDT' },
     });
   }
@@ -240,7 +234,7 @@ export function computeNetPosition(
   const liabilitiesQAR = round2(lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amountQAR, 0));
   return {
     asOf, lines, details, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR),
-    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
+    stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, excluded: { stockQAR: round2(stockCost), merchantLentQAR: round2(merchantLentQAR) }, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
   };
 }
 
@@ -350,6 +344,8 @@ export interface MonthBridge {
   depositsQAR: number;
   /** Positive cash adjustments (reconciliation surpluses). */
   adjustmentsInQAR: number;
+  /** USDT stock and USDT lent to merchants are not in the position, so what they gained or lost in the month is shown here to keep the bridge adding up (positive when stock was sold). */
+  usdtMovementQAR?: number;
   /** Changes to earlier, already-closed months since they were frozen. Zero until a month is chained to a frozen one. */
   priorCorrectionsQAR?: number;
   /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
@@ -421,14 +417,16 @@ export function computeMonthBridge(
   depositsQAR = round2(depositsQAR);
   adjustmentsInQAR = round2(adjustmentsInQAR);
 
+  const ex = (p: MonthPosition['opening']) => (p.excluded?.stockQAR ?? 0) + (p.excluded?.merchantLentQAR ?? 0);
+  const usdtMovementQAR = round2(-(ex(month.closing) - ex(month.opening)));
   const explained = month.opening.netQAR + month.netRevenueQAR - businessTotalQAR - personalTotalQAR
-    - uncategorisedQAR + depositsQAR + adjustmentsInQAR;
+    - uncategorisedQAR + depositsQAR + adjustmentsInQAR + usdtMovementQAR;
   return {
     openingQAR: month.opening.netQAR,
     netRevenueQAR: month.netRevenueQAR,
     business: businessList, businessTotalQAR,
     personal: personalList, personalTotalQAR,
-    uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR,
+    uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR, usdtMovementQAR,
     otherQAR: round2(month.closing.netQAR - explained),
     closingQAR: month.closing.netQAR,
   };
@@ -437,6 +435,9 @@ export function computeMonthBridge(
 export type { ExpenseGroup };
 
 // ─── Setting a position by hand ───
+
+/** Lines that are no longer part of the position; offsets saved for them earlier are ignored. */
+const NOT_COUNTED_LINES: ReadonlySet<NetPositionLineKey> = new Set<NetPositionLineKey>(['stock', 'merchant_lent']);
 
 /** QAR to add to each line (negative takes away), in the signed form where an asset is positive and a liability negative. */
 export type LineOffsets = Partial<Record<NetPositionLineKey, number>>;
@@ -447,7 +448,7 @@ const signedAmount = (line: NetPositionLine) => (line.side === 'asset' ? line.am
 export function applyLineOffsets(position: NetPosition, offsets: LineOffsets): NetPosition {
   const signed = new Map<NetPositionLineKey, number>(position.lines.map(l => [l.key, signedAmount(l)]));
   for (const [key, offset] of Object.entries(offsets) as Array<[NetPositionLineKey, number]>) {
-    if (!offset) continue;
+    if (!offset || NOT_COUNTED_LINES.has(key)) continue;
     signed.set(key, (signed.get(key) ?? 0) + offset);
   }
   const lines: NetPositionLine[] = [...signed.entries()]

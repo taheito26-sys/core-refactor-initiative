@@ -14,6 +14,7 @@ export interface NetPositionReportLabels {
   business: string;
   personal: string;
   uncategorised: string;
+  usdtMovement?: string;
   deposits: string;
   adjustments: string;
   other: string;
@@ -65,6 +66,7 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
     { label: L.opening, amount: bridge.openingQAR, kind: 'total' },
     ...(bridge.priorCorrectionsQAR ? [{ label: L.priorCorrections, amount: bridge.priorCorrectionsQAR, kind: 'muted' as const }] : []),
     { label: L.revenue, amount: bridge.netRevenueQAR, kind: 'plus' },
+    ...(bridge.usdtMovementQAR && L.usdtMovement ? [{ label: L.usdtMovement, amount: Math.abs(bridge.usdtMovementQAR), kind: (bridge.usdtMovementQAR > 0 ? 'plus' : 'minus') as 'plus' | 'minus' }] : []),
     ...(bridge.depositsQAR > 0 ? [{ label: L.deposits, amount: bridge.depositsQAR, kind: 'plus' as const }] : []),
     ...(bridge.adjustmentsInQAR > 0 ? [{ label: L.adjustments, amount: bridge.adjustmentsInQAR, kind: 'plus' as const }] : []),
     { label: L.business, amount: bridge.businessTotalQAR, kind: 'minus' },

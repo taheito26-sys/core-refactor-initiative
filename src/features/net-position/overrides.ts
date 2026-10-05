@@ -20,8 +20,8 @@ export interface OpeningOverride {
 
 /** Lines the merchant can state, in the order the form shows them. */
 export const MANUAL_LINE_KEYS: NetPositionLineKey[] = [
-  'cash_hand', 'cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts', 'stock',
-  'customer_loans', 'personal_loans', 'merchant_lent', 'merchant_borrowed', 'manual_other',
+  'cash_hand', 'cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts',
+  'customer_loans', 'personal_loans', 'merchant_borrowed', 'manual_other',
 ];
 
 /** Liabilities are typed as a positive amount owed. */

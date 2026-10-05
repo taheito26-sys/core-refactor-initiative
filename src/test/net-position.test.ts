@@ -17,7 +17,7 @@ const state = (over: Partial<TrackerState> = {}) =>
 const line = (p: ReturnType<typeof computeNetPosition>, key: string) => p.lines.find(l => l.key === key)?.amountQAR ?? 0;
 
 describe('computeNetPosition', () => {
-  it('adds cash, bank and stock at cost, and values USD at the average USDT buying price', () => {
+  it('adds cash and bank, leaves USDT stock out of the position, and values USD at the average USDT buying price', () => {
     const s = state({
       cashAccounts: [acc('hand', 'hand', 'QAR'), acc('bank', 'bank', 'QAR'), acc('usd', 'bank', 'USD')] as never,
       cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('bank', D(2026, 9, 1), 'in', 5000), led('usd', D(2026, 9, 1), 'in', 100)] as never,
@@ -27,8 +27,9 @@ describe('computeNetPosition', () => {
     expect(line(p, 'cash_hand')).toBe(1000);
     expect(p.usdToQar).toBe(3.6);
     expect(line(p, 'cash_bank')).toBe(5000 + 100 * 3.6);
-    expect(line(p, 'stock')).toBe(3600);
-    expect(p.netQAR).toBe(1000 + 5000 + 360 + 3600);
+    expect(line(p, 'stock')).toBe(0);
+    expect(p.excluded?.stockQAR).toBe(3600);
+    expect(p.netQAR).toBe(1000 + 5000 + 360);
     expect(computeNetPosition(s, D(2026, 9, 30), { usdToQar: 3.7 }).usdToQar).toBe(3.7);
     expect(computeNetPosition(state(), D(2026, 9, 30)).usdToQar).toBe(USD_QAR_PEG);
   });
@@ -76,7 +77,7 @@ describe('computeNetPosition', () => {
     expect(line(oct, 'customer_loans')).toBe(1500);
   });
 
-  it('shows USDT lent as an asset and USDT borrowed as a liability, valued at the stock cost', () => {
+  it('does not count USDT lent to merchants, but still counts USDT borrowed as owed', () => {
     const s = state({
       batches: [batch('b', D(2026, 9, 1), 1000, 3.7)] as never,
       usdtTransfers: [
@@ -85,7 +86,8 @@ describe('computeNetPosition', () => {
       ] as never,
     });
     const p = computeNetPosition(s, D(2026, 9, 30));
-    expect(line(p, 'merchant_lent')).toBeGreaterThan(0);
+    expect(line(p, 'merchant_lent')).toBe(0);
+    expect(p.excluded?.merchantLentQAR).toBeGreaterThan(0);
     expect(line(p, 'merchant_borrowed')).toBeGreaterThan(0);
     expect(p.liabilitiesQAR).toBe(line(p, 'merchant_borrowed'));
   });
@@ -113,9 +115,9 @@ describe('monthly positions', () => {
     const m = computeMonthPosition(s, 2026, 8, {}, D(2026, 10, 15));
     expect(m.open).toBe(false);
     expect(m.netRevenueQAR).toBe(1000);
-    expect(m.opening.netQAR).toBe(100000 + 36000);
-    expect(m.changeQAR).toBe(1000 - 600);
-    expect(m.unexplainedQAR).toBe(-600);
+    expect(m.opening.netQAR).toBe(100000);
+    expect(m.changeQAR).toBe(19000 - 600);
+    expect(m.unexplainedQAR).toBe(19000 - 600 - 1000);
   });
 
   it('lists every month from the start month to the current one', () => {
@@ -151,7 +153,9 @@ describe('computeMonthBridge', () => {
     // The sale's 19,000 lands in cash as sale proceeds and 18,000 of stock leaves: that is the 1,000 revenue, nothing extra.
     expect(b.depositsQAR).toBe(0);
     expect(b.otherQAR).toBe(0);
-    expect(b.closingQAR).toBe(b.openingQAR + 1000 - 300 - 200 - 100);
+    // The 5,000 USDT sold left stock (18,000 at cost), which is not in the position, so it is shown as its own line.
+    expect(b.usdtMovementQAR).toBe(18000);
+    expect(b.closingQAR).toBe(b.openingQAR + 1000 - 300 - 200 - 100 + 18000);
   });
 
   it('does not read a loan\'s cash movements as spending or money added, even when the cloud stored them as plain withdrawals', () => {
@@ -204,22 +208,20 @@ describe('what each line is made of', () => {
     expect(p.details?.cash_hand?.[0]).toMatchObject({ label: 'hand', amountQAR: 1000 });
     expect(p.details?.merchant_borrowed?.[0].label).toBe('b (overdrawn)');
     expect(p.details?.merchant_borrowed?.[0].amountQAR).toBe(431);
-    expect(p.details?.merchant_lent?.[0]).toMatchObject({ label: 'Ahmed', original: { amount: 100, unit: 'USDT' } });
+    expect(p.details?.merchant_lent).toBeUndefined();
     expect(p.details?.personal_loans?.[0].label).toBe('Friend');
   });
 });
 
-describe('stock made of its layers', () => {
-  it('lists each batch still held with its remaining USDT and cost, summing to the stock line', () => {
+describe('USDT stock', () => {
+  it('is kept out of the position but still reported, so the bridge can explain a month', () => {
     const s = state({
       batches: [batch('a', D(2026, 8, 1), 1000, 3.6), batch('b', D(2026, 8, 5), 500, 3.7)] as never,
       trades: [trade('t', D(2026, 8, 10), 400, 3.8)] as never,
     });
     const p = computeNetPosition(s, D(2026, 9, 1));
-    const layers = p.details?.stock ?? [];
-    expect(layers).toHaveLength(2);
-    expect(layers[0].original).toEqual({ amount: 600, unit: 'USDT @ 3.6' });
-    expect(layers.reduce((sum, l) => sum + l.amountQAR, 0)).toBeCloseTo(p.lines.find(l => l.key === 'stock')?.amountQAR ?? 0, 1);
-    expect(p.lines.find(l => l.key === 'stock')?.amountQAR).toBe(600 * 3.6 + 500 * 3.7);
+    expect(p.lines.find(l => l.key === 'stock')).toBeUndefined();
+    expect(p.netQAR).toBe(0);
+    expect(p.excluded?.stockQAR).toBe(600 * 3.6 + 500 * 3.7);
   });
 });
