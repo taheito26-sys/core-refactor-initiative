@@ -189,18 +189,6 @@ describe('computeMonthBridge', () => {
       const b = computeMonthBridge(s, month(s));
       expect(b.depositsQAR).toBe(500);
     });
-
-    it('lists stock added with no payment recorded, and sales of USDT that was never in stock', () => {
-      const s = state({
-        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
-        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
-        batches: [batch('b', D(2026, 9, 2), 1000, 3.6)] as never,
-        trades: [{ ...trade('t', D(2026, 9, 10), 500, 3.8), usesStock: false, manualBuyPrice: 3.6 }] as never,
-      });
-      const b = computeMonthBridge(s, month(s));
-      expect(b.outsideStockQAR).toBe(1800);
-      expect(b.diagnostics?.outsideStock[0].id).toBe('t');
-    });
   });
 });
 
@@ -218,5 +206,20 @@ describe('what each line is made of', () => {
     expect(p.details?.merchant_borrowed?.[0].amountQAR).toBe(431);
     expect(p.details?.merchant_lent?.[0]).toMatchObject({ label: 'Ahmed', original: { amount: 100, unit: 'USDT' } });
     expect(p.details?.personal_loans?.[0].label).toBe('Friend');
+  });
+});
+
+describe('stock made of its layers', () => {
+  it('lists each batch still held with its remaining USDT and cost, summing to the stock line', () => {
+    const s = state({
+      batches: [batch('a', D(2026, 8, 1), 1000, 3.6), batch('b', D(2026, 8, 5), 500, 3.7)] as never,
+      trades: [trade('t', D(2026, 8, 10), 400, 3.8)] as never,
+    });
+    const p = computeNetPosition(s, D(2026, 9, 1));
+    const layers = p.details?.stock ?? [];
+    expect(layers).toHaveLength(2);
+    expect(layers[0].original).toEqual({ amount: 600, unit: 'USDT @ 3.6' });
+    expect(layers.reduce((sum, l) => sum + l.amountQAR, 0)).toBeCloseTo(p.lines.find(l => l.key === 'stock')?.amountQAR ?? 0, 1);
+    expect(p.lines.find(l => l.key === 'stock')?.amountQAR).toBe(600 * 3.6 + 500 * 3.7);
   });
 });

@@ -194,7 +194,7 @@ export default function NetPositionPage() {
       const labels = {
         title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
         opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
-        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), outsideStock: t('npOutsideStock'),
+        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'),
         deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
         breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
         usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
@@ -273,20 +273,6 @@ export default function NetPositionPage() {
         {opts.sign === '-' && amount ? '−' : opts.sign === '+' && amount ? '+' : ''}{money(Math.abs(amount) < 0.005 ? 0 : opts.sign ? Math.abs(amount) : amount)}
       </span>
     </div>
-  );
-
-  /** A short reason under a bridge row, with the records behind it. */
-  const explain = (hint: string, items: Array<{ key: string; ts: number; text: string; amount: number }>) => (
-    <details style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4, paddingInlineStart: 14 }}>
-      <summary style={{ cursor: 'pointer' }}>{hint}</summary>
-      {items.slice(0, 12).map(i => (
-        <div key={i.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
-          <span>{new Date(i.ts).toLocaleDateString()} · {i.text}</span>
-          <span className="mono">{fmtTotal(i.amount)}</span>
-        </div>
-      ))}
-      {items.length > 12 && <div>+{items.length - 12}</div>}
-    </details>
   );
 
   const lineAmount = (pos: typeof month.opening, key: NetPositionLineKey) => pos.lines.find(l => l.key === key)?.amountQAR ?? 0;
@@ -464,8 +450,6 @@ export default function NetPositionPage() {
         <div style={{ borderTop: '1px dashed var(--line)', margin: '6px 0' }} />
 
         {bridge.uncategorisedQAR > 0 && row(`${t('npUncategorised')} (${bridge.uncategorisedCount})`, bridge.uncategorisedQAR, { sign: '-' })}
-        {!!bridge.outsideStockQAR && row(t('npOutsideStock'), bridge.outsideStockQAR, { sign: '+' })}
-        {!!bridge.outsideStockQAR && explain(t('npOutsideStockHint'), (bridge.diagnostics?.outsideStock ?? []).map(x => ({ key: x.id, ts: x.ts, text: `${fmtTotal(x.usdt)} USDT`, amount: x.costQAR })))}
         {row(t('npOther'), bridge.otherQAR, { muted: true })}
         <div style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4 }}>{t('npOtherWhy')}</div>
         <div style={{ borderTop: '1px solid var(--line)', margin: '6px 0' }} />
@@ -537,17 +521,19 @@ export default function NetPositionPage() {
                 <span className="mono" style={{ textAlign: 'end', color: signColor(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k))) }}>
                   {money(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k)), true)}
                 </span>
-                {!!month.closing.details?.[k]?.length && (
-                  <details style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)', paddingInlineStart: 12 }}>
-                    <summary style={{ cursor: 'pointer' }}>{t('npMadeOf')}</summary>
-                    {(month.closing.details?.[k] ?? []).map((d, i) => (
-                      <div key={`${d.label}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
-                        <span style={{ overflowWrap: 'anywhere' }}>{d.label}{d.original ? ` · ${fmtTotal(d.original.amount)} ${d.original.unit}` : ''}</span>
-                        <span className="mono">{fmtTotal(d.amountQAR)}</span>
-                      </div>
-                    ))}
-                  </details>
-                )}
+                {([['npMadeOfOpening', month.opening], ['npMadeOfClosing', month.closing]] as const).map(([labelKey, position]) => (
+                  !!position.details?.[k]?.length && (
+                    <details key={labelKey} style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)', paddingInlineStart: 12 }}>
+                      <summary style={{ cursor: 'pointer' }}>{t(labelKey)}</summary>
+                      {(position.details?.[k] ?? []).map((d, i) => (
+                        <div key={`${d.label}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
+                          <span style={{ overflowWrap: 'anywhere' }}>{d.label}{d.original ? ` · ${fmtTotal(d.original.amount)} ${d.original.unit}` : ''}</span>
+                          <span className="mono">{fmtTotal(d.amountQAR)}</span>
+                        </div>
+                      ))}
+                    </details>
+                  )
+                ))}
               </div>
             );
           })}

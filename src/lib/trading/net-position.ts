@@ -123,7 +123,19 @@ export function computeNetPosition(
     stockUSDT += qty;
     stockCost += qty * b.buyPriceQAR;
   }
-  if (stockCost > 0) add('stock', 'asset', stockCost, { label: 'USDT', amountQAR: stockCost, original: { amount: stockUSDT, unit: 'USDT' } });
+  // One entry per stock layer still held, oldest first, so the figure can be checked against the batches.
+  const batchById = new Map(batches.map(b => [b.id, b]));
+  const layers = derived.batches.filter(b => b.remainingUSDT > 1e-9).map(b => {
+    const src = batchById.get(b.id);
+    const day = src ? new Date(src.ts).toLocaleDateString() : '';
+    return {
+      label: `${src?.source || (b.isTransfer ? 'Merchant loan' : 'Batch')}${day ? ` · ${day}` : ''}`,
+      amountQAR: b.remainingUSDT * b.buyPriceQAR,
+      original: { amount: b.remainingUSDT, unit: `USDT @ ${Math.round(b.buyPriceQAR * 10000) / 10000}` },
+      ts: src?.ts ?? 0,
+    };
+  }).sort((a, b) => a.ts - b.ts);
+  for (const layer of layers) add('stock', 'asset', layer.amountQAR, { label: layer.label, amountQAR: layer.amountQAR, original: layer.original });
 
   let usdtRateQAR = options.usdtRateQAR && options.usdtRateQAR > 0 ? options.usdtRateQAR : 0;
   if (!usdtRateQAR && stockUSDT > 0) usdtRateQAR = stockCost / stockUSDT;
@@ -322,10 +334,6 @@ export interface BridgeCategoryTotal {
   amountQAR: number;
 }
 
-export interface BridgeDiagnostics {
-  outsideStock: Array<{ id: string; ts: number; usdt: number; costQAR: number }>;
-}
-
 export interface MonthBridge {
   openingQAR: number;
   netRevenueQAR: number;
@@ -344,10 +352,6 @@ export interface MonthBridge {
   adjustmentsInQAR: number;
   /** Changes to earlier, already-closed months since they were frozen. Zero until a month is chained to a frozen one. */
   priorCorrectionsQAR?: number;
-  /** Cost of USDT sold that was never in your stock records (bought elsewhere). The stock did not fall, so the position rose by this much more. */
-  outsideStockQAR?: number;
-  /** The records behind the line above, for the page to list. */
-  diagnostics?: BridgeDiagnostics;
   /** What is left unexplained: revaluation, write-offs, rate moves, record edits. */
   otherQAR: number;
   closingQAR: number;
@@ -417,25 +421,14 @@ export function computeMonthBridge(
   depositsQAR = round2(depositsQAR);
   adjustmentsInQAR = round2(adjustmentsInQAR);
 
-  // ── USDT sold that never came out of stock ──
-  const diagnostics: BridgeDiagnostics = { outsideStock: [] };
-  const derived = computeFIFO(state.batches || [], state.trades || [], state.usdtTransfers);
-  for (const t of state.trades || []) {
-    if (t.voided || t.ts < month.start || t.ts > month.end || t.usesStock !== false) continue;
-    const cost = derived.tradeCalc.get(t.id)?.totalCost ?? 0;
-    if (cost >= 1) diagnostics.outsideStock.push({ id: t.id, ts: t.ts, usdt: t.amountUSDT, costQAR: round2(cost) });
-  }
-  const outsideStockQAR = round2(diagnostics.outsideStock.reduce((s, x) => s + x.costQAR, 0));
-
   const explained = month.opening.netQAR + month.netRevenueQAR - businessTotalQAR - personalTotalQAR
-    - uncategorisedQAR + depositsQAR + adjustmentsInQAR + outsideStockQAR;
+    - uncategorisedQAR + depositsQAR + adjustmentsInQAR;
   return {
     openingQAR: month.opening.netQAR,
     netRevenueQAR: month.netRevenueQAR,
     business: businessList, businessTotalQAR,
     personal: personalList, personalTotalQAR,
     uncategorisedQAR, uncategorisedCount, depositsQAR, adjustmentsInQAR,
-    outsideStockQAR, diagnostics,
     otherQAR: round2(month.closing.netQAR - explained),
     closingQAR: month.closing.netQAR,
   };
