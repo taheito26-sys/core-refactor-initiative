@@ -189,7 +189,7 @@ export default function NetPositionPage() {
       const labels = {
         title: t('npReportTitle'), statusFrozen: t('npReportFrozen'), statusLive: t('npReportLive'),
         opening: t('npOpening'), closing: t('npClosing'), change: t('npChange'), revenue: t('npRevenue'),
-        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'),
+        bridge: t('npBridge'), business: t('npBusiness'), personal: t('npPersonal'), uncategorised: t('npUncategorised'), salesUnreceived: t('npSalesUnreceived'), outsideStock: t('npOutsideStock'), stockUnpaid: t('npStockUnpaid'),
         deposits: t('npDeposits'), adjustments: t('npAdjustments'), other: t('npOther'), priorCorrections: t('npPriorCorrectionsRow'),
         breakdown: t('npBreakdown'), assets: t('npAssets'), liabilities: t('npLiabilities'), rates: t('npReportRates'),
         usdRate: t('npUsdRate'), usdtRate: t('npReportUsdtRate'), egpRate: t('npReportEgpRate'),
@@ -268,6 +268,20 @@ export default function NetPositionPage() {
         {opts.sign === '-' && amount ? '−' : opts.sign === '+' && amount ? '+' : ''}{money(Math.abs(amount) < 0.005 ? 0 : opts.sign ? Math.abs(amount) : amount)}
       </span>
     </div>
+  );
+
+  /** A short reason under a bridge row, with the records behind it. */
+  const explain = (hint: string, items: Array<{ key: string; ts: number; text: string; amount: number }>) => (
+    <details style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4, paddingInlineStart: 14 }}>
+      <summary style={{ cursor: 'pointer' }}>{hint}</summary>
+      {items.slice(0, 12).map(i => (
+        <div key={i.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
+          <span>{new Date(i.ts).toLocaleDateString()} · {i.text}</span>
+          <span className="mono">{fmtTotal(i.amount)}</span>
+        </div>
+      ))}
+      {items.length > 12 && <div>+{items.length - 12}</div>}
+    </details>
   );
 
   const lineAmount = (pos: typeof month.opening, key: NetPositionLineKey) => pos.lines.find(l => l.key === key)?.amountQAR ?? 0;
@@ -432,7 +446,14 @@ export default function NetPositionPage() {
         <div style={{ borderTop: '1px dashed var(--line)', margin: '6px 0' }} />
 
         {bridge.uncategorisedQAR > 0 && row(`${t('npUncategorised')} (${bridge.uncategorisedCount})`, bridge.uncategorisedQAR, { sign: '-' })}
+        {!!bridge.salesUnreceivedQAR && row(t('npSalesUnreceived'), bridge.salesUnreceivedQAR, { sign: '-' })}
+        {!!bridge.salesUnreceivedQAR && explain(t('npSalesUnreceivedHint'), (bridge.diagnostics?.sales ?? []).map(x => ({ key: x.id, ts: x.ts, text: `${fmtTotal(x.usdt)} USDT`, amount: x.missingQAR })))}
+        {!!bridge.outsideStockQAR && row(t('npOutsideStock'), bridge.outsideStockQAR, { sign: '+' })}
+        {!!bridge.outsideStockQAR && explain(t('npOutsideStockHint'), (bridge.diagnostics?.outsideStock ?? []).map(x => ({ key: x.id, ts: x.ts, text: `${fmtTotal(x.usdt)} USDT`, amount: x.costQAR })))}
+        {!!bridge.stockUnpaidQAR && row(t('npStockUnpaid'), bridge.stockUnpaidQAR, { sign: '+' })}
+        {!!bridge.stockUnpaidQAR && explain(t('npStockUnpaidHint'), (bridge.diagnostics?.unpaidStock ?? []).map(x => ({ key: x.id, ts: x.ts, text: x.source || '—', amount: x.costQAR })))}
         {row(t('npOther'), bridge.otherQAR, { muted: true })}
+        <div style={{ fontSize: 10, color: 'var(--muted)', paddingBottom: 4 }}>{t('npOtherWhy')}</div>
         <div style={{ borderTop: '1px solid var(--line)', margin: '6px 0' }} />
         {row(t('npClosing'), bridge.closingQAR, { bold: true })}
       </div>
@@ -486,10 +507,11 @@ export default function NetPositionPage() {
       {/* ── Breakdown ── */}
       <div className="panel" style={{ padding: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>{t('npBreakdown')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '4px 14px', fontSize: 12, alignItems: 'baseline' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '4px 14px', fontSize: 12, alignItems: 'baseline' }}>
           <span />
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npOpening')}</span>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npClosing')}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColChange')}</span>
           {lineKeys.map(k => {
             const liability = (month.closing.lines.find(l => l.key === k) ?? month.opening.lines.find(l => l.key === k))?.side === 'liability';
             const sign = liability ? -1 : 1;
@@ -498,15 +520,20 @@ export default function NetPositionPage() {
                 <span>{t(LINE_LABEL[k])}</span>
                 <span className="mono" style={{ textAlign: 'end' }}>{money(sign * lineAmount(month.opening, k))}</span>
                 <span className="mono" style={{ textAlign: 'end' }}>{money(sign * lineAmount(month.closing, k))}</span>
+                <span className="mono" style={{ textAlign: 'end', color: signColor(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k))) }}>
+                  {money(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k)), true)}
+                </span>
               </div>
             );
           })}
           <span style={{ fontWeight: 800 }}>{t('npAssets')}</span>
           <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>{money(month.opening.assetsQAR)}</span>
           <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>{money(month.closing.assetsQAR)}</span>
+          <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>{money(month.closing.assetsQAR - month.opening.assetsQAR, true)}</span>
           <span style={{ fontWeight: 800 }}>{t('npLiabilities')}</span>
           <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>−{money(month.opening.liabilitiesQAR)}</span>
           <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>−{money(month.closing.liabilitiesQAR)}</span>
+          <span className="mono" style={{ textAlign: 'end', fontWeight: 800 }}>{money(-(month.closing.liabilitiesQAR - month.opening.liabilitiesQAR), true)}</span>
         </div>
       </div>
 

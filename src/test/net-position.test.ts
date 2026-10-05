@@ -130,7 +130,7 @@ describe('computeMonthBridge', () => {
     cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
     cashLedger: [
       led('hand', D(2026, 8, 20), 'in', 100000),
-      { ...led('hand', D(2026, 9, 10), 'in', 19000), type: 'sale_deposit' },
+      { ...led('hand', D(2026, 9, 10), 'in', 19000), type: 'sale_deposit', tradeId: 't' },
       { ...led('hand', D(2026, 9, 12), 'out', 300), type: 'withdrawal', expenseCategory: 'rent' },
       { ...led('hand', D(2026, 9, 13), 'out', 200), type: 'withdrawal', expenseCategory: 'owner_draw' },
       { ...led('hand', D(2026, 9, 14), 'out', 100), type: 'withdrawal' },
@@ -170,5 +170,65 @@ describe('computeMonthBridge', () => {
     const withIds = computeMonthBridge(s, m, loanLedgerEntryIds(s.customerLoans, []));
     expect(withIds.uncategorisedQAR).toBe(0);
     expect(withIds.depositsQAR).toBe(0);
+  });
+
+  describe('what sits between revenue and the change in position', () => {
+    const month = (s: TrackerState) => computeMonthPosition(s, 2026, 8, {}, D(2026, 10, 15));
+
+    it('counts a sale whose cash deposit came back from the cloud as a plain deposit as that sale\'s proceeds, not as money added', () => {
+      const s = state({
+        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+        cashLedger: [
+          led('hand', D(2026, 8, 20), 'in', 100000),
+          { ...led('hand', D(2026, 9, 10), 'in', 19000), type: 'deposit', linkedEntityType: 'trade', linkedEntityId: 't' },
+          led('hand', D(2026, 9, 12), 'in', 500),
+        ] as never,
+        batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
+        trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
+      });
+      const b = computeMonthBridge(s, month(s));
+      expect(b.depositsQAR).toBe(500);
+      expect(b.salesUnreceivedQAR).toBe(0);
+    });
+
+    it('lists a sale with no cash deposit and no loan as proceeds that never arrived, and the position falls by them', () => {
+      const s = state({
+        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
+        batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
+        trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
+      });
+      const m = month(s);
+      const b = computeMonthBridge(s, m);
+      expect(b.salesUnreceivedQAR).toBe(19000);
+      expect(b.diagnostics?.sales[0]).toMatchObject({ id: 't', missingQAR: 19000 });
+      expect(b.otherQAR).toBe(0);
+    });
+
+    it('does not call a sale unreceived when it is a loan', () => {
+      const s = state({
+        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
+        batches: [batch('b', D(2026, 8, 20), 10000, 3.6)] as never,
+        trades: [trade('t', D(2026, 9, 10), 5000, 3.8)] as never,
+        customerLoans: [{ id: 'l', ts: D(2026, 9, 10), customerId: 'c', tradeId: 't', principal: 19000, currency: 'QAR', repayments: [], status: 'open', createdAt: 0 }] as never,
+      });
+      const b = computeMonthBridge(s, month(s));
+      expect(b.salesUnreceivedQAR).toBe(0);
+      expect(b.otherQAR).toBe(0);
+    });
+
+    it('lists stock added with no payment recorded, and sales of USDT that was never in stock', () => {
+      const s = state({
+        cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+        cashLedger: [led('hand', D(2026, 8, 20), 'in', 100000)] as never,
+        batches: [batch('b', D(2026, 9, 2), 1000, 3.6)] as never,
+        trades: [{ ...trade('t', D(2026, 9, 10), 500, 3.8), usesStock: false, manualBuyPrice: 3.6 }] as never,
+      });
+      const b = computeMonthBridge(s, month(s));
+      expect(b.stockUnpaidQAR).toBe(3600);
+      expect(b.outsideStockQAR).toBe(1800);
+      expect(b.diagnostics?.unpaidStock[0].id).toBe('b');
+    });
   });
 });

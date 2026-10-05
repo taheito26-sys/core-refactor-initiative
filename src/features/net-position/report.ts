@@ -14,6 +14,9 @@ export interface NetPositionReportLabels {
   business: string;
   personal: string;
   uncategorised: string;
+  salesUnreceived?: string;
+  outsideStock?: string;
+  stockUnpaid?: string;
   deposits: string;
   adjustments: string;
   other: string;
@@ -72,6 +75,9 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
     { label: L.personal, amount: bridge.personalTotalQAR, kind: 'minus' },
     ...bridge.personal.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
     ...(bridge.uncategorisedQAR > 0 ? [{ label: `${L.uncategorised} (${bridge.uncategorisedCount})`, amount: bridge.uncategorisedQAR, kind: 'minus' as const }] : []),
+    ...(bridge.salesUnreceivedQAR && L.salesUnreceived ? [{ label: L.salesUnreceived, amount: bridge.salesUnreceivedQAR, kind: 'minus' as const }] : []),
+    ...(bridge.outsideStockQAR && L.outsideStock ? [{ label: L.outsideStock, amount: bridge.outsideStockQAR, kind: 'plus' as const }] : []),
+    ...(bridge.stockUnpaidQAR && L.stockUnpaid ? [{ label: L.stockUnpaid, amount: bridge.stockUnpaidQAR, kind: 'plus' as const }] : []),
     { label: L.other, amount: bridge.otherQAR, kind: 'muted' },
     { label: L.closing, amount: bridge.closingQAR, kind: 'total' },
   ];
