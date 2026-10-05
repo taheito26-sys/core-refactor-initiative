@@ -232,3 +232,20 @@ describe('computeMonthBridge', () => {
     });
   });
 });
+
+describe('what each line is made of', () => {
+  it('names the accounts, merchants and people behind a line, including an overdrawn account under what is owed', () => {
+    const s = state({
+      cashAccounts: [acc('hand', 'hand', 'QAR'), acc('b', 'bank', 'QAR')] as never,
+      cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('b', D(2026, 9, 1), 'out', 431)] as never,
+      batches: [batch('s', D(2026, 9, 1), 1000, 3.7)] as never,
+      usdtTransfers: [{ id: 't1', ts: D(2026, 9, 2), kind: 'lend_out', amountUSDT: 100, counterpartyName: 'Ahmed', createdAt: 0 }] as never,
+    });
+    const p = computeNetPosition(s, D(2026, 9, 30), { personalLoans: [{ id: 'p', person: 'Friend', principal: 7000, currency: 'QAR', lentAt: D(2026, 9, 5), repayments: [] }] });
+    expect(p.details?.cash_hand?.[0]).toMatchObject({ label: 'hand', amountQAR: 1000 });
+    expect(p.details?.merchant_borrowed?.[0].label).toBe('b (overdrawn)');
+    expect(p.details?.merchant_borrowed?.[0].amountQAR).toBe(431);
+    expect(p.details?.merchant_lent?.[0]).toMatchObject({ label: 'Ahmed', original: { amount: 100, unit: 'USDT' } });
+    expect(p.details?.personal_loans?.[0].label).toBe('Friend');
+  });
+});

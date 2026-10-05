@@ -877,6 +877,7 @@ const translations = {
   npColClosingWould: { en: 'Closing would be', ar: 'سيُغلق على' },
   npTodayCaution: { en: 'Today is the balance right now. A starting figure must be the balance on the first day of the month, because the month\'s own movements are added on top of it. Using today\'s figure counts this month\'s movements twice.', ar: '«اليوم» هو الرصيد الآن. الرقم الافتتاحي يجب أن يكون رصيد أول يوم في الشهر، لأن حركات الشهر تُضاف فوقه. استخدام رقم اليوم يحسب حركات هذا الشهر مرتين.' },
   npNegativeWarn: { en: 'A line would end the month below zero. The figure you entered is probably not the balance on the first day. Check the Closing would be column, or go back to the records.', ar: 'سينتهي أحد البنود الشهر بقيمة أقل من صفر. على الأرجح الرقم المُدخل ليس رصيد أول يوم. راجع عمود «سيُغلق على» أو ارجع إلى السجلات.' },
+  npMadeOf: { en: 'What this is made of (at the end of the month)', ar: 'مم يتكوّن هذا البند (في نهاية الشهر)' },
   mloanDecideThese: { en: 'Decide these in Loans', ar: 'قرّر بشأنها في القروض' },
   mloanImportPurchaseHint: { en: 'Import it from the exchange list in the Add batch form.', ar: 'استورده من قائمة المنصات في نموذج إضافة دفعة.' },
 

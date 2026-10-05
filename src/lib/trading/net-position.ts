@@ -47,10 +47,21 @@ export interface NetPositionLine {
   amountQAR: number;
 }
 
+/** One thing that makes up a line: an account, a merchant, a person. */
+export interface NetPositionDetail {
+  label: string;
+  /** Always positive; the line's side says whether it is owned or owed. */
+  amountQAR: number;
+  /** The amount in its own unit, for display (a merchant's USDT, an account's currency). */
+  original?: { amount: number; unit: string };
+}
+
 export interface NetPosition {
   /** The moment the position is measured at, inclusive. */
   asOf: number;
   lines: NetPositionLine[];
+  /** What each line is made of, so a figure can be traced back to its accounts, merchants and people. */
+  details?: Partial<Record<NetPositionLineKey, NetPositionDetail[]>>;
   assetsQAR: number;
   liabilitiesQAR: number;
   netQAR: number;
@@ -92,10 +103,12 @@ export function computeNetPosition(
 ): NetPosition {
   const warnings: NetPosition['warnings'] = [];
   const sums = new Map<string, { side: 'asset' | 'liability'; amount: number }>();
-  const add = (key: NetPositionLineKey, side: 'asset' | 'liability', amount: number) => {
+  const details: NonNullable<NetPosition['details']> = {};
+  const add = (key: NetPositionLineKey, side: 'asset' | 'liability', amount: number, detail?: NetPositionDetail) => {
     const slot = sums.get(key) ?? { side, amount: 0 };
     slot.amount += amount;
     sums.set(key, slot);
+    if (detail && detail.amountQAR > 0.004) (details[key] ??= []).push({ ...detail, amountQAR: round2(detail.amountQAR) });
   };
 
   // ── Stock, at FIFO cost, as the books stood at asOf ──
@@ -110,7 +123,7 @@ export function computeNetPosition(
     stockUSDT += qty;
     stockCost += qty * b.buyPriceQAR;
   }
-  if (stockCost > 0) add('stock', 'asset', stockCost);
+  if (stockCost > 0) add('stock', 'asset', stockCost, { label: 'USDT', amountQAR: stockCost, original: { amount: stockUSDT, unit: 'USDT' } });
 
   let usdtRateQAR = options.usdtRateQAR && options.usdtRateQAR > 0 ? options.usdtRateQAR : 0;
   if (!usdtRateQAR && stockUSDT > 0) usdtRateQAR = stockCost / stockUSDT;
@@ -143,8 +156,9 @@ export function computeNetPosition(
     if (acc.currency === 'EGP' && !egpPerUsdt && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
     const qar = acc.currency === 'USD' ? balance * usdToQar : acc.currency === 'EGP' ? egpToQar(balance, egpPerUsdt) : balance;
     // A negative balance is an overdraft: owed, not owned.
-    if (qar >= 0) add(ACCOUNT_LINE[acc.type] ?? 'cash_hand', 'asset', qar);
-    else add('merchant_borrowed', 'liability', -qar);
+    const original = { amount: balance, unit: acc.currency };
+    if (qar >= 0) add(ACCOUNT_LINE[acc.type] ?? 'cash_hand', 'asset', qar, { label: acc.name, amountQAR: qar, original });
+    else add('merchant_borrowed', 'liability', -qar, { label: `${acc.name} (overdrawn)`, amountQAR: -qar, original });
   }
   if (usdtAccountBalance) {
     if (!usdtRateQAR) warnings.push('usdt_unpriced');
@@ -183,11 +197,12 @@ export function computeNetPosition(
       : loan.currency === 'USDT' ? outstanding * usdtRateQAR
       : loan.currency === 'EGP' ? egpToQar(outstanding, egpPerUsdt)
       : outstanding;
-    add('personal_loans', 'asset', qar);
+    add('personal_loans', 'asset', qar, { label: loan.person, amountQAR: qar, original: { amount: outstanding, unit: loan.currency } });
   }
 
   // ── USDT lent to / borrowed from other merchants, net per merchant ──
   const byMerchant = new Map<string, number>();
+  const merchantNames = new Map<string, string>();
   for (const t of transfers as UsdtTransfer[]) {
     if (!isTransferActive(t)) continue;
     const key = transferCounterpartyKey(t);
@@ -196,11 +211,14 @@ export function computeNetPosition(
     // getting a lend returned, goes the other way.
     const net = t.kind === 'lend_out' || t.kind === 'borrow_repay' ? t.amountUSDT : -t.amountUSDT;
     byMerchant.set(key, (byMerchant.get(key) ?? 0) + net);
+    if (!merchantNames.has(key)) merchantNames.set(key, t.counterpartyName);
   }
   if (byMerchant.size > 0 && !usdtRateQAR) warnings.push('usdt_unpriced');
-  for (const net of byMerchant.values()) {
+  for (const [key, net] of byMerchant) {
     if (Math.abs(net) < 1e-9) continue;
-    add(net > 0 ? 'merchant_lent' : 'merchant_borrowed', net > 0 ? 'asset' : 'liability', Math.abs(net) * usdtRateQAR);
+    add(net > 0 ? 'merchant_lent' : 'merchant_borrowed', net > 0 ? 'asset' : 'liability', Math.abs(net) * usdtRateQAR, {
+      label: merchantNames.get(key) || key, amountQAR: Math.abs(net) * usdtRateQAR, original: { amount: Math.abs(net), unit: 'USDT' },
+    });
   }
 
   const lines: NetPositionLine[] = [...sums.entries()]
@@ -209,7 +227,7 @@ export function computeNetPosition(
   const assetsQAR = round2(lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amountQAR, 0));
   const liabilitiesQAR = round2(lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amountQAR, 0));
   return {
-    asOf, lines, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR),
+    asOf, lines, details, assetsQAR, liabilitiesQAR, netQAR: round2(assetsQAR - liabilitiesQAR),
     stockUSDT: Math.round(stockUSDT * 1e8) / 1e8, usdtRateQAR, usdToQar, egpPerUsdt, warnings,
   };
 }

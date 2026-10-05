@@ -541,6 +541,17 @@ export default function NetPositionPage() {
                 <span className="mono" style={{ textAlign: 'end', color: signColor(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k))) }}>
                   {money(sign * (lineAmount(month.closing, k) - lineAmount(month.opening, k)), true)}
                 </span>
+                {!!month.closing.details?.[k]?.length && (
+                  <details style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)', paddingInlineStart: 12 }}>
+                    <summary style={{ cursor: 'pointer' }}>{t('npMadeOf')}</summary>
+                    {(month.closing.details?.[k] ?? []).map((d, i) => (
+                      <div key={`${d.label}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
+                        <span style={{ overflowWrap: 'anywhere' }}>{d.label}{d.original ? ` · ${fmtTotal(d.original.amount)} ${d.original.unit}` : ''}</span>
+                        <span className="mono">{fmtTotal(d.amountQAR)}</span>
+                      </div>
+                    ))}
+                  </details>
+                )}
               </div>
             );
           })}
