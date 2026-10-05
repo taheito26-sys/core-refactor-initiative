@@ -2970,6 +2970,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
   /** Buyer statement key currently picking payments to merge into one, and which rows are checked. */
   const [mergePaymentsKey, setMergePaymentsKey] = useState<string | null>(null);
+  // A change request whose payment could not be matched on its own: the merchant picks which one it means.
+  const [claimPicker, setClaimPicker] = useState<{ claim: LoanPaymentClaim; selected: Set<string> } | null>(null);
   const [mergePaymentSelection, setMergePaymentSelection] = useState<Set<string>>(new Set());
   const toggleMergeSelection = (groupId: string) => {
     setMergePaymentSelection(prev => {
@@ -3426,23 +3428,51 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     }
 
     const matchingIds = claimCustomerIdGroup(claim.customerId);
+    const claimTs = new Date(claim.paidAt).getTime();
     const claimDay = new Date(claim.paidAt).toDateString();
     // A merchant_payment correction targets a repayment the merchant entered
     // themselves, so it never carries the "Customer-reported" note prefix a
     // customer_claim's does -- only customer_claim rows need that check to
     // avoid sweeping up an unrelated same-day merchant entry.
     const requireCustomerReportedNote = claim.source !== 'merchant_payment';
-    const sameDay: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
+    const reportedPrefix = t('customerReportedPayment') || 'Customer-reported';
+    const pool: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
     for (const loan of loans) {
       if (!matchingIds.has(loan.customerId) || loan.currency !== claim.currency) continue;
-      for (const r of loan.repayments || []) {
-        if (new Date(r.ts).toDateString() !== claimDay) continue;
-        if (requireCustomerReportedNote && !(r.note || '').startsWith(t('customerReportedPayment') || 'Customer-reported')) continue;
-        sameDay.push({ loan, repayment: r });
-      }
+      for (const r of loan.repayments || []) pool.push({ loan, repayment: r });
     }
-    const total = sameDay.reduce((sum, x) => sum + x.repayment.amount, 0);
-    return Math.abs(total - claim.amount) < 0.01 ? sameDay : [];
+    const exactTotal = (rows: typeof pool) => rows.length > 0 && Math.abs(rows.reduce((sum, x) => sum + x.repayment.amount, 0) - claim.amount) < 0.01;
+
+    // Each step is stricter-to-looser about where and how the payment is
+    // described, but always needs the amounts to add up to exactly what was
+    // claimed, so a different payment is never rewritten by guesswork.
+    const sameDay = pool.filter(x => new Date(x.repayment.ts).toDateString() === claimDay);
+    const sameDayReported = requireCustomerReportedNote
+      ? sameDay.filter(x => (x.repayment.note || '').startsWith(reportedPrefix))
+      : sameDay;
+    if (exactTotal(sameDayReported)) return sameDayReported;
+    // The note's wording follows the app language at the time it was saved, and a payment can sit a day off
+    // (time zones, a date the merchant corrected), so look without the note and across a 36 hour window.
+    if (exactTotal(sameDay)) return sameDay;
+    const nearby = pool.filter(x => Math.abs(x.repayment.ts - claimTs) <= 36 * 3600_000);
+    if (exactTotal(nearby)) return nearby;
+    // One payment for exactly that amount within ten days, and no other with the same amount.
+    const sameAmount = pool.filter(x => Math.abs(x.repayment.amount - claim.amount) < 0.01 && Math.abs(x.repayment.ts - claimTs) <= 10 * 86400_000);
+    return sameAmount.length === 1 ? sameAmount : [];
+  };
+
+  /** The buyer's recorded payments in the request's currency, closest to the request first, for the merchant to pick from. */
+  const claimCandidateRepayments = (claim: LoanPaymentClaim) => {
+    const matchingIds = claimCustomerIdGroup(claim.customerId);
+    const claimTs = new Date(claim.paidAt).getTime();
+    const rows: Array<{ loan: CustomerLoan; repayment: LoanRepayment }> = [];
+    for (const loan of loans) {
+      if (!matchingIds.has(loan.customerId) || loan.currency !== claim.currency) continue;
+      for (const r of loan.repayments || []) rows.push({ loan, repayment: r });
+    }
+    const score = (x: { repayment: LoanRepayment }) =>
+      (Math.abs(x.repayment.amount - claim.amount) < 0.01 ? 0 : 1e15) + Math.abs(x.repayment.ts - claimTs);
+    return rows.sort((a, b) => score(a) - score(b)).slice(0, 30);
   };
 
   /**
@@ -3453,9 +3483,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    * place -- re-allocating rather than patching amounts in place because
    * the corrected total may no longer split the way the original did.
    */
-  const applyClaimChange = async (claim: LoanPaymentClaim) => {
-    const targets = findClaimRepayments(claim);
+  const applyClaimChange = async (claim: LoanPaymentClaim, picked?: Array<{ loan: CustomerLoan; repayment: LoanRepayment }>) => {
+    const targets = picked ?? findClaimRepayments(claim);
     if (targets.length === 0) {
+      // Not matched on its own: let the merchant say which payment the buyer means, when there is one to pick.
+      const candidates = claimCandidateRepayments(claim);
+      if (candidates.length > 0) {
+        const guess = candidates.filter(x => Math.abs(x.repayment.amount - claim.amount) < 0.01).slice(0, 1);
+        setClaimPicker({ claim, selected: new Set(guess.map(x => x.repayment.id)) });
+        return;
+      }
       toast.error(t('loanPaymentClaimNotFound') || 'Could not find the payment this request refers to — adjust it manually, then decline the request.');
       return;
     }
@@ -3503,6 +3540,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       deletedRepaymentIds: newDeletedRepaymentIds,
     });
     if (ok) {
+      setClaimPicker(null);
       resolveChange.mutate({ id: claim.id, action: 'applied' });
       toast.success(claim.changeRequest === 'delete' ? t('loanPaymentDeleted') : t('loanPaymentUpdated'));
     }
@@ -4165,6 +4203,53 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
             </div>
           </div>
+
+          {claimPicker && (() => {
+            const { claim, selected } = claimPicker;
+            const candidates = claimCandidateRepayments(claim);
+            const chosen = candidates.filter(x => selected.has(x.repayment.id));
+            const chosenTotal = chosen.reduce((sum, x) => sum + x.repayment.amount, 0);
+            const claimCustomer = (state.customers || []).find(c => c.id === claim.customerId);
+            const toggle = (id: string) => setClaimPicker(prev => {
+              if (!prev) return prev;
+              const next = new Set(prev.selected);
+              if (next.has(id)) next.delete(id); else next.add(id);
+              return { ...prev, selected: next };
+            });
+            return (
+              <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={() => setClaimPicker(null)}>
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)' }} />
+                <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 460, maxHeight: '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>{t('claimPickerTitle')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+                    {(claimCustomer?.name || claim.customerId)} · {fmtTotal(claim.amount)} {claim.currency} · {new Date(claim.paidAt).toLocaleDateString()}
+                    <br />{t('claimPickerHint')}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                    {candidates.map(({ loan, repayment }) => (
+                      <label key={repayment.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 9px', borderRadius: 8, border: '1px solid var(--line)', cursor: 'pointer', background: selected.has(repayment.id) ? 'color-mix(in srgb, var(--brand) 10%, transparent)' : 'transparent' }}>
+                        <input type="checkbox" checked={selected.has(repayment.id)} onChange={() => toggle(repayment.id)} />
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 11 }}>
+                          <strong className="mono">{fmtTotal(repayment.amount)} {loan.currency}</strong> · {new Date(repayment.ts).toLocaleDateString()}
+                          <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', overflowWrap: 'anywhere' }}>{repayment.note || loan.note || ''}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, marginBottom: 10, color: Math.abs(chosenTotal - claim.amount) < 0.01 ? 'var(--good)' : 'var(--warn)' }}>
+                    {t('claimPickerSelected')}: <strong className="mono">{fmtTotal(chosenTotal)}</strong> / {fmtTotal(claim.amount)} {claim.currency}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button className="btn" style={{ background: 'var(--good)', color: '#000' }} disabled={chosen.length === 0}
+                      onClick={() => { void applyClaimChange(claim, chosen); }}>
+                      ✓ {t('loanPaymentClaimApply') || 'Apply'}
+                    </button>
+                    <button className="btn secondary" onClick={() => setClaimPicker(null)}>{t('cancel')}</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── CUSTOMER-REPORTED PAYMENTS awaiting review — a customer
               logged a payment from their portal; nothing is applied to the
