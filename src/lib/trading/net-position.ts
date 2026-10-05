@@ -3,6 +3,7 @@ import {
   type CashAccount, type CashCurrency, type CustomerLoan, type TrackerState,
 } from '../tracker-helpers';
 import { isTransferActive, transferCounterpartyKey, type UsdtTransfer } from '../usdt-transfers';
+import { personalLoanOutstanding, type PersonalLoan } from './personal-loans';
 import { expenseCategoryOf, isExpenseCandidate, type ExpenseGroup } from './expense-categories';
 
 // ─── Net position: everything owned minus everything owed ───
@@ -32,6 +33,8 @@ export type NetPositionLineKey =
   | 'usdt_in_accounts'
   | 'stock'
   | 'customer_loans'
+  /** Money lent by hand to people who are not customers. */
+  | 'personal_loans'
   | 'merchant_lent'
   | 'merchant_borrowed'
   /** Only ever set by hand, to make an opening position match what the merchant knows. */
@@ -63,6 +66,8 @@ export interface NetPosition {
 }
 
 export interface NetPositionOptions {
+  /** Loans to friends and other non-customers, entered by hand. */
+  personalLoans?: PersonalLoan[];
   /** QAR per 1 USD. Defaults to the average USDT buying price (WACOP). */
   usdToQar?: number;
   /** EGP per 1 USDT. Overrides every EGP conversion; by default each EGP loan uses the rate of its own sale. */
@@ -165,6 +170,18 @@ export function computeNetPosition(
       qar = loan.currency === 'USD' ? outstanding * usdToQar : loan.currency === 'USDT' ? outstanding * usdtRateQAR : outstanding;
     }
     add('customer_loans', 'asset', qar);
+  }
+
+  // ── Loans to friends and other non-customers ──
+  for (const loan of options.personalLoans || []) {
+    const outstanding = personalLoanOutstanding(loan, asOf);
+    if (!outstanding) continue;
+    if (loan.currency === 'EGP' && !egpPerUsdt && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
+    const qar = loan.currency === 'USD' ? outstanding * usdToQar
+      : loan.currency === 'USDT' ? outstanding * usdtRateQAR
+      : loan.currency === 'EGP' ? egpToQar(outstanding, egpPerUsdt)
+      : outstanding;
+    add('personal_loans', 'asset', qar);
   }
 
   // ── USDT lent to / borrowed from other merchants, net per merchant ──
@@ -328,6 +345,12 @@ export function amountToQar(
 export function computeMonthBridge(
   state: Pick<TrackerState, 'cashLedger'>,
   month: MonthPosition,
+  /**
+   * Ledger entries that belong to a loan (given out or repaid). The cloud
+   * stores them as plain withdrawals and deposits, so without this a loan
+   * would read as spending after a reload.
+   */
+  loanLedgerEntryIds: ReadonlySet<string> = new Set(),
 ): MonthBridge {
   const rates = month.closing;
   const business = new Map<string, number>();
@@ -339,6 +362,7 @@ export function computeMonthBridge(
 
   for (const e of state.cashLedger || []) {
     if (e.ts < month.start || e.ts > month.end) continue;
+    if (loanLedgerEntryIds.has(e.id)) continue;
     const qar = amountToQar(rates, e.currency, e.amount);
     if (isExpenseCandidate(e)) {
       const cat = expenseCategoryOf(e.expenseCategory);
@@ -412,4 +436,21 @@ export function applyOpeningOverride(month: MonthPosition, offsets: LineOffsets)
   const closing = applyLineOffsets(month.closing, offsets);
   const changeQAR = round2(closing.netQAR - opening.netQAR);
   return { ...month, opening, closing, changeQAR, unexplainedQAR: round2(changeQAR - month.netRevenueQAR) };
+}
+
+/** Every ledger entry that is the cash side of a customer loan or a personal loan. */
+export function loanLedgerEntryIds(
+  customerLoans: TrackerState['customerLoans'],
+  personalLoans: PersonalLoan[] = [],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const l of customerLoans || []) {
+    if (l.disbursementLedgerEntryId) ids.add(l.disbursementLedgerEntryId);
+    for (const r of l.repayments || []) if (r.ledgerEntryId) ids.add(r.ledgerEntryId);
+  }
+  for (const l of personalLoans) {
+    if (l.ledgerEntryId) ids.add(l.ledgerEntryId);
+    for (const r of l.repayments) if (r.ledgerEntryId) ids.add(r.ledgerEntryId);
+  }
+  return ids;
 }

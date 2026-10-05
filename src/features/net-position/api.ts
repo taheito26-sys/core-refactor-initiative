@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import type { MonthBridge, MonthPosition } from '@/lib/trading/net-position';
 import type { MonthlySnapshot } from './snapshots';
 import type { OpeningOverride } from './overrides';
+import type { PersonalLoan } from '@/lib/trading/personal-loans';
 
 const KEY = ['monthly-positions'];
 
@@ -113,4 +114,67 @@ export function useOpeningOverrideSaving() {
   };
 
   return { save, clear };
+}
+
+// ─── Personal loans (to people who are not customers) ───
+
+const LOANS_KEY = ['personal-loans'];
+
+type LoanRow = {
+  id: string; person: string; principal: number; currency: PersonalLoan['currency'];
+  lent_at: string; note: string | null; ledger_entry_id: string | null; repayments: PersonalLoan['repayments'];
+};
+
+const toLoan = (r: LoanRow): PersonalLoan => ({
+  id: r.id, person: r.person, principal: Number(r.principal), currency: r.currency,
+  lentAt: new Date(r.lent_at).getTime(), note: r.note ?? undefined, ledgerEntryId: r.ledger_entry_id ?? undefined, repayments: r.repayments ?? [],
+});
+
+export function usePersonalLoans() {
+  const query = useQuery({
+    queryKey: LOANS_KEY,
+    queryFn: async (): Promise<PersonalLoan[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await supabase.from('personal_loans' as any).select('*').order('lent_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as unknown as LoanRow[]).map(toLoan);
+    },
+    retry: false,
+  });
+  return { loans: query.data ?? [], unavailable: query.isError };
+}
+
+export function usePersonalLoanActions() {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: LOANS_KEY });
+
+  const add = async (input: { person: string; principal: number; currency: PersonalLoan['currency']; lentAt: number; note?: string; ledgerEntryId?: string }) => {
+    if (!userId) throw new Error('Not signed in');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await supabase.from('personal_loans' as any).insert({
+      user_id: userId, person: input.person, principal: input.principal, currency: input.currency,
+      lent_at: new Date(input.lentAt).toISOString(), note: input.note || null, ledger_entry_id: input.ledgerEntryId ?? null, repayments: [],
+    }).select('id').single();
+    if (error) throw error;
+    await refresh();
+    return (data as unknown as { id: string }).id;
+  };
+
+  /** Replaces a loan's repayment list (the caller appends or edits, so a repayment is never lost to a stale copy). */
+  const setRepayments = async (loanId: string, repayments: PersonalLoan['repayments']) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('personal_loans' as any).update({ repayments }).eq('id', loanId);
+    if (error) throw error;
+    await refresh();
+  };
+
+  const remove = async (loanId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('personal_loans' as any).delete().eq('id', loanId);
+    if (error) throw error;
+    await refresh();
+  };
+
+  return { add, setRepayments, remove };
 }

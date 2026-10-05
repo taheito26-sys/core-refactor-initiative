@@ -31,6 +31,8 @@ vi.mock('@/features/net-position/api', () => ({
   useMonthClosing: () => ({ close: closeMonth, reopen: vi.fn(async () => {}) }),
   useOpeningOverrides: () => ({ overrides: new Map(), unavailable: false }),
   useOpeningOverrideSaving: () => ({ save: saveOpening, clear: vi.fn(async () => {}) }),
+  usePersonalLoans: () => ({ loans: [], unavailable: false }),
+  usePersonalLoanActions: () => ({ add: vi.fn(async () => 'x'), setRepayments: vi.fn(async () => {}), remove: vi.fn(async () => {}) }),
 }));
 vi.mock('@/lib/useTrackerState', () => ({ useTrackerState: () => ({ state, applyState }) }));
 

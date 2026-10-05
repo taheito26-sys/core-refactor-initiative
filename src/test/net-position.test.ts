@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { USD_QAR_PEG, computeMonthBridge, computeMonthPosition, computeMonthlyPositions, computeNetPosition } from '@/lib/trading/net-position';
+import { USD_QAR_PEG, computeMonthBridge, loanLedgerEntryIds, computeMonthPosition, computeMonthlyPositions, computeNetPosition } from '@/lib/trading/net-position';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
 const D = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12).getTime();
@@ -152,5 +152,23 @@ describe('computeMonthBridge', () => {
     expect(b.depositsQAR).toBe(0);
     expect(b.otherQAR).toBe(0);
     expect(b.closingQAR).toBe(b.openingQAR + 1000 - 300 - 200 - 100);
+  });
+
+  it('does not read a loan\'s cash movements as spending or money added, even when the cloud stored them as plain withdrawals', () => {
+    const s = state({
+      cashAccounts: [acc('hand', 'hand', 'QAR')] as never,
+      cashLedger: [
+        led('hand', D(2026, 8, 20), 'in', 10000),
+        { ...led('hand', D(2026, 9, 5), 'out', 7000), id: 'give', type: 'withdrawal' },
+        { ...led('hand', D(2026, 9, 25), 'in', 1000), id: 'back', type: 'deposit' },
+      ] as never,
+      customerLoans: [{ id: 'l', ts: D(2026, 9, 5), customerId: 'c', principal: 7000, currency: 'QAR', status: 'open', createdAt: 0, disbursementLedgerEntryId: 'give', repayments: [{ id: 'r', ts: D(2026, 9, 25), amount: 1000, ledgerEntryId: 'back' }] }] as never,
+    });
+    const m = computeMonthPosition(s, 2026, 8, {}, D(2026, 10, 15));
+    const without = computeMonthBridge(s, m);
+    expect(without.uncategorisedQAR).toBe(7000);
+    const withIds = computeMonthBridge(s, m, loanLedgerEntryIds(s.customerLoans, []));
+    expect(withIds.uncategorisedQAR).toBe(0);
+    expect(withIds.depositsQAR).toBe(0);
   });
 });

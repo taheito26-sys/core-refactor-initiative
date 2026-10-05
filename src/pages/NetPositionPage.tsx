@@ -7,10 +7,11 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { deriveCashQAR, fmtTotal, getAccountBalance, uid, type CashLedgerEntry } from '@/lib/tracker-helpers';
 import {
-  applyOpeningOverride, computeMonthBridge, computeMonthPosition, type NetPositionLineKey,
+  amountToQar, applyOpeningOverride, computeMonthBridge, computeNetPosition, loanLedgerEntryIds, computeMonthPosition, type NetPositionLineKey,
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
-import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides } from '@/features/net-position/api';
+import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides, usePersonalLoans } from '@/features/net-position/api';
+import { PersonalLoansPanel } from '@/features/net-position/components/PersonalLoansPanel';
 import { MANUAL_LINE_KEYS, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
@@ -28,6 +29,7 @@ const LINE_LABEL: Record<NetPositionLineKey, TranslationKey> = {
   customer_loans: 'npLineCustomerLoans',
   merchant_lent: 'npLineMerchantLent',
   merchant_borrowed: 'npLineMerchantBorrowed',
+  personal_loans: 'npLinePersonalLoans',
   manual_other: 'npLineManualOther',
 };
 
@@ -95,10 +97,12 @@ export default function NetPositionPage() {
     try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(rates)); } catch { /* per-viewer convenience only */ }
   }, [rates]);
 
+  const { loans: personalLoans, unavailable: personalLoansUnavailable } = usePersonalLoans();
   const options = useMemo(() => ({
     usdToQar: Number(rates.usd) > 0 ? Number(rates.usd) : undefined,
     egpPerUsdt: Number(rates.egp) > 0 ? Number(rates.egp) : undefined,
-  }), [rates]);
+    personalLoans,
+  }), [rates, personalLoans]);
 
   const recorded = useMemo(() => computeMonthPosition(state, ym.year, ym.month, options), [state, ym, options]);
   // A starting position entered by hand moves the month (and every later one) by what it differs from the records.
@@ -106,7 +110,10 @@ export default function NetPositionPage() {
   const openingSaving = useOpeningOverrideSaving();
   const manual = useMemo(() => offsetsFor(overrides, recorded.key), [overrides, recorded.key]);
   const live = useMemo(() => (manual ? applyOpeningOverride(recorded, manual.offsets) : recorded), [recorded, manual]);
-  const liveBridge = useMemo(() => computeMonthBridge(state, live), [state, live]);
+  const liveBridge = useMemo(
+    () => computeMonthBridge(state, live, loanLedgerEntryIds(state.customerLoans, personalLoans)),
+    [state, live, personalLoans],
+  );
 
   // A closed month shows the figures it was frozen with; any other month
   // opens from the frozen closing of the month before it.
@@ -123,6 +130,22 @@ export default function NetPositionPage() {
   const openingQAR = bridge.openingQAR;
   const changeQAR = Math.round((month.closing.netQAR - openingQAR) * 100) / 100;
   const drift = frozen && snap ? closingDrift(snap, live) : 0;
+  // Why the customer-loans line can differ from the Unpaid figure on the loans screen: that one is as of today,
+  // this one as of the start of the month, so repayments dated since then are the gap.
+  const loanRecon = useMemo(() => {
+    const todayPos = computeNetPosition(state, Date.now(), options);
+    const todayLoans = todayPos.lines.find(l => l.key === 'customer_loans')?.amountQAR ?? 0;
+    const deleted = new Set(state.deletedLoanIds || []);
+    let repaidSince = 0;
+    for (const loan of state.customerLoans || []) {
+      if (deleted.has(loan.id)) continue;
+      for (const r of loan.repayments || []) {
+        if (r.ts > recorded.opening.asOf) repaidSince += amountToQar(todayPos, loan.currency, Number(r.amount) || 0);
+      }
+    }
+    return { todayLoans, repaidSince: Math.round(repaidSince * 100) / 100 };
+  }, [state, options, recorded.opening.asOf]);
+
   // ── Setting the starting position by hand ──
   const [editingOpening, setEditingOpening] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -312,6 +335,17 @@ export default function NetPositionPage() {
                   <input inputMode="decimal" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
                     onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
                     style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
+                  {key === 'customer_loans' && (
+                    <div style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span>
+                        {t('npLoansToday').split('{today}').join(money(loanRecon.todayLoans)).split('{repaid}').join(money(loanRecon.repaidSince))}
+                      </span>
+                      <button type="button" className="rowBtn" style={{ fontSize: 10 }}
+                        onClick={() => setDraft({ ...draft, customer_loans: String(loanRecon.todayLoans) })}>
+                        {t('npUseToday')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -446,6 +480,8 @@ export default function NetPositionPage() {
         )}
         <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} disabled={!accountId || !(Number(form.amount) > 0) || !form.category} onClick={saveExpense}>{t('npSave')}</button>
       </div>
+
+      <PersonalLoansPanel state={state} applyState={applyState} loans={personalLoans} unavailable={personalLoansUnavailable} lang={t.lang === 'ar' ? 'ar' : 'en'} />
 
       {/* ── Breakdown ── */}
       <div className="panel" style={{ padding: 12 }}>
