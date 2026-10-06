@@ -17,13 +17,15 @@ export function LookupMenuPortal({ anchorRef, onClose, children }: { anchorRef: 
     const above = r.top - 12;
     const up = below < 220 && above > below;
     const room = Math.max(140, Math.min(360, up ? above : below));
-    setStyle({
+    const next: CSSProperties = {
       left: r.left, width: r.width, maxHeight: room,
       ...(up ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }),
-    });
+    };
+    // Keep the old object when nothing moved, or the layout effect would re-render forever.
+    setStyle(prev => (prev && (Object.keys(next) as Array<keyof CSSProperties>).every(k => prev[k] === next[k]) && Object.keys(prev).length === Object.keys(next).length ? prev : next));
   };
 
-  useLayoutEffect(place);
+  useLayoutEffect(() => { place(); });
   useEffect(() => {
     const onScroll = () => place();
     window.addEventListener('resize', onScroll);
