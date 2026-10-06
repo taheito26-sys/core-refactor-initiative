@@ -7,6 +7,7 @@ import {
   personalLoanOutstanding, personalLoanRepaid, type PersonalLoan, type PersonalLoanCurrency,
 } from '@/lib/trading/personal-loans';
 import { usePersonalLoanActions } from '../api';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 const CURRENCIES: PersonalLoanCurrency[] = ['QAR', 'USD', 'EGP', 'USDT'];
 const numeric = (v: string) => v === '' || /^\d*\.?\d*$/.test(v);
@@ -146,10 +147,10 @@ export function PersonalLoansPanel({
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plDateReceived')}</div>
             <QuickDateField value={repay.day} onChange={day => setRepay({ ...repay, day })} lang={lang} />
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plReceivedInto')}
-              <select value={repay.accountId} onChange={e => setRepay({ ...repay, accountId: e.target.value })} style={field}>
+              <ModernSelect value={repay.accountId} onChange={e => setRepay({ ...repay, accountId: e.target.value })} style={field}>
                 <option value="">{t('plNoCash')}</option>
                 {matching.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              </ModernSelect>
             </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <button type="button" className="btn" disabled={busy || !(Number(repay.amount) > 0)} onClick={() => { void receive(loan); }}>{t('plSaveRepayment')}</button>
@@ -179,15 +180,15 @@ export function PersonalLoansPanel({
               <input inputMode="decimal" value={form.amount} onChange={e => { if (numeric(e.target.value)) setForm({ ...form, amount: e.target.value }); }} style={field} />
             </label>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plCurrency')}
-              <select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value as PersonalLoanCurrency, accountId: '' })} style={field}>
+              <ModernSelect value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value as PersonalLoanCurrency, accountId: '' })} style={field}>
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </ModernSelect>
             </label>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plTakenFrom')}
-              <select value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} style={field}>
+              <ModernSelect value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} style={field}>
                 <option value="">{t('plNoCash')}</option>
                 {givingAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              </ModernSelect>
             </label>
           </div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plDateGiven')}</div>

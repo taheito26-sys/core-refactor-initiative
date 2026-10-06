@@ -48,7 +48,8 @@ describe('NetPositionPage', () => {
     expect(screen.getAllByText('npUncategorised', { exact: false }).length).toBeGreaterThan(0);
     const selects = screen.getAllByRole('combobox');
     // First select belongs to the uncategorised withdrawal row.
-    fireEvent.change(selects[0], { target: { value: 'rent' } });
+    fireEvent.click(selects[0]);
+    fireEvent.click(screen.getByRole('option', { name: 'expCatRent' }));
     expect(applyState).toHaveBeenCalled();
     const next = applyState.mock.calls[0][0];
     expect(next.cashLedger.find((e: { id: string }) => e.id === 'w').expenseCategory).toBe('rent');

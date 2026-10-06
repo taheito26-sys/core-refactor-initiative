@@ -12,6 +12,7 @@ import { QuickDateField } from "@/components/shared/QuickDateField";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
 import { useMonthlyStatementExport } from "@/features/stock/utils/useMonthlyStatementExport";
 import { useLoanPaymentClaims } from "@/hooks/useLoanPaymentClaims";
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -234,17 +235,17 @@ function TransferModal({ accounts, balances, onSave, onClose, lang }: {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("From", "من")}</label>
-            <select value={fromId} onChange={e => setFromId(e.target.value)}
+            <ModernSelect value={fromId} onChange={e => setFromId(e.target.value)}
               className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
               {active.map(a => <option key={a.id} value={a.id}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
-            </select>
+            </ModernSelect>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("To", "إلى")}</label>
-            <select value={toId} onChange={e => setToId(e.target.value)}
+            <ModernSelect value={toId} onChange={e => setToId(e.target.value)}
               className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
               {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            </ModernSelect>
           </div>
         </div>
         <div className="space-y-1">
@@ -303,17 +304,17 @@ function AccountModal({ existing, onSave, onClose, lang }: {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("Type", "النوع")}</label>
-            <select value={type} onChange={e => setType(e.target.value as AccountType)}
+            <ModernSelect value={type} onChange={e => setType(e.target.value as AccountType)}
               className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
               {ACCOUNT_TYPES.map(t => <option key={t.value} value={t.value}>{lang === "ar" ? t.ar : t.en}</option>)}
-            </select>
+            </ModernSelect>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("Currency", "العملة")}</label>
-            <select value={currency} onChange={e => setCurrency(e.target.value)}
+            <ModernSelect value={currency} onChange={e => setCurrency(e.target.value)}
               className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </ModernSelect>
           </div>
         </div>
         {err && <p className="text-xs text-destructive">⚠ {err}</p>}
@@ -405,10 +406,10 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
         {!existing && links.length > 1 && (
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">{L("Currency", "العملة")}</label>
-            <select value={linkIndex} onChange={e => setLinkIndex(Number(e.target.value))}
+            <ModernSelect value={linkIndex} onChange={e => setLinkIndex(Number(e.target.value))}
               className="h-10 w-full rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
               {links.map((l, i) => <option key={`${l.merchantUserId}-${l.currency}`} value={i}>{l.currency}</option>)}
-            </select>
+            </ModernSelect>
           </div>
         )}
         <div className="space-y-1">

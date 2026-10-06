@@ -16,9 +16,9 @@ export function LookupMenuPortal({ anchorRef, onClose, children }: { anchorRef: 
     const below = window.innerHeight - r.bottom - 12;
     const above = r.top - 12;
     const up = below < 220 && above > below;
-    const room = Math.max(140, Math.min(360, up ? above : below));
+    const room = Math.max(140, Math.min(250, up ? above : below));
     const next: CSSProperties = {
-      left: r.left, width: r.width, maxHeight: room,
+      left: r.left, width: Math.min(r.width, 380), maxHeight: room,
       ...(up ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }),
     };
     // Keep the old object when nothing moved, or the layout effect would re-render forever.

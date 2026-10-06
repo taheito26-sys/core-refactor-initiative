@@ -22,6 +22,7 @@ import { buildSharedProfitShareFields } from '@/lib/profit-share-fields';
 import { toast } from 'sonner';
 import { useTheme } from '@/lib/theme-context';
 import '@/styles/tracker.css';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 interface Props {
   relationshipId: string;
@@ -761,7 +762,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('settlementCadence')}</div>
-              <select
+              <ModernSelect
                 value={cadence}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={e => setCadence(e.target.value as any)}
@@ -770,7 +771,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 <option value="monthly">{t('monthlyCadence')}</option>
                 <option value="weekly">{t('weeklyCadence')}</option>
                 <option value="per_order">{t('perOrderCadence')}</option>
-              </select>
+              </ModernSelect>
             </div>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('effectiveFrom')}</div>

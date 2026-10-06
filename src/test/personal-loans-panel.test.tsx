@@ -25,7 +25,8 @@ describe('PersonalLoansPanel', () => {
     render(<PersonalLoansPanel state={state} applyState={applyState} loans={[]} unavailable={false} lang="en" />);
     fireEvent.change(screen.getByLabelText('plPerson'), { target: { value: 'Ahmed' } });
     fireEvent.change(screen.getByLabelText('amount'), { target: { value: '7000' } });
-    fireEvent.change(screen.getByLabelText('plTakenFrom'), { target: { value: 'hand' } });
+    fireEvent.click(screen.getByLabelText('plTakenFrom'));
+    fireEvent.click(screen.getByRole('option', { name: 'Hand' }));
     fireEvent.click(screen.getByText('plAdd'));
     await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
     const input = add.mock.calls[0][0] as { person: string; principal: number; currency: string; ledgerEntryId?: string };
@@ -41,10 +42,12 @@ describe('PersonalLoansPanel', () => {
     render(<PersonalLoansPanel state={state} applyState={applyState} loans={[]} unavailable={false} lang="en" />);
     fireEvent.change(screen.getByLabelText('plPerson'), { target: { value: 'Omar' } });
     fireEvent.change(screen.getByLabelText('amount'), { target: { value: '50000' } });
-    fireEvent.change(screen.getByLabelText('plTakenFrom'), { target: { value: 'hand' } });
+    fireEvent.click(screen.getByLabelText('plTakenFrom'));
+    fireEvent.click(screen.getByRole('option', { name: 'Hand' }));
     fireEvent.click(screen.getByText('plAdd'));
     expect(add).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('plTakenFrom'), { target: { value: '' } });
+    fireEvent.click(screen.getByLabelText('plTakenFrom'));
+    fireEvent.click(screen.getByRole('option', { name: 'plNoCash' }));
     fireEvent.click(screen.getByText('plAdd'));
     await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
     expect(applyState).not.toHaveBeenCalled();

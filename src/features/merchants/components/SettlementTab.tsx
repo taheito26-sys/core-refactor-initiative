@@ -9,6 +9,7 @@ import { DecisionCard } from './DecisionCard';
 import { useTheme } from '@/lib/theme-context';
 import { useTrackerState } from '@/lib/useTrackerState';
 import '@/styles/tracker.css';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 interface DealInfo {
   id: string;
@@ -257,7 +258,7 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
       </div>
 
       {deals.length > 1 && (
-        <select
+        <ModernSelect
           value={filterDealId}
           onChange={e => setFilterDealId(e.target.value)}
           className="w-full p-2 text-xs border rounded bg-background text-foreground"
@@ -267,7 +268,7 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
           {deals.map(d => (
             <option key={d.id} value={d.id}>{d.title}</option>
           ))}
-        </select>
+        </ModernSelect>
       )}
 
       {isLoading ? (

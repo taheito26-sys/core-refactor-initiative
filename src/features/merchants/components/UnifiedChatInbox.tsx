@@ -12,6 +12,7 @@ import {
   Mic, MicOff, StopCircle, BookmarkCheck, Eye, Shield
 } from 'lucide-react';
 import { parseMsg, encodeVoice, encodeReply, encodeForward, encodeEdited, encodeScheduled, encodePoll, fmtDateSeparator as fmtDateSep, fmtMsgTime } from '@/features/chat/lib/message-codec';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 
 // ─── Link renderer ─────────────────────────────────────────────────────────
@@ -682,11 +683,11 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
               <div className="chat-info-row">
                 <span>Disappearing Messages</span>
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                <select value={disTimer} onChange={e => setDisappearTimer(activeRelId, e.target.value as any)} className="chat-select">
+                <ModernSelect value={disTimer} onChange={e => setDisappearTimer(activeRelId, e.target.value as any)} className="chat-select">
                   <option value="off">Off</option>
                   <option value="24h">24 Hours</option>
                   <option value="7d">7 Days</option>
-                </select>
+                </ModernSelect>
               </div>
             </div>
             <div className="chat-info-section">

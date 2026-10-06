@@ -19,6 +19,7 @@ import { MANUAL_LINE_KEYS, manualOpeningTotal, offsetsFor, offsetsFromManual, re
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 const OVERRIDES_KEY = 'net_position_rates';
 
@@ -66,7 +67,7 @@ const numeric = (v: string) => v === '' || /^\d*\.?\d*$/.test(v);
 function CategorySelect({ value, onChange, t }: { value: string; onChange: (key: string) => void; t: ReturnType<typeof useT> }) {
   const groups: ExpenseGroup[] = ['business', 'personal'];
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
+    <ModernSelect value={value} onChange={e => onChange(e.target.value)}
       style={{ padding: '7px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }}>
       <option value="">{t('npPick')}</option>
       {groups.map(g => (
@@ -74,7 +75,7 @@ function CategorySelect({ value, onChange, t }: { value: string; onChange: (key:
           {EXPENSE_CATEGORIES.filter(c => c.group === g).map(c => <option key={c.key} value={c.key}>{t(CATEGORY_LABEL[c.key])}</option>)}
         </optgroup>
       ))}
-    </select>
+    </ModernSelect>
   );
 }
 
@@ -507,10 +508,10 @@ export default function NetPositionPage() {
         {accounts.length === 0 ? <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('npNoAccounts')}</div> : (
           <div style={{ display: 'grid', gap: 8, gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))' }}>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('npAccount')}
-              <select value={accountId} onChange={e => setForm({ ...form, accountId: e.target.value })}
+              <ModernSelect value={accountId} onChange={e => setForm({ ...form, accountId: e.target.value })}
                 style={{ width: '100%', marginTop: 4, padding: '7px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12 }}>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
-              </select>
+              </ModernSelect>
             </label>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('amount')}
               <input inputMode="decimal" value={form.amount} onChange={e => { if (numeric(e.target.value)) setForm({ ...form, amount: e.target.value }); }}

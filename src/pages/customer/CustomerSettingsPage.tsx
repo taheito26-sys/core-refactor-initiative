@@ -5,6 +5,7 @@ import { resolveThemeForLayout } from '@/lib/theme/utils';
 import { Loader2, LogOut, Bell, Globe, User, ChevronRight, Check, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES, updateCustomerProfile, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
@@ -69,9 +70,9 @@ export default function CustomerSettingsPage() {
           ))}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Country', 'البلد')}</label>
-            <select value={country} onChange={e => setCountry(e.target.value as any)} className="h-11 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+            <ModernSelect value={country} onChange={e => setCountry(e.target.value as any)} className="h-11 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
               {CUSTOMER_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </ModernSelect>
           </div>
           <button onClick={save} disabled={saving} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}{L('Save changes', 'حفظ التغييرات')}

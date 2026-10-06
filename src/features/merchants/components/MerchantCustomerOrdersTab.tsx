@@ -35,6 +35,7 @@ import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
 import { BiometricsService } from '@/platform/biometrics';
 import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '@/platform/haptics';
 import { offlineSyncQueue } from '@/services/offlineSyncQueue';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 // -- Place Order for Client Modal --
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
@@ -205,11 +206,11 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
-              <select value={connId} onChange={e => setConnId(e.target.value)}
+              <ModernSelect value={connId} onChange={e => setConnId(e.target.value)}
                 className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
                 <option value="">Select client...</option>
                 {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              </ModernSelect>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Amount (QAR)</label>

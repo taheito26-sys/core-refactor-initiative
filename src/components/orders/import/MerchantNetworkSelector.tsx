@@ -1,4 +1,5 @@
 import type { LedgerNetworkMerchant } from '@/types/ledgerImport';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 interface Props {
   merchants: LedgerNetworkMerchant[];
@@ -14,14 +15,14 @@ export function MerchantNetworkSelector({ merchants, selectedRelationshipId, onS
   return (
     <label style={{ display: 'grid', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>Counterparty merchant (network only)</span>
-      <select className="inp" value={selectedRelationshipId} onChange={(e) => onSelect(e.target.value)}>
+      <ModernSelect className="inp" value={selectedRelationshipId} onChange={(e) => onSelect(e.target.value)}>
         <option value="">Select merchant...</option>
         {merchants.map((merchant) => (
           <option key={merchant.relationshipId} value={merchant.relationshipId}>
             {merchant.merchantName}
           </option>
         ))}
-      </select>
+      </ModernSelect>
     </label>
   );
 }

@@ -8,6 +8,7 @@ import {
   downloadTextFile, formatMoney, printHtmlDocument, statementFileBase,
 } from '@/features/stock/utils/loanStatementExport';
 import { statementLabels } from '@/features/stock/utils/statementLabels';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 type StatementLayout = 'classic' | 'compact';
 
@@ -157,7 +158,7 @@ export function LoanStatementModal({
           <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
             {t('loanStatementLayout')}
           </span>
-          <select
+          <ModernSelect
             value={layout}
             onChange={e => setLayout(e.target.value as StatementLayout)}
             className="rowBtn"
@@ -165,7 +166,7 @@ export function LoanStatementModal({
           >
             <option value="classic">{t('loanStatementLayoutClassic')}</option>
             <option value="compact">{t('loanStatementLayoutCompact')}</option>
-          </select>
+          </ModernSelect>
           <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={exportPdf}>🖨 {t('loanExportPdf')}</button>
           <button className="rowBtn" onClick={exportCsv}>📊 {t('loanExportExcel')}</button>
           <button className="rowBtn" onClick={copySummary}>📋 {t('loanCopySummary')}</button>

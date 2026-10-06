@@ -17,6 +17,7 @@ import {
 import { AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, portalSignature, syncTradesToPortal } from '@/features/customers/portal-order-sync';
 import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { supabase } from '@/integrations/supabase/client';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 // ── Blank customer factory ────────────────────────────────────────────
 const blankCustomer = (): Omit<Customer, 'id' | 'createdAt'> => ({
@@ -628,7 +629,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
           </FormField>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <FormField label="Tier">
-              <select
+              <ModernSelect
                 style={{ padding: isMobile ? '10px 12px' : '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: isMobile ? 14 : 12 }}
                 value={custForm.tier}
                 onChange={e => setCustForm(f => ({ ...f, tier: e.target.value }))}
@@ -636,7 +637,7 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
                 <option value="A">A — VIP</option>
                 <option value="B">B — Regular</option>
                 <option value="C">C — New</option>
-              </select>
+              </ModernSelect>
             </FormField>
             <FormField label="Daily Limit (USDT)">
               <input

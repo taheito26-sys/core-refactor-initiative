@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES } from '@/features/customer/customer-portal';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 export default function CustomerOnboardingPage() {
   const { userId, refreshProfile } = useAuth();
@@ -63,7 +64,7 @@ export default function CustomerOnboardingPage() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Country</label>
-            <select
+            <ModernSelect
               value={country}
               onChange={e => setCountry(e.target.value as any)}
               className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
@@ -71,7 +72,7 @@ export default function CustomerOnboardingPage() {
               {CUSTOMER_COUNTRIES.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
-            </select>
+            </ModernSelect>
           </div>
 
           <div>

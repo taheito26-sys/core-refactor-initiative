@@ -1,7 +1,7 @@
 import { Children, Fragment, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-interface ParsedOption { value: string; label: string; disabled: boolean }
+interface ParsedOption { value: string; label: string; disabled: boolean; header?: boolean }
 
 /** Reads `<option>` children (including inside fragments and mapped arrays) into plain data. */
 function parseOptions(children: ReactNode, out: ParsedOption[] = []): ParsedOption[] {
@@ -9,6 +9,12 @@ function parseOptions(children: ReactNode, out: ParsedOption[] = []): ParsedOpti
     if (!isValidElement(child)) return;
     const el = child as ReactElement<{ value?: string | number; disabled?: boolean; children?: ReactNode }>;
     if (el.type === Fragment) { parseOptions(el.props.children, out); return; }
+    if (el.type === 'optgroup') {
+      const g = el as unknown as ReactElement<{ label?: string; children?: ReactNode }>;
+      out.push({ value: `__group__${g.props.label ?? ''}`, label: String(g.props.label ?? ''), disabled: true, header: true });
+      parseOptions(g.props.children, out);
+      return;
+    }
     if (el.type === 'option') {
       const label = Children.toArray(el.props.children).map(c => (typeof c === 'string' || typeof c === 'number' ? String(c) : '')).join('');
       out.push({ value: String(el.props.value ?? label), label, disabled: !!el.props.disabled });
@@ -43,7 +49,7 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
   const listRef = useRef<HTMLDivElement>(null);
   const sheet = typeof window !== 'undefined' && window.innerWidth < 640;
   const current = options.find(o => o.value === String(value ?? ''));
-  const filtered = query.trim() ? options.filter(o => o.label.toLowerCase().includes(query.trim().toLowerCase())) : options;
+  const filtered = query.trim() ? options.filter(o => !o.header && o.label.toLowerCase().includes(query.trim().toLowerCase())) : options;
 
   useLayoutEffect(() => {
     if (open && btnRef.current) setRect(btnRef.current.getBoundingClientRect());
@@ -57,11 +63,11 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
   }, [open]);
 
   useEffect(() => {
-    if (open) setActive(Math.max(0, filtered.findIndex(o => o.value === String(value ?? ''))));
+    if (open) setActive(Math.max(0, filtered.findIndex(o => !o.header && o.value === String(value ?? ''))));
   }, [open, query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (open) listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    if (open) listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView?.({ block: 'nearest' });
   }, [active, open]);
 
   const pick = (o: ParsedOption) => {
@@ -71,14 +77,20 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
     setQuery('');
   };
 
+  const stepActive = (from: number, dir: 1 | -1) => {
+    let i = from + dir;
+    while (i >= 0 && i < filtered.length && filtered[i].header) i += dir;
+    return i < 0 || i >= filtered.length ? from : i;
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (!open) {
       if (['ArrowDown', 'Enter', ' '].includes(e.key)) { e.preventDefault(); setOpen(true); }
       return;
     }
     if (e.key === 'Escape') { setOpen(false); setQuery(''); }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(filtered.length - 1, i + 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(0, i - 1)); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => stepActive(i, 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => stepActive(i, -1)); }
     else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); pick(filtered[active]); }
   };
 
@@ -104,6 +116,7 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
         title={title}
         className={`msel-trigger ${className ?? ''}`}
         style={style}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => !disabled && setOpen(v => !v)}
@@ -116,11 +129,12 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
         <div className="msel-layer" onMouseDown={e => { if (e.target === e.currentTarget) { setOpen(false); setQuery(''); } }}>
           <div className={sheet ? 'msel-panel msel-sheet' : 'msel-panel'} style={sheet ? undefined : desktopPos} role="listbox" onKeyDown={onKey}>
             {sheet && <div className="msel-grip" />}
-            {options.length > 7 && (
+            {options.filter(o => !o.header).length > 7 && (
               <input autoFocus className="msel-search" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
             )}
             <div className="msel-list" ref={listRef}>
               {filtered.length ? filtered.map((o, i) => {
+                if (o.header) return <div key={`${o.value}-${i}`} className="msel-group">{o.label}</div>;
                 const selected = o.value === String(value ?? '');
                 return (
                   <button

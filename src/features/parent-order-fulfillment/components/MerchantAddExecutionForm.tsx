@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MarketType } from '../types';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 interface Props {
   parentOrderId: string;
@@ -156,7 +157,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
         </div>
 
         {/* Market Type */}
-        <select
+        <ModernSelect
           value={marketType}
           onChange={e => setMarketType(e.target.value as MarketType)}
           className="h-8 rounded-md border border-border/50 bg-card px-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
@@ -165,7 +166,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
           <option value="instapay_v1">InstaPay</option>
           <option value="p2p">P2P</option>
           <option value="bank">Bank</option>
-        </select>
+        </ModernSelect>
 
         {/* Add Button */}
         <Button

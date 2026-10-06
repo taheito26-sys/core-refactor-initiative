@@ -2185,7 +2185,8 @@
 .lookup-portal { z-index: 100001; }
 .lookup-portal .lookupItem {
   width: 100%; border: 0; border-radius: 10px; background: transparent; color: inherit; display: flex; align-items: center;
-  justify-content: space-between; gap: 10px; padding: 12px 14px; text-align: left; cursor: pointer; font-size: 14px; font-weight: 600; min-height: 44px;
+  justify-content: space-between; gap: 8px; padding: 8px 12px; text-align: left; cursor: pointer; font-size: 13px; font-weight: 600; min-height: 38px;
 }
 .lookup-portal .lookupItem:hover { background: color-mix(in srgb, var(--tracker-brand, #6366f1) 22%, var(--tracker-bg, #151833)); }
 .lookup-portal .lookupMeta { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--tracker-muted, #888) 18%, transparent); color: var(--tracker-muted, #9aa); }
+.msel-group { padding: 10px 14px 4px; font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; opacity: .55; }

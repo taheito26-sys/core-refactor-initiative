@@ -51,6 +51,7 @@ import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
 import { BiometricsService } from '@/platform/biometrics';
 import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '@/platform/haptics';
 import { offlineSyncQueue } from '@/services/offlineSyncQueue';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 
@@ -132,14 +133,14 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
               <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder={L('Account name', 'اسم الحساب')}
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
               <div className="grid grid-cols-2 gap-2">
-                <select value={newType} onChange={e => setNewType(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
+                <ModernSelect value={newType} onChange={e => setNewType(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
                   {[['bank','Bank','بنك'],['hand','Cash','نقد'],['mobile_wallet','Mobile Wallet','محفظة موبايل'],['other','Other','أخرى']].map(([v,en,ar]) => (
                     <option key={v} value={v}>{lang === 'ar' ? ar : en}</option>
                   ))}
-                </select>
-                <select value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
+                </ModernSelect>
+                <ModernSelect value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
                   {['EGP','QAR','USD'].map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                </ModernSelect>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setCreating(false)} className="flex-1 h-10 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L('Back', 'رجوع')}</button>
@@ -338,10 +339,10 @@ export function NewOrderForm({ connections, userId, lang, onClose, onCreated }: 
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Merchant', 'التاجر')}</label>
-          <select value={merchantId} onChange={e => setMerchantId(e.target.value)}
+          <ModernSelect value={merchantId} onChange={e => setMerchantId(e.target.value)}
             className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             {connections.map((c: any) => <option key={c.merchant_id} value={c.merchant_id}>{c.merchant_display_name || c.merchant_id}</option>)}
-          </select>
+          </ModernSelect>
         </div>
 
         <div>

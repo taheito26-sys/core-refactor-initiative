@@ -13,6 +13,7 @@ import { readSpreadsheet, validateSpreadsheetFile } from '@/services/ledgerImpor
 import { assessOcrTextQuality, extractTextFromImage, type OcrExtractionResult, validateImageFile } from '@/services/ledgerImport/fileReaders/imageReader';
 import { buildNetworkMerchants } from '@/services/ledgerImport/network';
 import { canSaveImportedRows } from '@/services/ledgerImport/guards';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 interface ParseInput {
   text: string;
@@ -367,9 +368,9 @@ export default function OrdersImportLedgerPage() {
         )}
 
         {sourceType === 'spreadsheet' && sheetNames.length > 1 && (
-          <select className="inp" value={sheetName} onChange={(e) => setSheetName(e.target.value)}>
+          <ModernSelect className="inp" value={sheetName} onChange={(e) => setSheetName(e.target.value)}>
             {sheetNames.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
+          </ModernSelect>
         )}
 
         {sourceType === 'image' && (
