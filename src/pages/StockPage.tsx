@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -1072,7 +1073,7 @@ export default function StockPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
-            <select
+            <ModernSelect
               value={supplierFilter}
               onChange={e => setSupplierFilter(e.target.value)}
               style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
@@ -1081,7 +1082,7 @@ export default function StockPage() {
               {supplierFilterOptions.map(supplier => (
                 <option key={supplier} value={supplier}>{supplier}</option>
               ))}
-            </select>
+            </ModernSelect>
             {hasActiveStockFilters && (
               <button className="rowBtn" onClick={clearStockFilters}>{t('clearFilters')}</button>
             )}
@@ -1671,7 +1672,7 @@ export default function StockPage() {
               {activeAccounts.length > 0 && (
                 <div className="field2">
                   <div className="lbl">{t('fundingSourceLbl')}</div>
-                  <select
+                  <ModernSelect
                     value={fundingAccountId}
                     onChange={e => setFundingAccountId(e.target.value)}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -1681,7 +1682,7 @@ export default function StockPage() {
                       const bal = accountBalances.get(a.id) || 0;
                       return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
                     })}
-                  </select>
+                  </ModernSelect>
                   {fundingAccountId && fundingAccountId !== 'none' && (() => {
                     const acc = activeAccounts.find(a => a.id === fundingAccountId);
                     const bal = accountBalances.get(fundingAccountId) || 0;
@@ -1894,7 +1895,7 @@ export default function StockPage() {
                   {activeAccounts.length > 0 && (
                     <div className="field2">
                       <div className="lbl">{t('fundingSourceLbl')}</div>
-                      <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)}
+                      <ModernSelect value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         style={{ color: 'hsl(var(--foreground))', minHeight: 40 }}>
                         <option value="none">🚫 {t('noFundingSource')}</option>
@@ -1902,7 +1903,7 @@ export default function StockPage() {
                           const bal = accountBalances.get(a.id) || 0;
                           return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
                         })}
-                      </select>
+                      </ModernSelect>
                       {fundingAccountId && fundingAccountId !== 'none' && (() => {
                         const acc = activeAccounts.find(a => a.id === fundingAccountId);
                         const bal = accountBalances.get(fundingAccountId) || 0;
@@ -1970,7 +1971,7 @@ export default function StockPage() {
               <div className="field2" style={{ marginBottom: 4 }}>
                 <div className="lbl">{t('supplier')}</div>
                 <div style={{ position: 'relative' }}>
-                  <select
+                  <ModernSelect
                     value={knownSuppliers.includes(editSource) && !editSupplierCustom ? editSource : ''}
                     onChange={e => { setEditSource(e.target.value); setEditSupplierCustom(''); }}
                     style={{ width: '100%', minHeight: isMobile ? 42 : undefined, padding: '8px 32px 8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
@@ -1979,7 +1980,7 @@ export default function StockPage() {
                     {knownSuppliers.map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
-                  </select>
+                  </ModernSelect>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--muted)' }}><path d="M6 9l6 6 6-6"/></svg>
                 </div>
               </div>
@@ -2026,7 +2027,7 @@ export default function StockPage() {
               {activeAccounts.length > 0 && (
                 <div className="field2" style={{ marginBottom: 14 }}>
                   <div className="lbl">{t('fundingSourceLbl')}</div>
-                  <select
+                  <ModernSelect
                     value={editFundingAccountId}
                     onChange={e => setEditFundingAccountId(e.target.value)}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -2037,7 +2038,7 @@ export default function StockPage() {
                       const bal = accountBalances.get(a.id) || 0;
                       return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
                     })}
-                  </select>
+                  </ModernSelect>
                   {editFundingAccountId && editFundingAccountId !== 'none' && (() => {
                     const acc = activeAccounts.find(a => a.id === editFundingAccountId);
                     const bal = accountBalances.get(editFundingAccountId) || 0;

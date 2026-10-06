@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -300,21 +301,21 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
             <div className="lbl">{t('accountTypeLbl')}</div>
-            <select value={type} onChange={e => setType(e.target.value as CashAccountType)} style={selectStyle}>
+            <ModernSelect value={type} onChange={e => setType(e.target.value as CashAccountType)} style={selectStyle}>
               <option value="hand" style={optionStyle}>💵 {t('accTypeHand')}</option>
               <option value="bank" style={optionStyle}>🏦 {t('accTypeBank')}</option>
               <option value="vault" style={optionStyle}>🔒 {t('accTypeVault')}</option>
               <option value="merchant_custody" style={optionStyle}>🤝 {t('accTypeMerchant') || 'Merchant Custody'}</option>
-            </select>
+            </ModernSelect>
           </div>
           <div className="field2">
             <div className="lbl">{t('accountCurrencyLbl')}</div>
-            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
+            <ModernSelect value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
               <option value="QAR" style={optionStyle}>🇶🇦 QAR</option>
               <option value="EGP" style={optionStyle}>🇪🇬 EGP</option>
               <option value="USDT" style={optionStyle}>💲 USDT</option>
               <option value="USD" style={optionStyle}>🇺🇸 USD</option>
-            </select>
+            </ModernSelect>
           </div>
         </div>
 
@@ -334,9 +335,9 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
         {type === 'merchant_custody' && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('linkToMerchant')}</div>
-            <select value={relationshipId} onChange={e => setRelationshipId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={relationshipId} onChange={e => setRelationshipId(e.target.value)} style={selectStyle}>
               <option value="" style={optionStyle}>{t('selectRelationship')}</option>
-            </select>
+            </ModernSelect>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           </div>
         )}
@@ -565,7 +566,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('expenseCategoryLabel')}</div>
             <div className="inputBox">
-              <select value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)} style={{ width: '100%' }}>
+              <ModernSelect value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)} style={{ width: '100%' }}>
                 <option value="">{t('npPick')}</option>
                 <optgroup label={t('expGroupBusiness')}>
                   {EXPENSE_CATEGORIES.filter(c => c.group === 'business').map(c => <option key={c.key} value={c.key}>{t(EXPENSE_CATEGORY_LABEL[c.key])}</option>)}
@@ -573,7 +574,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
                 <optgroup label={t('expGroupPersonal')}>
                   {EXPENSE_CATEGORIES.filter(c => c.group === 'personal').map(c => <option key={c.key} value={c.key}>{t(EXPENSE_CATEGORY_LABEL[c.key])}</option>)}
                 </optgroup>
-              </select>
+              </ModernSelect>
             </div>
           </div>
         )}
@@ -697,16 +698,16 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
           <div className="field2">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <div className="lbl">{t('transferFromLbl' as any)}</div>
-            <select value={fromId} onChange={e => setFromId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={fromId} onChange={e => setFromId(e.target.value)} style={selectStyle}>
               {active.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
-            </select>
+            </ModernSelect>
           </div>
           <div className="field2">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <div className="lbl">{t('transferToLbl' as any)}</div>
-            <select value={toId} onChange={e => setToId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={toId} onChange={e => setToId(e.target.value)} style={selectStyle}>
               {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name}</option>)}
-            </select>
+            </ModernSelect>
           </div>
         </div>
         <div className="field2" style={{ marginBottom: 10 }}>
@@ -932,13 +933,13 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('selectMerchantCustodian')}</div>
-          <select value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
+          <ModernSelect value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
             style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
             <option value="">{t('selectRelationship')}</option>
             {counterparties.map((cp, i) => (
               <option key={cp.relationshipId} value={String(i)}>{cp.counterpartyLabel}</option>
             ))}
-          </select>
+          </ModernSelect>
           {counterparties.length === 0 && (
             <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           )}
@@ -951,13 +952,13 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
           </div>
           <div className="field2">
             <div className="lbl">{t('currency')}</div>
-            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
+            <ModernSelect value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">🇶🇦 QAR</option>
               <option value="EGP">🇪🇬 EGP</option>
               <option value="USDT">💲 USDT</option>
               <option value="USD">🇺🇸 USD</option>
-            </select>
+            </ModernSelect>
           </div>
         </div>
 
@@ -1033,16 +1034,16 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanCustomer')}</div>
-          <select value={customerId} onChange={e => { setCustomerId(e.target.value); setTradeId(''); setPrincipal(''); setPrincipalTouched(false); }} style={selectStyle}>
+          <ModernSelect value={customerId} onChange={e => { setCustomerId(e.target.value); setTradeId(''); setPrincipal(''); setPrincipalTouched(false); }} style={selectStyle}>
             <option value="" style={optionStyle}>{t('loanSelectCustomer')}</option>
             {customers.map(c => <option key={c.id} value={c.id} style={optionStyle}>{c.name}</option>)}
-          </select>
+          </ModernSelect>
         </div>
 
         {custTrades.length > 0 && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('loanLinkedOrder')}</div>
-            <select
+            <ModernSelect
               value={tradeId}
               onChange={e => {
                 const newTradeId = e.target.value;
@@ -1063,7 +1064,7 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
                   {fmtDate(tr.ts)} · {tr.amountUSDT} USDT{loanedTradeIds.has(tr.id) ? ` — ${t('loanAlreadyLinked')}` : ''}
                 </option>
               ))}
-            </select>
+            </ModernSelect>
             {isDuplicateOrder && (
               <div style={{ marginTop: 6 }}>
                 <div style={{ fontSize: 10, color: 'var(--warn)', marginBottom: 4 }}>⚠ {t('loanDuplicateOrderWarning')}</div>
@@ -1092,18 +1093,18 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
           </div>
           <div className="field2">
             <div className="lbl">{t('currencyMode')}</div>
-            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
+            <ModernSelect value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
               {(['QAR', 'USDT', 'EGP', 'USD'] as CashCurrency[]).map(c => <option key={c} value={c} style={optionStyle}>{c}</option>)}
-            </select>
+            </ModernSelect>
           </div>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanFundingSource')}</div>
-          <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)} style={selectStyle}>
+          <ModernSelect value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)} style={selectStyle}>
             <option value="" style={optionStyle}>—</option>
             {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
-          </select>
+          </ModernSelect>
           <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>{t('loanFundingSourceHint')}</div>
         </div>
 
@@ -1218,9 +1219,9 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
         {addToCash && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('loanRepaymentAccount')}</div>
-            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
               {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
-            </select>
+            </ModernSelect>
           </div>
         )}
 
@@ -1319,9 +1320,9 @@ function EditPaymentGroupModal({ group, accounts, onSave, onClose, isMobile = fa
         {addToCash && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('loanRepaymentAccount')}</div>
-            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
               {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
-            </select>
+            </ModernSelect>
           </div>
         )}
 
@@ -1662,11 +1663,11 @@ function CashCounterModal({
           <>
             <div className="field2" style={{ marginBottom: 14 }}>
               <div className="lbl">{t('cashAccountsTab')}</div>
-              <select value={accountId || account.id} onChange={e => { setAccountId(e.target.value); setCounts({}); }} style={selectStyle}>
+              <ModernSelect value={accountId || account.id} onChange={e => { setAccountId(e.target.value); setCounts({}); }} style={selectStyle}>
                 {countableAccounts.map(a => (
                   <option key={a.id} value={a.id} style={optionStyle}>{a.name} — {fmtTotal(balances.get(a.id) || 0)} {a.currency}</option>
                 ))}
-              </select>
+              </ModernSelect>
             </div>
 
             <div className="modeToggle" style={{ marginBottom: 12 }}>
@@ -2013,12 +2014,12 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
 
         {usedTypes.length > 1 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={selectStyle}>
+            <ModernSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={selectStyle}>
               <option value="" style={optionStyle}>{t('allTypesOpt')}</option>
               {usedTypes.map(lType => (
                 <option key={lType} value={lType} style={optionStyle}>{typeLabels[lType]}</option>
               ))}
-            </select>
+            </ModernSelect>
             {typeFilter && <button className="rowBtn" onClick={() => setTypeFilter('')}>✕ {t('clearAll')}</button>}
             <span className="muted" style={{ fontSize: 10 }}>{rows.length} {t('entriesCount')}</span>
           </div>
@@ -2269,9 +2270,9 @@ function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, o
         {addToCash && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('loanRepaymentAccount')}</div>
-            <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+            <ModernSelect value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
               {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
-            </select>
+            </ModernSelect>
           </div>
         )}
 
@@ -2386,9 +2387,9 @@ function EditLoanModal({ loan, customers, onSave, onClose, isMobile = false }: E
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanCustomer')}</div>
-          <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={selectStyle}>
+          <ModernSelect value={customerId} onChange={e => setCustomerId(e.target.value)} style={selectStyle}>
             {customers.map(c => <option key={c.id} value={c.id} style={optionStyle}>{c.name}</option>)}
-          </select>
+          </ModernSelect>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
@@ -5302,7 +5303,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     {revokingLinkId === link.id ? '…' : t('statementLinkRevoke')}
                                   </button>
                                   {connectedCustomers.length > 0 && (
-                                    <select
+                                    <ModernSelect
                                       className="rowBtn"
                                       style={{ fontSize: 10, color: 'var(--muted)' }}
                                       disabled={attachingLinkId === link.id}
@@ -5314,7 +5315,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                       {connectedCustomers.map(c => (
                                         <option key={c.customer_user_id} value={c.customer_user_id}>{c.display_name}</option>
                                       ))}
-                                    </select>
+                                    </ModernSelect>
                                   )}
                                 </>
                               )}

@@ -62,6 +62,7 @@ import {
 } from '@/features/customers/portal-order-sync';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
+import { ModernSelect } from '@/components/shared/ModernSelect';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
 interface AllocationRow {
@@ -4018,7 +4019,7 @@ export default function OrdersPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
-                <select
+                <ModernSelect
                   value={buyerFilter}
                   onChange={e => setBuyerFilter(e.target.value)}
                   style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
@@ -4027,7 +4028,7 @@ export default function OrdersPage() {
                   {buyerFilterOptions.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                </select>
+                </ModernSelect>
                 <div className="inputBox" style={{ width: 140, padding: '4px 10px' }}>
                   <input
                     type="date"
@@ -4944,7 +4945,7 @@ export default function OrdersPage() {
                       {/* ─── Step 1: Select Partner (Merchant) ─── */}
                       <div className="field2" style={{ marginBottom: 6 }}>
                         <div className="lbl">{t('selectPartner')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
-                        <select
+                        <ModernSelect
                           value={linkedRelId}
                           onChange={e => {
                             setLinkedRelId(e.target.value);
@@ -4957,7 +4958,7 @@ export default function OrdersPage() {
                           {relationships.map(r => (
                             <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                           ))}
-                        </select>
+                        </ModernSelect>
                       </div>
 
                       {/* ─── Step 2: Deal Family (only after merchant selected) ─── */}
@@ -4974,7 +4975,7 @@ export default function OrdersPage() {
                           <>
                             <div className="field2" style={{ marginBottom: 6 }}>
                               <div className="lbl">{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
-                              <select
+                              <ModernSelect
                                 value={selectedTemplateId || ''}
                                 onChange={e => {
                                   const val = e.target.value || null;
@@ -5004,7 +5005,7 @@ export default function OrdersPage() {
                                 <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {relApprovedAgreements.length > 0 ? `(${relApprovedAgreements.length})` : ''}</option>
                                 <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
                                 <option value="capital_transfer">💸 {t('capitalTransferFamily')}</option>
-                              </select>
+                              </ModernSelect>
                             </div>
 
                             {/* ─── Profit Share: Show approved agreements for this merchant ─── */}
@@ -5035,7 +5036,7 @@ export default function OrdersPage() {
                                             : `🤝 ${relApprovedAgreements[0].partner_ratio}/${relApprovedAgreements[0].merchant_ratio} — ${relApprovedAgreements[0].settlement_cadence}`}
                                         </div>
                                       ) : (
-                                        <select
+                                        <ModernSelect
                                           value={allocations[0]?.agreementId || ''}
                                           onChange={e => {
                                             const agr = relApprovedAgreements.find(a => a.id === e.target.value);
@@ -5064,7 +5065,7 @@ export default function OrdersPage() {
                                                 : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
                                             </option>
                                           ))}
-                                        </select>
+                                        </ModernSelect>
                                       )}
                                     </div>
                                     {allocations[0]?.agreementId && (() => {
@@ -5155,7 +5156,7 @@ export default function OrdersPage() {
                                     {idx > 0 && (
                                       <div className="field2" style={{ marginBottom: 4 }}>
                                         <div className="lbl" style={{ fontSize: 9 }}>{t('merchantN')}</div>
-                                        <select
+                                        <ModernSelect
                                           value={alloc.relationshipId}
                                           onChange={e => {
                                             const rel = relationships.find(r => r.id === e.target.value);
@@ -5173,7 +5174,7 @@ export default function OrdersPage() {
                                           {relationships.filter(r => r.id !== linkedRelId).map(r => (
                                             <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                                           ))}
-                                        </select>
+                                        </ModernSelect>
                                       </div>
                                     )}
 
@@ -5276,7 +5277,7 @@ export default function OrdersPage() {
                                   return (
                                     <div className="field2" style={{ marginBottom: 6 }}>
                                       <div className="lbl">{t('direction')}</div>
-                                      <select
+                                      <ModernSelect
                                         value={transferDirection}
                                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         onChange={e => setTransferDirection(e.target.value as any)}
@@ -5284,7 +5285,7 @@ export default function OrdersPage() {
                                       >
                                         <option value="lender_to_operator">💸 {cpName} → {myName}</option>
                                         <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
-                                      </select>
+                                      </ModernSelect>
                                     </div>
                                   );
                                 })()}
@@ -5813,14 +5814,14 @@ export default function OrdersPage() {
               {!splitOpen && (<>
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('buyerLabel')}</div>
-                <select value={editCustomerId} onChange={e => setEditCustomerId(e.target.value)} disabled={isApproved}
+                <ModernSelect value={editCustomerId} onChange={e => setEditCustomerId(e.target.value)} disabled={isApproved}
                   style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="">{t('noCustomerSelected')}</option>
                   {sortedCustomers.map(c => (
                     <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
                   ))}
-                </select>
+                </ModernSelect>
               </div>
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
@@ -6136,7 +6137,7 @@ export default function OrdersPage() {
                       {/* Step 1: Select partner */}
                       <div className="field2" style={{ marginBottom: 6 }}>
                         <div className="lbl">{t('selectPartner')}</div>
-                        <select
+                        <ModernSelect
                           value={editLinkedRelId}
                           onChange={e => { setEditLinkedRelId(e.target.value); setEditSelectedTemplateId(null); }}
                           style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
@@ -6145,7 +6146,7 @@ export default function OrdersPage() {
                           {relationships.map(r => (
                             <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                           ))}
-                        </select>
+                        </ModernSelect>
                       </div>
 
                       {/* Step 2: Select deal family */}
@@ -6158,7 +6159,7 @@ export default function OrdersPage() {
                         return (
                         <div style={{ marginTop: 4 }}>
                           <div className="lbl" style={{ marginBottom: 4 }}>{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
-                          <select
+                          <ModernSelect
                             value={editSelectedTemplateId || ''}
                             onChange={e => { setEditSelectedTemplateId(e.target.value || null); setEditSelectedAgreementId(null); }}
                             style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
@@ -6166,7 +6167,7 @@ export default function OrdersPage() {
                             <option value="">{t('selectDealFamily')}</option>
                             <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {editRelApprovedAgreements.length > 0 ? `(${editRelApprovedAgreements.length})` : ''}</option>
                             <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
-                          </select>
+                          </ModernSelect>
 
                           {/* ─── Profit Share: approved agreement picker ─── */}
                           {editSelectedTemplateId === 'profit_share_family' && (
@@ -6187,7 +6188,7 @@ export default function OrdersPage() {
                                           : `🤝 ${editRelApprovedAgreements[0].partner_ratio}/${editRelApprovedAgreements[0].merchant_ratio} — ${editRelApprovedAgreements[0].settlement_cadence}`}
                                       </div>
                                     ) : (
-                                      <select
+                                      <ModernSelect
                                         value={editSelectedAgreementId || ''}
                                         onChange={e => setEditSelectedAgreementId(e.target.value || null)}
                                         style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
@@ -6201,7 +6202,7 @@ export default function OrdersPage() {
                                               : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
                                           </option>
                                         ))}
-                                      </select>
+                                      </ModernSelect>
                                     )}
                                   </div>
                                   {editSelectedAgreementId && (() => {
