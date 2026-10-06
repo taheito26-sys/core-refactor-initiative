@@ -62,6 +62,7 @@ import {
 } from '@/features/customers/portal-order-sync';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
+import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
@@ -1254,15 +1255,17 @@ export default function OrdersPage() {
     return userId ? connectedCustomers.find(x => x.customerUserId === userId)?.portalUsername || '' : '';
   }, [connectedCustomers, portalLinks]);
 
+  const [buyerShowAll, setBuyerShowAll] = useState(false);
+  const buyerShellRef = useRef<HTMLDivElement>(null);
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
-    if (!q) return allBuyerOptions;
+    if (!q || buyerShowAll) return allBuyerOptions;
     return allBuyerOptions.filter(
       c => customerNameVariants(c).some(v => normalizeName(v).includes(q))
         || c.phone.includes(buyerName)
         || portalUsernameFor(c).toLowerCase().includes(buyerName.trim().toLowerCase()),
     );
-  }, [allBuyerOptions, buyerName, portalUsernameFor]);
+  }, [allBuyerOptions, buyerName, buyerShowAll, portalUsernameFor]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
     let expectedQty = qty;
@@ -4837,25 +4840,25 @@ export default function OrdersPage() {
                 {!newSaleSplitOpen && (<>
                 <div className="field2">
                   <div className="lbl">{t('buyerName')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
-                  <div className="lookupShell">
+                  <div className="lookupShell" ref={buyerShellRef}>
                     <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <input placeholder={t('searchOrTypeBuyer')} autoComplete="off" value={buyerName}
-                        onFocus={() => setBuyerMenuOpen(true)}
-                        onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
+                        onFocus={() => { setBuyerShowAll(false); setBuyerMenuOpen(true); }}
+                        onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerShowAll(false); setBuyerMenuOpen(true); }}
                         onBlur={() => window.setTimeout(() => setBuyerMenuOpen(false), 150)}
                         style={isMobile ? { flex: 1, paddingRight: 0, fontSize: 16, minHeight: 40 } : { flex: 1, paddingRight: 0 }}
                       />
-                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>⌄</button>
+                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => { setBuyerShowAll(true); setBuyerMenuOpen(v => !v); }} onMouseDown={e => e.preventDefault()} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>⌄</button>
                       <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>+</button>
                     </div>
                     {buyerMenuOpen && (
-                      <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
+                      <LookupMenuPortal anchorRef={buyerShellRef} onClose={() => setBuyerMenuOpen(false)}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
                           <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.source === 'connected' ? c.customerUserId : c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
                             <span>{c.name}</span><span className="lookupMeta">{portalUsernameFor(c) ? `@${portalUsernameFor(c)}` : c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
-                      </div>
+                      </LookupMenuPortal>
                     )}
                   </div>
                 </div>

@@ -2179,3 +2179,12 @@
 .msel-item:disabled { opacity: .4; cursor: not-allowed; }
 .msel-item-label { overflow: hidden; text-overflow: ellipsis; }
 .msel-empty { padding: 16px; text-align: center; opacity: .5; }
+
+/* ── Lookup list in a portal (outside .tracker-root) ── */
+.lookup-portal { z-index: 100001; }
+.lookup-portal .lookupItem {
+  width: 100%; border: 0; border-radius: 10px; background: transparent; color: inherit; display: flex; align-items: center;
+  justify-content: space-between; gap: 10px; padding: 12px 14px; text-align: left; cursor: pointer; font-size: 14px; font-weight: 600; min-height: 44px;
+}
+.lookup-portal .lookupItem:hover { background: color-mix(in srgb, var(--tracker-brand, #6366f1) 20%, var(--tracker-panel2, #151833)); }
+.lookup-portal .lookupMeta { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--tracker-muted, #888) 18%, transparent); color: var(--tracker-muted, #9aa); }

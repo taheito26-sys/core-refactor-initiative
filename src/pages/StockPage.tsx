@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -340,11 +341,13 @@ export default function StockPage() {
       .map(([, name]) => name);
   }, [state.batches, state.suppliers]);
 
+  const [supplierShowAll, setSupplierShowAll] = useState(false);
+  const supplierShellRef = useRef<HTMLDivElement>(null);
   const supplierLookup = useMemo(() => {
     const localQuery = batchSupplier.trim().toLocaleLowerCase();
-    if (!localQuery) return supplierOptions;
+    if (!localQuery || supplierShowAll) return supplierOptions;
     return supplierOptions.filter((name) => name.toLocaleLowerCase().includes(localQuery));
-  }, [batchSupplier, supplierOptions]);
+  }, [batchSupplier, supplierOptions, supplierShowAll]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -1591,7 +1594,7 @@ export default function StockPage() {
               )}
               <div className="field2" style={{ gridColumn: 'span 2' }}>
                 <div className="lbl">{t('supplier')}</div>
-                <div className="lookupShell">
+                <div className="lookupShell" ref={supplierShellRef}>
                   <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input
                       placeholder={t('searchOrTypeSupplier')}
@@ -1599,11 +1602,12 @@ export default function StockPage() {
                       value={batchSupplier}
                       onChange={(e) => {
                         setBatchSupplier(e.target.value);
+                        setSupplierShowAll(false);
                         setSupplierMenuOpen(true);
                       }}
-                      onFocus={() => setSupplierMenuOpen(true)}
+                      onFocus={() => { setSupplierShowAll(false); setSupplierMenuOpen(true); }}
                     />
-                    <button className="sideAction" type="button" title={t('showSuppliers')} onClick={() => setSupplierMenuOpen((v) => !v)}>⌄</button>
+                    <button className="sideAction" type="button" title={t('showSuppliers')} onMouseDown={(e) => e.preventDefault()} onClick={() => { setSupplierShowAll(true); setSupplierMenuOpen((v) => !v); }}>⌄</button>
                     <button
                       className="sideAction"
                       type="button"
@@ -1618,7 +1622,7 @@ export default function StockPage() {
                   </div>
 
                   {supplierMenuOpen && (
-                    <div className="lookupMenu" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    <LookupMenuPortal anchorRef={supplierShellRef} onClose={() => setSupplierMenuOpen(false)}>
                       {supplierLookup.length ? supplierLookup.map((name) => (
                         <button
                           key={name}
@@ -1637,7 +1641,7 @@ export default function StockPage() {
                           <span>{t('noSuppliersYet')}</span>
                         </div>
                       )}
-                    </div>
+                    </LookupMenuPortal>
                   )}
                 </div>
                 <div className="lookupHint">{t('supplierHint')}</div>
@@ -1857,22 +1861,22 @@ export default function StockPage() {
                   </>)}
                   <div className="field2">
                     <div className="lbl">{t('supplier')}</div>
-                    <div className="lookupShell">
+                    <div className="lookupShell" ref={supplierShellRef}>
                       <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <input placeholder={t('searchOrTypeSupplier')} autoComplete="off" value={batchSupplier}
-                          onChange={(e) => { setBatchSupplier(e.target.value); setSupplierMenuOpen(true); }}
-                          onFocus={() => setSupplierMenuOpen(true)} />
-                        <button className="sideAction" type="button" onClick={() => setSupplierMenuOpen((v) => !v)}>⌄</button>
+                          onChange={(e) => { setBatchSupplier(e.target.value); setSupplierShowAll(false); setSupplierMenuOpen(true); }}
+                          onFocus={() => { setSupplierShowAll(false); setSupplierMenuOpen(true); }} />
+                        <button className="sideAction" type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setSupplierShowAll(true); setSupplierMenuOpen((v) => !v); }}>⌄</button>
                         <button className="sideAction" type="button" onClick={() => { setNewSupplierName(batchSupplier); setSupplierAddOpen((v) => !v); }}>+</button>
                       </div>
                       {supplierMenuOpen && (
-                        <div className="lookupMenu" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                        <LookupMenuPortal anchorRef={supplierShellRef} onClose={() => setSupplierMenuOpen(false)}>
                           {supplierLookup.length ? supplierLookup.map((name) => (
                             <button key={name} className="lookupItem" type="button" onClick={() => { setBatchSupplier(name); setSupplierMenuOpen(false); }}>
                               <span>{name}</span><span className="lookupMeta">{t('supplier')}</span>
                             </button>
                           )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noSuppliersYet')}</span></div>}
-                        </div>
+                        </LookupMenuPortal>
                       )}
                     </div>
                     <div className="lookupHint">{t('supplierHint')}</div>
