@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
 import { ModernSelect } from '@/components/shared/ModernSelect';
+import { CashFlowPanel } from './CashFlowPanel';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -2921,7 +2922,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     loan_repayment: t('ledgerLoanRepayment'),
   }), [t]);
 
-  const [innerTab, setInnerTab] = useState<'accounts' | 'loans' | 'statements'>('accounts');
+  const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'statements'>('accounts');
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
@@ -3966,6 +3967,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       <div className="cash-inner-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {tabBtn('accounts', t('cashAccountsTab'))}
+          {tabBtn('flow', t('cashFlowTab'))}
           {tabBtn('loans', t('cashLoansTab'))}
           {tabBtn('statements', t('cashStatementsTab'))}
         </div>
@@ -3977,6 +3979,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           <span className="cash-emoji">🧮</span> {t('countCashBtn') || 'Count Cash'}
         </button>
       </div>
+
+      {/* ── CASH FLOW TAB ── */}
+      {innerTab === 'flow' && (
+        <CashFlowPanel ledger={ledger} accounts={accounts} typeLabel={ty => LEDGER_TYPE_LABELS[ty as LedgerEntryType] || ty} t={t} isMobile={isMobile} onOpenAccount={setAccountDetailId} />
+      )}
 
       {/* ── ACCOUNTS TAB ── */}
       {innerTab === 'accounts' && (
