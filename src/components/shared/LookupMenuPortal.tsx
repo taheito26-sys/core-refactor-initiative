@@ -36,7 +36,7 @@ export function LookupMenuPortal({ anchorRef, onClose, children }: { anchorRef: 
   if (!style || typeof document === 'undefined') return null;
   return createPortal(
     <div className="msel-panel lookup-portal" style={style} role="listbox" onMouseDown={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
-      <div className="msel-list">{children}</div>
+      <div className="msel-list" style={{ maxHeight: typeof style.maxHeight === 'number' ? style.maxHeight - 8 : undefined }}>{children}</div>
     </div>,
     document.body,
   );

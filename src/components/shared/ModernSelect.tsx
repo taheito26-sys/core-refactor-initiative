@@ -112,6 +112,9 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
       })()
     : undefined;
 
+  const hasSearch = options.filter(o => !o.header).length > 7;
+  const listMax = typeof pos?.maxHeight === 'number' ? pos.maxHeight - (hasSearch ? 46 : 0) - 8 : undefined;
+
   return (
     <>
       <button
@@ -131,12 +134,13 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}><path d="m6 9 6 6 6-6" /></svg>
       </button>
       {open && typeof document !== 'undefined' && createPortal(
-        <div className="msel-layer" onMouseDown={e => { if (e.target === e.currentTarget) { setOpen(false); setQuery(''); } }}>
+        <>
+          <div className="msel-layer" onMouseDown={() => { setOpen(false); setQuery(''); }} onTouchStart={() => { setOpen(false); setQuery(''); }} />
           <div className="msel-panel" style={pos ?? { visibility: 'hidden' }} role="listbox" onKeyDown={onKey}>
             {options.filter(o => !o.header).length > 7 && (
               <input autoFocus={canAutoFocus} className="msel-search" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
             )}
-            <div className="msel-list" ref={listRef}>
+            <div className="msel-list" ref={listRef} style={{ maxHeight: listMax }}>
               {filtered.length ? filtered.map((o, i) => {
                 if (o.header) return <div key={`${o.value}-${i}`} className="msel-group">{o.label}</div>;
                 const selected = o.value === String(value ?? '');
@@ -159,7 +163,7 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
               }) : <div className="msel-empty">—</div>}
             </div>
           </div>
-        </div>,
+        </>,
         document.body,
       )}
     </>
