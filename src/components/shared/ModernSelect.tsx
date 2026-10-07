@@ -37,7 +37,7 @@ export interface ModernSelectProps {
 /**
  * Drop-in replacement for a native `<select>` whose list is drawn in a portal on a solid
  * surface above everything else, so nothing behind it shows through. On phones it opens
- * as a bottom sheet; on larger screens it sits under the field.
+ * is drawn just under the field (above it when there is no room) and stays compact.
  */
 export function ModernSelect({ value, onChange, children, disabled, style, className, placeholder, title }: ModernSelectProps) {
   const options = useMemo(() => parseOptions(children), [children]);
@@ -47,7 +47,8 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
   const [active, setActive] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const sheet = typeof window !== 'undefined' && window.innerWidth < 640;
+  // The search box only takes focus with a mouse or keyboard; on a phone it would raise the keyboard over the list.
+  const canAutoFocus = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches;
   const current = options.find(o => o.value === String(value ?? ''));
   const filtered = query.trim() ? options.filter(o => !o.header && o.label.toLowerCase().includes(query.trim().toLowerCase())) : options;
 
@@ -94,15 +95,17 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
     else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); pick(filtered[active]); }
   };
 
-  const desktopPos: CSSProperties | undefined = !sheet && rect
+  const pos: CSSProperties | undefined = rect
     ? (() => {
-        const below = window.innerHeight - rect.bottom;
-        const openUp = below < 260 && rect.top > below;
+        const vh = window.visualViewport?.height ?? window.innerHeight;
+        const below = vh - rect.bottom;
+        const openUp = below < 200 && rect.top > below;
+        const width = Math.min(Math.max(rect.width, 180), window.innerWidth - 16);
         return {
-          left: Math.min(rect.left, window.innerWidth - Math.max(rect.width, 220) - 8),
-          width: Math.max(rect.width, 220),
-          ...(openUp ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
-          maxHeight: Math.max(160, (openUp ? rect.top : below) - 16),
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+          width,
+          ...(openUp ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+          maxHeight: Math.min(240, Math.max(120, (openUp ? rect.top : below) - 12)),
         };
       })()
     : undefined;
@@ -127,10 +130,9 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
       </button>
       {open && typeof document !== 'undefined' && createPortal(
         <div className="msel-layer" onMouseDown={e => { if (e.target === e.currentTarget) { setOpen(false); setQuery(''); } }}>
-          <div className={sheet ? 'msel-panel msel-sheet' : 'msel-panel'} style={sheet ? undefined : desktopPos} role="listbox" onKeyDown={onKey}>
-            {sheet && <div className="msel-grip" />}
+          <div className="msel-panel" style={pos ?? { visibility: 'hidden' }} role="listbox" onKeyDown={onKey}>
             {options.filter(o => !o.header).length > 7 && (
-              <input autoFocus className="msel-search" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
+              <input autoFocus={canAutoFocus} className="msel-search" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
             )}
             <div className="msel-list" ref={listRef}>
               {filtered.length ? filtered.map((o, i) => {
