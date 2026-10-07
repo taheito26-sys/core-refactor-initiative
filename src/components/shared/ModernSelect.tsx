@@ -1,5 +1,6 @@
 import { Children, Fragment, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { isolateScroll } from './isolateScroll';
 
 interface ParsedOption { value: string; label: string; disabled: boolean; header?: boolean }
 
@@ -136,7 +137,7 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
       {open && typeof document !== 'undefined' && createPortal(
         <>
           <div className="msel-layer" onMouseDown={() => { setOpen(false); setQuery(''); }} onTouchStart={() => { setOpen(false); setQuery(''); }} />
-          <div className="msel-panel" style={pos ?? { visibility: 'hidden' }} role="listbox" onKeyDown={onKey}>
+          <div className="msel-panel" ref={isolateScroll} style={pos ?? { visibility: 'hidden' }} role="listbox" onKeyDown={onKey}>
             {options.filter(o => !o.header).length > 7 && (
               <input autoFocus={canAutoFocus} className="msel-search" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
             )}

@@ -2162,6 +2162,7 @@
 .msel-trigger:disabled { opacity: .55; cursor: not-allowed; }
 .msel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msel-placeholder { opacity: .6; }
+.msel-layer, .msel-panel { pointer-events: auto; }
 .msel-layer { position: fixed; inset: 0; z-index: 100000; background: transparent; touch-action: none; overscroll-behavior: contain; }
 .msel-panel {
   position: fixed; z-index: 100001; touch-action: pan-y; overscroll-behavior: contain; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px;

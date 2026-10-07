@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { isolateScroll } from './isolateScroll';
 
 /**
  * The list under a search-or-type field, drawn in a portal on a solid surface
@@ -35,7 +36,7 @@ export function LookupMenuPortal({ anchorRef, onClose, children }: { anchorRef: 
 
   if (!style || typeof document === 'undefined') return null;
   return createPortal(
-    <div className="msel-panel lookup-portal" style={style} role="listbox" onMouseDown={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
+    <div className="msel-panel lookup-portal" ref={isolateScroll} style={style} role="listbox" onMouseDown={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
       <div className="msel-list" style={{ maxHeight: typeof style.maxHeight === 'number' ? style.maxHeight - 8 : undefined }}>{children}</div>
     </div>,
     document.body,
