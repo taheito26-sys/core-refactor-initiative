@@ -484,6 +484,7 @@ const translations = {
   editTrade: { en: 'Edit Trade', ar: 'تعديل الصفقة' },
   void: { en: 'VOID', ar: 'ملغاة' },
   allMonths: { en: 'All Months', ar: 'جميع الشهور' },
+  allSuppliers: { en: 'All Suppliers', ar: 'جميع الموردين' },
   allBuyers: { en: 'All Buyers', ar: 'جميع العملاء' },
   minPrice: { en: 'Min price', ar: 'أقل سعر' },
   maxPrice: { en: 'Max price', ar: 'أعلى سعر' },

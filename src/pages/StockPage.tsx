@@ -1076,12 +1076,11 @@ export default function StockPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
-            <ModernSelect
+            <ModernSelect compact
               value={supplierFilter}
               onChange={e => setSupplierFilter(e.target.value)}
-              style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
             >
-              <option value="">{t('allSuppliers') || 'All Suppliers'}</option>
+              <option value="">{t('allSuppliers')}</option>
               {supplierFilterOptions.map(supplier => (
                 <option key={supplier} value={supplier}>{supplier}</option>
               ))}

@@ -4022,10 +4022,9 @@ export default function OrdersPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
-                <ModernSelect
+                <ModernSelect compact
                   value={buyerFilter}
                   onChange={e => setBuyerFilter(e.target.value)}
-                  style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
                 >
                   <option value="">{t('allBuyers')}</option>
                   {buyerFilterOptions.map(c => (
