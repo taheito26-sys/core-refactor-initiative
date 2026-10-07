@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { solidSurfaceStyle } from "@/lib/solid-surface";
 
 const Select = SelectPrimitive.Root;
 
@@ -73,6 +74,7 @@ const SelectContent = React.forwardRef<
       )}
       position={position}
       {...props}
+      style={{ ...solidSurfaceStyle, ...props.style }}
     >
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport

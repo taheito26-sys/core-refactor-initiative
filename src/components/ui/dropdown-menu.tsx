@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { solidSurfaceStyle } from "@/lib/solid-surface";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -48,6 +49,7 @@ const DropdownMenuSubContent = React.forwardRef<
       className,
     )}
     {...props}
+    style={{ ...solidSurfaceStyle, ...props.style }}
   />
 ));
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
@@ -65,6 +67,7 @@ const DropdownMenuContent = React.forwardRef<
         className,
       )}
       {...props}
+      style={{ ...solidSurfaceStyle, ...props.style }}
     />
   </DropdownMenuPrimitive.Portal>
 ));

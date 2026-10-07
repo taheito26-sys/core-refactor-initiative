@@ -2,6 +2,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
+import { solidSurfaceStyle } from "@/lib/solid-surface";
 
 const Popover = PopoverPrimitive.Root;
 
@@ -21,6 +22,7 @@ const PopoverContent = React.forwardRef<
         className,
       )}
       {...props}
+      style={{ ...solidSurfaceStyle, ...props.style }}
     />
   </PopoverPrimitive.Portal>
 ));
