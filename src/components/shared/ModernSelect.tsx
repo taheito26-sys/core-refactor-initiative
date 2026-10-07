@@ -1,6 +1,7 @@
 import { Children, Fragment, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { isolateScroll } from './isolateScroll';
+import { pageZoom } from './pageZoom';
 
 interface ParsedOption { value: string; label: string; disabled: boolean; header?: boolean }
 
@@ -100,15 +101,16 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
 
   const pos: CSSProperties | undefined = rect
     ? (() => {
+        const z = pageZoom();
         const vh = window.visualViewport?.height ?? window.innerHeight;
         const below = vh - rect.bottom;
         const openUp = below < 200 && rect.top > below;
         const width = Math.min(Math.max(rect.width, 180), window.innerWidth - 16);
         return {
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
-          width,
-          ...(openUp ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
-          maxHeight: Math.min(240, Math.max(120, (openUp ? rect.top : below) - 12)),
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) / z,
+          width: width / z,
+          ...(openUp ? { bottom: (window.innerHeight - rect.top + 4) / z } : { top: (rect.bottom + 4) / z }),
+          maxHeight: Math.min(240, Math.max(120, (openUp ? rect.top : below) - 12)) / z,
         };
       })()
     : undefined;

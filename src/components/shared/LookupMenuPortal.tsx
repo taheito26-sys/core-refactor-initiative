@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { isolateScroll } from './isolateScroll';
+import { pageZoom } from './pageZoom';
 
 /**
  * The list under a search-or-type field, drawn in a portal on a solid surface
@@ -18,9 +19,10 @@ export function LookupMenuPortal({ anchorRef, onClose, children }: { anchorRef: 
     const above = r.top - 12;
     const up = below < 220 && above > below;
     const room = Math.max(140, Math.min(250, up ? above : below));
+    const z = pageZoom();
     const next: CSSProperties = {
-      left: r.left, width: Math.min(r.width, 380), maxHeight: room,
-      ...(up ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }),
+      left: r.left / z, width: Math.min(r.width, 380) / z, maxHeight: room / z,
+      ...(up ? { bottom: (window.innerHeight - r.top + 6) / z } : { top: (r.bottom + 6) / z }),
     };
     // Keep the old object when nothing moved, or the layout effect would re-render forever.
     setStyle(prev => (prev && (Object.keys(next) as Array<keyof CSSProperties>).every(k => prev[k] === next[k]) && Object.keys(prev).length === Object.keys(next).length ? prev : next));
