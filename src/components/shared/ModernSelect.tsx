@@ -36,8 +36,8 @@ export interface ModernSelectProps {
 
 /**
  * Drop-in replacement for a native `<select>` whose list is drawn in a portal on a solid
- * surface above everything else, so nothing behind it shows through. On phones it opens
- * is drawn just under the field (above it when there is no room) and stays compact.
+ * surface above everything else, so nothing behind it shows through. It opens just under
+ * the field (above it when there is no room) and stays compact.
  */
 export function ModernSelect({ value, onChange, children, disabled, style, className, placeholder, title }: ModernSelectProps) {
   const options = useMemo(() => parseOptions(children), [children]);
