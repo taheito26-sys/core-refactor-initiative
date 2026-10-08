@@ -37,6 +37,8 @@ export function QuickDateField({
   lang = 'en',
   maxToday = true,
   quickDays = [0, 1, 2, 3],
+  allowClear = false,
+  compact = false,
 }: {
   /** YYYY-MM-DD. */
   value: string;
@@ -46,6 +48,10 @@ export function QuickDateField({
   maxToday?: boolean;
   /** How many days back each shortcut goes; 0 is today. */
   quickDays?: number[];
+  /** Filter use: tapping the chosen shortcut again, or the clear button, empties the value. */
+  allowClear?: boolean;
+  /** Smaller chips and no long date caption, for a toolbar. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const isAr = lang === 'ar';
@@ -61,15 +67,16 @@ export function QuickDateField({
   const customActive = !!selected && !chips.some((c) => c.active);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+    <div className={compact ? undefined : 'space-y-2'}>
+      <div className={cn('flex flex-wrap items-center', compact ? 'gap-1.5' : 'gap-2')}>
         {chips.map((c) => (
           <button
             key={c.n}
             type="button"
-            onClick={() => onChange(c.day)}
+            onClick={() => onChange(allowClear && c.active ? '' : c.day)}
             className={cn(
-              'h-10 rounded-xl border px-3 text-xs font-semibold transition-colors',
+              compact ? 'h-8' : 'h-10',
+              'rounded-xl border px-3 text-xs font-semibold transition-colors',
               c.active ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40',
             )}
           >
@@ -81,7 +88,8 @@ export function QuickDateField({
             <button
               type="button"
               className={cn(
-                'inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
+                compact ? 'h-8' : 'h-10',
+                'inline-flex items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
                 customActive ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40',
               )}
             >
@@ -106,8 +114,18 @@ export function QuickDateField({
             />
           </PopoverContent>
         </Popover>
+        {allowClear && selected && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            aria-label={isAr ? 'مسح التاريخ' : 'Clear date'}
+            className={cn(compact ? 'h-8 w-8' : 'h-10 w-10', 'rounded-xl border border-border/50 bg-card text-xs font-semibold hover:border-primary/40')}
+          >
+            ✕
+          </button>
+        )}
       </div>
-      {selected && (
+      {selected && !compact && (
         <p className="text-xs text-muted-foreground">{format(selected, 'EEEE, d MMMM yyyy', { locale })}</p>
       )}
     </div>

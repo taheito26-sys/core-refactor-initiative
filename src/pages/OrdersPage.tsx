@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
+import { QuickDateField } from '@/components/shared/QuickDateField';
 import { localCur } from '@/lib/currency-locale';
 import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
 import { ordersReportLabels } from '@/features/orders/orders-report-labels';
@@ -4031,15 +4032,13 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </ModernSelect>
-                <div className="inputBox" style={{ width: 140, padding: '4px 10px' }}>
-                  <input
-                    type="date"
-                    aria-label={t('filterByDay')}
-                    title={t('filterByDay')}
-                    value={dayFilter}
-                    onChange={e => setDayFilter(e.target.value)}
-                  />
-                </div>
+                <QuickDateField
+                  value={dayFilter}
+                  onChange={setDayFilter}
+                  lang={t.lang === 'ar' ? 'ar' : 'en'}
+                  allowClear
+                  compact
+                />
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}

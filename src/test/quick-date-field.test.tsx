@@ -27,4 +27,13 @@ describe('QuickDateField', () => {
     expect(screen.getByText('أمس')).toBeTruthy();
     expect(screen.getByText('اختر تاريخًا')).toBeTruthy();
   });
+
+  it('clears the filter when the chosen shortcut is tapped again', () => {
+    const onChange = vi.fn();
+    render(<QuickDateField value={toDayString(new Date())} onChange={onChange} allowClear compact />);
+    fireEvent.click(screen.getByText('Today'));
+    expect(onChange).toHaveBeenCalledWith('');
+    fireEvent.click(screen.getByLabelText('Clear date'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
 });
