@@ -3690,7 +3690,7 @@ export default function OrdersPage() {
                 🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
               </span>
             )}
-            {loan?.emergency && <span className="pill bad" style={{ fontSize: 9, flexShrink: 0, whiteSpace: 'nowrap' }}>🚨 {t('emergencyTag')}</span>}
+            {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 9, flexShrink: 0, padding: '1px 4px', lineHeight: 1.2 }}>🚨</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -4141,7 +4141,7 @@ export default function OrdersPage() {
                                     🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
                                   </span>
                                 )}
-                                {loan?.emergency && <span className="pill bad" style={{ fontSize: 9, whiteSpace: 'nowrap' }}>🚨 {t('emergencyTag')}</span>}
+                                {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 9, padding: '1px 4px', lineHeight: 1.2 }}>🚨</span>}
                               </span>
                             </td>
                             <td>
