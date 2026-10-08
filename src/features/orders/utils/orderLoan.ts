@@ -24,6 +24,8 @@ export interface SyncOrderLoanInput {
   currency: CashCurrency;
   /** Auto-generated note, e.g. "Loan from order — 14,836 USDT @ 3.80". */
   note: string;
+  /** Emergency sale (sold immediately at the emergency price) rather than a normal one. */
+  emergency?: boolean;
   now?: number;
   newId?: () => string;
 }
@@ -56,6 +58,7 @@ export function syncOrderLoan({
   fee,
   currency,
   note,
+  emergency = false,
   now = Date.now(),
   newId = uid,
 }: SyncOrderLoanInput): { state: TrackerState; outcome: OrderLoanOutcome } {
@@ -74,6 +77,7 @@ export function syncOrderLoan({
       principal,
       currency,
       note,
+      ...(emergency ? { emergency: true } : {}),
       repayments: [],
       status: 'open',
       createdAt: now,
@@ -94,11 +98,13 @@ export function syncOrderLoan({
       note: autoNote ? note : existing.note,
       status: repaid >= principal ? 'closed' : 'open',
     };
+    if (emergency) updated.emergency = true; else delete updated.emergency;
     const changed = updated.principal !== existing.principal
       || updated.customerId !== existing.customerId
       || updated.ts !== existing.ts
       || updated.note !== existing.note
-      || updated.status !== existing.status;
+      || updated.status !== existing.status
+      || !!updated.emergency !== !!existing.emergency;
     if (!changed) return { state: nextState, outcome: 'unchanged' };
     return {
       state: { ...nextState, customerLoans: loans.map(l => (l.id === existing.id ? updated : l)) },

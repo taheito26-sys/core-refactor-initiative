@@ -233,6 +233,7 @@ export async function buildLoanStatementResponse(
       remaining: Math.round(row.remaining),
       settled: row.settled,
       note: row.loan.note || null,
+      emergency: row.loan.emergency === true,
     })),
     // One physical payment applied across several loans/orders (shared
     // batchId) is grouped into a single row here — a buyer sees "you paid

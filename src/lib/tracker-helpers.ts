@@ -583,6 +583,8 @@ export interface CustomerLoan {
   customerId: string;
   /** Optional linked order/trade this loan financed */
   tradeId?: string;
+  /** Emergency sale: the buyer needed the funds immediately, so it was sold at the emergency price. */
+  emergency?: boolean;
   /** Principal amount owed, in `currency` */
   principal: number;
   currency: CashCurrency;

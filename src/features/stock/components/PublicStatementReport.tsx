@@ -17,6 +17,8 @@ export interface PublicOrder {
   remaining: number;
   settled: boolean;
   note: string | null;
+  /** Sold at the emergency price because the buyer needed the funds immediately. */
+  emergency?: boolean;
 }
 
 export interface PublicBinanceOrder {
@@ -123,7 +125,14 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
           <tbody>
             {data.orders.map((o, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={tdStyle}>{o.ref}</td>
+                <td style={tdStyle}>
+                  {o.ref}
+                  {o.emergency && (
+                    <span style={{ marginInlineStart: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: '#fdeaea', color: '#b3261e', border: '1px solid #f3b8b4' }}>
+                      🚨 طوارئ
+                    </span>
+                  )}
+                </td>
                 <td style={tdStyle}>{fmtDate(o.date)}</td>
                 <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{fmtAmount(o.amount)}</td>
                 <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.paid)}</td>

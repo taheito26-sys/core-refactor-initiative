@@ -13,6 +13,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { QuickDateField } from '@/components/shared/QuickDateField';
+import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
 import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
 import { ordersReportLabels } from '@/features/orders/orders-report-labels';
@@ -142,6 +143,7 @@ export default function OrdersPage() {
   const [saleSell, setSaleSell] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [isLoanSale, setIsLoanSale] = useState(false);
+  const [isEmergencySale, setIsEmergencySale] = useState(false);
   const [buyerId, setBuyerId] = useState('');
   // Split-at-registration: carve part of a brand-new sale off to a second
   // buyer in the same submit, rather than saving the full amount and then
@@ -421,6 +423,7 @@ export default function OrdersPage() {
   const [editManualBuyPrice, setEditManualBuyPrice] = useState('');
   // Loaned-order toggle for edit modal — mirrors `isLoanSale` on the new-sale form
   const [editIsLoan, setEditIsLoan] = useState(false);
+  const [editIsEmergency, setEditIsEmergency] = useState(false);
 
   // Split-order state for the edit modal — carves part of this trade off to
   // a second customer (e.g. a Binance order that needs to be shared between
@@ -2526,6 +2529,7 @@ export default function OrdersPage() {
       const loanFor = (trade: Trade): CustomerLoan => ({
         id: uid(), ts, customerId: trade.customerId, tradeId: trade.id,
         principal: legLoanPrincipal(trade.amountUSDT, trade.sellPriceQAR, trade.feeQAR),
+        ...(isEmergencySale ? { emergency: true } : {}),
         currency: baseFiat as CashCurrency,
         note: `${t('loanFromOrder')} ${fmtU(trade.amountUSDT)} USDT @ ${fmtP(trade.sellPriceQAR)}`,
         repayments: [], status: 'open', createdAt: Date.now(),
@@ -2586,6 +2590,7 @@ export default function OrdersPage() {
         const loan: CustomerLoan = {
           id: uid(), ts, customerId, tradeId: baseTrade.id,
           principal, currency: baseFiat as CashCurrency,
+          ...(isEmergencySale ? { emergency: true } : {}),
           note: `${t('loanFromOrder')} ${fmtU(baseTrade.amountUSDT)} USDT @ ${fmtP(sell)}`,
           repayments: [], status: 'open', createdAt: Date.now(),
         };
@@ -2616,6 +2621,7 @@ export default function OrdersPage() {
     // Reset form
     setSaleAmount('');
     setIsLoanSale(false);
+    setIsEmergencySale(false);
     setMerchantOrderEnabled(false);
     setLinkedRelId('');
     setSelectedTemplateId(null);
@@ -2706,6 +2712,7 @@ export default function OrdersPage() {
     setEditManualBuyPrice(tr.manualBuyPrice != null ? String(tr.manualBuyPrice) : '');
     // Reflect whether this order is already loaned
     setEditIsLoan(loanedTradeIds.has(id));
+    setEditIsEmergency(!!loanByTradeId.get(id)?.emergency);
     // Reset link-to-partner state
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
@@ -3146,6 +3153,7 @@ export default function OrdersPage() {
       fee,
       currency: baseFiat as CashCurrency,
       note: `${t('loanFromOrder')} ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
+      emergency: editIsEmergency,
     });
     finalState = loanSync.state;
     if (splitResult) {
@@ -3675,6 +3683,7 @@ export default function OrdersPage() {
                 🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
               </span>
             )}
+            {loan?.emergency && <span className="pill bad" style={{ fontSize: 9, flexShrink: 0, whiteSpace: 'nowrap' }}>🚨 {t('emergencyTag')}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -4126,6 +4135,7 @@ export default function OrdersPage() {
                                     🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
                                   </span>
                                 )}
+                                {loan?.emergency && <span className="pill bad" style={{ fontSize: 9, whiteSpace: 'nowrap' }}>🚨 {t('emergencyTag')}</span>}
                               </span>
                             </td>
                             <td>
@@ -4862,9 +4872,10 @@ export default function OrdersPage() {
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, cursor: 'pointer', color: isLoanSale ? 'var(--warn)' : 'var(--muted)', marginTop: 6, fontWeight: isLoanSale ? 700 : 400 }}>
-                  <input type="checkbox" checked={isLoanSale} onChange={e => setIsLoanSale(e.target.checked)} />
+                  <input type="checkbox" checked={isLoanSale} onChange={e => { setIsLoanSale(e.target.checked); if (!e.target.checked) setIsEmergencySale(false); }} />
                   🤝 {t('loanSaleCheckbox')}
                 </label>
+                {isLoanSale && <SaleTypeToggle emergency={isEmergencySale} onChange={setIsEmergencySale} />}
 
                 </>)}
 
@@ -6062,6 +6073,8 @@ export default function OrdersPage() {
                       />
                       🤝 {t('loanSaleCheckbox')}
                     </label>
+
+                    {editIsLoan && <SaleTypeToggle emergency={editIsEmergency} onChange={setEditIsEmergency} disabled={locked} />}
 
                     {editIsLoan && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--t2)', marginTop: 8 }}>

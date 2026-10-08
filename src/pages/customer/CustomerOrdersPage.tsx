@@ -597,6 +597,8 @@ export default function CustomerOrdersPage() {
     currency: string;
     totalAmount: number;
     loaned: boolean;
+    /** Sold at the emergency price because the buyer needed the funds immediately. */
+    emergency?: boolean;
     settled: boolean;
     loanCurrency: string | null;
     loanAmount: number | null;
@@ -633,6 +635,7 @@ export default function CustomerOrdersPage() {
           currency: b.fiat,
           totalAmount: b.fiatAmount,
           loaned: true,
+          emergency: loan.emergency === true,
           settled: loan.settled,
           loanCurrency: s.currency,
           loanAmount: loan.amount,
@@ -651,6 +654,7 @@ export default function CustomerOrdersPage() {
           currency: s.currency,
           totalAmount: o.amount,
           loaned: true,
+          emergency: o.emergency === true,
           settled: o.settled,
           loanCurrency: s.currency,
           loanAmount: o.amount,
@@ -1979,7 +1983,7 @@ export default function CustomerOrdersPage() {
                   <div
                     key={`${o.key}-${i}`}
                     className="panel"
-                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
+                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.emergency ? { borderLeft: '3px solid var(--bad)', background: 'color-mix(in srgb, var(--bad) 7%, var(--panel))' } : o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -1991,6 +1995,11 @@ export default function CustomerOrdersPage() {
                         <div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
                           {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </div>
+                        {o.emergency && (
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: 'var(--bad)', color: '#fff', whiteSpace: 'nowrap' }}>
+                            🚨 {L('Emergency', 'طوارئ')}
+                          </span>
+                        )}
                       </div>
                       <div className="mono" style={{ fontSize: 15, fontWeight: 800 }}>
                         {Math.round(o.totalAmount).toLocaleString()} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{o.currency}</span>
