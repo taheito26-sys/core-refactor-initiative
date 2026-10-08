@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { comparePlacement, toLocalInputValue } from '@/lib/order-sequence';
-import { QuickDateField } from '@/components/shared/QuickDateField';
+import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
 import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
@@ -3953,7 +3953,7 @@ export default function OrdersPage() {
       ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
     return (
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div className="orders-kpi-bar" style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {kpis.map(k => (
           <div key={k.label} style={{
             flex: '1 1 60px', minWidth: 60,
@@ -4038,7 +4038,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+              <div className="orders-filter-row" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0' }}>
                 <ModernSelect compact
                   value={buyerFilter}
                   onChange={e => setBuyerFilter(e.target.value)}
@@ -4048,12 +4048,11 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </ModernSelect>
-                <QuickDateField
+                <DayFilterDropdown
                   value={dayFilter}
                   onChange={setDayFilter}
                   lang={t.lang === 'ar' ? 'ar' : 'en'}
-                  allowClear
-                  compact
+                  title={t('filterByDay')}
                 />
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>

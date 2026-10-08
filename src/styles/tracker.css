@@ -2193,3 +2193,43 @@
 .msel-group { padding: 10px 14px 4px; font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; opacity: .55; }
 .msel-trigger.msel-compact { width: auto; max-width: min(220px, 100%); min-height: 30px; padding: 4px 10px; font-size: 12px; border-radius: 8px; flex: 0 0 auto; }
 .msel-compact .msel-value { max-width: 170px; }
+
+/* ── Orders on a phone: spend the screen on the orders, not the controls ── */
+@media (max-width: 767px) {
+  .tracker-root.orders-mobile-root .month-filter-row {
+    margin-bottom: 2px;
+    padding-top: 0;
+    padding-bottom: 2px;
+  }
+  .tracker-root.orders-mobile-root .month-pill {
+    padding: 3px 10px;
+    font-size: 10px;
+  }
+  .tracker-root.orders-mobile-root .orders-filter-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 2px 0 !important;
+    padding: 0 6px;
+  }
+  .tracker-root.orders-mobile-root .orders-filter-row::-webkit-scrollbar { display: none; }
+  .tracker-root.orders-mobile-root .orders-filter-row > * { flex-shrink: 0; }
+  .tracker-root.orders-mobile-root .orders-filter-row .rowBtn {
+    padding: 4px 8px;
+    min-height: 28px;
+    font-size: 10px;
+  }
+  .tracker-root.orders-mobile-root .orders-kpi-bar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 4px !important;
+    gap: 4px !important;
+    padding: 0 6px;
+  }
+  .tracker-root.orders-mobile-root .orders-kpi-bar::-webkit-scrollbar { display: none; }
+  .tracker-root.orders-mobile-root .orders-kpi-bar > div {
+    flex: 0 0 auto !important;
+    padding: 3px 8px !important;
+  }
+}
