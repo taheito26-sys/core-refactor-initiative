@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
+import { comparePlacement, toLocalInputValue } from '@/lib/order-sequence';
 import { QuickDateField } from '@/components/shared/QuickDateField';
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
@@ -83,9 +84,9 @@ interface AllocationRow {
   note: string;
 }
 
-const nowInput = () => new Date().toISOString().slice(0, 16);
+const nowInput = () => toLocalInputValue(Date.now());
 const normalizeName = (v: string) => canonicalizeName(v);
-function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
+function toInputFromTs(ts: number) { return toLocalInputValue(ts); }
 
 /** Resolve operator & lender display names for an operator priority deal row */
 function resolveOpNames(
@@ -232,7 +233,7 @@ export default function OrdersPage() {
     const registeredUsdt = Math.max(0, Math.round((fullUsdt - prefill.amountUSDT) * 1e8) / 1e8);
     const shareOfOrder = fullUsdt > 0 ? Math.min(1, prefill.amountUSDT / fullUsdt) : 1;
     const originalTotalFiat = prefill.originalTotalFiat != null ? round2(prefill.originalTotalFiat * shareOfOrder) : undefined;
-    setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
+    setSaleDate(toLocalInputValue(prefill.ts));
     setSaleEntryMode('qty_price');
     setSaleUsdtQty(String(prefill.amountUSDT));
     // A non-QAR order has no QAR price yet, so the sell-price field is left
@@ -294,7 +295,7 @@ export default function OrdersPage() {
    */
   const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
     const via = prefill.kind === 'pay' ? 'Pay' : 'network';
-    setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
+    setSaleDate(toLocalInputValue(prefill.ts));
     setSaleEntryMode('qty_price');
     setSaleUsdtQty(String(prefill.amountUSDT));
     setSaleSell(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
@@ -991,7 +992,10 @@ export default function OrdersPage() {
     }
   }, [allMerchantDeals, state, applyState]);
 
-  const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
+  const allTrades = useMemo(
+    () => [...state.trades].sort((a, b) => comparePlacement({ ts: b.ts, orderNumber: b.exchangeOrderNumber, id: b.id }, { ts: a.ts, orderNumber: a.exchangeOrderNumber, id: a.id })),
+    [state.trades],
+  );
   const effectiveRange = selectedMonth === 'all' ? 'all' : state.range;
 
   const list = useMemo(() => allTrades.filter(t => {
@@ -2826,7 +2830,10 @@ export default function OrdersPage() {
 
   const saveTradeEdit = async () => {
     if (!editingTradeId) return;
-    const ts = new Date(editDate).getTime();
+    // Keep the exact placement time unless the merchant really changed the date: the field only
+    // holds minutes, so rewriting it would drop the seconds and reshuffle same-minute orders.
+    const originalTs = state.trades.find(t => t.id === editingTradeId)?.ts;
+    const ts = originalTs != null && editDate === toInputFromTs(originalTs) ? originalTs : new Date(editDate).getTime();
     let qty = Number(editQty);
     const sell = Number(editSell);
     let fee = Number(editFee) || 0;

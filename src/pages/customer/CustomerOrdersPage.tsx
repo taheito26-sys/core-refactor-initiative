@@ -52,6 +52,7 @@ import { BiometricsService } from '@/platform/biometrics';
 import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '@/platform/haptics';
 import { offlineSyncQueue } from '@/services/offlineSyncQueue';
 import { ModernSelect } from '@/components/shared/ModernSelect';
+import { comparePlacement } from '@/lib/order-sequence';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 
@@ -597,6 +598,8 @@ export default function CustomerOrdersPage() {
     currency: string;
     totalAmount: number;
     loaned: boolean;
+    /** Exchange order number, the tie-break between orders placed in the same minute. */
+    orderNumber?: string;
     /** Sold at the emergency price because the buyer needed the funds immediately. */
     emergency?: boolean;
     settled: boolean;
@@ -631,6 +634,7 @@ export default function CustomerOrdersPage() {
         const qarToEgpRate = b.qarRate ? (b.fiatPrice || 0) / b.qarRate : null;
         rows.push({
           key: b.orderNumber || b.tradeId,
+          orderNumber: b.orderNumber,
           date: typeof b.date === 'string' ? new Date(b.date).getTime() : (b.date ?? 0),
           currency: b.fiat,
           totalAmount: b.fiatAmount,
@@ -673,6 +677,7 @@ export default function CustomerOrdersPage() {
         shownTradeIds.add(sale.tradeId);
         rows.push({
           key: sale.orderNumber || sale.tradeId,
+          orderNumber: sale.orderNumber,
           date: typeof sale.date === 'string' ? new Date(sale.date).getTime() : (sale.date ?? 0),
           currency: sale.fiat,
           totalAmount: sale.fiatAmount,
@@ -689,7 +694,7 @@ export default function CustomerOrdersPage() {
         });
       }
     }
-    return rows.sort((a, b) => b.date - a.date);
+    return rows.sort((a, b) => comparePlacement({ ts: b.date, orderNumber: b.orderNumber, id: b.key }, { ts: a.date, orderNumber: a.orderNumber, id: a.key }));
   }, [historyStatements]);
 
   // Live updates: any change to this customer's orders rows triggers a refetch
@@ -1026,11 +1031,11 @@ export default function CustomerOrdersPage() {
   // statement exports (monthlyStatementExport.ts), which are themselves
   // always one month's worth of orders.
   const orderSequence = useMemo(() => {
-    const combined: { key: string; ts: number }[] = [
+    const combined: { key: string; ts: number; orderNumber?: string; id?: string }[] = [
       ...orders.map(o => ({ key: `live:${o.id}`, ts: new Date(o.created_at).getTime() })),
-      ...historyOrders.map(o => ({ key: `hist:${o.key}`, ts: o.date })),
+      ...historyOrders.map(o => ({ key: `hist:${o.key}`, ts: o.date, orderNumber: o.orderNumber, id: `hist:${o.key}` })),
     ];
-    combined.sort((a, b) => a.ts - b.ts);
+    combined.sort((a, b) => comparePlacement(a, b));
     const map = new Map<string, number>();
     const countByMonth = new Map<string, number>();
     for (const o of combined) {

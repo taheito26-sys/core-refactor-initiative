@@ -189,6 +189,29 @@ export async function buildLoanStatementResponse(
     }
   }
 
+  // The exchange's own order time is when the order was really placed; the
+  // trade's timestamp is the merchant's and moves whenever they edit the
+  // order. Anchor every imported order to the exchange time when it is known,
+  // so the buyer's sequence never depends on what the merchant touched last.
+  const importedTradeIds = buyerTrades.filter((tr) => tr.importedFrom).map((tr) => tr.id);
+  if (importedTradeIds.length > 0) {
+    const { data: placedRows } = await supabase
+      .from("exchange_p2p_orders")
+      .select("order_time, linked_entity_id")
+      .eq("user_id", link.user_id)
+      .eq("linked_entity_type", "trade")
+      .in("linked_entity_id", importedTradeIds);
+    const placedAt = new Map<string, number>();
+    for (const row of placedRows ?? []) {
+      const ms = new Date(row.order_time ?? 0).getTime();
+      if (Number.isFinite(ms) && ms > 0) placedAt.set(row.linked_entity_id, ms);
+    }
+    for (const o of binanceOrders) {
+      const ms = placedAt.get(o.tradeId);
+      if (ms) o.date = ms;
+    }
+  }
+
   binanceOrders.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
   // Both spellings travel with the statement so the exporter can print the one
