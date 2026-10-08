@@ -2205,31 +2205,42 @@
     padding: 3px 10px;
     font-size: 10px;
   }
+  /* One line that always fits the screen: every control shrinks to share the width. */
   .tracker-root.orders-mobile-root .orders-filter-row {
     flex-wrap: nowrap !important;
-    overflow-x: auto;
-    scrollbar-width: none;
+    gap: 4px !important;
     margin: 2px 0 !important;
     padding: 0 6px;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .tracker-root.orders-mobile-root .orders-filter-row::-webkit-scrollbar { display: none; }
-  .tracker-root.orders-mobile-root .orders-filter-row > * { flex-shrink: 0; }
-  .tracker-root.orders-mobile-root .orders-filter-row .rowBtn {
-    padding: 4px 8px;
-    min-height: 28px;
+  .tracker-root.orders-mobile-root .orders-filter-row > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .tracker-root.orders-mobile-root .orders-filter-row > :first-child { flex: 1.6 1 0; }
+  .tracker-root.orders-mobile-root .orders-filter-row .rowBtn,
+  .tracker-root.orders-mobile-root .orders-filter-row > button {
+    padding: 4px 4px;
+    min-height: 30px;
     font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    justify-content: center;
   }
+  /* KPI tiles fill every line edge to edge, however many there are. */
   .tracker-root.orders-mobile-root .orders-kpi-bar {
-    flex-wrap: nowrap !important;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-bottom: 4px !important;
+    flex-wrap: wrap !important;
     gap: 4px !important;
+    margin-bottom: 4px !important;
     padding: 0 6px;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .tracker-root.orders-mobile-root .orders-kpi-bar::-webkit-scrollbar { display: none; }
   .tracker-root.orders-mobile-root .orders-kpi-bar > div {
-    flex: 0 0 auto !important;
+    flex: 1 1 70px !important;
+    min-width: 0 !important;
     padding: 3px 8px !important;
   }
 }
