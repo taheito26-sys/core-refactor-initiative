@@ -2137,6 +2137,9 @@ const translations = {
   loanMergeConfirm: { en: 'Merge {n} payments', ar: 'دمج {n} دفعات' },
   loanRepaymentAccount:  { en: 'Deposit To',                    ar: 'إيداع في' },
   loanAddCash: { en: 'Add Cash', ar: 'إضافة نقد' },
+  claimAcceptTitle: { en: 'Accept customer payment', ar: 'قبول دفعة العميل' },
+  claimAcceptCashHint: { en: 'Also add this amount to the chosen cash account. Untick if you already counted it elsewhere.', ar: 'إضافة هذا المبلغ أيضًا إلى حساب النقد المختار. ألغِ التحديد إذا سبق احتسابه في مكان آخر.' },
+  claimAcceptNoAccount: { en: 'No active cash account in this currency — the payment will only reduce the loan.', ar: 'لا يوجد حساب نقد نشط بهذه العملة — ستقلل الدفعة القرض فقط.' },
   loanAddCashHint: {
     en: 'Credit this amount to a cash account. Turn off if the money is already accounted for elsewhere.',
     ar: 'إضافة هذا المبلغ إلى حساب نقدي. أوقف هذا الخيار إذا كان المبلغ محتسباً بالفعل في مكان آخر.',
