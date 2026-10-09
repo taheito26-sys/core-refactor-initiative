@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyLineOffsets, applyOpeningOverride, type MonthPosition, type NetPosition } from '@/lib/trading/net-position';
-import { manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
+import { liveOffsetsFor, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 
 const pos = (lines: Array<{ key: string; side: 'asset' | 'liability'; amountQAR: number }>): NetPosition => {
   const assets = lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amountQAR, 0);
@@ -76,5 +76,35 @@ describe('lines that are no longer counted', () => {
     const p = applyLineOffsets(pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]), { stock: -114856, merchant_lent: 37267, merchant_borrowed: 431, cash_hand: 50 });
     expect(p.lines.map(l => l.key)).toEqual(['cash_hand']);
     expect(p.netQAR).toBe(1050);
+  });
+});
+
+describe('a position typed by hand stays as typed', () => {
+  const override: OpeningOverride = {
+    month: '2026-10', manual: { cash_hand: 5000, exchange_usdt: 2000, customer_loans: 0, personal_loans: 0 },
+    // Saved when the records said cash was 1000; deliberately stale below.
+    offsets: { cash_hand: 4000, exchange_usdt: 2000 }, updatedAt: '',
+  };
+  const overrides = new Map([[override.month, override]]);
+
+  it('follows today\'s records, so editing an earlier month cannot move the typed opening', () => {
+    const before = pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]);
+    const after = pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1800 }]);
+    for (const recorded of [before, after]) {
+      const live = liveOffsetsFor(overrides, '2026-10', () => recorded)!;
+      expect(applyLineOffsets(recorded, live.offsets).lines.find(l => l.key === 'cash_hand')?.amountQAR).toBe(5000);
+    }
+  });
+
+  it('carries into later months, measured against the month it was typed for', () => {
+    const anchors: string[] = [];
+    const live = liveOffsetsFor(overrides, '2026-12', m => { anchors.push(m); return pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]); });
+    expect(anchors).toEqual(['2026-10']);
+    expect(live?.from).toBe('2026-10');
+    expect(live?.offsets.cash_hand).toBe(4000);
+  });
+
+  it('does not apply to an earlier month', () => {
+    expect(liveOffsetsFor(overrides, '2026-09', () => pos([]))).toBeNull();
   });
 });

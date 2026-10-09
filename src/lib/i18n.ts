@@ -823,7 +823,7 @@ const translations = {
   npReportEgpRate: { en: 'EGP per 1 USDT', ar: 'جنيه لكل 1 USDT' },
   npSetOpening: { en: 'Set the starting position by hand', ar: 'تحديد المركز الافتتاحي يدويًا' },
   npOpeningEditTitle: { en: 'Starting position for {month}', ar: 'المركز الافتتاحي لشهر {month}' },
-  npOpeningEditHint: { en: 'Enter what each line really was on the first day of the month, in QAR. The change during the month still comes from your records.', ar: 'أدخل قيمة كل بند فعليًا في أول يوم من الشهر بالريال. التغيّر خلال الشهر يبقى من سجلاتك.' },
+  npOpeningEditHint: { en: 'Enter what each line really was on the first day of the month, in QAR. This opening stays exactly as typed, whatever happens to earlier months. Only what is added or removed during the month changes the closing.', ar: 'أدخل قيمة كل بند فعليًا في أول يوم من الشهر بالريال. يبقى هذا الافتتاح كما أدخلته مهما تغيّرت الأشهر السابقة. فقط ما يُضاف أو يُخصم خلال الشهر يغيّر الإغلاق.' },
   npColRecords: { en: 'From records', ar: 'من السجلات' },
   npColYours: { en: 'Your figure', ar: 'رقمك' },
   npTotalYours: { en: 'Net starting position', ar: 'صافي المركز الافتتاحي' },

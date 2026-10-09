@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { deriveCashQAR, fmtTotal, getAccountBalance, uid, type CashLedgerEntry } from '@/lib/tracker-helpers';
 import {
-  amountToQar, applyOpeningOverride, computeMonthBridge, computeNetPosition, lineChangesOf, loanLedgerEntryIds, computeMonthPosition, type NetPositionLineKey,
+  amountToQar, applyOpeningOverride, computeMonthBridge, computeNetPosition, lineChangesOf, loanLedgerEntryIds, computeMonthPosition, monthStart, type NetPositionLineKey,
 } from '@/lib/trading/net-position';
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
 import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides, usePersonalLoans } from '@/features/net-position/api';
@@ -15,7 +15,7 @@ import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalan
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 import { PersonalLoansPanel } from '@/features/net-position/components/PersonalLoansPanel';
-import { MANUAL_LINE_KEYS, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
+import { MANUAL_LINE_KEYS, liveOffsetsFor, manualOpeningTotal, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
@@ -133,7 +133,22 @@ export default function NetPositionPage() {
   // A starting position entered by hand moves the month (and every later one) by what it differs from the records.
   const { overrides, unavailable: overridesUnavailable } = useOpeningOverrides();
   const openingSaving = useOpeningOverrideSaving();
-  const manual = useMemo(() => offsetsFor(overrides, recorded.key), [overrides, recorded.key]);
+  // The month a hand-entered position was set for may be earlier than this one; its offsets are always
+  // measured against today's records for that month, so the figures typed stay exactly as typed.
+  const anchorKey = useMemo(() => {
+    let best: string | null = null;
+    for (const o of overrides.values()) if (o.month <= recorded.key && (!best || o.month > best)) best = o.month;
+    return best;
+  }, [overrides, recorded.key]);
+  const anchorOpening = useMemo(() => {
+    if (!anchorKey || anchorKey === recorded.key) return recorded.opening;
+    const [y, m] = anchorKey.split('-').map(Number);
+    return computeNetPosition(state, monthStart(y, m - 1) - 1, options);
+  }, [anchorKey, recorded, state, options]);
+  const manual = useMemo(
+    () => liveOffsetsFor(overrides, recorded.key, () => anchorOpening),
+    [overrides, recorded.key, anchorOpening],
+  );
   const live = useMemo(() => (manual ? applyOpeningOverride(recorded, manual.offsets) : recorded), [recorded, manual]);
   const liveBridge = useMemo(
     () => computeMonthBridge(state, live, loanLedgerEntryIds(state.customerLoans, personalLoans)),
@@ -147,8 +162,12 @@ export default function NetPositionPage() {
   const snap = snapshots.get(live.key);
   const frozen = !!snap?.frozen;
   const chained = useMemo(
-    () => chainToFrozenOpening({ opening: live.opening.netQAR, bridge: liveBridge }, snapshots.get(previousMonthKey(live.key))),
-    [live, liveBridge, snapshots],
+    // A month whose starting position was typed by hand opens at exactly that, never at the previous month's frozen closing.
+    () => chainToFrozenOpening(
+      { opening: live.opening.netQAR, bridge: liveBridge },
+      overrides.has(live.key) ? undefined : snapshots.get(previousMonthKey(live.key)),
+    ),
+    [live, liveBridge, snapshots, overrides],
   );
   const month = frozen && snap ? snap.position : live;
   const bridge = frozen && snap ? snap.bridge : chained.bridge;

@@ -64,3 +64,25 @@ export function offsetsFor(overrides: Map<string, OpeningOverride>, month: strin
   }
   return best && Object.keys(best.offsets).length > 0 ? { offsets: best.offsets, from: best.month } : null;
 }
+
+/**
+ * The offsets in force for `month`, worked out from what was typed rather
+ * than from what was saved. A saved offset is only right for the records as
+ * they stood the day it was saved; if an earlier month is edited afterwards,
+ * the records' opening moves and a fixed offset would leave the typed figures
+ * wrong. Recomputing against today's records keeps the opening of the month
+ * that was set by hand exactly as typed, whatever happens before it.
+ */
+export function liveOffsetsFor(
+  overrides: Map<string, OpeningOverride>,
+  month: string,
+  recordedOpeningOf: (anchorMonth: string) => Pick<NetPosition, 'lines'>,
+): { offsets: LineOffsets; from: string } | null {
+  let best: OpeningOverride | null = null;
+  for (const o of overrides.values()) {
+    if (o.month <= month && (!best || o.month > best.month)) best = o;
+  }
+  if (!best) return null;
+  const offsets = offsetsFromManual(recordedOpeningOf(best.month), best.manual);
+  return Object.keys(offsets).length > 0 ? { offsets, from: best.month } : null;
+}
