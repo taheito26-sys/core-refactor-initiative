@@ -119,6 +119,27 @@ function matchMerchant(entries: AdEntry[], query: string, advNos: string[]): { e
   return { exact: null, candidates: [...found.values()].sort((x, y) => (y.monthOrders ?? 0) - (x.monthOrders ?? 0)) };
 }
 
+/** Binance's own hosts only: a pasted link is fetched server side, so anything else is refused. */
+const isBinanceHost = (host: string) => /(^|\.)(binance\.(com|me|info|cc)|bnbstatic\.com)$/i.test(host);
+
+/**
+ * Finds a merchant id in a pasted link. The profile link carries it directly;
+ * the app's short share links redirect to a page that does.
+ */
+async function merchantIdFromLink(link: string): Promise<string | null> {
+  const direct = link.match(USER_NO)?.[0];
+  if (direct) return direct;
+  let url: URL;
+  try { url = new URL(link); } catch { return null; }
+  if (url.protocol !== "https:" || !isBinanceHost(url.hostname)) return null;
+  const res = await fetch(url.toString(), { redirect: "follow", headers: { Accept: "text/html" } }).catch(() => null);
+  if (!res) return null;
+  const fromUrl = decodeURIComponent(res.url).match(USER_NO)?.[0];
+  if (fromUrl) return fromUrl;
+  const text = (await res.text().catch(() => "")).slice(0, 300_000);
+  return decodeURIComponent(text).match(USER_NO)?.[0] ?? null;
+}
+
 const fiatList = (extra: unknown): string[] => {
   const more = Array.isArray(extra) ? extra.map((f) => String(f).toUpperCase()).filter((f) => /^[A-Z]{3}$/.test(f)) : [];
   return [...new Set(["EGP", "QAR", ...more])].slice(0, 6);
@@ -183,11 +204,14 @@ Deno.serve(async (req: Request) => {
       if (!userId) return json({ error: "Sign in first" }, 401);
       const query = String(body.query ?? "").trim();
       if (!query) return json({ error: "Enter a nickname, merchant id or profile link" }, 400);
-      const idMatch = query.match(USER_NO);
-      if (idMatch) {
-        const profile = await fetchProfile(idMatch[0]);
+      const linkedId = /^https?:\/\//i.test(query) || USER_NO.test(query) ? await merchantIdFromLink(query) : null;
+      if (linkedId) {
+        const profile = await fetchProfile(linkedId);
         if (!profile) return json({ error: "No Binance merchant with that id" }, 404);
-        return json({ userNo: idMatch[0], nick: String(profile.nickName ?? idMatch[0]) });
+        return json({ userNo: linkedId, nick: String(profile.nickName ?? linkedId) });
+      }
+      if (/^https?:\/\//i.test(query)) {
+        return json({ error: "I could not find a merchant id in that link. Open the merchant's profile in Binance, tap Share, and copy the profile link." }, 404);
       }
       const advNos = Array.isArray(body.advNos) ? body.advNos.map(String).slice(0, 40) : [];
       const adSet = new Set(advNos);

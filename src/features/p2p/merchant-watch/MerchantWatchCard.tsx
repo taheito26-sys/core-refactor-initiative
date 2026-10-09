@@ -34,8 +34,20 @@ function DayBars({ values, labels, lang }: { values: Array<number | null>; label
   );
 }
 
-function WaitingTile({ merchant, lang, onRemove }: { merchant: WatchedMerchant; lang: 'en' | 'ar'; onRemove: () => void }) {
+/** Reads the clipboard on a tap; returns '' when the browser refuses. */
+async function readClipboard(): Promise<string> {
+  try { return (await navigator.clipboard.readText()).trim(); } catch { return ''; }
+}
+
+function WaitingTile({ merchant, lang, busy, onIdentify, onRemove }: {
+  merchant: WatchedMerchant; lang: 'en' | 'ar'; busy: boolean; onIdentify: (link: string) => void; onRemove: () => void;
+}) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  const [link, setLink] = useState('');
+  const paste = async () => {
+    const text = await readClipboard();
+    if (text) { setLink(text); onIdentify(text); }
+  };
   return (
     <div className="rounded-xl border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
       <div className="flex items-start justify-between gap-2">
@@ -45,9 +57,17 @@ function WaitingTile({ merchant, lang, onRemove }: { merchant: WatchedMerchant; 
             <span className="truncate text-sm font-bold" dir="ltr">{merchant.nick}</span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {L('Waiting for this merchant to list an ad. Binance only shows merchants who are advertising, so tracking starts the moment they do (checked every few minutes).',
-              'بانتظار أن يعرض هذا التاجر إعلانًا. لا تُظهر Binance إلا التجّار المعلنين، فيبدأ التتبّع فور ظهوره (يُفحص كل بضع دقائق).')}
+            {L('Binance hides this merchant’s id behind the masked name. To start now: open their profile in Binance, tap Share, copy the link, and paste it here. Otherwise tracking starts by itself when they list an ad.',
+              'تُخفي Binance معرّف هذا التاجر خلف الاسم المقنّع. للبدء الآن: افتح ملفه في Binance، اضغط مشاركة، انسخ الرابط والصقه هنا. وإلا يبدأ التتبّع تلقائيًا عند عرضه إعلانًا.')}
           </p>
+          <div className="mt-2 flex gap-1.5">
+            <Input value={link} onChange={e => setLink(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && link.trim()) onIdentify(link.trim()); }}
+              placeholder={L('Profile link or merchant id', 'رابط الملف أو معرّف التاجر')} dir="ltr" className="h-8 text-xs" />
+            <Button size="sm" variant="outline" disabled={busy} onClick={paste}>{L('Paste', 'لصق')}</Button>
+            <Button size="sm" disabled={busy || !link.trim()} onClick={() => onIdentify(link.trim())}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : L('Track', 'تتبّع')}
+            </Button>
+          </div>
         </div>
         <button type="button" onClick={onRemove} aria-label={L('Stop following', 'إلغاء المتابعة')} className="rounded p-1 text-muted-foreground hover:bg-muted">
           <X className="h-3.5 w-3.5" />
@@ -121,7 +141,7 @@ export function MerchantWatchCard() {
   const t = useT();
   const lang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const { watched, byMerchant, loading, unavailable, add, remove, refresh } = useMerchantWatch();
+  const { watched, byMerchant, loading, unavailable, add, identify, remove, refresh } = useMerchantWatch();
   const { data: orders } = useExchangeP2POrders({ includeDismissed: true });
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
@@ -203,13 +223,17 @@ export function MerchantWatchCard() {
             <div className="flex gap-1.5">
               <Input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit(); }}
                 placeholder={L('Nickname, merchant id or profile link', 'الاسم أو معرّف التاجر أو رابط الملف')} dir="ltr" />
+              <Button variant="outline" disabled={add.isPending} onClick={async () => {
+                const text = await readClipboard();
+                if (text) { setQuery(text); add.mutate({ query: text }, { onSuccess: (r) => { if (r.kind === 'added') setQuery(''); } }); }
+              }}>{L('Paste', 'لصق')}</Button>
               <Button onClick={submit} disabled={!query.trim() || add.isPending}>
                 {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Add', 'إضافة')}
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {L('Binance hides part of the name in your order history. A merchant is identified while they have an ad listed. If they have none, they stay on your list and tracking starts when they list one. You can also paste the link from their Binance profile page.',
-                'تُخفي Binance جزءًا من الاسم في سجل طلباتك. يُتعرّف على التاجر ما دام له إعلان معروض، وإلا يبقى في قائمتك ويبدأ التتبّع حين يعرض إعلانًا. ويمكنك لصق رابط ملفه في Binance.')}
+              {L('Binance hides part of the name in your order history. The most reliable way: open the merchant’s profile in Binance, tap Share, copy the link and paste it here. It works even when they have no ad. A merchant who is advertising is also found from the name.',
+                'تُخفي Binance جزءًا من الاسم في سجل طلباتك. الأضمن: افتح ملف التاجر في Binance، اضغط مشاركة، انسخ الرابط والصقه هنا. ينجح حتى بلا إعلان. ويُعثر أيضًا على التاجر المعلن من اسمه.')}
             </p>
           </div>
         )}
@@ -225,7 +249,8 @@ export function MerchantWatchCard() {
         <div className="grid gap-3 sm:grid-cols-2">
           {watched.map(m => (m.user_no
             ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
-            : <WaitingTile key={m.id} merchant={m} lang={lang} onRemove={() => remove.mutate(m.id)} />))}
+            : <WaitingTile key={m.id} merchant={m} lang={lang} busy={identify.isPending && identify.variables?.id === m.id}
+                onIdentify={link => identify.mutate({ id: m.id, link })} onRemove={() => remove.mutate(m.id)} />))}
         </div>
       </CardContent>
     </Card>

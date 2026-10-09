@@ -168,6 +168,28 @@ export function useMerchantWatch() {
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not add this merchant'),
   });
 
+  /** Identifies a waiting merchant right away from a pasted profile link or merchant id. */
+  const identify = useMutation({
+    mutationFn: async (input: { id: string; link: string }) => {
+      const found = await invokeTracker<{ userNo?: string; nick?: string; candidates?: MerchantChoice[] }>({ action: 'resolve', query: input.link });
+      if (!found.userNo) throw new Error('That link did not identify a single merchant');
+      const { error } = await table('p2p_watched_merchants')
+        .update({ user_no: found.userNo, nick: found.nick, pending_query: null }).eq('id', input.id);
+      if (error?.code === '23505') {
+        // Already following this merchant: the waiting entry is a duplicate.
+        await table('p2p_watched_merchants').delete().eq('id', input.id);
+      } else if (error) throw error;
+      await refresh();
+      return found.nick as string;
+    },
+    onSuccess: (nick) => {
+      toast.success(`Tracking ${nick}`);
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+      void qc.invalidateQueries({ queryKey: SNAPS_KEY });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not identify this merchant'),
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await table('p2p_watched_merchants').delete().eq('id', id);
@@ -177,5 +199,5 @@ export function useMerchantWatch() {
     onError: () => toast.error('Could not remove this merchant'),
   });
 
-  return { watched, byMerchant, loading: list.isLoading, unavailable: list.isError, add, remove, refresh };
+  return { watched, byMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
 }
