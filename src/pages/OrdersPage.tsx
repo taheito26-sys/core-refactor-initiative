@@ -13,6 +13,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { comparePlacement, toLocalInputValue } from '@/lib/order-sequence';
+import { P2PAuditButton } from '@/features/exchanges/components/P2PAuditButton';
 import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
@@ -4057,6 +4058,7 @@ export default function OrdersPage() {
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
+                <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} />
                 <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
                   {exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>
