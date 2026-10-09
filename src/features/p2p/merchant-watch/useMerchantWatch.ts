@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { groupSnapshots, onlineState, type MerchantSnapshot, type WatchedMerchant } from './merchant-watch';
 
+export interface MerchantChoice { userNo: string; nick: string; monthOrders: number | null }
+
 const LIST_KEY = ['p2p-watch-list'];
 const SNAPS_KEY = ['p2p-watch-snapshots'];
 /** How often the page asks Binance for a fresh reading while it is open. */
@@ -114,16 +116,25 @@ export function useMerchantWatch() {
     }
   }, [snapshots.data, watched, byMerchant]);
 
+  /**
+   * Follows a merchant. `advNos` are the ad numbers of past orders with them,
+   * which find the exact merchant when their name is masked ("Jos***").
+   * When several merchants fit, nothing is added and the choices come back.
+   */
   const add = useMutation({
-    mutationFn: async (query: string) => {
-      const found = await invokeTracker<{ userNo: string; nick: string }>({ action: 'resolve', query });
+    mutationFn: async (input: { query: string; advNos?: string[] }) => {
+      const found = await invokeTracker<{ userNo?: string; nick?: string; candidates?: MerchantChoice[] }>({
+        action: 'resolve', query: input.query, advNos: input.advNos ?? [],
+      });
+      if (found.candidates) return { kind: 'choose' as const, candidates: found.candidates };
       const { error } = await table('p2p_watched_merchants').insert({ user_no: found.userNo, nick: found.nick });
       if (error && error.code !== '23505') throw error;
       await refresh();
-      return found;
+      return { kind: 'added' as const, nick: found.nick as string };
     },
-    onSuccess: (found) => {
-      toast.success(`Following ${found.nick}`);
+    onSuccess: (result) => {
+      if (result.kind !== 'added') return;
+      toast.success(`Following ${result.nick}`);
       void qc.invalidateQueries({ queryKey: LIST_KEY });
       void qc.invalidateQueries({ queryKey: SNAPS_KEY });
     },

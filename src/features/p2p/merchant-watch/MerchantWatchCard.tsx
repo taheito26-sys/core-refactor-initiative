@@ -107,19 +107,28 @@ export function MerchantWatchCard() {
   // Merchants this user bought USDT from, most traded first, minus the ones already followed.
   const traded = useMemo(() => {
     const followed = new Set(watched.map(w => w.nick.trim().toLowerCase()));
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { count: number; advNos: Set<string> }>();
     for (const o of orders ?? []) {
       if (o.exchange !== 'binance' || o.side !== 'buy' || !o.counterparty?.trim()) continue;
       const name = o.counterparty.trim();
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+      const entry = counts.get(name) ?? { count: 0, advNos: new Set<string>() };
+      entry.count += 1;
+      // The ad number Binance recorded on the order points at the exact merchant even when the name is masked.
+      const advNo = (o.raw as { advNo?: unknown } | null | undefined)?.advNo;
+      if (advNo) entry.advNos.add(String(advNo));
+      counts.set(name, entry);
     }
-    return [...counts.entries()].filter(([name]) => !followed.has(name.toLowerCase())).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    return [...counts.entries()]
+      .filter(([name]) => !followed.has(name.toLowerCase()))
+      .map(([name, v]) => ({ name, count: v.count, advNos: [...v.advNos] }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
   }, [orders, watched]);
 
   const submit = () => {
     const q = query.trim();
     if (!q || add.isPending) return;
-    add.mutate(q, { onSuccess: () => setQuery('') });
+    add.mutate({ query: q }, { onSuccess: (r) => { if (r.kind === 'added') setQuery(''); } });
   };
   const doRefresh = async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } };
 
@@ -145,10 +154,23 @@ export function MerchantWatchCard() {
               <div>
                 <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{L('Merchants you bought from', 'تجّار اشتريت منهم')}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {traded.map(([name, count]) => (
-                    <button key={name} type="button" disabled={add.isPending} onClick={() => add.mutate(name)}
+                  {traded.map(({ name, count, advNos }) => (
+                    <button key={name} type="button" disabled={add.isPending} onClick={() => add.mutate({ query: name, advNos })}
                       className="rounded-full border border-border/60 px-2.5 py-1 text-xs hover:border-primary hover:bg-primary/10 disabled:opacity-50" dir="ltr">
                       {name} <span className="text-muted-foreground">· {count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {add.data?.kind === 'choose' && (
+              <div className="space-y-1.5 rounded-md border border-primary/40 bg-primary/5 p-2">
+                <div className="text-[11px] font-semibold">{L('Several merchants match. Pick the right one:', 'عدة تجّار يطابقون. اختر الصحيح:')}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {add.data.candidates.map(c => (
+                    <button key={c.userNo} type="button" disabled={add.isPending} onClick={() => add.mutate({ query: c.userNo })}
+                      className="rounded-full border border-border/60 bg-card px-2.5 py-1 text-xs hover:border-primary disabled:opacity-50" dir="ltr">
+                      {c.nick} <span className="text-muted-foreground">· {fmt(c.monthOrders)} / 30d</span>
                     </button>
                   ))}
                 </div>
@@ -162,8 +184,8 @@ export function MerchantWatchCard() {
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {L('A nickname is found while the merchant has an ad listed. If they do not, paste the link from their Binance profile page.',
-                'يُعثر على الاسم ما دام للتاجر إعلان معروض. إن لم يكن، الصق رابط ملفه في Binance.')}
+              {L('Binance hides part of the name in your order history. The merchant is found while they have an ad listed; otherwise paste the link from their Binance profile page.',
+                'تُخفي Binance جزءًا من الاسم في سجل طلباتك. يُعثر على التاجر ما دام له إعلان معروض، وإلا فالصق رابط ملفه في Binance.')}
             </p>
           </div>
         )}

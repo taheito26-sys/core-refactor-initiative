@@ -52,14 +52,28 @@ function toSnapshot(userNo: string, d: Any) {
   };
 }
 
-/** Searches the live ad lists for a nickname, since Binance has no public nickname lookup. */
-async function findByNickname(nick: string): Promise<{ userNo: string; nick: string } | null> {
-  const wanted = nick.trim().toLowerCase();
+interface Candidate { userNo: string; nick: string; monthOrders: number | null }
+
+/**
+ * Finds a merchant in the live ad lists, since Binance has no public nickname
+ * lookup. Binance masks counterparty names in order history ("Jos***"), so a
+ * nickname is matched three ways: by the ad number of an order you traded on
+ * (exact, when that ad is still listed), by a full nickname, or by the visible
+ * first letters of a masked one (possibly several merchants).
+ */
+async function findMerchant(query: string, advNos: string[]): Promise<{ exact: Candidate | null; candidates: Candidate[] }> {
+  const wanted = query.trim().toLowerCase();
+  const masked = wanted.endsWith("*");
+  const prefix = wanted.replace(/\*+$/, "");
+  const adSet = new Set(advNos.map(String));
   const lists: Array<{ fiat: string; tradeType: "BUY" | "SELL" }> = [];
   for (const fiat of ["EGP", "QAR"]) for (const tradeType of ["BUY", "SELL"] as const) lists.push({ fiat, tradeType });
 
+  const found = new Map<string, Candidate>();
+  let exact: Candidate | null = null;
+
   const scan = async ({ fiat, tradeType }: { fiat: string; tradeType: "BUY" | "SELL" }) => {
-    for (let page = 1; page <= 8; page++) {
+    for (let page = 1; page <= 10 && !exact; page++) {
       const res = await fetch(`${BASE}/adv/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,22 +82,24 @@ async function findByNickname(nick: string): Promise<{ userNo: string; nick: str
           shieldMerchantAds: false, publisherType: null, payTypes: [],
         }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) return;
       const body = await res.json().catch(() => null);
       const rows: Any[] = body?.data ?? [];
-      if (rows.length === 0) return null;
+      if (rows.length === 0) return;
       for (const r of rows) {
         const a = r?.advertiser;
-        if (a?.userNo && String(a.nickName ?? "").trim().toLowerCase() === wanted) {
-          return { userNo: String(a.userNo), nick: String(a.nickName) };
-        }
+        if (!a?.userNo) continue;
+        const cand: Candidate = { userNo: String(a.userNo), nick: String(a.nickName ?? ""), monthOrders: Number.isFinite(Number(a.monthOrderCount)) ? Number(a.monthOrderCount) : null };
+        if (adSet.size > 0 && adSet.has(String(r?.adv?.advNo))) { exact = cand; return; }
+        const nick = cand.nick.trim().toLowerCase();
+        if (masked ? prefix.length >= 2 && nick.startsWith(prefix) : nick === wanted) found.set(cand.userNo, cand);
       }
     }
-    return null;
   };
 
-  const found = await Promise.all(lists.map(scan));
-  return found.find(Boolean) ?? null;
+  await Promise.all(lists.map(scan));
+  const candidates = [...found.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0));
+  return { exact, candidates };
 }
 
 Deno.serve(async (req: Request) => {
@@ -128,14 +144,15 @@ Deno.serve(async (req: Request) => {
         if (!profile) return json({ error: "No Binance merchant with that id" }, 404);
         return json({ userNo: idMatch[0], nick: String(profile.nickName ?? idMatch[0]) });
       }
-      const found = await findByNickname(query);
-      if (!found) {
-        return json({
-          error: "not_found",
-          message: "That merchant has no ad listed right now, so Binance does not show them. Paste their profile link or merchant id instead.",
-        }, 404);
-      }
-      return json(found);
+      const advNos = Array.isArray(body.advNos) ? body.advNos.map(String).slice(0, 40) : [];
+      const { exact, candidates } = await findMerchant(query, advNos);
+      if (exact) return json({ userNo: exact.userNo, nick: exact.nick });
+      if (candidates.length === 1) return json({ userNo: candidates[0].userNo, nick: candidates[0].nick });
+      if (candidates.length > 1) return json({ candidates: candidates.slice(0, 12) });
+      return json({
+        error: "not_found",
+        message: "Binance only shows merchants who have an ad listed right now, and your order history hides their full name. Paste their profile link or merchant id instead.",
+      }, 404);
     }
 
     // ── A user's own watchlist, read now ──
