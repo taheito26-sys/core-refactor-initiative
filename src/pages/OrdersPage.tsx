@@ -4058,7 +4058,7 @@ export default function OrdersPage() {
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
-                <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} />
+                <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} onRegisterSell={applyExchangeOrderPrefill} />
                 <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
                   {exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>

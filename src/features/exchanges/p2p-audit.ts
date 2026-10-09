@@ -4,7 +4,7 @@ import { isCompletedP2POrder, type ExchangeP2POrder } from './types';
 /** Amounts within this margin are rounding noise from the exchange. */
 const AMOUNT_EPSILON = 0.01;
 
-export type P2PAuditStatus = 'registered' | 'partial' | 'missing' | 'resolved';
+export type P2PAuditStatus = 'registered' | 'partial' | 'missing' | 'ignored';
 
 export interface P2PAuditRow {
   order: ExchangeP2POrder;
@@ -12,7 +12,7 @@ export interface P2PAuditRow {
   ts: number;
   /** USDT of the order already in the tracker. */
   registeredUSDT: number;
-  /** USDT of the order still not in the tracker (0 once registered or resolved). */
+  /** USDT of the order still not in the tracker (0 once registered). */
   missingUSDT: number;
 }
 
@@ -22,7 +22,8 @@ export interface P2PAudit {
   registered: number;
   partial: number;
   missing: number;
-  resolved: number;
+  /** Not registered because the merchant ignored it earlier; surfaced again on every check. */
+  ignored: number;
   missingUSDT: number;
 }
 
@@ -38,8 +39,9 @@ export function localMonthOf(ts: number): string {
  * pending and failed ones never moved money. An order counts as registered by
  * the same rules the exchange inbox uses, so the two never disagree: split
  * links to live entities, a legacy single link, or its order number found in
- * a live trade/batch note. Orders the merchant dismissed on purpose are
- * listed as resolved, not as missing.
+ * a live trade/batch note. An order the merchant ignored earlier is still
+ * not in the tracker, so it is reported again (as ignored) for a fresh
+ * decision: register it or keep ignoring it.
  */
 export function auditCompletedP2POrders(input: {
   orders: ExchangeP2POrder[] | undefined;
@@ -67,7 +69,7 @@ export function auditCompletedP2POrders(input: {
 
     let status: P2PAuditStatus;
     if (missingUSDT <= AMOUNT_EPSILON) status = 'registered';
-    else if (o.dismissed_at) status = 'resolved';
+    else if (o.dismissed_at) status = 'ignored';
     else status = registeredUSDT > AMOUNT_EPSILON ? 'partial' : 'missing';
 
     rows.push({
@@ -75,7 +77,7 @@ export function auditCompletedP2POrders(input: {
       status,
       ts,
       registeredUSDT: Math.min(registeredUSDT, amount),
-      missingUSDT: status === 'resolved' || status === 'registered' ? 0 : missingUSDT,
+      missingUSDT: status === 'registered' ? 0 : missingUSDT,
     });
   }
   rows.sort((a, b) => b.ts - a.ts);
@@ -86,7 +88,7 @@ export function auditCompletedP2POrders(input: {
     registered: count('registered'),
     partial: count('partial'),
     missing: count('missing'),
-    resolved: count('resolved'),
+    ignored: count('ignored'),
     missingUSDT: rows.reduce((sum, r) => sum + r.missingUSDT, 0),
   };
 }

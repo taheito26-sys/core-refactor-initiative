@@ -40,9 +40,14 @@ describe('auditCompletedP2POrders', () => {
     expect(part.missingUSDT).toBe(60);
   });
 
-  it('lists a deliberately dismissed order as resolved, not missing', () => {
-    const a = auditCompletedP2POrders({ ...base, orders: [mk({ dismissed_at: 'now', dismiss_reason: 'ignored' })] });
-    expect(a.resolved).toBe(1);
-    expect(a.missing).toBe(0);
+  it('reports an order ignored earlier again, so completed = registered + not registered', () => {
+    const a = auditCompletedP2POrders({
+      ...base,
+      orders: [mk({ dismissed_at: 'now', dismiss_reason: 'ignored' }), mk({ id: 'o2', order_number: '9' })],
+      importedReferences: new Set(['9']),
+    });
+    expect(a.ignored).toBe(1);
+    expect(a.missingUSDT).toBe(100);
+    expect(a.total).toBe(a.registered + a.partial + a.missing + a.ignored);
   });
 });
