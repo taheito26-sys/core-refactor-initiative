@@ -59,6 +59,8 @@ export function useMerchantWatch() {
   const list = useQuery({
     queryKey: LIST_KEY,
     enabled: !!user?.id,
+    // Waiting merchants are identified by the poller; look for the change while any are waiting.
+    refetchInterval: (query) => ((query.state.data as WatchedMerchant[] | undefined)?.some(m => !m.user_no) ? 30_000 : false),
     queryFn: async (): Promise<WatchedMerchant[]> => {
       const { data, error } = await table('p2p_watched_merchants').select('*').order('created_at', { ascending: true });
       if (error) throw error;
@@ -67,9 +69,10 @@ export function useMerchantWatch() {
   });
 
   const watched = list.data ?? [];
+  const hasIdentified = watched.some(m => !!m.user_no);
   const snapshots = useQuery({
     queryKey: SNAPS_KEY,
-    enabled: !!user?.id && watched.length > 0,
+    enabled: !!user?.id && hasIdentified,
     queryFn: fetchSnapshots,
     staleTime: 60_000,
   });
@@ -107,14 +110,25 @@ export function useMerchantWatch() {
   useEffect(() => {
     if (!snapshots.data) return;
     const next = new Map<string, boolean>();
-    for (const m of watched) next.set(m.user_no, onlineState(byMerchant.get(m.user_no)?.at(-1)).online);
+    for (const m of watched) if (m.user_no) next.set(m.user_no, onlineState(byMerchant.get(m.user_no)?.at(-1)).online);
     const prev = lastOnline.current;
     lastOnline.current = next;
     if (!prev) return;
     for (const m of watched) {
-      if (next.get(m.user_no) && prev.get(m.user_no) === false) toast.success(`🟢 ${m.nick} is online`);
+      if (m.user_no && next.get(m.user_no) && prev.get(m.user_no) === false) toast.success(`🟢 ${m.nick} is online`);
     }
   }, [snapshots.data, watched, byMerchant]);
+
+  // A waiting merchant that was just identified listed an ad, so they are online.
+  const waitingIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!list.data) return;
+    const stillWaiting = new Set(list.data.filter(m => !m.user_no).map(m => m.id));
+    const before = waitingIds.current;
+    waitingIds.current = stillWaiting;
+    if (!before) return;
+    for (const m of list.data) if (m.user_no && before.has(m.id)) toast.success(`🟢 ${m.nick} is now tracked and online`);
+  }, [list.data]);
 
   /**
    * Follows a merchant. `advNos` are the ad numbers of past orders with them,
@@ -122,17 +136,30 @@ export function useMerchantWatch() {
    * When several merchants fit, nothing is added and the choices come back.
    */
   const add = useMutation({
-    mutationFn: async (input: { query: string; advNos?: string[] }) => {
-      const found = await invokeTracker<{ userNo?: string; nick?: string; candidates?: MerchantChoice[] }>({
-        action: 'resolve', query: input.query, advNos: input.advNos ?? [],
+    mutationFn: async (input: { query: string; advNos?: string[]; fiats?: string[] }) => {
+      const found = await invokeTracker<{ userNo?: string; nick?: string; candidates?: MerchantChoice[]; notListed?: boolean; message?: string }>({
+        action: 'resolve', query: input.query, advNos: input.advNos ?? [], fiats: input.fiats ?? [],
       });
       if (found.candidates) return { kind: 'choose' as const, candidates: found.candidates };
+      if (found.notListed) {
+        // Keep the request; the poller identifies the merchant once they list an ad.
+        const { error } = await table('p2p_watched_merchants').insert({
+          nick: input.query, pending_query: input.query, adv_nos: input.advNos ?? [], fiats: input.fiats ?? [],
+        });
+        if (error) throw error;
+        return { kind: 'waiting' as const, nick: input.query };
+      }
       const { error } = await table('p2p_watched_merchants').insert({ user_no: found.userNo, nick: found.nick });
       if (error && error.code !== '23505') throw error;
       await refresh();
       return { kind: 'added' as const, nick: found.nick as string };
     },
     onSuccess: (result) => {
+      if (result.kind === 'waiting') {
+        toast.info(`${result.nick} has no ad listed right now. Added to your list: tracking starts as soon as they list one.`);
+        void qc.invalidateQueries({ queryKey: LIST_KEY });
+        return;
+      }
       if (result.kind !== 'added') return;
       toast.success(`Following ${result.nick}`);
       void qc.invalidateQueries({ queryKey: LIST_KEY });

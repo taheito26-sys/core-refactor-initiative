@@ -34,6 +34,29 @@ function DayBars({ values, labels, lang }: { values: Array<number | null>; label
   );
 }
 
+function WaitingTile({ merchant, lang, onRemove }: { merchant: WatchedMerchant; lang: 'en' | 'ar'; onRemove: () => void }) {
+  const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  return (
+    <div className="rounded-xl border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-600" />
+            <span className="truncate text-sm font-bold" dir="ltr">{merchant.nick}</span>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {L('Waiting for this merchant to list an ad. Binance only shows merchants who are advertising, so tracking starts the moment they do (checked every few minutes).',
+              'بانتظار أن يعرض هذا التاجر إعلانًا. لا تُظهر Binance إلا التجّار المعلنين، فيبدأ التتبّع فور ظهوره (يُفحص كل بضع دقائق).')}
+          </p>
+        </div>
+        <button type="button" onClick={onRemove} aria-label={L('Stop following', 'إلغاء المتابعة')} className="rounded p-1 text-muted-foreground hover:bg-muted">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MerchantTile({ merchant, snaps, lang, onRemove }: { merchant: WatchedMerchant; snaps: MerchantSnapshot[]; lang: 'en' | 'ar'; onRemove: () => void }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const latest = snaps.at(-1);
@@ -107,12 +130,13 @@ export function MerchantWatchCard() {
   // Merchants this user bought USDT from, most traded first, minus the ones already followed.
   const traded = useMemo(() => {
     const followed = new Set(watched.map(w => w.nick.trim().toLowerCase()));
-    const counts = new Map<string, { count: number; advNos: Set<string> }>();
+    const counts = new Map<string, { count: number; advNos: Set<string>; fiats: Set<string> }>();
     for (const o of orders ?? []) {
       if (o.exchange !== 'binance' || o.side !== 'buy' || !o.counterparty?.trim()) continue;
       const name = o.counterparty.trim();
-      const entry = counts.get(name) ?? { count: 0, advNos: new Set<string>() };
+      const entry = counts.get(name) ?? { count: 0, advNos: new Set<string>(), fiats: new Set<string>() };
       entry.count += 1;
+      if (o.fiat) entry.fiats.add(String(o.fiat).toUpperCase());
       // The ad number Binance recorded on the order points at the exact merchant even when the name is masked.
       const advNo = (o.raw as { advNo?: unknown } | null | undefined)?.advNo;
       if (advNo) entry.advNos.add(String(advNo));
@@ -120,7 +144,7 @@ export function MerchantWatchCard() {
     }
     return [...counts.entries()]
       .filter(([name]) => !followed.has(name.toLowerCase()))
-      .map(([name, v]) => ({ name, count: v.count, advNos: [...v.advNos] }))
+      .map(([name, v]) => ({ name, count: v.count, advNos: [...v.advNos], fiats: [...v.fiats] }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 12);
   }, [orders, watched]);
@@ -154,8 +178,8 @@ export function MerchantWatchCard() {
               <div>
                 <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{L('Merchants you bought from', 'تجّار اشتريت منهم')}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {traded.map(({ name, count, advNos }) => (
-                    <button key={name} type="button" disabled={add.isPending} onClick={() => add.mutate({ query: name, advNos })}
+                  {traded.map(({ name, count, advNos, fiats }) => (
+                    <button key={name} type="button" disabled={add.isPending} onClick={() => add.mutate({ query: name, advNos, fiats })}
                       className="rounded-full border border-border/60 px-2.5 py-1 text-xs hover:border-primary hover:bg-primary/10 disabled:opacity-50" dir="ltr">
                       {name} <span className="text-muted-foreground">· {count}</span>
                     </button>
@@ -184,8 +208,8 @@ export function MerchantWatchCard() {
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {L('Binance hides part of the name in your order history. The merchant is found while they have an ad listed; otherwise paste the link from their Binance profile page.',
-                'تُخفي Binance جزءًا من الاسم في سجل طلباتك. يُعثر على التاجر ما دام له إعلان معروض، وإلا فالصق رابط ملفه في Binance.')}
+              {L('Binance hides part of the name in your order history. A merchant is identified while they have an ad listed. If they have none, they stay on your list and tracking starts when they list one. You can also paste the link from their Binance profile page.',
+                'تُخفي Binance جزءًا من الاسم في سجل طلباتك. يُتعرّف على التاجر ما دام له إعلان معروض، وإلا يبقى في قائمتك ويبدأ التتبّع حين يعرض إعلانًا. ويمكنك لصق رابط ملفه في Binance.')}
             </p>
           </div>
         )}
@@ -199,9 +223,9 @@ export function MerchantWatchCard() {
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          {watched.map(m => (
-            <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
-          ))}
+          {watched.map(m => (m.user_no
+            ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
+            : <WaitingTile key={m.id} merchant={m} lang={lang} onRemove={() => remove.mutate(m.id)} />))}
         </div>
       </CardContent>
     </Card>

@@ -16,8 +16,11 @@ export interface MerchantSnapshot {
 
 export interface WatchedMerchant {
   id: string;
-  user_no: string;
+  /** Null while the merchant is still waiting to be identified. */
+  user_no: string | null;
   nick: string;
+  /** What was asked for while waiting (a masked name like "Jos***"). */
+  pending_query?: string | null;
   created_at: string;
 }
 

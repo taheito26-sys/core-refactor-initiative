@@ -14,6 +14,8 @@ const ONLINE_WITHIN_SECONDS = 180;
 const USER_THROTTLE_MS = 20_000;
 const CRON_THROTTLE_MS = 45_000;
 const KEEP_DAYS = 60;
+/** When each user's waiting merchants were last looked for (per function instance, best effort). */
+const lastPendingScan = new Map<string, number>();
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -53,27 +55,18 @@ function toSnapshot(userNo: string, d: Any) {
 }
 
 interface Candidate { userNo: string; nick: string; monthOrders: number | null }
+interface AdEntry extends Candidate { advNo: string }
 
-/**
- * Finds a merchant in the live ad lists, since Binance has no public nickname
- * lookup. Binance masks counterparty names in order history ("Jos***"), so a
- * nickname is matched three ways: by the ad number of an order you traded on
- * (exact, when that ad is still listed), by a full nickname, or by the visible
- * first letters of a masked one (possibly several merchants).
- */
-async function findMerchant(query: string, advNos: string[]): Promise<{ exact: Candidate | null; candidates: Candidate[] }> {
-  const wanted = query.trim().toLowerCase();
-  const masked = wanted.endsWith("*");
-  const prefix = wanted.replace(/\*+$/, "");
-  const adSet = new Set(advNos.map(String));
+/** Every USDT ad currently listed in these currencies, both sides. Binance has no public merchant lookup, so this is how a merchant is found. */
+async function scanAds(fiats: string[], stopWhen?: (e: AdEntry) => boolean): Promise<AdEntry[]> {
   const lists: Array<{ fiat: string; tradeType: "BUY" | "SELL" }> = [];
-  for (const fiat of ["EGP", "QAR"]) for (const tradeType of ["BUY", "SELL"] as const) lists.push({ fiat, tradeType });
-
-  const found = new Map<string, Candidate>();
-  let exact: Candidate | null = null;
+  for (const fiat of fiats) for (const tradeType of ["BUY", "SELL"] as const) lists.push({ fiat, tradeType });
+  const entries: AdEntry[] = [];
+  let stop = false;
 
   const scan = async ({ fiat, tradeType }: { fiat: string; tradeType: "BUY" | "SELL" }) => {
-    for (let page = 1; page <= 10 && !exact; page++) {
+    // The Egypt sell list alone runs to 17 pages of 20.
+    for (let page = 1; page <= 30 && !stop; page++) {
       const res = await fetch(`${BASE}/adv/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,18 +82,47 @@ async function findMerchant(query: string, advNos: string[]): Promise<{ exact: C
       for (const r of rows) {
         const a = r?.advertiser;
         if (!a?.userNo) continue;
-        const cand: Candidate = { userNo: String(a.userNo), nick: String(a.nickName ?? ""), monthOrders: Number.isFinite(Number(a.monthOrderCount)) ? Number(a.monthOrderCount) : null };
-        if (adSet.size > 0 && adSet.has(String(r?.adv?.advNo))) { exact = cand; return; }
-        const nick = cand.nick.trim().toLowerCase();
-        if (masked ? prefix.length >= 2 && nick.startsWith(prefix) : nick === wanted) found.set(cand.userNo, cand);
+        const entry: AdEntry = {
+          advNo: String(r?.adv?.advNo ?? ""),
+          userNo: String(a.userNo),
+          nick: String(a.nickName ?? ""),
+          monthOrders: Number.isFinite(Number(a.monthOrderCount)) ? Number(a.monthOrderCount) : null,
+        };
+        entries.push(entry);
+        if (stopWhen?.(entry)) { stop = true; return; }
       }
     }
   };
 
   await Promise.all(lists.map(scan));
-  const candidates = [...found.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0));
-  return { exact, candidates };
+  return entries;
 }
+
+/**
+ * Matches a merchant among listed ads. Binance masks counterparty names in
+ * order history ("Jos***"), so a request matches by the ad number of an order
+ * you traded on (exact, when that ad is still listed), by a full nickname, or
+ * by the visible first letters of a masked one (possibly several merchants).
+ */
+function matchMerchant(entries: AdEntry[], query: string, advNos: string[]): { exact: Candidate | null; candidates: Candidate[] } {
+  const wanted = query.trim().toLowerCase();
+  const masked = wanted.endsWith("*");
+  const prefix = wanted.replace(/\*+$/, "");
+  const adSet = new Set(advNos.map(String).filter(Boolean));
+  const byAd = adSet.size > 0 ? entries.find((e) => adSet.has(e.advNo)) : undefined;
+  if (byAd) return { exact: byAd, candidates: [] };
+  const found = new Map<string, Candidate>();
+  for (const e of entries) {
+    const nick = e.nick.trim().toLowerCase();
+    if (masked ? prefix.length >= 2 && nick.startsWith(prefix) : nick === wanted) found.set(e.userNo, e);
+  }
+  return { exact: null, candidates: [...found.values()].sort((x, y) => (y.monthOrders ?? 0) - (x.monthOrders ?? 0)) };
+}
+
+const fiatList = (extra: unknown): string[] => {
+  const more = Array.isArray(extra) ? extra.map((f) => String(f).toUpperCase()).filter((f) => /^[A-Z]{3}$/.test(f)) : [];
+  return [...new Set(["EGP", "QAR", ...more])].slice(0, 6);
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -118,6 +140,29 @@ Deno.serve(async (req: Request) => {
       const { data } = await supabase.from("p2p_merchant_snapshots").select("ts").eq("user_no", userNo)
         .order("ts", { ascending: false }).limit(1).maybeSingle();
       return data?.ts ? new Date(data.ts).getTime() : 0;
+    };
+
+    /** Identifies waiting merchants (no id yet) from the ads listed right now; one ad scan serves all of them. */
+    const resolvePending = async (userId?: string): Promise<number> => {
+      let q = supabase.from("p2p_watched_merchants").select("id, user_id, nick, pending_query, adv_nos, fiats").is("user_no", null);
+      if (userId) q = q.eq("user_id", userId);
+      const { data: pending } = await q;
+      if (!pending || pending.length === 0) return 0;
+      const fiats = fiatList((pending as Any[]).flatMap((p) => p.fiats ?? []));
+      const entries = await scanAds(fiats);
+      let resolved = 0;
+      for (const row of pending as Any[]) {
+        const { exact, candidates } = matchMerchant(entries, String(row.pending_query ?? row.nick), row.adv_nos ?? []);
+        const hit = exact ?? (candidates.length === 1 ? candidates[0] : null);
+        if (!hit) continue;
+        const { error } = await supabase.from("p2p_watched_merchants")
+          .update({ user_no: hit.userNo, nick: hit.nick, pending_query: null }).eq("id", row.id);
+        if (error) {
+          // Already following this merchant under another entry: drop the duplicate.
+          await supabase.from("p2p_watched_merchants").delete().eq("id", row.id);
+        } else resolved++;
+      }
+      return resolved;
     };
 
     const pollMany = async (userNos: string[], throttleMs: number) => {
@@ -145,27 +190,36 @@ Deno.serve(async (req: Request) => {
         return json({ userNo: idMatch[0], nick: String(profile.nickName ?? idMatch[0]) });
       }
       const advNos = Array.isArray(body.advNos) ? body.advNos.map(String).slice(0, 40) : [];
-      const { exact, candidates } = await findMerchant(query, advNos);
+      const adSet = new Set(advNos);
+      const entries = await scanAds(fiatList(body.fiats), adSet.size > 0 ? (e) => adSet.has(e.advNo) : undefined);
+      const { exact, candidates } = matchMerchant(entries, query, advNos);
       if (exact) return json({ userNo: exact.userNo, nick: exact.nick });
       if (candidates.length === 1) return json({ userNo: candidates[0].userNo, nick: candidates[0].nick });
       if (candidates.length > 1) return json({ candidates: candidates.slice(0, 12) });
+      // Not listed right now: the caller keeps the request and the poller identifies the merchant later.
       return json({
-        error: "not_found",
-        message: "Binance only shows merchants who have an ad listed right now, and your order history hides their full name. Paste their profile link or merchant id instead.",
-      }, 404);
+        notListed: true,
+        message: "This merchant has no ad listed right now, so Binance does not show them yet. They are on your list and will start being tracked as soon as they list an ad.",
+      });
     }
 
     // ── A user's own watchlist, read now ──
     if (action === "refresh") {
       if (!userId) return json({ error: "Sign in first" }, 401);
-      const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no").eq("user_id", userId);
+      // Waiting merchants are looked for at most once a minute (an ad scan is dozens of requests).
+      if (Date.now() - (lastPendingScan.get(userId) ?? 0) > 60_000) {
+        lastPendingScan.set(userId, Date.now());
+        await resolvePending(userId).catch((err) => console.warn("resolvePending failed", err));
+      }
+      const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no").eq("user_id", userId).not("user_no", "is", null);
       const result = await pollMany([...new Set((rows ?? []).map((r: Any) => r.user_no as string))], USER_THROTTLE_MS);
       return json({ ok: true, ...result });
     }
 
     // ── Everyone's watchlist, on the schedule ──
     if (action === "poll-all") {
-      const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no");
+      await resolvePending().catch((err) => console.warn("resolvePending failed", err));
+      const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no").not("user_no", "is", null);
       const result = await pollMany([...new Set((rows ?? []).map((r: Any) => r.user_no as string))], CRON_THROTTLE_MS);
       await supabase.from("p2p_merchant_snapshots").delete()
         .lt("ts", new Date(Date.now() - KEEP_DAYS * 86400_000).toISOString());
