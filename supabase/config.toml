@@ -15,3 +15,8 @@ verify_jwt = false
 # when this is called, so gateway JWT verification must stay off.
 [functions.public-buyer-statement]
 verify_jwt = false
+
+# Called by pg_cron without a session (poll-all) and by signed-in users
+# (resolve / refresh); the function checks the user's JWT itself.
+[functions.p2p-merchant-tracker]
+verify_jwt = false

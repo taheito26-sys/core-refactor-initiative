@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { DeepScanResults } from '@/features/p2p/components/DeepScanResults';
 import { computeDailySummaries } from '@/features/p2p/utils/converters';
 import { supabase } from '@/integrations/supabase/client';
+import { MerchantWatchCard } from '@/features/p2p/merchant-watch/MerchantWatchCard';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -286,6 +287,8 @@ export default function P2PTrackerPage() {
 
         <Badge variant="outline" className="font-mono text-[11px] bg-background border-border/50">{currentMarket.pair}</Badge>
       </div>
+
+      <MerchantWatchCard />
 
       {hasNoData ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
