@@ -140,6 +140,9 @@ async function merchantIdFromLink(link: string): Promise<string | null> {
   return decodeURIComponent(text).match(USER_NO)?.[0] ?? null;
 }
 
+/** Escapes a value for ilike so "_" and "%" in a nickname match themselves. */
+const likeEscape = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 const fiatList = (extra: unknown): string[] => {
   const more = Array.isArray(extra) ? extra.map((f) => String(f).toUpperCase()).filter((f) => /^[A-Z]{3}$/.test(f)) : [];
   return [...new Set(["EGP", "QAR", ...more])].slice(0, 6);
@@ -163,17 +166,48 @@ Deno.serve(async (req: Request) => {
       return data?.ts ? new Date(data.ts).getTime() : 0;
     };
 
-    /** Identifies waiting merchants (no id yet) from the ads listed right now; one ad scan serves all of them. */
+    /** Remembers the ads seen, so merchants can be identified later without waiting for them to list again. */
+    const learn = async (entries: AdEntry[]) => {
+      const rows = new Map<string, Any>();
+      for (const e of entries) {
+        if (!e.advNo || !e.userNo) continue;
+        rows.set(e.advNo, { adv_no: e.advNo, user_no: e.userNo, nick: e.nick, month_orders: e.monthOrders, last_seen: new Date().toISOString() });
+      }
+      const all = [...rows.values()];
+      for (let i = 0; i < all.length; i += 500) {
+        const { error } = await supabase.from("p2p_merchant_ads").upsert(all.slice(i, i + 500), { onConflict: "adv_no" });
+        if (error) { console.warn("learn failed", error.message); return; }
+      }
+    };
+
+    /** Looks a request up among every ad ever recorded, including merchants with no ad today. */
+    const lookupDirectory = async (query: string, advNos: string[]): Promise<{ exact: Candidate | null; candidates: Candidate[] }> => {
+      const toCandidate = (r: Any): Candidate => ({ userNo: r.user_no, nick: r.nick, monthOrders: r.month_orders ?? null });
+      const ads = advNos.map(String).filter(Boolean);
+      if (ads.length > 0) {
+        const { data } = await supabase.from("p2p_merchant_ads").select("user_no, nick, month_orders").in("adv_no", ads).limit(1);
+        if (data && data.length > 0) return { exact: toCandidate(data[0]), candidates: [] };
+      }
+      const wanted = query.trim();
+      const masked = wanted.endsWith("*");
+      const prefix = wanted.replace(/\*+$/, "");
+      if (masked && prefix.length < 2) return { exact: null, candidates: [] };
+      const { data } = await supabase.from("p2p_merchant_ads").select("user_no, nick, month_orders")
+        .ilike("nick", masked ? `${likeEscape(prefix)}%` : likeEscape(wanted)).limit(200);
+      const byUser = new Map<string, Candidate>();
+      for (const r of data ?? []) byUser.set(r.user_no, toCandidate(r));
+      return { exact: null, candidates: [...byUser.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0)) };
+    };
+
+    /** Identifies waiting merchants (no id yet) from every ad recorded, which the scheduled scan keeps current. */
     const resolvePending = async (userId?: string): Promise<number> => {
-      let q = supabase.from("p2p_watched_merchants").select("id, user_id, nick, pending_query, adv_nos, fiats").is("user_no", null);
+      let q = supabase.from("p2p_watched_merchants").select("id, user_id, nick, pending_query, adv_nos").is("user_no", null);
       if (userId) q = q.eq("user_id", userId);
       const { data: pending } = await q;
       if (!pending || pending.length === 0) return 0;
-      const fiats = fiatList((pending as Any[]).flatMap((p) => p.fiats ?? []));
-      const entries = await scanAds(fiats);
       let resolved = 0;
       for (const row of pending as Any[]) {
-        const { exact, candidates } = matchMerchant(entries, String(row.pending_query ?? row.nick), row.adv_nos ?? []);
+        const { exact, candidates } = await lookupDirectory(String(row.pending_query ?? row.nick), row.adv_nos ?? []);
         const hit = exact ?? (candidates.length === 1 ? candidates[0] : null);
         if (!hit) continue;
         const { error } = await supabase.from("p2p_watched_merchants")
@@ -204,26 +238,36 @@ Deno.serve(async (req: Request) => {
       if (!userId) return json({ error: "Sign in first" }, 401);
       const query = String(body.query ?? "").trim();
       if (!query) return json({ error: "Enter a nickname, merchant id or profile link" }, 400);
-      const linkedId = /^https?:\/\//i.test(query) || USER_NO.test(query) ? await merchantIdFromLink(query) : null;
+      // A share message may wrap the link in text; use the first link in it.
+      const pastedLink = query.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? query;
+      const linkedId = /^https?:\/\//i.test(pastedLink) || USER_NO.test(query) ? await merchantIdFromLink(pastedLink) : null;
       if (linkedId) {
         const profile = await fetchProfile(linkedId);
         if (!profile) return json({ error: "No Binance merchant with that id" }, 404);
         return json({ userNo: linkedId, nick: String(profile.nickName ?? linkedId) });
       }
-      if (/^https?:\/\//i.test(query)) {
+      if (/^https?:\/\//i.test(pastedLink)) {
         return json({ error: "I could not find a merchant id in that link. Open the merchant's profile in Binance, tap Share, and copy the profile link." }, 404);
       }
       const advNos = Array.isArray(body.advNos) ? body.advNos.map(String).slice(0, 40) : [];
+      // Merchants seen advertising before are found at once, even with no ad today.
+      const known = await lookupDirectory(query, advNos);
+      if (known.exact) return json({ userNo: known.exact.userNo, nick: known.exact.nick });
+      if (known.candidates.length === 1) return json({ userNo: known.candidates[0].userNo, nick: known.candidates[0].nick });
       const adSet = new Set(advNos);
       const entries = await scanAds(fiatList(body.fiats), adSet.size > 0 ? (e) => adSet.has(e.advNo) : undefined);
-      const { exact, candidates } = matchMerchant(entries, query, advNos);
-      if (exact) return json({ userNo: exact.userNo, nick: exact.nick });
+      await learn(entries);
+      const live = matchMerchant(entries, query, advNos);
+      if (live.exact) return json({ userNo: live.exact.userNo, nick: live.exact.nick });
+      const merged = new Map<string, Candidate>();
+      for (const c of [...known.candidates, ...live.candidates]) merged.set(c.userNo, c);
+      const candidates = [...merged.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0));
       if (candidates.length === 1) return json({ userNo: candidates[0].userNo, nick: candidates[0].nick });
       if (candidates.length > 1) return json({ candidates: candidates.slice(0, 12) });
-      // Not listed right now: the caller keeps the request and the poller identifies the merchant later.
+      // Never seen advertising: the caller keeps the request, and it is identified when they list an ad or a profile link is pasted.
       return json({
         notListed: true,
-        message: "This merchant has no ad listed right now, so Binance does not show them yet. They are on your list and will start being tracked as soon as they list an ad.",
+        message: "Binance only reveals a merchant's id while they advertise, and this one has not been seen advertising yet. Paste their profile link to start now, or they will be picked up when they next list an ad.",
       });
     }
 
@@ -242,11 +286,15 @@ Deno.serve(async (req: Request) => {
 
     // ── Everyone's watchlist, on the schedule ──
     if (action === "poll-all") {
+      // One scan of the listed ads keeps the directory current and lets waiting merchants be identified.
+      await scanAds(fiatList([])).then(learn).catch((err) => console.warn("directory scan failed", err));
       await resolvePending().catch((err) => console.warn("resolvePending failed", err));
       const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no").not("user_no", "is", null);
       const result = await pollMany([...new Set((rows ?? []).map((r: Any) => r.user_no as string))], CRON_THROTTLE_MS);
       await supabase.from("p2p_merchant_snapshots").delete()
         .lt("ts", new Date(Date.now() - KEEP_DAYS * 86400_000).toISOString());
+      await supabase.from("p2p_merchant_ads").delete()
+        .lt("last_seen", new Date(Date.now() - 365 * 86400_000).toISOString());
       return json({ ok: true, ...result, at: new Date().toISOString() });
     }
 
