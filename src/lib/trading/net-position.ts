@@ -7,13 +7,15 @@ import { expenseCategoryOf, isExpenseCandidate, type ExpenseGroup } from './expe
 
 // ─── Net position ───
 //
-// The position is four things and nothing else, in QAR:
+// The position is five things and nothing else, in QAR:
 //   - cash in hand (hand accounts),
-//   - USDT available on the exchanges (Binance + OKX),
+//   - money in banks (bank accounts),
+//   - USDT available on the exchanges (Binance + OKX): the live balance only,
+//     never rebuilt from USDT coming in or going out,
 //   - loaned orders (customer loans still owed),
 //   - personal loans (money lent by hand to people who are not customers).
 //
-// Bank and vault accounts, USDT stock, USDT lent to or borrowed from merchants
+// Vault and custody accounts, USDT stock, USDT lent to or borrowed from merchants
 // and any other figure are not part of it. Other currencies are brought to QAR
 // by what they cost in USDT: USD is worth the average price USDT is being
 // bought at (the stock's weighted average cost, only used as a price), and can
@@ -78,17 +80,21 @@ export interface NetPosition {
   warnings: Array<'usdt_unpriced' | 'egp_unpriced'>;
 }
 
-/** USDT on the exchanges now, and the movements that let an earlier balance be worked back from it. */
+/**
+ * USDT on the exchanges right now. This is the only USDT figure the position
+ * uses: movements in or out are never counted, so an earlier moment has no
+ * exchange figure unless the merchant typed one in or the month was frozen.
+ */
 export interface ExchangeUsdtInput {
   nowUSDT: number;
   byExchange?: { binance: number; okx: number };
-  /** Every recorded movement of USDT in (+) or out (−) of the exchanges. */
-  flows: Array<{ ts: number; deltaUSDT: number }>;
 }
 
 export interface NetPositionOptions {
-  /** USDT held on Binance and OKX. */
+  /** USDT held on Binance and OKX, as of now. */
   exchangeUsdt?: ExchangeUsdtInput;
+  /** The moment "now" is, for deciding whether the live exchange balance applies. Defaults to the clock. */
+  now?: number;
   /** Loans to friends and other non-customers, entered by hand. */
   personalLoans?: PersonalLoan[];
   /** QAR per 1 USD. Defaults to the average USDT buying price (WACOP). */
@@ -150,14 +156,15 @@ export function computeNetPosition(
   // ── Cash in hand, from the ledger up to asOf ──
   const ledger = (state.cashLedger || []).filter(e => e.ts <= asOf);
   for (const acc of state.cashAccounts || []) {
-    // Closed accounts are not counted (same rule as the dashboard), and only hand accounts are cash in hand.
-    if (acc.status !== 'active' || acc.type !== 'hand' || acc.currency === 'USDT') continue;
+    // Closed accounts are not counted (same rule as the dashboard). Hand accounts are cash in hand, bank accounts are money in banks.
+    if (acc.status !== 'active' || (acc.type !== 'hand' && acc.type !== 'bank') || acc.currency === 'USDT') continue;
+    const cashKey: NetPositionLineKey = acc.type === 'bank' ? 'cash_bank' : 'cash_hand';
     const balance = getAccountBalance(acc.id, ledger);
     if (!balance) continue;
     if (acc.currency === 'EGP' && !egpPerUsdt && !warnings.includes('egp_unpriced')) warnings.push('egp_unpriced');
     const qar = acc.currency === 'USD' ? balance * usdToQar : acc.currency === 'EGP' ? egpToQar(balance, egpPerUsdt) : balance;
     // An overdrawn account takes away from the line rather than forming a line of its own.
-    add('cash_hand', 'asset', qar, {
+    add(cashKey, 'asset', qar, {
       label: qar < 0 ? `${acc.name} (overdrawn)` : acc.name, amountQAR: Math.abs(qar), original: { amount: balance, unit: acc.currency },
     });
   }
@@ -165,10 +172,10 @@ export function computeNetPosition(
   // ── USDT available on the exchanges ──
   const exchange = options.exchangeUsdt;
   if (exchange) {
-    // The synced balance is today's; an earlier balance is today's less what moved in since, plus what moved out.
-    let usdt = exchange.nowUSDT;
-    for (const f of exchange.flows) if (f.ts > asOf) usdt -= f.deltaUSDT;
-    usdt = Math.max(0, usdt);
+    // Only the live balance counts. Earlier than now there is no exchange figure: USDT in and out is never
+    // used to work one back, so a past moment shows what the merchant typed or what was frozen.
+    const isNow = asOf >= (options.now ?? Date.now()) - 60_000;
+    const usdt = isNow ? Math.max(0, exchange.nowUSDT) : 0;
     if (usdt > 0 && !usdtRateQAR && !warnings.includes('usdt_unpriced')) warnings.push('usdt_unpriced');
     if (usdt > 0) {
       add('exchange_usdt', 'asset', usdt * usdtRateQAR, {
@@ -265,6 +272,7 @@ export function computeMonthPosition(
   options: NetPositionOptions = {},
   now = Date.now(),
 ): MonthPosition {
+  options = { ...options, now };
   const start = monthStart(year, month0);
   const nextStart = monthStart(year, month0 + 1);
   const open = now < nextStart;
@@ -418,7 +426,7 @@ export type { ExpenseGroup };
 // ─── Setting a position by hand ───
 
 /** Lines that are no longer part of the position; offsets saved for them earlier are ignored. */
-const NOT_COUNTED_LINES: ReadonlySet<NetPositionLineKey> = new Set<NetPositionLineKey>(['cash_bank', 'cash_vault', 'cash_custody', 'usdt_in_accounts', 'stock', 'merchant_lent', 'merchant_borrowed', 'manual_other']);
+const NOT_COUNTED_LINES: ReadonlySet<NetPositionLineKey> = new Set<NetPositionLineKey>(['cash_vault', 'cash_custody', 'usdt_in_accounts', 'stock', 'merchant_lent', 'merchant_borrowed', 'manual_other']);
 
 /** QAR to add to each line (negative takes away), in the signed form where an asset is positive and a liability negative. */
 export type LineOffsets = Partial<Record<NetPositionLineKey, number>>;
@@ -449,7 +457,9 @@ export function applyLineOffsets(position: NetPosition, offsets: LineOffsets): N
  */
 export function applyOpeningOverride(month: MonthPosition, offsets: LineOffsets): MonthPosition {
   const opening = applyLineOffsets(month.opening, offsets);
-  const closing = applyLineOffsets(month.closing, offsets);
+  // USDT on the exchanges is typed for the opening but the closing is always the live balance, never opening plus movement.
+  const { exchange_usdt: _typedExchange, ...movementOffsets } = offsets;
+  const closing = applyLineOffsets(month.closing, movementOffsets);
   const changeQAR = round2(closing.netQAR - opening.netQAR);
   return { ...month, opening, closing, changeQAR, unexplainedQAR: round2(changeQAR - month.netRevenueQAR) };
 }

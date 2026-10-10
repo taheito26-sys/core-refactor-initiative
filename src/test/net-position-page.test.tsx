@@ -56,6 +56,8 @@ describe('NetPositionPage', () => {
   });
 
   it('closes a finished month with its figures, and cannot close the month still running', async () => {
+    // October 2026 is the first tracked month; run two months later so there is a finished month after it.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 11, 15).getTime() });
     render(<NetPositionPage />);
     expect((screen.getByText('npCloseMonth', { exact: false }).closest('button') as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByLabelText('previous month'));
@@ -67,11 +69,19 @@ describe('NetPositionPage', () => {
     expect(month).toMatch(/^\d{4}-\d{2}$/);
     expect(position.closing).toBeTruthy();
     expect(typeof bridge.closingQAR).toBe('number');
+    vi.useRealTimers();
   });
 
   it('opens the month named in the reminder link', () => {
+    render(<NetPositionPage />, '/trading/net-position?month=2026-10');
+    expect(screen.getByText('october 2026')).toBeTruthy();
+  });
+
+  it('never shows a month before October 2026, even from an old link', () => {
     render(<NetPositionPage />, '/trading/net-position?month=2026-03');
-    expect(screen.getByText('march 2026')).toBeTruthy();
+    expect(screen.queryByText('march 2026')).toBeNull();
+    expect(screen.getByText('october 2026')).toBeTruthy();
+    expect((screen.getByLabelText('previous month') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('saves a starting position typed by hand as the difference from the records', async () => {

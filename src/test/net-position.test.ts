@@ -17,7 +17,7 @@ const state = (over: Partial<TrackerState> = {}) =>
 const line = (p: ReturnType<typeof computeNetPosition>, key: string) => p.lines.find(l => l.key === key)?.amountQAR ?? 0;
 
 describe('computeNetPosition', () => {
-  it('counts only cash in hand, never bank or vault accounts or USDT stock, and values USD at the average USDT buying price', () => {
+  it('counts cash in hand and money in banks, never vault accounts or USDT stock, and values USD at the average USDT buying price', () => {
     const s = state({
       cashAccounts: [acc('hand', 'hand', 'QAR'), acc('bank', 'bank', 'QAR'), acc('usd', 'hand', 'USD')] as never,
       cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('bank', D(2026, 9, 1), 'in', 5000), led('usd', D(2026, 9, 1), 'in', 100)] as never,
@@ -26,8 +26,9 @@ describe('computeNetPosition', () => {
     const p = computeNetPosition(s, D(2026, 9, 30));
     expect(line(p, 'cash_hand')).toBe(1000 + 100 * 3.6);
     expect(p.usdToQar).toBe(3.6);
-    expect(p.lines.map(l => l.key)).toEqual(['cash_hand']);
-    expect(p.netQAR).toBe(1000 + 360);
+    expect(p.lines.map(l => l.key).sort()).toEqual(['cash_bank', 'cash_hand']);
+    expect(line(p, 'cash_bank')).toBe(5000);
+    expect(p.netQAR).toBe(1000 + 360 + 5000);
     expect(computeNetPosition(s, D(2026, 9, 30), { usdToQar: 3.7 }).usdToQar).toBe(3.7);
     expect(computeNetPosition(state(), D(2026, 9, 30)).usdToQar).toBe(USD_QAR_PEG);
   });
@@ -88,14 +89,14 @@ describe('computeNetPosition', () => {
     expect(p.netQAR).toBe(0);
   });
 
-  it('counts the USDT on the exchanges at the USDT buying price, and works an earlier date back from later movements', () => {
+  it('counts only the live USDT balance on the exchanges, never USDT coming in or going out', () => {
     const s = state({ batches: [batch('b', D(2026, 9, 1), 1000, 3.6)] as never });
-    const exchangeUsdt = { nowUSDT: 800, flows: [{ ts: D(2026, 9, 20), deltaUSDT: -300 }, { ts: D(2026, 10, 2), deltaUSDT: 100 }] };
-    expect(line(computeNetPosition(s, D(2026, 10, 5), { exchangeUsdt }), 'exchange_usdt')).toBe(800 * 3.6);
-    // On 1 Oct the 100 bought on 2 Oct was not there yet.
-    expect(line(computeNetPosition(s, D(2026, 10, 1), { exchangeUsdt }), 'exchange_usdt')).toBe(700 * 3.6);
-    // Before the 300 sold on 20 Sep, it was still there.
-    expect(line(computeNetPosition(s, D(2026, 9, 10), { exchangeUsdt }), 'exchange_usdt')).toBe(1000 * 3.6);
+    const exchangeUsdt = { nowUSDT: 800 };
+    const now = D(2026, 10, 5);
+    expect(line(computeNetPosition(s, now, { exchangeUsdt, now }), 'exchange_usdt')).toBe(800 * 3.6);
+    // Any earlier moment has no exchange figure: nothing is worked back from movements.
+    expect(line(computeNetPosition(s, D(2026, 10, 1), { exchangeUsdt, now }), 'exchange_usdt')).toBe(0);
+    expect(line(computeNetPosition(s, D(2026, 9, 10), { exchangeUsdt, now }), 'exchange_usdt')).toBe(0);
   });
 
   it('counts an overdrawn account as owed, not owned', () => {
@@ -195,19 +196,21 @@ describe('what each line is made of', () => {
   });
 });
 
-describe('the position is four things', () => {
-  it('is cash in hand, USDT in exchanges, customer loans and personal loans, nothing else', () => {
+describe('the position is five things', () => {
+  it('is cash in hand, money in banks, USDT in exchanges, customer loans and personal loans, nothing else', () => {
     const s = state({
       cashAccounts: [acc('hand', 'hand', 'QAR'), acc('bank', 'bank', 'QAR')] as never,
       cashLedger: [led('hand', D(2026, 9, 1), 'in', 1000), led('bank', D(2026, 9, 1), 'in', 9000)] as never,
       batches: [batch('s', D(2026, 9, 1), 1000, 3.6)] as never,
       customerLoans: [{ id: 'l', ts: D(2026, 9, 2), customerId: 'c', principal: 2000, currency: 'QAR', status: 'open', createdAt: 0, repayments: [] }] as never,
     });
-    const p = computeNetPosition(s, D(2026, 9, 30), {
-      exchangeUsdt: { nowUSDT: 10, flows: [] },
+    const now = D(2026, 9, 30);
+    const p = computeNetPosition(s, now, {
+      now,
+      exchangeUsdt: { nowUSDT: 10 },
       personalLoans: [{ id: 'p', person: 'Friend', principal: 500, currency: 'QAR', lentAt: D(2026, 9, 5), repayments: [] }],
     });
-    expect(p.lines.map(l => l.key).sort()).toEqual(['cash_hand', 'customer_loans', 'exchange_usdt', 'personal_loans']);
-    expect(p.netQAR).toBe(1000 + 36 + 2000 + 500);
+    expect(p.lines.map(l => l.key).sort()).toEqual(['cash_bank', 'cash_hand', 'customer_loans', 'exchange_usdt', 'personal_loans']);
+    expect(p.netQAR).toBe(1000 + 9000 + 36 + 2000 + 500);
   });
 });

@@ -12,16 +12,17 @@ import {
 import { EXPENSE_CATEGORIES, isUncategorised, type ExpenseGroup } from '@/lib/trading/expense-categories';
 import { useMonthClosing, useMonthlySnapshots, useOpeningOverrideSaving, useOpeningOverrides, usePersonalLoans } from '@/features/net-position/api';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
-import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 import { PersonalLoansPanel } from '@/features/net-position/components/PersonalLoansPanel';
-import { MANUAL_LINE_KEYS, liveOffsetsFor, manualOpeningTotal, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
+import { MANUAL_LINE_KEYS, NET_POSITION_START, liveOffsetsFor, manualOpeningTotal, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 import { buildNetPositionReportHtml, exportNetPositionPdf } from '@/features/net-position/report';
 import { chainToFrozenOpening, closingDrift, previousMonthKey, snapshotRates } from '@/features/net-position/snapshots';
 import '@/styles/tracker.css';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 
 const OVERRIDES_KEY = 'net_position_rates';
+
+const keyOf = (year: number, month0: number) => `${year}-${String(month0 + 1).padStart(2, '0')}`;
+const startYm = { year: Number(NET_POSITION_START.slice(0, 4)), month: Number(NET_POSITION_START.slice(5, 7)) - 1 };
 
 const LINE_LABEL: Record<NetPositionLineKey, TranslationKey> = {
   cash_hand: 'npLineCashHand',
@@ -95,7 +96,9 @@ export default function NetPositionPage() {
   const [searchParams] = useSearchParams();
   const [ym, setYm] = useState(() => {
     const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(searchParams.get('month') || '');
-    return m ? { year: Number(m[1]), month: Number(m[2]) - 1 } : { year: now.getFullYear(), month: now.getMonth() };
+    const wanted = m ? { year: Number(m[1]), month: Number(m[2]) - 1 } : { year: now.getFullYear(), month: now.getMonth() };
+    // Nothing earlier than the first tracked month is shown.
+    return keyOf(wanted.year, wanted.month) < NET_POSITION_START ? startYm : wanted;
   });
   const [rates, setRates] = useState(readOverrides);
   useEffect(() => {
@@ -103,25 +106,14 @@ export default function NetPositionPage() {
   }, [rates]);
 
   const { loans: personalLoans, unavailable: personalLoansUnavailable } = usePersonalLoans();
-  // USDT on Binance and OKX: today's synced balance, and every recorded movement so earlier balances can be worked back from it.
+  // USDT on Binance and OKX: the live synced balance and nothing else. USDT coming in or going out is never counted.
   const { data: exchangeBalances } = useExchangeBalances();
-  const { data: exchangeOrders } = useExchangeP2POrders({ includeDismissed: true });
-  const { data: exchangeTransfers } = useExchangeTransfers();
   const exchangeUsdt = useMemo(() => {
     if (!exchangeBalances) return undefined;
     const byExchange = { binance: 0, okx: 0 };
     for (const b of exchangeBalances) if (b.asset === 'USDT') byExchange[b.exchange] += b.free + b.locked;
-    const flows: Array<{ ts: number; deltaUSDT: number }> = [];
-    for (const o of exchangeOrders ?? []) {
-      if (String(o.asset).toUpperCase() !== 'USDT' || !o.order_time) continue;
-      flows.push({ ts: new Date(o.order_time).getTime(), deltaUSDT: o.side === 'sell' ? -Number(o.amount) : Number(o.amount) });
-    }
-    for (const tr of exchangeTransfers ?? []) {
-      if (String(tr.asset).toUpperCase() !== 'USDT' || !tr.transfer_time) continue;
-      flows.push({ ts: new Date(tr.transfer_time).getTime(), deltaUSDT: tr.direction === 'out' ? -Number(tr.amount) : Number(tr.amount) });
-    }
-    return { nowUSDT: byExchange.binance + byExchange.okx, byExchange, flows };
-  }, [exchangeBalances, exchangeOrders, exchangeTransfers]);
+    return { nowUSDT: byExchange.binance + byExchange.okx, byExchange };
+  }, [exchangeBalances]);
   const options = useMemo(() => ({
     usdToQar: Number(rates.usd) > 0 ? Number(rates.usd) : undefined,
     egpPerUsdt: Number(rates.egp) > 0 ? Number(rates.egp) : undefined,
@@ -137,8 +129,9 @@ export default function NetPositionPage() {
   // measured against today's records for that month, so the figures typed stay exactly as typed.
   const anchorKey = useMemo(() => {
     let best: string | null = null;
-    for (const o of overrides.values()) if (o.month <= recorded.key && (!best || o.month > best)) best = o.month;
-    return best;
+    for (const o of overrides.values()) if (o.month <= recorded.key && o.month >= NET_POSITION_START && (!best || o.month > best)) best = o.month;
+    // With nothing typed, the first tracked month is the anchor and opens at zero.
+    return best ?? (recorded.key >= NET_POSITION_START ? NET_POSITION_START : null);
   }, [overrides, recorded.key]);
   const anchorOpening = useMemo(() => {
     if (!anchorKey || anchorKey === recorded.key) return recorded.opening;
@@ -204,12 +197,14 @@ export default function NetPositionPage() {
     setEditingOpening(true);
   };
   /** What a line would close the month at if the starting figure typed for it were used: the month's own movement is added on top. */
-  const closingPreview = (key: NetPositionLineKey) =>
-    Math.round((recordedLineValue(recorded.closing, key) + ((Number(draft[key]) || 0) - recordedLineValue(recorded.opening, key))) * 100) / 100;
+  const closingPreview = (key: NetPositionLineKey) => key === 'exchange_usdt'
+    ? recordedLineValue(recorded.closing, key)
+    : Math.round((recordedLineValue(recorded.closing, key) + ((Number(draft[key]) || 0) - recordedLineValue(recorded.opening, key))) * 100) / 100;
   /** The figure typed is today's balance although the line has moved since the first day: the month's movement would be counted twice. */
   const looksLikeToday = (key: NetPositionLineKey) => {
     const typed = Number(draft[key]);
-    if (!draft[key] || !Number.isFinite(typed)) return false;
+    // The exchange line is the live balance, so typing today's figure there is never a double count.
+    if (key === 'exchange_usdt' || !draft[key] || !Number.isFinite(typed)) return false;
     const today = recordedLineValue(todayPos, key);
     return Math.abs(typed - today) < 1 && Math.abs(today - recordedLineValue(recorded.opening, key)) >= 1;
   };
@@ -274,8 +269,10 @@ export default function NetPositionPage() {
   const isCurrent = ym.year === now.getFullYear() && ym.month === now.getMonth();
   const shift = (delta: number) => setYm(prev => {
     const d = new Date(prev.year, prev.month + delta, 1);
+    if (keyOf(d.getFullYear(), d.getMonth()) < NET_POSITION_START) return prev;
     return { year: d.getFullYear(), month: d.getMonth() };
   });
+  const atStart = keyOf(ym.year, ym.month) <= NET_POSITION_START;
 
   const money = (n: number, signed = false) => `${signed && n > 0 ? '+' : ''}${fmtTotal(n)}`;
   const signColor = (n: number) => (n > 0.005 ? 'var(--good)' : n < -0.005 ? 'var(--bad)' : 'var(--muted)');
@@ -340,7 +337,7 @@ export default function NetPositionPage() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-        <button type="button" className="rowBtn" onClick={() => shift(-1)} aria-label="previous month">‹</button>
+        <button type="button" className="rowBtn" onClick={() => shift(-1)} disabled={atStart} aria-label="previous month">‹</button>
         <div style={{ textAlign: 'center', minWidth: 150 }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>{monthLabel}</div>
           {month.open && <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('npInProgress')}</div>}
@@ -411,6 +408,7 @@ export default function NetPositionPage() {
               ))}
             </div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npTodayCaution')}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npExchangeNote')}</div>
             {anyLooksLikeToday && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npLooksTodayWarn')}</div>}
             {previewBelowZero && <div role="alert" style={{ fontSize: 11, color: 'var(--bad)' }}>⚠ {t('npNegativeWarn')}</div>}
             <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}

@@ -18,9 +18,16 @@ export interface OpeningOverride {
   updatedAt: string;
 }
 
+/**
+ * The first month the page tracks. Earlier months are ignored, and this month
+ * opens at exactly what the merchant types (zero for every line until then),
+ * never at what older records add up to.
+ */
+export const NET_POSITION_START = '2026-10';
+
 /** Lines the merchant can state, in the order the form shows them. */
 export const MANUAL_LINE_KEYS: NetPositionLineKey[] = [
-  'cash_hand', 'exchange_usdt', 'customer_loans', 'personal_loans',
+  'cash_hand', 'cash_bank', 'exchange_usdt', 'customer_loans', 'personal_loans',
 ];
 
 /** What the records say a line was at the start of the month. */
@@ -78,11 +85,17 @@ export function liveOffsetsFor(
   month: string,
   recordedOpeningOf: (anchorMonth: string) => Pick<NetPosition, 'lines'>,
 ): { offsets: LineOffsets; from: string } | null {
+  if (month < NET_POSITION_START) return null;
   let best: OpeningOverride | null = null;
   for (const o of overrides.values()) {
-    if (o.month <= month && (!best || o.month > best.month)) best = o;
+    if (o.month <= month && o.month >= NET_POSITION_START && (!best || o.month > best.month)) best = o;
   }
-  if (!best) return null;
-  const offsets = offsetsFromManual(recordedOpeningOf(best.month), best.manual);
-  return Object.keys(offsets).length > 0 ? { offsets, from: best.month } : null;
+  // No opening typed yet: the first month starts from zero in every line.
+  const anchor: OpeningOverride = best ?? {
+    month: NET_POSITION_START, manual: Object.fromEntries(MANUAL_LINE_KEYS.map(k => [k, 0])), offsets: {}, updatedAt: '',
+  };
+  const offsets = offsetsFromManual(recordedOpeningOf(anchor.month), anchor.manual);
+  // USDT on the exchanges is typed for the month it was set for only; later months open from the frozen closing.
+  if (anchor.month !== month) delete offsets.exchange_usdt;
+  return Object.keys(offsets).length > 0 ? { offsets, from: anchor.month } : null;
 }

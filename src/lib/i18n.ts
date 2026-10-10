@@ -870,6 +870,7 @@ const translations = {
   npColToday: { en: 'Today', ar: 'اليوم' },
   npUseTodayAll: { en: 'Use today\'s figure for every line', ar: 'استخدم رقم اليوم لكل البنود' },
   npColClosingWould: { en: 'Closing would be', ar: 'سيُغلق على' },
+  npExchangeNote: { en: 'USDT on exchanges is only the balance on Binance and OKX right now. USDT coming in or going out is never counted. Freeze a month at its end to keep its closing figure.', ar: 'الـ USDT على المنصات هو الرصيد الحالي فقط في Binance وOKX. لا يُحتسب أي USDT داخل أو خارج. جمّد الشهر في نهايته للاحتفاظ برقم إغلاقه.' },
   npTodayCaution: { en: 'Today is the balance right now. A starting figure must be the balance on the first day of the month, because the month\'s own movements are added on top of it. Using today\'s figure counts this month\'s movements twice.', ar: '«اليوم» هو الرصيد الآن. الرقم الافتتاحي يجب أن يكون رصيد أول يوم في الشهر، لأن حركات الشهر تُضاف فوقه. استخدام رقم اليوم يحسب حركات هذا الشهر مرتين.' },
   npNegativeWarn: { en: 'A line would end the month below zero. The figure you entered is probably not the balance on the first day. Check the Closing would be column, or go back to the records.', ar: 'سينتهي أحد البنود الشهر بقيمة أقل من صفر. على الأرجح الرقم المُدخل ليس رصيد أول يوم. راجع عمود «سيُغلق على» أو ارجع إلى السجلات.' },
   npMadeOfOpening: { en: 'What it is made of at the start of the month', ar: 'مم يتكوّن في بداية الشهر' },

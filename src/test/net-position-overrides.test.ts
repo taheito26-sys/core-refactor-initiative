@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyLineOffsets, applyOpeningOverride, type MonthPosition, type NetPosition } from '@/lib/trading/net-position';
-import { liveOffsetsFor, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
+import { MANUAL_LINE_KEYS, NET_POSITION_START, liveOffsetsFor, manualOpeningTotal, offsetsFor, offsetsFromManual, recordedLineValue, type OpeningOverride } from '@/features/net-position/overrides';
 
 const pos = (lines: Array<{ key: string; side: 'asset' | 'liability'; amountQAR: number }>): NetPosition => {
   const assets = lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amountQAR, 0);
@@ -106,5 +106,52 @@ describe('a position typed by hand stays as typed', () => {
 
   it('does not apply to an earlier month', () => {
     expect(liveOffsetsFor(overrides, '2026-09', () => pos([]))).toBeNull();
+  });
+});
+
+describe('a fresh start from October 2026', () => {
+  const records = pos([
+    { key: 'cash_hand', side: 'asset', amountQAR: 8000 },
+    { key: 'cash_bank', side: 'asset', amountQAR: 3000 },
+    { key: 'customer_loans', side: 'asset', amountQAR: 500 },
+  ]);
+
+  it('starts at the month October 2026 and counts money in banks as a line to type', () => {
+    expect(NET_POSITION_START).toBe('2026-10');
+    expect(MANUAL_LINE_KEYS).toContain('cash_bank');
+    expect(MANUAL_LINE_KEYS).toContain('exchange_usdt');
+  });
+
+  it('opens at zero in every line when nothing has been typed, whatever the older records say', () => {
+    const live = liveOffsetsFor(new Map(), '2026-10', () => records)!;
+    const opening = applyLineOffsets(records, live.offsets);
+    expect(opening.netQAR).toBe(0);
+    expect(live.from).toBe('2026-10');
+  });
+
+  it('ignores every month before October 2026', () => {
+    expect(liveOffsetsFor(new Map(), '2026-09', () => records)).toBeNull();
+    const sept: OpeningOverride = { month: '2026-09', manual: { cash_hand: 999 }, offsets: {}, updatedAt: '' };
+    expect(liveOffsetsFor(new Map([[sept.month, sept]]), '2026-10', () => records)?.from).toBe('2026-10');
+  });
+
+  it('keeps the exchange figure out of the closing: opening is typed, closing is the live balance', () => {
+    const month = {
+      opening: pos([]),
+      closing: pos([{ key: 'exchange_usdt', side: 'asset', amountQAR: 5000 }, { key: 'cash_hand', side: 'asset', amountQAR: 700 }]),
+      netRevenueQAR: 0, changeQAR: 0, unexplainedQAR: 0,
+    } as unknown as MonthPosition;
+    const m = applyOpeningOverride(month, { exchange_usdt: 4000, cash_hand: 1000 });
+    expect(m.opening.netQAR).toBe(5000);
+    // Closing: live exchange balance 5,000 (not 9,000) plus cash 700 + the typed 1,000.
+    expect(m.closing.lines.find(l => l.key === 'exchange_usdt')?.amountQAR).toBe(5000);
+    expect(m.closing.netQAR).toBe(5000 + 1700);
+  });
+
+  it('carries only the cash and loan adjustments into later months', () => {
+    const oct: OpeningOverride = { month: '2026-10', manual: { cash_hand: 1000, exchange_usdt: 4000 }, offsets: {}, updatedAt: '' };
+    const nov = liveOffsetsFor(new Map([[oct.month, oct]]), '2026-11', () => pos([]))!;
+    expect(nov.offsets.exchange_usdt).toBeUndefined();
+    expect(nov.offsets.cash_hand).toBe(1000);
   });
 });
