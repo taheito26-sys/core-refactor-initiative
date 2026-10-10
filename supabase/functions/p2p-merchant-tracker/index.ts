@@ -123,21 +123,36 @@ function matchMerchant(entries: AdEntry[], query: string, advNos: string[]): { e
 const isBinanceHost = (host: string) => /(^|\.)(binance\.(com|me|info|cc)|bnbstatic\.com)$/i.test(host);
 
 /**
- * Finds a merchant id in a pasted link. The profile link carries it directly;
- * the app's short share links redirect to a page that does.
+ * Finds a merchant id in a pasted link. A profile link carries it directly.
+ * The app's share links (binance.com/en/qr/...) sit behind bot protection that
+ * blocks ordinary clients, but answer a link-preview crawler with a plain
+ * redirect to the profile page, which names the merchant. Redirects are
+ * followed one hop at a time and only within Binance's own hosts.
  */
 async function merchantIdFromLink(link: string): Promise<string | null> {
   const direct = link.match(USER_NO)?.[0];
   if (direct) return direct;
-  let url: URL;
-  try { url = new URL(link); } catch { return null; }
-  if (url.protocol !== "https:" || !isBinanceHost(url.hostname)) return null;
-  const res = await fetch(url.toString(), { redirect: "follow", headers: { Accept: "text/html" } }).catch(() => null);
-  if (!res) return null;
-  const fromUrl = decodeURIComponent(res.url).match(USER_NO)?.[0];
-  if (fromUrl) return fromUrl;
-  const text = (await res.text().catch(() => "")).slice(0, 300_000);
-  return decodeURIComponent(text).match(USER_NO)?.[0] ?? null;
+  let current = link;
+  for (let hop = 0; hop < 5; hop++) {
+    let url: URL;
+    try { url = new URL(current); } catch { return null; }
+    if (url.protocol !== "https:" || !isBinanceHost(url.hostname)) return null;
+    const res = await fetch(url.toString(), {
+      redirect: "manual",
+      headers: { "User-Agent": "WhatsApp/2.23.20.0 A", Accept: "text/html,*/*" },
+    }).catch(() => null);
+    if (!res) return null;
+    const location = res.headers.get("location");
+    if (location) {
+      const id = decodeURIComponent(location).match(USER_NO)?.[0];
+      if (id) return id;
+      current = new URL(location, url).toString();
+      continue;
+    }
+    const text = (await res.text().catch(() => "")).slice(0, 300_000);
+    return decodeURIComponent(text).match(USER_NO)?.[0] ?? null;
+  }
+  return null;
 }
 
 /** Escapes a value for ilike so "_" and "%" in a nickname match themselves. */
