@@ -3,16 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { groupSnapshots, onlineState, type DailyRow, type MerchantSnapshot, type WatchedMerchant } from './merchant-watch';
+import { groupSnapshots, onlineState, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
 
 export interface MerchantChoice { userNo: string; nick: string; monthOrders: number | null }
 
 const LIST_KEY = ['p2p-watch-list'];
 const SNAPS_KEY = ['p2p-watch-snapshots'];
 const DAILY_KEY = ['p2p-watch-daily'];
+const EVENTS_KEY = ['p2p-watch-events'];
 /** How often the page asks Binance for a fresh reading while it is open. */
 const LIVE_REFRESH_MS = 30_000;
-const HISTORY_DAYS = 8;
+/** Raw readings are only needed for the latest state; orders and their times come from the event records. */
+const HISTORY_HOURS = 3;
 const PAGE = 1000;
 
 // The generated types predate these tables (20261009200000).
@@ -20,7 +22,7 @@ const PAGE = 1000;
 const table = (name: string) => supabase.from(name as any);
 
 async function fetchSnapshots(): Promise<MerchantSnapshot[]> {
-  const since = new Date(Date.now() - HISTORY_DAYS * 86400_000).toISOString();
+  const since = new Date(Date.now() - HISTORY_HOURS * 3600_000).toISOString();
   const all: MerchantSnapshot[] = [];
   // The API returns at most 1000 rows per request, and a merchant polled every 5 minutes has ~2300 in 8 days.
   for (let from = 0; from < 20 * PAGE; from += PAGE) {
@@ -92,6 +94,31 @@ export function useMerchantWatch() {
       return (data ?? []) as unknown as DailyRow[];
     },
   });
+  // Every increase in a merchant's order total, with the time it was noticed.
+  const events = useQuery({
+    queryKey: EVENTS_KEY,
+    enabled: !!user?.id && hasIdentified,
+    staleTime: 60_000,
+    queryFn: async (): Promise<OrderEvent[]> => {
+      const since = new Date(Date.now() - 62 * 86400_000).toISOString();
+      const all: OrderEvent[] = [];
+      for (let from = 0; from < 10 * PAGE; from += PAGE) {
+        const { data, error } = await table('p2p_merchant_order_events').select('*').gte('detected_at', since)
+          .order('detected_at', { ascending: true }).range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = (data ?? []) as unknown as OrderEvent[];
+        all.push(...rows);
+        if (rows.length < PAGE) break;
+      }
+      return all;
+    },
+  });
+  const eventsByMerchant = useMemo(() => {
+    const by = new Map<string, OrderEvent[]>();
+    for (const e of events.data ?? []) by.set(e.user_no, [...(by.get(e.user_no) ?? []), e]);
+    return by;
+  }, [events.data]);
+
   const dailyByMerchant = useMemo(() => {
     const by = new Map<string, DailyRow[]>();
     for (const r of daily.data ?? []) by.set(r.user_no, [...(by.get(r.user_no) ?? []), r]);
@@ -106,6 +133,10 @@ export function useMerchantWatch() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'p2p_merchant_snapshots' }, (payload) => {
         const row = payload.new as MerchantSnapshot;
         qc.setQueryData<MerchantSnapshot[]>(SNAPS_KEY, (old) => (old ? [...old, row] : [row]));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'p2p_merchant_order_events' }, (payload) => {
+        const row = payload.new as OrderEvent;
+        qc.setQueryData<OrderEvent[]>(EVENTS_KEY, (old) => (old ? [...old, row] : [row]));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'p2p_merchant_daily' }, (payload) => {
         const row = payload.new as DailyRow;
@@ -247,5 +278,5 @@ export function useMerchantWatch() {
     onError: () => toast.error('Could not remove this merchant'),
   });
 
-  return { watched, byMerchant, dailyByMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
+  return { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
 }

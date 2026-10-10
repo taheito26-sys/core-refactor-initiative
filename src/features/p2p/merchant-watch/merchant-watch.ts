@@ -136,6 +136,35 @@ export function extractMerchantId(text: string): string | null {
   return text.match(/\bs[0-9a-f]{32}\b/i)?.[0] ?? null;
 }
 
+/** One increase in a merchant's completed-order total, as the poller recorded it. */
+export interface OrderEvent {
+  id: number;
+  user_no: string;
+  /** When the increase was noticed. */
+  detected_at: string;
+  /** The reading before it; the orders were completed between this moment and detected_at. */
+  prev_read_at: string;
+  orders: number;
+  sells: number | null;
+  total_after: number;
+}
+
+/** A moment as HH:MM:SS in Qatar time (24 hour), the clock the daily register uses. */
+export function qatarClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Qatar', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+/** Events grouped by Qatar day, each day newest first. */
+export function eventsByDay(events: OrderEvent[]): Map<string, OrderEvent[]> {
+  const by = new Map<string, OrderEvent[]>();
+  for (const e of events) {
+    const day = qatarDayKey(new Date(e.detected_at).getTime());
+    by.set(day, [...(by.get(day) ?? []), e]);
+  }
+  for (const list of by.values()) list.sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime());
+  return by;
+}
+
 /** One merchant-day of the register the poller keeps (Qatar days). */
 export interface DailyRow {
   user_no: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agoLabel, dailyRegister, extractMerchantId, groupSnapshots, onlineState, ordersPerDay, qatarDayKey, type DailyRow, type MerchantSnapshot } from '@/features/p2p/merchant-watch/merchant-watch';
+import { agoLabel, dailyRegister, eventsByDay, qatarClock, extractMerchantId, groupSnapshots, onlineState, ordersPerDay, qatarDayKey, type DailyRow, type MerchantSnapshot, type OrderEvent } from '@/features/p2p/merchant-watch/merchant-watch';
 
 const snap = (at: Date, total: number, over: Partial<MerchantSnapshot> = {}): MerchantSnapshot => ({
   user_no: 's1', ts: at.toISOString(), online: true, active_seconds: 10, last_active_at: at.toISOString(),
@@ -95,5 +95,25 @@ describe('dailyRegister', () => {
   it('uses the Qatar day, three hours ahead of UTC', () => {
     expect(qatarDayKey(Date.UTC(2026, 9, 9, 21, 30))).toBe('2026-10-10');
     expect(qatarDayKey(Date.UTC(2026, 9, 9, 20, 30))).toBe('2026-10-09');
+  });
+});
+
+describe('order events', () => {
+  const ev = (id: number, detected: string, prev: string, orders = 1): OrderEvent => ({ id, user_no: 's1', detected_at: detected, prev_read_at: prev, orders, sells: orders, total_after: 100 + id });
+
+  it('shows the exact second in Qatar time', () => {
+    expect(qatarClock('2026-10-10T11:06:02Z')).toBe('14:06:02');
+    expect(qatarClock('2026-10-09T21:00:00Z')).toBe('00:00:00');
+  });
+
+  it('groups events by Qatar day, newest first', () => {
+    const by = eventsByDay([
+      ev(1, '2026-10-10T08:00:10Z', '2026-10-10T07:59:10Z'),
+      ev(2, '2026-10-10T09:30:05Z', '2026-10-10T09:29:05Z'),
+      ev(3, '2026-10-09T20:59:59Z', '2026-10-09T20:58:59Z'),
+      ev(4, '2026-10-09T21:00:30Z', '2026-10-09T20:59:30Z'),
+    ]);
+    expect(by.get('2026-10-10')?.map(e => e.id)).toEqual([2, 1, 4]);
+    expect(by.get('2026-10-09')?.map(e => e.id)).toEqual([3]);
   });
 });

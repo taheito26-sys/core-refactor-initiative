@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { agoLabel, dailyRegister, onlineState, type DailyRow, type MerchantSnapshot, type WatchedMerchant } from './merchant-watch';
+import { agoLabel, dailyRegister, eventsByDay, onlineState, qatarClock, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
 import { useMerchantWatch } from './useMerchantWatch';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('en-US'));
@@ -77,8 +77,8 @@ function WaitingTile({ merchant, lang, busy, onIdentify, onRemove }: {
   );
 }
 
-function MerchantTile({ merchant, snaps, daily, lang, onRemove }: {
-  merchant: WatchedMerchant; snaps: MerchantSnapshot[]; daily: DailyRow[]; lang: 'en' | 'ar'; onRemove: () => void;
+function MerchantTile({ merchant, snaps, daily, events, lang, onRemove }: {
+  merchant: WatchedMerchant; snaps: MerchantSnapshot[]; daily: DailyRow[]; events: OrderEvent[]; lang: 'en' | 'ar'; onRemove: () => void;
 }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const [logOpen, setLogOpen] = useState(false);
@@ -94,6 +94,7 @@ function MerchantTile({ merchant, snaps, daily, lang, onRemove }: {
   const todaySold = register[0]?.sold ?? null;
   const since = daily.length > 0 ? daily[0] : undefined;
   const totalAdded = register.reduce((sum, d) => sum + d.orders, 0);
+  const eventsOfDay = eventsByDay(events);
 
   return (
     <div className={cn('rounded-xl border p-3 space-y-2.5', state.online ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-border/50 bg-card')}>
@@ -147,8 +148,8 @@ function MerchantTile({ merchant, snaps, daily, lang, onRemove }: {
         <div className="space-y-1.5">
           {since?.baseline_total != null && (
             <p className="text-[10px] text-muted-foreground">
-              {L(`Tracking since ${new Date(merchant.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, from ${fmt(since.baseline_total)} orders. Days are Qatar days.`,
-                `التتبّع منذ ${new Date(merchant.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}، من ${fmt(since.baseline_total)} طلب. الأيام بتوقيت قطر.`)}
+              {L(`Tracking since ${new Date(merchant.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, from ${fmt(since.baseline_total)} orders. Times are Qatar time (UTC+3).`,
+                `التتبّع منذ ${new Date(merchant.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}، من ${fmt(since.baseline_total)} طلب. الأوقات بتوقيت قطر (UTC+3).`)}
             </p>
           )}
           <div className="overflow-hidden rounded-md border border-border/40">
@@ -156,11 +157,23 @@ function MerchantTile({ merchant, snaps, daily, lang, onRemove }: {
               <span>{L('Day', 'اليوم')}</span><span className="text-end">{L('Orders', 'الطلبات')}</span><span className="text-end">{L('Sold', 'باع')}</span><span className="text-end">{L('Total', 'الإجمالي')}</span>
             </div>
             {register.map(d => (
-              <div key={d.day} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 border-t border-border/30 px-2 py-1 text-[11px] tabular-nums">
-                <span>{dayLabel(d.day, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                <span className={cn('text-end font-mono font-bold', d.orders > 0 && 'text-primary')}>+{d.orders}</span>
-                <span className="text-end font-mono text-muted-foreground">+{d.sold}</span>
-                <span className="text-end font-mono text-muted-foreground">{fmt(d.endTotal)}</span>
+              <div key={d.day} className="border-t border-border/30">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 bg-muted/20 px-2 py-1 text-[11px] font-semibold tabular-nums">
+                  <span>{dayLabel(d.day, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                  <span className={cn('text-end font-mono font-bold', d.orders > 0 && 'text-primary')}>+{d.orders}</span>
+                  <span className="text-end font-mono text-muted-foreground">+{d.sold}</span>
+                  <span className="text-end font-mono text-muted-foreground">{fmt(d.endTotal)}</span>
+                </div>
+                {(eventsOfDay.get(d.day) ?? []).map(e => (
+                  <div key={e.id} className="flex items-baseline justify-between gap-2 px-2 py-0.5 text-[10.5px] tabular-nums">
+                    <span className="font-mono font-bold" dir="ltr">{qatarClock(e.detected_at)}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground" dir="ltr">
+                      {`${L('after', 'بعد')} ${qatarClock(e.prev_read_at)}`}
+                    </span>
+                    <span className="font-mono font-semibold text-primary">+{e.orders}{e.sells ? ` (${L('sold', 'باع')} ${e.sells})` : ''}</span>
+                    <span className="font-mono text-muted-foreground">{fmt(e.total_after)}</span>
+                  </div>
+                ))}
               </div>
             ))}
             {register.length === 0 && <div className="px-2 py-2 text-[11px] text-muted-foreground">{L('Waiting for the first reading…', 'بانتظار أول قراءة…')}</div>}
@@ -180,7 +193,7 @@ export function MerchantWatchCard() {
   const t = useT();
   const lang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const { watched, byMerchant, dailyByMerchant, loading, unavailable, add, identify, remove, refresh } = useMerchantWatch();
+  const { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading, unavailable, add, identify, remove, refresh } = useMerchantWatch();
   const { data: orders } = useExchangeP2POrders({ includeDismissed: true });
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
@@ -287,7 +300,7 @@ export function MerchantWatchCard() {
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {watched.map(m => (m.user_no
-            ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} daily={dailyByMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
+            ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} daily={dailyByMerchant.get(m.user_no) ?? []} events={eventsByMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
             : <WaitingTile key={m.id} merchant={m} lang={lang} busy={identify.isPending && identify.variables?.id === m.id}
                 onIdentify={link => identify.mutate({ id: m.id, link })} onRemove={() => remove.mutate(m.id)} />))}
         </div>

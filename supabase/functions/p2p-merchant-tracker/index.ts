@@ -13,7 +13,7 @@ const ONLINE_WITHIN_SECONDS = 180;
 /** A merchant polled more recently than this is not asked about again. */
 const USER_THROTTLE_MS = 20_000;
 const CRON_THROTTLE_MS = 45_000;
-const KEEP_DAYS = 60;
+const KEEP_DAYS = 14;
 /** When each user's waiting merchants were last looked for (per function instance, best effort). */
 const lastPendingScan = new Map<string, number>();
 
@@ -175,10 +175,10 @@ Deno.serve(async (req: Request) => {
     const { data: userData } = bearer ? await supabase.auth.getUser(bearer) : { data: { user: null } };
     const userId = userData?.user?.id ?? null;
 
-    const latestTs = async (userNo: string): Promise<number> => {
-      const { data } = await supabase.from("p2p_merchant_snapshots").select("ts").eq("user_no", userNo)
+    const latestSnapshot = async (userNo: string) => {
+      const { data } = await supabase.from("p2p_merchant_snapshots").select("ts, total_orders, sell_orders").eq("user_no", userNo)
         .order("ts", { ascending: false }).limit(1).maybeSingle();
-      return data?.ts ? new Date(data.ts).getTime() : 0;
+      return data as { ts: string; total_orders: number | null; sell_orders: number | null } | null;
     };
 
     /**
@@ -325,13 +325,22 @@ Deno.serve(async (req: Request) => {
       const polled: string[] = [];
       const failed: string[] = [];
       await Promise.all(userNos.map(async (userNo) => {
-        if (Date.now() - (await latestTs(userNo)) < throttleMs) return;
+        const previous = await latestSnapshot(userNo);
+        if (previous && Date.now() - new Date(previous.ts).getTime() < throttleMs) return;
         const profile = await fetchProfile(userNo).catch(() => null);
         if (!profile) { failed.push(userNo); return; }
         const snap = toSnapshot(userNo, profile);
         const { error } = await supabase.from("p2p_merchant_snapshots").insert(snap);
         if (error) { failed.push(userNo); return; }
         await recordDaily(snap).catch((err) => console.warn("recordDaily failed", err));
+        // Orders added since the reading before: one event, timed by when it was noticed and the window it fell in.
+        if (previous && previous.total_orders !== null && snap.total_orders !== null && snap.total_orders > previous.total_orders) {
+          const sells = snap.sell_orders !== null && previous.sell_orders !== null ? Math.max(0, snap.sell_orders - previous.sell_orders) : null;
+          await supabase.from("p2p_merchant_order_events").insert({
+            user_no: userNo, detected_at: new Date().toISOString(), prev_read_at: previous.ts,
+            orders: snap.total_orders - previous.total_orders, sells, total_after: snap.total_orders,
+          });
+        }
         polled.push(userNo);
       }));
       return { polled: polled.length, failed: failed.length };
@@ -401,12 +410,17 @@ Deno.serve(async (req: Request) => {
     // ── Everyone's watchlist, on the schedule ──
     if (action === "poll-all") {
       // One scan of the listed ads keeps the directory current and lets waiting merchants be identified.
-      await scanAds(fiatList([])).then(learn).catch((err) => console.warn("directory scan failed", err));
+      // The directory scan is dozens of requests, so it runs on every fifth minute; merchant readings run every minute.
+      if (body.scan === true || new Date().getUTCMinutes() % 5 === 0) {
+        await scanAds(fiatList([])).then(learn).catch((err) => console.warn("directory scan failed", err));
+      }
       await resolvePending().catch((err) => console.warn("resolvePending failed", err));
       const { data: rows } = await supabase.from("p2p_watched_merchants").select("user_no").not("user_no", "is", null);
       const result = await pollMany([...new Set((rows ?? []).map((r: Any) => r.user_no as string))], CRON_THROTTLE_MS);
       await supabase.from("p2p_merchant_snapshots").delete()
         .lt("ts", new Date(Date.now() - KEEP_DAYS * 86400_000).toISOString());
+      await supabase.from("p2p_merchant_order_events").delete()
+        .lt("detected_at", new Date(Date.now() - 400 * 86400_000).toISOString());
       await supabase.from("p2p_merchant_ads").delete()
         .lt("last_seen", new Date(Date.now() - 365 * 86400_000).toISOString());
       return json({ ok: true, ...result, at: new Date().toISOString() });
