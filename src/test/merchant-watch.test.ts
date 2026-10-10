@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agoLabel, extractMerchantId, groupSnapshots, onlineState, ordersPerDay, type MerchantSnapshot } from '@/features/p2p/merchant-watch/merchant-watch';
+import { agoLabel, dailyRegister, extractMerchantId, groupSnapshots, onlineState, ordersPerDay, qatarDayKey, type DailyRow, type MerchantSnapshot } from '@/features/p2p/merchant-watch/merchant-watch';
 
 const snap = (at: Date, total: number, over: Partial<MerchantSnapshot> = {}): MerchantSnapshot => ({
   user_no: 's1', ts: at.toISOString(), online: true, active_seconds: 10, last_active_at: at.toISOString(),
@@ -67,5 +67,33 @@ describe('helpers', () => {
     const g = groupSnapshots([snap(at(9, 12), 2), snap(at(9, 10), 1), { ...snap(at(9, 11), 5), user_no: 's2' }]);
     expect(g.get('s1')?.map(s => s.total_orders)).toEqual([1, 2]);
     expect(g.get('s2')).toHaveLength(1);
+  });
+});
+
+describe('dailyRegister', () => {
+  const row = (day: string, baseline: number, last: number, bSell = 0, lSell = 0): DailyRow => ({
+    user_no: 's1', day, baseline_total: baseline, last_total: last, baseline_sell: bSell, last_sell: lSell, readings: 5, online_readings: 2,
+  });
+  const now = Date.UTC(2026, 9, 10, 12, 0);
+
+  it('lists orders per day since following, newest first', () => {
+    const reg = dailyRegister([row('2026-10-08', 100, 110, 0, 8), row('2026-10-09', 110, 125, 8, 10), row('2026-10-10', 125, 128, 10, 10)], { now });
+    expect(reg.map(d => [d.day, d.orders, d.sold])).toEqual([['2026-10-10', 3, 0], ['2026-10-09', 15, 2], ['2026-10-08', 10, 8]]);
+    expect(reg[0].endTotal).toBe(128);
+  });
+
+  it('counts a tracked day with no reading as zero and stops before tracking began', () => {
+    const reg = dailyRegister([row('2026-10-08', 100, 110), row('2026-10-10', 110, 112)], { now });
+    expect(reg.map(d => d.orders)).toEqual([2, 0, 10]);
+  });
+
+  it('starts at the day the merchant was followed', () => {
+    const reg = dailyRegister([row('2026-10-08', 100, 110), row('2026-10-09', 110, 120), row('2026-10-10', 120, 121)], { now, since: Date.UTC(2026, 9, 9, 8, 0) });
+    expect(reg.map(d => d.day)).toEqual(['2026-10-10', '2026-10-09']);
+  });
+
+  it('uses the Qatar day, three hours ahead of UTC', () => {
+    expect(qatarDayKey(Date.UTC(2026, 9, 9, 21, 30))).toBe('2026-10-10');
+    expect(qatarDayKey(Date.UTC(2026, 9, 9, 20, 30))).toBe('2026-10-09');
   });
 });

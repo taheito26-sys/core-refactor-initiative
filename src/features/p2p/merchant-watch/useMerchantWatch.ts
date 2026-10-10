@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { groupSnapshots, onlineState, type MerchantSnapshot, type WatchedMerchant } from './merchant-watch';
+import { groupSnapshots, onlineState, type DailyRow, type MerchantSnapshot, type WatchedMerchant } from './merchant-watch';
 
 export interface MerchantChoice { userNo: string; nick: string; monthOrders: number | null }
 
 const LIST_KEY = ['p2p-watch-list'];
 const SNAPS_KEY = ['p2p-watch-snapshots'];
+const DAILY_KEY = ['p2p-watch-daily'];
 /** How often the page asks Binance for a fresh reading while it is open. */
 const LIVE_REFRESH_MS = 30_000;
 const HISTORY_DAYS = 8;
@@ -79,6 +80,24 @@ export function useMerchantWatch() {
 
   const byMerchant = useMemo(() => groupSnapshots(snapshots.data ?? []), [snapshots.data]);
 
+  // The per-day register of orders, kept by the poller.
+  const daily = useQuery({
+    queryKey: DAILY_KEY,
+    enabled: !!user?.id && hasIdentified,
+    staleTime: 60_000,
+    queryFn: async (): Promise<DailyRow[]> => {
+      const since = new Date(Date.now() - 62 * 86400_000).toISOString().slice(0, 10);
+      const { data, error } = await table('p2p_merchant_daily').select('*').gte('day', since).order('day', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as unknown as DailyRow[];
+    },
+  });
+  const dailyByMerchant = useMemo(() => {
+    const by = new Map<string, DailyRow[]>();
+    for (const r of daily.data ?? []) by.set(r.user_no, [...(by.get(r.user_no) ?? []), r]);
+    return by;
+  }, [daily.data]);
+
   // Readings the poller writes arrive here as they happen.
   useEffect(() => {
     if (!user?.id) return;
@@ -87,6 +106,14 @@ export function useMerchantWatch() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'p2p_merchant_snapshots' }, (payload) => {
         const row = payload.new as MerchantSnapshot;
         qc.setQueryData<MerchantSnapshot[]>(SNAPS_KEY, (old) => (old ? [...old, row] : [row]));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'p2p_merchant_daily' }, (payload) => {
+        const row = payload.new as DailyRow;
+        if (!row?.user_no) return;
+        qc.setQueryData<DailyRow[]>(DAILY_KEY, (old) => {
+          const rest = (old ?? []).filter(r => !(r.user_no === row.user_no && r.day === row.day));
+          return [...rest, row].sort((a, b) => a.day.localeCompare(b.day));
+        });
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
@@ -116,6 +143,27 @@ export function useMerchantWatch() {
     if (!prev) return;
     for (const m of watched) {
       if (m.user_no && next.get(m.user_no) && prev.get(m.user_no) === false) toast.success(`🟢 ${m.nick} is online`);
+    }
+  }, [snapshots.data, watched, byMerchant]);
+
+  // A notice for every new order a followed merchant completes while the page is open.
+  const lastTotals = useRef<Map<string, number> | null>(null);
+  useEffect(() => {
+    if (!snapshots.data) return;
+    const next = new Map<string, number>();
+    for (const m of watched) {
+      const total = m.user_no ? byMerchant.get(m.user_no)?.at(-1)?.total_orders : undefined;
+      if (m.user_no && typeof total === 'number') next.set(m.user_no, total);
+    }
+    const prev = lastTotals.current;
+    lastTotals.current = next;
+    if (!prev) return;
+    for (const m of watched) {
+      const before = m.user_no ? prev.get(m.user_no) : undefined;
+      const now = m.user_no ? next.get(m.user_no) : undefined;
+      if (before !== undefined && now !== undefined && now > before) {
+        toast.info(`🧾 ${m.nick}: +${now - before} order${now - before === 1 ? '' : 's'} (${now.toLocaleString('en-US')} total)`);
+      }
     }
   }, [snapshots.data, watched, byMerchant]);
 
@@ -199,5 +247,5 @@ export function useMerchantWatch() {
     onError: () => toast.error('Could not remove this merchant'),
   });
 
-  return { watched, byMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
+  return { watched, byMerchant, dailyByMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
 }

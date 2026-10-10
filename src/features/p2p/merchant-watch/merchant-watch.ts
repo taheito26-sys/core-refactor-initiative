@@ -135,3 +135,57 @@ export function groupSnapshots(rows: MerchantSnapshot[]): Map<string, MerchantSn
 export function extractMerchantId(text: string): string | null {
   return text.match(/\bs[0-9a-f]{32}\b/i)?.[0] ?? null;
 }
+
+/** One merchant-day of the register the poller keeps (Qatar days). */
+export interface DailyRow {
+  user_no: string;
+  /** YYYY-MM-DD, Qatar time. */
+  day: string;
+  baseline_total: number | null;
+  last_total: number | null;
+  baseline_sell: number | null;
+  last_sell: number | null;
+  readings: number;
+  online_readings: number;
+}
+
+/** The Qatar calendar day (UTC+3, no daylight saving) a moment falls on, as YYYY-MM-DD. */
+export function qatarDayKey(ts: number): string {
+  return new Date(ts + 3 * 3600_000).toISOString().slice(0, 10);
+}
+
+export interface DayRegister {
+  day: string;
+  /** Orders completed that day. */
+  orders: number;
+  /** Of those, how many were sells. */
+  sold: number;
+  /** The merchant's running total at the end of the day (the latest reading, for today). */
+  endTotal: number | null;
+}
+
+/**
+ * Orders per day since the merchant was followed, newest first. A day with no
+ * reading after tracking began counts as zero; days before tracking are left out.
+ */
+export function dailyRegister(rows: DailyRow[], options: { since?: number; days?: number; now?: number } = {}): DayRegister[] {
+  const now = options.now ?? Date.now();
+  const days = options.days ?? 60;
+  const byDay = new Map(rows.map(r => [r.day, r]));
+  const firstTracked = rows.map(r => r.day).sort()[0];
+  const sinceDay = options.since ? qatarDayKey(options.since) : firstTracked;
+  const start = [sinceDay, firstTracked].filter(Boolean).sort().at(-1);
+  const out: DayRegister[] = [];
+  for (let i = 0; i < days; i++) {
+    const day = qatarDayKey(now - i * 86400_000);
+    if (!start || day < start) break;
+    const r = byDay.get(day);
+    out.push({
+      day,
+      orders: r && r.last_total != null && r.baseline_total != null ? Math.max(0, r.last_total - r.baseline_total) : 0,
+      sold: r && r.last_sell != null && r.baseline_sell != null ? Math.max(0, r.last_sell - r.baseline_sell) : 0,
+      endTotal: r?.last_total ?? null,
+    });
+  }
+  return out;
+}

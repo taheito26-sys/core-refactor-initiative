@@ -181,6 +181,53 @@ Deno.serve(async (req: Request) => {
       return data?.ts ? new Date(data.ts).getTime() : 0;
     };
 
+    /**
+     * What this user's own order history says about whose ad is whose. Binance marks each order with the
+     * user's role: on a MAKER order the ad number is the user's OWN ad, so it must never be used to find
+     * a counterparty. An ad number that turns up against several different counterparties is also the
+     * user's own. Only a TAKER order's ad number points at the merchant on the other side.
+     */
+    const ordersContext = async (userId: string) => {
+      const rows: Any[] = [];
+      for (let from = 0; from < 3000; from += 1000) {
+        const { data } = await supabase.from("exchange_p2p_orders")
+          .select("counterparty, advNo:raw->>advNo, role:raw->>advertisementRole")
+          .eq("user_id", userId).eq("exchange", "binance").range(from, from + 999);
+        rows.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+      const own = new Set<string>();
+      const counterpartiesOfAd = new Map<string, Set<string>>();
+      for (const r of rows) {
+        if (!r.advNo) continue;
+        if (String(r.role).toUpperCase() === "MAKER") own.add(String(r.advNo));
+        const set = counterpartiesOfAd.get(String(r.advNo)) ?? new Set<string>();
+        set.add(String(r.counterparty ?? ""));
+        counterpartiesOfAd.set(String(r.advNo), set);
+      }
+      for (const [ad, set] of counterpartiesOfAd) if (set.size > 1) own.add(ad);
+      const adsByCounterparty = new Map<string, string[]>();
+      for (const r of rows) {
+        if (!r.advNo || own.has(String(r.advNo)) || !r.counterparty) continue;
+        const list = adsByCounterparty.get(String(r.counterparty)) ?? [];
+        if (!list.includes(String(r.advNo))) list.push(String(r.advNo));
+        adsByCounterparty.set(String(r.counterparty), list);
+      }
+      return { ownAdvNos: own, adsByCounterparty };
+    };
+
+    /** The merchant ids behind the user's own ads, so the user is never offered or matched as a counterparty. */
+    const selfUserNos = async (ownAdvNos: Set<string>, liveEntries: AdEntry[] = []): Promise<Set<string>> => {
+      const ids = new Set<string>();
+      for (const e of liveEntries) if (ownAdvNos.has(e.advNo)) ids.add(e.userNo);
+      const ads = [...ownAdvNos];
+      for (let i = 0; i < ads.length; i += 200) {
+        const { data } = await supabase.from("p2p_merchant_ads").select("user_no").in("adv_no", ads.slice(i, i + 200));
+        for (const r of data ?? []) ids.add(r.user_no);
+      }
+      return ids;
+    };
+
     /** Remembers the ads seen, so merchants can be identified later without waiting for them to list again. */
     const learn = async (entries: AdEntry[]) => {
       const rows = new Map<string, Any>();
@@ -196,12 +243,13 @@ Deno.serve(async (req: Request) => {
     };
 
     /** Looks a request up among every ad ever recorded, including merchants with no ad today. */
-    const lookupDirectory = async (query: string, advNos: string[]): Promise<{ exact: Candidate | null; candidates: Candidate[] }> => {
+    const lookupDirectory = async (query: string, advNos: string[], exclude: Set<string> = new Set()): Promise<{ exact: Candidate | null; candidates: Candidate[] }> => {
       const toCandidate = (r: Any): Candidate => ({ userNo: r.user_no, nick: r.nick, monthOrders: r.month_orders ?? null });
       const ads = advNos.map(String).filter(Boolean);
       if (ads.length > 0) {
-        const { data } = await supabase.from("p2p_merchant_ads").select("user_no, nick, month_orders").in("adv_no", ads).limit(1);
-        if (data && data.length > 0) return { exact: toCandidate(data[0]), candidates: [] };
+        const { data } = await supabase.from("p2p_merchant_ads").select("user_no, nick, month_orders").in("adv_no", ads);
+        const hit = (data ?? []).find((r: Any) => !exclude.has(r.user_no));
+        if (hit) return { exact: toCandidate(hit), candidates: [] };
       }
       const wanted = query.trim();
       const masked = wanted.endsWith("*");
@@ -210,20 +258,31 @@ Deno.serve(async (req: Request) => {
       const { data } = await supabase.from("p2p_merchant_ads").select("user_no, nick, month_orders")
         .ilike("nick", masked ? `${likeEscape(prefix)}%` : likeEscape(wanted)).limit(200);
       const byUser = new Map<string, Candidate>();
-      for (const r of data ?? []) byUser.set(r.user_no, toCandidate(r));
+      for (const r of data ?? []) if (!exclude.has(r.user_no)) byUser.set(r.user_no, toCandidate(r));
       return { exact: null, candidates: [...byUser.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0)) };
     };
 
-    /** Identifies waiting merchants (no id yet) from every ad recorded, which the scheduled scan keeps current. */
+    /**
+     * Identifies waiting merchants (no id yet). Only firm evidence counts: an ad number from a trade where the
+     * user was the taker, or a full nickname with exactly one match. Letters alone are never enough here.
+     */
     const resolvePending = async (userId?: string): Promise<number> => {
-      let q = supabase.from("p2p_watched_merchants").select("id, user_id, nick, pending_query, adv_nos").is("user_no", null);
+      let q = supabase.from("p2p_watched_merchants").select("id, user_id, nick, pending_query").is("user_no", null);
       if (userId) q = q.eq("user_id", userId);
       const { data: pending } = await q;
       if (!pending || pending.length === 0) return 0;
+      const contexts = new Map<string, Awaited<ReturnType<typeof ordersContext>> & { self: Set<string> }>();
       let resolved = 0;
       for (const row of pending as Any[]) {
-        const { exact, candidates } = await lookupDirectory(String(row.pending_query ?? row.nick), row.adv_nos ?? []);
-        const hit = exact ?? (candidates.length === 1 ? candidates[0] : null);
+        let ctx = contexts.get(row.user_id);
+        if (!ctx) {
+          const base = await ordersContext(row.user_id);
+          ctx = { ...base, self: await selfUserNos(base.ownAdvNos) };
+          contexts.set(row.user_id, ctx);
+        }
+        const query = String(row.pending_query ?? row.nick);
+        const { exact, candidates } = await lookupDirectory(query, ctx.adsByCounterparty.get(query) ?? [], ctx.self);
+        const hit = exact ?? (!query.trim().endsWith("*") && candidates.length === 1 ? candidates[0] : null);
         if (!hit) continue;
         const { error } = await supabase.from("p2p_watched_merchants")
           .update({ user_no: hit.userNo, nick: hit.nick, pending_query: null }).eq("id", row.id);
@@ -235,6 +294,33 @@ Deno.serve(async (req: Request) => {
       return resolved;
     };
 
+    /**
+     * The per-day register: the order total at the start of the day (the previous day's last reading, or the
+     * first reading when the merchant has only just been followed) and at the latest reading.
+     * Days are Qatar days.
+     */
+    const recordDaily = async (snap: ReturnType<typeof toSnapshot>) => {
+      if (snap.total_orders === null) return;
+      const day = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+      const { data: existing } = await supabase.from("p2p_merchant_daily").select("*").eq("user_no", snap.user_no).eq("day", day).maybeSingle();
+      if (existing) {
+        await supabase.from("p2p_merchant_daily").update({
+          last_total: snap.total_orders, last_sell: snap.sell_orders,
+          readings: (existing.readings ?? 0) + 1, online_readings: (existing.online_readings ?? 0) + (snap.online ? 1 : 0),
+          updated_at: new Date().toISOString(),
+        }).eq("user_no", snap.user_no).eq("day", day);
+        return;
+      }
+      const { data: prev } = await supabase.from("p2p_merchant_daily").select("last_total, last_sell")
+        .eq("user_no", snap.user_no).lt("day", day).order("day", { ascending: false }).limit(1).maybeSingle();
+      await supabase.from("p2p_merchant_daily").insert({
+        user_no: snap.user_no, day,
+        baseline_total: prev?.last_total ?? snap.total_orders, last_total: snap.total_orders,
+        baseline_sell: prev?.last_sell ?? snap.sell_orders, last_sell: snap.sell_orders,
+        readings: 1, online_readings: snap.online ? 1 : 0,
+      });
+    };
+
     const pollMany = async (userNos: string[], throttleMs: number) => {
       const polled: string[] = [];
       const failed: string[] = [];
@@ -242,8 +328,11 @@ Deno.serve(async (req: Request) => {
         if (Date.now() - (await latestTs(userNo)) < throttleMs) return;
         const profile = await fetchProfile(userNo).catch(() => null);
         if (!profile) { failed.push(userNo); return; }
-        const { error } = await supabase.from("p2p_merchant_snapshots").insert(toSnapshot(userNo, profile));
-        if (error) failed.push(userNo); else polled.push(userNo);
+        const snap = toSnapshot(userNo, profile);
+        const { error } = await supabase.from("p2p_merchant_snapshots").insert(snap);
+        if (error) { failed.push(userNo); return; }
+        await recordDaily(snap).catch((err) => console.warn("recordDaily failed", err));
+        polled.push(userNo);
       }));
       return { polled: polled.length, failed: failed.length };
     };
@@ -256,7 +345,12 @@ Deno.serve(async (req: Request) => {
       // A share message may wrap the link in text; use the first link in it.
       const pastedLink = query.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? query;
       const linkedId = /^https?:\/\//i.test(pastedLink) || USER_NO.test(query) ? await merchantIdFromLink(pastedLink) : null;
+      const ctx = await ordersContext(userId);
+      const selfFromDirectory = await selfUserNos(ctx.ownAdvNos);
       if (linkedId) {
+        if (selfFromDirectory.has(linkedId)) {
+          return json({ error: "That link is your own Binance profile. Open the merchant's profile and copy their link." }, 400);
+        }
         const profile = await fetchProfile(linkedId);
         if (!profile) return json({ error: "No Binance merchant with that id" }, 404);
         return json({ userNo: linkedId, nick: String(profile.nickName ?? linkedId) });
@@ -264,22 +358,27 @@ Deno.serve(async (req: Request) => {
       if (/^https?:\/\//i.test(pastedLink)) {
         return json({ error: "I could not find a merchant id in that link. Open the merchant's profile in Binance, tap Share, and copy the profile link." }, 404);
       }
-      const advNos = Array.isArray(body.advNos) ? body.advNos.map(String).slice(0, 40) : [];
-      // Merchants seen advertising before are found at once, even with no ad today.
-      const known = await lookupDirectory(query, advNos);
+
+      const masked = query.endsWith("*");
+      // Ad numbers come from the user's own trades as taker, never from the client and never from the user's own ads.
+      const advNos = ctx.adsByCounterparty.get(query) ?? [];
+      const known = await lookupDirectory(query, advNos, selfFromDirectory);
       if (known.exact) return json({ userNo: known.exact.userNo, nick: known.exact.nick });
-      if (known.candidates.length === 1) return json({ userNo: known.candidates[0].userNo, nick: known.candidates[0].nick });
+
       const adSet = new Set(advNos);
       const entries = await scanAds(fiatList(body.fiats), adSet.size > 0 ? (e) => adSet.has(e.advNo) : undefined);
       await learn(entries);
-      const live = matchMerchant(entries, query, advNos);
+      const self = await selfUserNos(ctx.ownAdvNos, entries);
+      const usable = entries.filter((e) => !self.has(e.userNo));
+      const live = matchMerchant(usable, query, advNos);
       if (live.exact) return json({ userNo: live.exact.userNo, nick: live.exact.nick });
+
       const merged = new Map<string, Candidate>();
-      for (const c of [...known.candidates, ...live.candidates]) merged.set(c.userNo, c);
+      for (const c of [...known.candidates, ...live.candidates]) if (!self.has(c.userNo)) merged.set(c.userNo, c);
       const candidates = [...merged.values()].sort((a, b) => (b.monthOrders ?? 0) - (a.monthOrders ?? 0));
-      if (candidates.length === 1) return json({ userNo: candidates[0].userNo, nick: candidates[0].nick });
-      if (candidates.length > 1) return json({ candidates: candidates.slice(0, 12) });
-      // Never seen advertising: the caller keeps the request, and it is identified when they list an ad or a profile link is pasted.
+      // A full nickname with one match is that merchant. A masked name only narrows it down, so the user confirms.
+      if (!masked && candidates.length === 1) return json({ userNo: candidates[0].userNo, nick: candidates[0].nick });
+      if (candidates.length > 0) return json({ candidates: candidates.slice(0, 12) });
       return json({
         notListed: true,
         message: "Binance only reveals a merchant's id while they advertise, and this one has not been seen advertising yet. Paste their profile link to start now, or they will be picked up when they next list an ad.",
