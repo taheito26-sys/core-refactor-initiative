@@ -96,10 +96,11 @@ describe('a position typed by hand stays as typed', () => {
     }
   });
 
-  it('carries into later months, measured against the month it was typed for', () => {
-    const anchors: string[] = [];
-    const live = liveOffsetsFor(overrides, '2026-12', m => { anchors.push(m); return pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]); });
-    expect(anchors).toEqual(['2026-10']);
+  it('carries into later months, measured against the records at the moment the figures were saved', () => {
+    const asked: number[] = [];
+    const live = liveOffsetsFor(overrides, '2026-12', ts => { asked.push(ts); return pos([{ key: 'cash_hand', side: 'asset', amountQAR: 1000 }]); });
+    // Nothing was saved with a time, so the first moment of October is the baseline.
+    expect(asked).toEqual([new Date(2026, 9, 1).getTime() - 1]);
     expect(live?.from).toBe('2026-10');
     expect(live?.offsets.cash_hand).toBe(4000);
   });
@@ -153,5 +154,34 @@ describe('a fresh start from October 2026', () => {
     const nov = liveOffsetsFor(new Map([[oct.month, oct]]), '2026-11', () => pos([]))!;
     expect(nov.offsets.exchange_usdt).toBeUndefined();
     expect(nov.offsets.cash_hand).toBe(1000);
+  });
+});
+
+describe('typing what you have now never doubles what was recorded before saving', () => {
+  // Cash was 0 on 1 October, then 125,500 was deposited on 10 October (setting up), and the figure was typed and saved later that day.
+  const savedAt = new Date(2026, 9, 10, 18, 0).getTime();
+  const override: OpeningOverride = { month: '2026-10', manual: { cash_hand: 125500, cash_bank: 49000 }, offsets: {}, updatedAt: new Date(savedAt).toISOString() };
+  const overrides = new Map([[override.month, override]]);
+  const firstMoment = new Date(2026, 9, 1).getTime() - 1;
+  const at = (ts: number) => (ts <= firstMoment
+    ? pos([])
+    : pos([{ key: 'cash_hand', side: 'asset', amountQAR: 125500 }, { key: 'cash_bank', side: 'asset', amountQAR: 49000 }]));
+
+  it('opens at the typed figures and closes at them when nothing changed after saving', () => {
+    const live = liveOffsetsFor(overrides, '2026-10', at)!;
+    const month = { opening: at(firstMoment), closing: at(Date.now()), netRevenueQAR: 0, changeQAR: 0, unexplainedQAR: 0 } as unknown as MonthPosition;
+    const m = applyOpeningOverride(month, live.openingOffsets, live.offsets);
+    expect(m.opening.netQAR).toBe(125500 + 49000);
+    expect(m.closing.netQAR).toBe(125500 + 49000);
+    expect(m.changeQAR).toBe(0);
+  });
+
+  it('counts only what is recorded after the figures were saved', () => {
+    const live = liveOffsetsFor(overrides, '2026-10', at)!;
+    const after = (extra: number) => pos([{ key: 'cash_hand', side: 'asset', amountQAR: 125500 + extra }, { key: 'cash_bank', side: 'asset', amountQAR: 49000 }]);
+    const month = { opening: at(firstMoment), closing: after(-3000), netRevenueQAR: 0, changeQAR: 0, unexplainedQAR: 0 } as unknown as MonthPosition;
+    const m = applyOpeningOverride(month, live.openingOffsets, live.offsets);
+    expect(m.closing.netQAR).toBe(125500 + 49000 - 3000);
+    expect(m.changeQAR).toBe(-3000);
   });
 });

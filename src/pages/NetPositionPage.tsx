@@ -125,24 +125,13 @@ export default function NetPositionPage() {
   // A starting position entered by hand moves the month (and every later one) by what it differs from the records.
   const { overrides, unavailable: overridesUnavailable } = useOpeningOverrides();
   const openingSaving = useOpeningOverrideSaving();
-  // The month a hand-entered position was set for may be earlier than this one; its offsets are always
-  // measured against today's records for that month, so the figures typed stay exactly as typed.
-  const anchorKey = useMemo(() => {
-    let best: string | null = null;
-    for (const o of overrides.values()) if (o.month <= recorded.key && o.month >= NET_POSITION_START && (!best || o.month > best)) best = o.month;
-    // With nothing typed, the first tracked month is the anchor and opens at zero.
-    return best ?? (recorded.key >= NET_POSITION_START ? NET_POSITION_START : null);
-  }, [overrides, recorded.key]);
-  const anchorOpening = useMemo(() => {
-    if (!anchorKey || anchorKey === recorded.key) return recorded.opening;
-    const [y, m] = anchorKey.split('-').map(Number);
-    return computeNetPosition(state, monthStart(y, m - 1) - 1, options);
-  }, [anchorKey, recorded, state, options]);
+  // Typed figures are what the merchant had when they saved them; only changes recorded after that moment are counted.
+  // They are measured against today's records, so editing an earlier record cannot move the figures typed.
   const manual = useMemo(
-    () => liveOffsetsFor(overrides, recorded.key, () => anchorOpening),
-    [overrides, recorded.key, anchorOpening],
+    () => liveOffsetsFor(overrides, recorded.key, ts => (ts === recorded.opening.asOf ? recorded.opening : computeNetPosition(state, ts, options))),
+    [overrides, recorded, state, options],
   );
-  const live = useMemo(() => (manual ? applyOpeningOverride(recorded, manual.offsets) : recorded), [recorded, manual]);
+  const live = useMemo(() => (manual ? applyOpeningOverride(recorded, manual.openingOffsets, manual.offsets) : recorded), [recorded, manual]);
   const liveBridge = useMemo(
     () => computeMonthBridge(state, live, loanLedgerEntryIds(state.customerLoans, personalLoans)),
     [state, live, personalLoans],
@@ -170,18 +159,6 @@ export default function NetPositionPage() {
   // Why the customer-loans line can differ from the Unpaid figure on the loans screen: that one is as of today,
   // this one as of the start of the month, so repayments dated since then are the gap.
   const todayPos = useMemo(() => computeNetPosition(state, Date.now(), options), [state, options]);
-  const loanRecon = useMemo(() => {
-    const todayLoans = todayPos.lines.find(l => l.key === 'customer_loans')?.amountQAR ?? 0;
-    const deleted = new Set(state.deletedLoanIds || []);
-    let repaidSince = 0;
-    for (const loan of state.customerLoans || []) {
-      if (deleted.has(loan.id)) continue;
-      for (const r of loan.repayments || []) {
-        if (r.ts > recorded.opening.asOf) repaidSince += amountToQar(todayPos, loan.currency, Number(r.amount) || 0);
-      }
-    }
-    return { todayLoans, repaidSince: Math.round(repaidSince * 100) / 100 };
-  }, [state, todayPos, recorded.opening.asOf]);
 
   // ── Setting the starting position by hand ──
   const [editingOpening, setEditingOpening] = useState(false);
@@ -190,26 +167,12 @@ export default function NetPositionPage() {
   const startEditingOpening = () => {
     const next: Record<string, string> = {};
     for (const key of MANUAL_LINE_KEYS) {
-      const value = ownOverride?.manual[key] ?? recordedLineValue(live.opening, key);
+      const value = ownOverride?.manual[key] ?? 0;
       next[key] = value ? String(value) : '';
     }
     setDraft(next);
     setEditingOpening(true);
   };
-  /** What a line would close the month at if the starting figure typed for it were used: the month's own movement is added on top. */
-  const closingPreview = (key: NetPositionLineKey) => key === 'exchange_usdt'
-    ? recordedLineValue(recorded.closing, key)
-    : Math.round((recordedLineValue(recorded.closing, key) + ((Number(draft[key]) || 0) - recordedLineValue(recorded.opening, key))) * 100) / 100;
-  /** The figure typed is today's balance although the line has moved since the first day: the month's movement would be counted twice. */
-  const looksLikeToday = (key: NetPositionLineKey) => {
-    const typed = Number(draft[key]);
-    // The exchange line is the live balance, so typing today's figure there is never a double count.
-    if (key === 'exchange_usdt' || !draft[key] || !Number.isFinite(typed)) return false;
-    const today = recordedLineValue(todayPos, key);
-    return Math.abs(typed - today) < 1 && Math.abs(today - recordedLineValue(recorded.opening, key)) >= 1;
-  };
-  const anyLooksLikeToday = MANUAL_LINE_KEYS.some(looksLikeToday);
-  const previewBelowZero = MANUAL_LINE_KEYS.some(k => k !== 'manual_other' && closingPreview(k) < -0.005);
 
   const draftManual = useMemo(() => {
     const out: OpeningOverride['manual'] = {};
@@ -363,6 +326,11 @@ export default function NetPositionPage() {
         {manual && (
           <div style={{ fontSize: 11, color: 'var(--warn)' }}>
             ✎ {(manual.from === recorded.key ? t('npManualActive') : t('npManualCarried')).split('{month}').join(manual.from)}
+            {ownOverride && (
+              <div style={{ color: 'var(--muted)', marginTop: 2 }}>
+                {t('npCountedFrom').split('{when}').join(new Date(ownOverride.updatedAt).toLocaleString())}
+              </div>
+            )}
           </div>
         )}
         {overridesUnavailable && <div style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npOpeningsUnavailable')}</div>}
@@ -377,55 +345,30 @@ export default function NetPositionPage() {
         {editingOpening && (
           <>
             <div style={{ fontSize: 12, fontWeight: 800 }}>{t('npOpeningEditTitle').split('{month}').join(monthLabel)}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npOpeningEditHint')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto 120px auto', gap: '6px 10px', alignItems: 'center', fontSize: 12 }}>
-              <span />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColRecords')}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColToday')}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('npColYours')}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'end' }}>{t('npColClosingWould')}</span>
+            <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{t('npOpeningEditHint')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(110px, 160px)', gap: '8px 10px', alignItems: 'center', fontSize: 12 }}>
               {MANUAL_LINE_KEYS.map(key => (
                 <div key={key} style={{ display: 'contents' }}>
                   <span>{t(LINE_LABEL[key])}</span>
-                  <span className="mono" style={{ textAlign: 'end', color: 'var(--muted)' }}>{money(recordedLineValue(recorded.opening, key))}</span>
-                  <button type="button" className="rowBtn mono" style={{ fontSize: 11, justifySelf: 'end' }} title={t('npUseToday')}
-                    onClick={() => setDraft({ ...draft, [key]: String(recordedLineValue(todayPos, key)) })}>
-                    {money(recordedLineValue(todayPos, key))}
-                  </button>
-                  <input inputMode="decimal" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
+                  <input inputMode="decimal" placeholder="0" value={draft[key] ?? ''} aria-label={t(LINE_LABEL[key])}
                     onChange={e => { if (/^-?\d*\.?\d*$/.test(e.target.value)) setDraft({ ...draft, [key]: e.target.value }); }}
-                    style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, minWidth: 0 }} />
-                  <span className="mono" style={{ textAlign: 'end', color: closingPreview(key) < -0.005 && key !== 'manual_other' ? 'var(--bad)' : 'var(--muted)' }}>
-                    {looksLikeToday(key) && <span title={t('npLooksToday')} style={{ color: 'var(--warn)', marginInlineEnd: 4 }}>⚠</span>}
-                    {money(closingPreview(key))}
-                  </span>
-                  {key === 'customer_loans' && (
-                    <div style={{ gridColumn: '1 / -1', fontSize: 10, color: 'var(--muted)' }}>
-                      {t('npLoansToday').split('{today}').join(money(loanRecon.todayLoans)).split('{repaid}').join(money(loanRecon.repaidSince))}
+                    style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 13, minWidth: 0, textAlign: 'end' }} />
+                  {key === 'exchange_usdt' && (
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'center', fontSize: 10, color: 'var(--muted)' }}>
+                      <span>{t('npLiveBalance').split('{amount}').join(money(recordedLineValue(todayPos, 'exchange_usdt')))}</span>
+                      <button type="button" className="rowBtn" style={{ fontSize: 10 }} title={t('npUseLive')}
+                        onClick={() => setDraft({ ...draft, exchange_usdt: String(recordedLineValue(todayPos, 'exchange_usdt')) })}>
+                        {t('npUseLive')}
+                      </button>
                     </div>
                   )}
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npTodayCaution')}</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('npExchangeNote')}</div>
-            {anyLooksLikeToday && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {t('npLooksTodayWarn')}</div>}
-            {previewBelowZero && <div role="alert" style={{ fontSize: 11, color: 'var(--bad)' }}>⚠ {t('npNegativeWarn')}</div>}
-            <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}
-              onClick={() => {
-                const next: Record<string, string> = {};
-                for (const key of MANUAL_LINE_KEYS) { const v = recordedLineValue(todayPos, key); next[key] = v ? String(v) : ''; }
-                setDraft(next);
-              }}>
-              {t('npUseTodayAll')}
-            </button>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
               <span>{t('npTotalYours')}</span>
               <span className="mono">{money(manualOpeningTotal(draftManual))} QAR</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
-              <span>{t('npDiffFromRecords')}</span>
-              <span className="mono">{money(Math.round((manualOpeningTotal(draftManual) - recorded.opening.netQAR) * 100) / 100, true)} QAR</span>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button type="button" className="btn" disabled={openingBusy} onClick={() => { void saveOpening(); }}>{t('npSaveOpening')}</button>

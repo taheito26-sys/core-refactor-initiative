@@ -84,42 +84,26 @@ describe('NetPositionPage', () => {
     expect((screen.getByLabelText('previous month') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('saves a starting position typed by hand as the difference from the records', async () => {
+  it('saves the figures typed by hand, with no Today or Records columns to confuse them', async () => {
     render(<NetPositionPage />);
     fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
+    expect(screen.queryByText('npColToday')).toBeNull();
+    expect(screen.queryByText('npColRecords')).toBeNull();
+    expect(screen.queryAllByTitle('npUseToday')).toHaveLength(0);
     fireEvent.change(screen.getByLabelText('npLineCashHand'), { target: { value: '9000' } });
+    fireEvent.change(screen.getByLabelText('npLineCashBank'), { target: { value: '4000' } });
     fireEvent.click(screen.getByText('npSaveOpening'));
     await Promise.resolve();
     expect(saveOpening).toHaveBeenCalledTimes(1);
-    const [month, manual, offsets] = saveOpening.mock.calls[0] as unknown as [string, Record<string, number>, Record<string, number>];
+    const [month, manual] = saveOpening.mock.calls[0] as unknown as [string, Record<string, number>];
     expect(month).toMatch(/^\d{4}-\d{2}$/);
     expect(manual.cash_hand).toBe(9000);
-    expect(offsets.cash_hand).toBeTypeOf('number');
+    expect(manual.cash_bank).toBe(4000);
   });
 
-  it('fills a line with what the tracker holds today when its Today figure is pressed', () => {
+  it('offers the live balance only for USDT on exchanges', () => {
     render(<NetPositionPage />);
     fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
-    // The test ledger holds 5,000 in minus 200 out in the one hand account.
-    fireEvent.click(screen.getAllByTitle('npUseToday')[0]);
-    expect((screen.getByLabelText('npLineCashHand') as HTMLInputElement).value).toBe('4800');
-    fireEvent.click(screen.getByText('npUseTodayAll'));
-    expect((screen.getByLabelText('npLineCashHand') as HTMLInputElement).value).toBe('4800');
-  });
-
-  it('previews the closing for the figures typed and warns when a line would go below zero', () => {
-    render(<NetPositionPage />);
-    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
-    expect(screen.queryByText('npNegativeWarn', { exact: false })).toBeNull();
-    fireEvent.change(screen.getByLabelText('npLineCashHand'), { target: { value: '-9999' } });
-    expect(screen.getByText('npNegativeWarn', { exact: false })).toBeTruthy();
-  });
-
-  it('flags a figure typed equal to today\'s balance when the month has moved it', () => {
-    render(<NetPositionPage />);
-    fireEvent.click(screen.getByText('npSetOpening', { exact: false }));
-    expect(screen.queryByText('npLooksTodayWarn', { exact: false })).toBeNull();
-    fireEvent.click(screen.getAllByTitle('npUseToday')[0]);
-    expect(screen.getByText('npLooksTodayWarn', { exact: false })).toBeTruthy();
+    expect(screen.getAllByTitle('npUseLive')).toHaveLength(1);
   });
 });

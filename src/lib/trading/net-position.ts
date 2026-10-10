@@ -455,10 +455,15 @@ export function applyLineOffsets(position: NetPosition, offsets: LineOffsets): N
  * the same amount and the change during the month is still what the records
  * say it was.
  */
-export function applyOpeningOverride(month: MonthPosition, offsets: LineOffsets): MonthPosition {
-  const opening = applyLineOffsets(month.opening, offsets);
+export function applyOpeningOverride(
+  month: MonthPosition,
+  openingOffsets: LineOffsets,
+  /** What moves the closing; the same as the opening's unless the figures were typed part-way through the month. */
+  closingOffsets: LineOffsets = openingOffsets,
+): MonthPosition {
+  const opening = applyLineOffsets(month.opening, openingOffsets);
   // USDT on the exchanges is typed for the opening but the closing is always the live balance, never opening plus movement.
-  const { exchange_usdt: _typedExchange, ...movementOffsets } = offsets;
+  const { exchange_usdt: _typedExchange, ...movementOffsets } = closingOffsets;
   const closing = applyLineOffsets(month.closing, movementOffsets);
   const changeQAR = round2(closing.netQAR - opening.netQAR);
   return { ...month, opening, closing, changeQAR, unexplainedQAR: round2(changeQAR - month.netRevenueQAR) };

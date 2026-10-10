@@ -72,30 +72,52 @@ export function offsetsFor(overrides: Map<string, OpeningOverride>, month: strin
   return best && Object.keys(best.offsets).length > 0 ? { offsets: best.offsets, from: best.month } : null;
 }
 
+const monthStartMs = (month: string) => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).getTime();
+
+export interface LiveOffsets {
+  /** Moves the closing (and, in later months, the opening too). */
+  offsets: LineOffsets;
+  /** Moves the opening of the month the figures were typed for. */
+  openingOffsets: LineOffsets;
+  /** The month the figures were typed for. */
+  from: string;
+  /** The moment the figures are counted from: changes recorded after it are added or removed. */
+  baseline: number;
+}
+
 /**
  * The offsets in force for `month`, worked out from what was typed rather
- * than from what was saved. A saved offset is only right for the records as
- * they stood the day it was saved; if an earlier month is edited afterwards,
- * the records' opening moves and a fixed offset would leave the typed figures
- * wrong. Recomputing against today's records keeps the opening of the month
- * that was set by hand exactly as typed, whatever happens before it.
+ * than from what was saved, so editing an earlier record cannot move the
+ * typed figures.
+ *
+ * Typed figures are what the merchant has at the moment they are saved, and
+ * only changes recorded after that moment are counted on top. Whatever was
+ * recorded before saving (a deposit made while setting up, a loan already
+ * entered) is already inside the typed figure and is never added again.
+ * With nothing typed, the first month opens at zero from its first day.
  */
 export function liveOffsetsFor(
   overrides: Map<string, OpeningOverride>,
   month: string,
-  recordedOpeningOf: (anchorMonth: string) => Pick<NetPosition, 'lines'>,
-): { offsets: LineOffsets; from: string } | null {
+  /** What the records say each line was at that moment. */
+  recordedAt: (ts: number) => Pick<NetPosition, 'lines'>,
+): LiveOffsets | null {
   if (month < NET_POSITION_START) return null;
   let best: OpeningOverride | null = null;
   for (const o of overrides.values()) {
     if (o.month <= month && o.month >= NET_POSITION_START && (!best || o.month > best.month)) best = o;
   }
-  // No opening typed yet: the first month starts from zero in every line.
   const anchor: OpeningOverride = best ?? {
     month: NET_POSITION_START, manual: Object.fromEntries(MANUAL_LINE_KEYS.map(k => [k, 0])), offsets: {}, updatedAt: '',
   };
-  const offsets = offsetsFromManual(recordedOpeningOf(anchor.month), anchor.manual);
+  const firstMoment = monthStartMs(anchor.month) - 1;
+  const saved = Date.parse(anchor.updatedAt);
+  const baseline = Number.isFinite(saved) ? Math.max(saved, firstMoment) : firstMoment;
+
+  const offsets = offsetsFromManual(recordedAt(baseline), anchor.manual);
+  const openingOffsets = anchor.month === month ? offsetsFromManual(recordedAt(firstMoment), anchor.manual) : { ...offsets };
   // USDT on the exchanges is typed for the month it was set for only; later months open from the frozen closing.
-  if (anchor.month !== month) delete offsets.exchange_usdt;
-  return Object.keys(offsets).length > 0 ? { offsets, from: anchor.month } : null;
+  if (anchor.month !== month) { delete openingOffsets.exchange_usdt; delete offsets.exchange_usdt; }
+  const hasAny = Object.keys(offsets).length > 0 || Object.keys(openingOffsets).length > 0;
+  return hasAny ? { offsets, openingOffsets, from: anchor.month, baseline } : null;
 }
