@@ -1,43 +1,19 @@
 import { renderHtmlReportToPdf } from '@/lib/htmlReportToPdf';
 import { fmtTotal } from '@/lib/tracker-helpers';
-import { lineChangesOf, type MonthBridge, type MonthPosition, type NetPositionLineKey } from '@/lib/trading/net-position';
+import type { LineKey, MonthSummary, Rates } from './position';
 
-export interface NetPositionReportLabels {
+export interface ReportLabels {
   title: string;
-  statusFrozen: string;
-  statusLive: string;
   opening: string;
   closing: string;
   change: string;
-  revenue: string;
-  bridge: string;
-  reference?: string;
-  business: string;
-  personal: string;
-  uncategorised: string;
-  priorCorrections: string;
-  breakdown: string;
-  assets: string;
-  liabilities: string;
+  line: Record<LineKey, string>;
+  daily: string;
+  day: string;
+  net: string;
+  firstDayNote: string;
   rates: string;
-  usdRate: string;
-  usdtRate: string;
-  egpRate: string;
   footer: string;
-  generatedOn: string;
-  lines: Record<NetPositionLineKey, string>;
-  categories: Record<string, string>;
-}
-
-export interface NetPositionReportInput {
-  labels: NetPositionReportLabels;
-  monthLabel: string;
-  month: MonthPosition;
-  bridge: MonthBridge;
-  /** When the month was frozen, or null for live figures. */
-  frozenAt: string | null;
-  dir: 'ltr' | 'rtl';
-  businessName?: string;
   generatedOn: string;
 }
 
@@ -49,54 +25,35 @@ function escapeHtml(value: string): string {
 const money = (n: number, signed = false) => `${signed && n > 0 ? '+' : n < 0 ? '−' : ''}${fmtTotal(Math.abs(n))}`;
 
 /**
- * The month's net position as a one-sheet report, built for renderHtmlReportToPdf:
- * a single `.sheet`, tables whose rows may not be split across pages, and no
- * custom properties on :root.
+ * The month as a one-sheet report for renderHtmlReportToPdf: a single
+ * `.sheet`, no custom properties on :root, and tables whose rows are short
+ * enough never to need splitting.
  */
-export function buildNetPositionReportHtml(input: NetPositionReportInput): string {
-  const { labels: L, month, bridge, dir } = input;
-  const align = dir === 'rtl' ? 'right' : 'left';
+export function buildPositionReportHtml(input: {
+  labels: ReportLabels;
+  monthLabel: string;
+  summary: MonthSummary;
+  rates: Rates;
+  dir: 'ltr' | 'rtl';
+  generatedOn: string;
+}): string {
+  const { labels: L, summary, dir } = input;
   const opposite = dir === 'rtl' ? 'left' : 'right';
-  const change = Math.round((month.closing.netQAR - bridge.openingQAR) * 100) / 100;
-
-  const bridgeRows: Array<{ label: string; amount: number; kind?: 'plus' | 'minus' | 'sub' | 'total' | 'muted' }> = [
-    { label: L.opening, amount: bridge.openingQAR, kind: 'total' },
-    ...(bridge.priorCorrectionsQAR ? [{ label: L.priorCorrections, amount: bridge.priorCorrectionsQAR, kind: 'muted' as const }] : []),
-    ...lineChangesOf(month).map(c => ({ label: L.lines[c.key] ?? c.key, amount: Math.abs(c.changeQAR), kind: (c.changeQAR > 0 ? 'plus' : 'minus') as 'plus' | 'minus' })),
-    { label: L.closing, amount: month.closing.netQAR, kind: 'total' },
-  ];
-  const referenceRows: Array<{ label: string; amount: number; kind: 'muted' | 'sub' }> = [
-    { label: L.revenue, amount: bridge.netRevenueQAR, kind: 'muted' },
-    { label: L.business, amount: bridge.businessTotalQAR, kind: 'muted' },
-    ...bridge.business.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
-    { label: L.personal, amount: bridge.personalTotalQAR, kind: 'muted' },
-    ...bridge.personal.map(c => ({ label: L.categories[c.key] ?? c.key, amount: c.amountQAR, kind: 'sub' as const })),
-    ...(bridge.uncategorisedQAR > 0 ? [{ label: `${L.uncategorised} (${bridge.uncategorisedCount})`, amount: bridge.uncategorisedQAR, kind: 'muted' as const }] : []),
-  ];
-  const referenceHtml = referenceRows.map(r => `<tr class="${r.kind}"><td>${escapeHtml(r.label)}</td><td class="num">${escapeHtml(fmtTotal(r.amount))}</td></tr>`).join('');
-  const bridgeHtml = bridgeRows.map(r => {
-    const shown = r.kind === 'minus' || r.kind === 'sub' ? (r.amount ? `−${fmtTotal(r.amount)}` : '0') : money(r.amount, r.kind === 'plus');
-    return `<tr class="${r.kind ?? ''}"><td>${escapeHtml(r.label)}</td><td class="num">${escapeHtml(shown)}</td></tr>`;
-  }).join('');
-
-  const keys = (Object.keys(L.lines) as NetPositionLineKey[]).filter(k =>
-    month.opening.lines.some(l => l.key === k) || month.closing.lines.some(l => l.key === k));
-  const lineAmount = (pos: MonthPosition['opening'], k: NetPositionLineKey) => {
-    const line = pos.lines.find(l => l.key === k);
-    return line ? (line.side === 'liability' ? -line.amountQAR : line.amountQAR) : 0;
-  };
-  const breakdownHtml = keys.map(k =>
-    `<tr><td>${escapeHtml(L.lines[k])}</td><td class="num">${escapeHtml(money(lineAmount(month.opening, k)))}</td><td class="num">${escapeHtml(money(lineAmount(month.closing, k)))}</td></tr>`,
-  ).join('');
-
-  const c = month.closing;
-  const status = input.frozenAt ? L.statusFrozen.split('{date}').join(input.frozenAt) : L.statusLive;
+  const align = dir === 'rtl' ? 'right' : 'left';
+  const lineRows = summary.perLine
+    .filter(l => l.opening || l.closing)
+    .map(l => `<tr><td>${escapeHtml(L.line[l.key])}</td><td class="num">${escapeHtml(money(l.opening))}</td><td class="num">${escapeHtml(money(l.closing))}</td><td class="num">${escapeHtml(money(l.change, true))}</td></tr>`)
+    .join('');
+  const dayRows = [...summary.days].reverse()
+    .map(d => `<tr><td>${escapeHtml(d.day)}</td><td class="num">${escapeHtml(money(d.net))}</td><td class="num">${escapeHtml(d.change == null ? '—' : money(d.change, true))}</td></tr>`)
+    .join('');
+  const opening = summary.opening?.net ?? 0;
+  const closing = summary.closing?.net ?? 0;
   const rateLines = [
-    `${L.usdRate}: ${c.usdToQar ? c.usdToQar.toFixed(4) : '—'}`,
-    `${L.usdtRate}: ${c.usdtRateQAR ? c.usdtRateQAR.toFixed(4) : '—'}`,
-    `${L.egpRate}: ${c.egpPerUsdt ? c.egpPerUsdt.toFixed(2) : '—'}`,
+    `QAR per 1 USD: ${input.rates.usdToQar.toFixed(4)}`,
+    `QAR per 1 USDT: ${input.rates.usdtRateQAR ? input.rates.usdtRateQAR.toFixed(4) : '—'}`,
+    `EGP per 1 USDT: ${input.rates.egpPerUsdt ? input.rates.egpPerUsdt.toFixed(2) : '—'}`,
   ];
-
   return `<!DOCTYPE html>
 <html lang="${dir === 'rtl' ? 'ar' : 'en'}" dir="${dir}">
 <head>
@@ -118,37 +75,29 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
   th { font-size: 8.5px; letter-spacing: .6px; text-transform: uppercase; color: #fff; background: #1E5F91; padding: 8px; text-align: ${align}; }
   th.num, td.num { text-align: ${opposite}; font-variant-numeric: tabular-nums; white-space: nowrap; }
   td { padding: 6px 8px; border-bottom: 1px solid #eef0f4; }
-  tr.total td { font-weight: 800; background: #EAF0FB; border-top: 1px solid #0F2A44; color: #0F2A44; }
-  tr.sub td { color: #6b7280; padding-inline-start: 22px; }
-  tr.muted td { color: #6b7280; }
+  .note { margin: 8px 32px 0; font-size: 9.5px; color: #6b7280; }
   .rates { margin: 14px 32px 0; font-size: 9.5px; color: #6b7280; line-height: 1.6; }
   footer { margin-top: 18px; padding: 10px 32px 0; border-top: 1px solid #e5e9f2; font-size: 9px; color: #6b7280; display: flex; justify-content: space-between; gap: 16px; }
 </style>
 </head>
 <body>
 <div class="sheet" dir="${dir}">
-  <div class="banner">
-    <div class="title">${escapeHtml(L.title)} · ${escapeHtml(input.monthLabel)}</div>
-    <div class="sub">${input.businessName ? `<b>${escapeHtml(input.businessName)}</b> · ` : ''}${escapeHtml(status)}</div>
-  </div>
+  <div class="banner"><div class="title">${escapeHtml(L.title)} · ${escapeHtml(input.monthLabel)}</div></div>
   <div class="cards">
-    <div class="card"><div class="k">${escapeHtml(L.opening)}</div><div class="v">${escapeHtml(money(bridge.openingQAR))}</div></div>
-    <div class="card"><div class="k">${escapeHtml(L.closing)}</div><div class="v">${escapeHtml(money(month.closing.netQAR))}</div></div>
-    <div class="card"><div class="k">${escapeHtml(L.change)}</div><div class="v">${escapeHtml(money(change, true))}</div></div>
-    <div class="card"><div class="k">${escapeHtml(L.revenue)}</div><div class="v">${escapeHtml(money(bridge.netRevenueQAR, true))}</div></div>
+    <div class="card"><div class="k">${escapeHtml(L.opening)}</div><div class="v">${escapeHtml(money(opening))}</div></div>
+    <div class="card"><div class="k">${escapeHtml(L.closing)}</div><div class="v">${escapeHtml(money(closing))}</div></div>
+    <div class="card"><div class="k">${escapeHtml(L.change)}</div><div class="v">${escapeHtml(money(summary.change, true))}</div></div>
   </div>
-  <h2>${escapeHtml(L.bridge)}</h2>
-  <table><tbody>${bridgeHtml}</tbody></table>
-  <h2>${escapeHtml(L.reference ?? '')}</h2>
-  <table><tbody>${referenceHtml}</tbody></table>
-  <h2>${escapeHtml(L.breakdown)}</h2>
+  ${summary.openingIsFirstDay ? `<div class="note">${escapeHtml(L.firstDayNote)}</div>` : ''}
+  <h2>${escapeHtml(L.net)}</h2>
   <table>
-    <thead><tr><th>&nbsp;</th><th class="num">${escapeHtml(L.opening)}</th><th class="num">${escapeHtml(L.closing)}</th></tr></thead>
-    <tbody>
-      ${breakdownHtml}
-      <tr class="total"><td>${escapeHtml(L.assets)}</td><td class="num">${escapeHtml(money(month.opening.assetsQAR))}</td><td class="num">${escapeHtml(money(month.closing.assetsQAR))}</td></tr>
-      <tr class="total"><td>${escapeHtml(L.liabilities)}</td><td class="num">${escapeHtml(money(-month.opening.liabilitiesQAR))}</td><td class="num">${escapeHtml(money(-month.closing.liabilitiesQAR))}</td></tr>
-    </tbody>
+    <thead><tr><th>&nbsp;</th><th class="num">${escapeHtml(L.opening)}</th><th class="num">${escapeHtml(L.closing)}</th><th class="num">${escapeHtml(L.change)}</th></tr></thead>
+    <tbody>${lineRows}</tbody>
+  </table>
+  <h2>${escapeHtml(L.daily)}</h2>
+  <table>
+    <thead><tr><th>${escapeHtml(L.day)}</th><th class="num">${escapeHtml(L.net)}</th><th class="num">${escapeHtml(L.change)}</th></tr></thead>
+    <tbody>${dayRows}</tbody>
   </table>
   <div class="rates"><b>${escapeHtml(L.rates)}</b><br/>${rateLines.map(escapeHtml).join('<br/>')}</div>
   <footer><span>${escapeHtml(L.footer)}</span><span>${escapeHtml(L.generatedOn)} ${escapeHtml(input.generatedOn)}</span></footer>
@@ -157,6 +106,6 @@ export function buildNetPositionReportHtml(input: NetPositionReportInput): strin
 </html>`;
 }
 
-export async function exportNetPositionPdf(html: string, filename: string): Promise<void> {
+export async function exportPositionPdf(html: string, filename: string): Promise<void> {
   await renderHtmlReportToPdf(html, filename, { orientation: 'portrait' });
 }

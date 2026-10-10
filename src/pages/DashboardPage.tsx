@@ -26,7 +26,6 @@ import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { NetPositionReminder } from '@/features/net-position/components/NetPositionReminder';
 import '@/styles/tracker.css';
 
 interface DashboardPageProps {
@@ -618,7 +617,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   return (
     <div className={`tracker-root${isMobile ? ' dashboard-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
-      {!isAdminView && <NetPositionReminder state={state} />}
       <div className="kpi-band-grid">
         <div className="kpi-band">
           <div className="kpi-band-title">{t('tradingVolume')}</div>

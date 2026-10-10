@@ -1,119 +1,92 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import type { MonthBridge, MonthPosition } from '@/lib/trading/net-position';
-import type { MonthlySnapshot } from './snapshots';
-import type { OpeningOverride } from './overrides';
 import type { PersonalLoan } from '@/lib/trading/personal-loans';
+import type { DayRow } from './position';
 
-const KEY = ['monthly-positions'];
+// The generated types predate these tables (20261010210000).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const table = (name: string) => supabase.from(name as any);
 
-type Row = {
-  month: string; frozen: boolean; closed_at: string; reopened_at: string | null; reopen_count: number;
-  position: MonthPosition; bridge: MonthBridge; rates: MonthlySnapshot['rates'];
-};
+// ─── Settings: which accounts count, and the two rates typed by hand ───
 
-const toSnapshot = (r: Row): MonthlySnapshot => ({
-  month: r.month, frozen: r.frozen, closedAt: r.closed_at, reopenedAt: r.reopened_at, reopenCount: r.reopen_count,
-  position: r.position, bridge: r.bridge, rates: r.rates,
-});
+const SETTINGS_KEY = ['net-position-settings'];
 
-/**
- * The user's saved month-end snapshots, by month. `unavailable` is set when
- * the table is missing (the migration has not been applied yet), so the page
- * can say so instead of failing.
- */
-export function useMonthlySnapshots() {
-  const query = useQuery({
-    queryKey: KEY,
-    queryFn: async (): Promise<Map<string, MonthlySnapshot>> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await supabase.from('monthly_positions' as any).select('*');
-      if (error) throw error;
-      return new Map(((data ?? []) as unknown as Row[]).map(r => [r.month, toSnapshot(r)]));
-    },
-    retry: false,
-  });
-  return { snapshots: query.data ?? new Map<string, MonthlySnapshot>(), unavailable: query.isError, loading: query.isLoading };
+export interface NetPositionSettings {
+  includedAccounts: string[];
+  usdRate: number | null;
+  egpRate: number | null;
 }
 
-export function useMonthClosing() {
+type SettingsRow = { included_accounts: string[] | null; usd_rate: number | string | null; egp_rate: number | string | null };
+
+export function useNetPositionSettings() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: KEY });
-
-  /** Saves (or re-saves) a month's figures as frozen. */
-  const close = async (month: string, position: MonthPosition, bridge: MonthBridge, rates: MonthlySnapshot['rates'], previous?: MonthlySnapshot) => {
-    if (!userId) throw new Error('Not signed in');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('monthly_positions' as any).upsert({
-      user_id: userId, month, frozen: true, closed_at: new Date().toISOString(),
-      reopened_at: previous?.reopenedAt ?? null, reopen_count: previous?.reopenCount ?? 0,
-      position, bridge, rates,
-    }, { onConflict: 'user_id,month' });
-    if (error) throw error;
-    await refresh();
-  };
-
-  /** Unfreezes a month; the saved figures are kept and the re-open is counted. */
-  const reopen = async (snapshot: MonthlySnapshot) => {
-    if (!userId) throw new Error('Not signed in');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('monthly_positions' as any)
-      .update({ frozen: false, reopened_at: new Date().toISOString(), reopen_count: snapshot.reopenCount + 1 })
-      .eq('user_id', userId).eq('month', snapshot.month);
-    if (error) throw error;
-    await refresh();
-  };
-
-  return { close, reopen };
-}
-
-// ─── Opening positions entered by hand ───
-
-const OPENINGS_KEY = ['net-position-openings'];
-
-type OpeningRow = { month: string; manual: OpeningOverride['manual']; offsets: OpeningOverride['offsets']; updated_at: string };
-
-export function useOpeningOverrides() {
   const query = useQuery({
-    queryKey: OPENINGS_KEY,
-    queryFn: async (): Promise<Map<string, OpeningOverride>> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await supabase.from('net_position_openings' as any).select('*');
-      if (error) throw error;
-      return new Map(((data ?? []) as unknown as OpeningRow[]).map(r => [r.month, { month: r.month, manual: r.manual, offsets: r.offsets, updatedAt: r.updated_at }]));
-    },
+    queryKey: SETTINGS_KEY,
+    enabled: !!userId,
     retry: false,
+    queryFn: async (): Promise<NetPositionSettings> => {
+      const { data, error } = await table('net_position_settings').select('*').maybeSingle();
+      if (error) throw error;
+      const row = data as unknown as SettingsRow | null;
+      return {
+        includedAccounts: row?.included_accounts ?? [],
+        usdRate: row?.usd_rate != null ? Number(row.usd_rate) : null,
+        egpRate: row?.egp_rate != null ? Number(row.egp_rate) : null,
+      };
+    },
   });
-  return { overrides: query.data ?? new Map<string, OpeningOverride>(), unavailable: query.isError };
+
+  /** Saves the settings as a whole; the screen updates at once and settles on what was stored. */
+  const save = async (next: NetPositionSettings) => {
+    if (!userId) throw new Error('Not signed in');
+    queryClient.setQueryData(SETTINGS_KEY, next);
+    const { error } = await table('net_position_settings').upsert(
+      { user_id: userId, included_accounts: next.includedAccounts, usd_rate: next.usdRate, egp_rate: next.egpRate, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    );
+    if (error) {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
+      throw error;
+    }
+  };
+
+  return { settings: query.data ?? null, loaded: query.isSuccess, unavailable: query.isError, save };
 }
 
-export function useOpeningOverrideSaving() {
+// ─── Saved days: one reading of the position per day ───
+
+const DAYS_KEY = ['net-position-days'];
+
+type DayRowRecord = { day: string; lines: DayRow['lines'] | null; net: number | string };
+
+export function useNetPositionDays() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: OPENINGS_KEY });
+  const query = useQuery({
+    queryKey: DAYS_KEY,
+    enabled: !!userId,
+    retry: false,
+    queryFn: async (): Promise<DayRow[]> => {
+      const { data, error } = await table('net_position_days').select('day, lines, net').order('day', { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as unknown as DayRowRecord[]).map(r => ({ day: r.day, lines: r.lines ?? {}, net: Number(r.net) }));
+    },
+  });
 
-  const save = async (month: string, manual: OpeningOverride['manual'], offsets: OpeningOverride['offsets']) => {
+  const save = async (row: DayRow) => {
     if (!userId) throw new Error('Not signed in');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('net_position_openings' as any).upsert(
-      { user_id: userId, month, manual, offsets, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,month' },
+    const { error } = await table('net_position_days').upsert(
+      { user_id: userId, day: row.day, lines: row.lines, net: row.net, saved_at: new Date().toISOString() },
+      { onConflict: 'user_id,day' },
     );
     if (error) throw error;
-    await refresh();
+    queryClient.setQueryData<DayRow[]>(DAYS_KEY, old => [...(old ?? []).filter(r => r.day !== row.day), row].sort((a, b) => a.day.localeCompare(b.day)));
   };
 
-  const clear = async (month: string) => {
-    if (!userId) throw new Error('Not signed in');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('net_position_openings' as any).delete().eq('user_id', userId).eq('month', month);
-    if (error) throw error;
-    await refresh();
-  };
-
-  return { save, clear };
+  return { days: query.data ?? [], loaded: query.isSuccess, unavailable: query.isError, save };
 }
 
 // ─── Personal loans (to people who are not customers) ───
