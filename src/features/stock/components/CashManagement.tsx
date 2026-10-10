@@ -16,6 +16,7 @@ import { useT, type TranslationKey } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
+import { NetPositionView } from '@/features/net-position/components/NetPositionView';
 import { useLoanPaymentClaims, type LoanPaymentClaim } from '@/hooks/useLoanPaymentClaims';
 import { deleteCashAccountLedgerFromCloud, deleteCashAccountFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
@@ -2922,7 +2923,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     loan_repayment: t('ledgerLoanRepayment'),
   }), [t]);
 
-  const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'statements'>('accounts');
+  const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'position' | 'statements'>('accounts');
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
@@ -2936,6 +2937,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const focusClaimId = searchParams.get('focusLoanPaymentClaimId');
   useEffect(() => {
     if (searchParams.get('tab') === 'loans') setInnerTab('loans');
+    if (searchParams.get('tab') === 'net-position') setInnerTab('position');
   }, [searchParams]);
   useEffect(() => {
     if (!focusClaimId) return;
@@ -3984,10 +3986,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {/* ── Inner Tabs ── */}
       <div className="cash-inner-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {tabBtn('accounts', t('cashAccountsTab'))}
           {tabBtn('flow', t('cashFlowTab'))}
           {tabBtn('loans', t('cashLoansTab'))}
+          {tabBtn('position', t('cashPositionTab'))}
           {tabBtn('statements', t('cashStatementsTab'))}
         </div>
         <button
@@ -5322,6 +5325,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       )}
 
       {/* ── PUBLIC STATEMENTS TAB ── */}
+      {innerTab === 'position' && <NetPositionView state={state} applyState={applyState} />}
+
       {innerTab === 'statements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>

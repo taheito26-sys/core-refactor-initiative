@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useTheme } from '@/lib/theme-context';
-import { useTrackerState } from '@/lib/useTrackerState';
+import type { TrackerState } from '@/lib/tracker-helpers';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useT } from '@/lib/i18n';
 import { fmtTotal, getAccountBalance, resolveCustomerName } from '@/lib/tracker-helpers';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
-import { PersonalLoansPanel } from '@/features/net-position/components/PersonalLoansPanel';
-import { useNetPositionDays, useNetPositionSettings, usePersonalLoans } from '@/features/net-position/api';
+import { PersonalLoansPanel } from './PersonalLoansPanel';
+import { useNetPositionDays, useNetPositionSettings, usePersonalLoans } from '../api';
 import {
   LINE_ORDER, computePosition, countableAccounts, monthsAvailable, qatarDay, sameDayRow, summariseMonth, toDayRow,
   type DayRow, type LineKey, type PositionLine,
-} from '@/features/net-position/position';
-import { buildPositionReportHtml, exportPositionPdf } from '@/features/net-position/report';
+} from '../position';
+import { buildPositionReportHtml, exportPositionPdf } from '../report';
 import '@/styles/tracker.css';
 
 const money = (n: number, signed = false) => `${signed && n > 0 ? '+' : n < 0 ? '−' : ''}${fmtTotal(Math.abs(n))}`;
@@ -46,18 +45,16 @@ function DayBars({ days, label }: { days: DayRow[]; label: string }) {
   );
 }
 
-export default function NetPositionPage() {
-  const { settings: theme } = useTheme();
+/**
+ * Net position, shown inside Cash Management: what the merchant has right now
+ * in five lines, and how it moved month by month. It reads the same tracker
+ * state as the rest of the page, so cash added there is counted here at once.
+ */
+export function NetPositionView({ state, applyState }: { state: TrackerState; applyState: (next: TrackerState) => void }) {
   const isMobile = useIsMobile();
   const t = useT();
   const lang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const { state, applyState } = useTrackerState({
-    lowStockThreshold: theme.lowStockThreshold,
-    priceAlertThreshold: theme.priceAlertThreshold,
-    range: theme.range,
-    currency: theme.currency,
-  });
 
   const { settings, loaded: settingsLoaded, unavailable: settingsUnavailable, save: saveSettings } = useNetPositionSettings();
   const { days, loaded: daysLoaded, unavailable: daysUnavailable, save: saveDay } = useNetPositionDays();
@@ -263,9 +260,9 @@ export default function NetPositionPage() {
   const unavailable = settingsUnavailable || daysUnavailable;
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 8px' : 12, display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760, marginInline: 'auto', width: '100%' }}>
+    <div dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760, marginInline: 'auto', width: '100%' }}>
       <div>
-        <div style={{ fontSize: 16, fontWeight: 800 }}>⚖️ {t('npNavTitle')}</div>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>⚖️ {t('npNavTitle')}</div>
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>{L('What you have right now: cash, banks, USDT on exchanges, and what people owe you.', 'ما تملكه الآن: النقد والبنوك وUSDT على المنصات وما يدين لك به الناس.')}</div>
       </div>
 

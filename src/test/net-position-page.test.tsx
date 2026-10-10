@@ -5,7 +5,6 @@ vi.mock('@/lib/i18n', () => {
   const t = Object.assign((key: string) => key, { lang: 'en', isRTL: false });
   return { useT: () => t };
 });
-vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { lowStockThreshold: 0, priceAlertThreshold: 0, range: 'all', currency: 'QAR' } }) }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
@@ -25,7 +24,6 @@ const state = {
   deletedLoanIds: [], batches: [], trades: [], usdtTransfers: [],
 };
 const applyState = vi.fn();
-vi.mock('@/lib/useTrackerState', () => ({ useTrackerState: () => ({ state, applyState }) }));
 
 let included: string[] = ['hand', 'bank'];
 const saveSettings = vi.fn(async (next: { includedAccounts: string[] }) => { included = next.includedAccounts; });
@@ -40,9 +38,11 @@ vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({
   useExchangeBalances: () => ({ data: [{ exchange: 'binance', asset: 'USDT', free: 0, locked: 0 }] }),
 }));
 
-import NetPositionPage from '@/pages/NetPositionPage';
+import { NetPositionView } from '@/features/net-position/components/NetPositionView';
 
-describe('NetPositionPage', () => {
+const NetPositionPage = () => <NetPositionView state={state as never} applyState={applyState} />;
+
+describe('Net position inside Cash Management', () => {
   it('shows the net position from the ticked accounts and the loans in the system', () => {
     render(<NetPositionPage />);
     // 125,500 cash + 49,000 bank + 177,295 owed by Muhammad Al-Damrawi. The unticked account is left out.

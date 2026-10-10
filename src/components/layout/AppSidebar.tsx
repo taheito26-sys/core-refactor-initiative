@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   Globe,
   Handshake,
-  Scale,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -40,7 +39,6 @@ export const tradingNav: NavItem[] = [
   { labelKey: 'messages', fallback: 'Chat', icon: MessageCircle, path: '/chat' },
   { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
   { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: Globe, path: '/trading/p2p' },
-  { labelKey: 'npNavTitle', fallback: 'Net Position', icon: Scale, path: '/trading/net-position' },
 ];
 
 export const networkNav: NavItem[] = [

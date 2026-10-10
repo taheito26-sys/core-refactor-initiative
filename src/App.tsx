@@ -185,7 +185,6 @@ const OrdersPage = React.lazy(() => import('./pages/OrdersPage'));
 const OrdersImportLedgerPage = React.lazy(() => import('./pages/OrdersImportLedgerPage'));
 const StockPage = React.lazy(() => import('./pages/StockPage'));
 const CashPage = React.lazy(() => import('./pages/CashPage'));
-const NetPositionPage = React.lazy(() => import('./pages/NetPositionPage'));
 const P2PTrackerPage = React.lazy(() => import('./pages/P2PTrackerPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const CalendarPage = React.lazy(() => import('./pages/CalendarPage'));
@@ -446,7 +445,7 @@ const App = () => (
                   <Route path="/trading/orders/import-ledger" element={<OrdersImportLedgerPage />} />
                   <Route path="/trading/stock" element={<StockPage />} />
                   <Route path="/trading/cash" element={<CashPage />} />
-                  <Route path="/trading/net-position" element={<NetPositionPage />} />
+                  <Route path="/trading/net-position" element={<Navigate to="/trading/cash?tab=net-position" replace />} />
                   <Route path="/trading/calendar" element={<CalendarPage />} />
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
