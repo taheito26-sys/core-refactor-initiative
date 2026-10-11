@@ -43,6 +43,7 @@ export function PersonalLoansPanel({
   const accounts = useMemo(() => (state.cashAccounts || []).filter(a => a.status === 'active' && a.type !== 'merchant_custody'), [state.cashAccounts]);
   const [form, setForm] = useState({ person: '', amount: '', currency: 'QAR' as PersonalLoanCurrency, day: today, accountId: '', note: '' });
   const [repay, setRepay] = useState<{ loanId: string; amount: string; day: string; accountId: string } | null>(null);
+  const [edit, setEdit] = useState<{ loanId: string; person: string; principal: string; note: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [showSettled, setShowSettled] = useState(false);
 
@@ -106,6 +107,23 @@ export function PersonalLoansPanel({
     }
   };
 
+  const saveEdit = async () => {
+    if (!edit) return;
+    const principal = Number(edit.principal);
+    const person = edit.person.trim();
+    if (!person || !(principal > 0)) return;
+    setBusy(true);
+    try {
+      await actions.update(edit.loanId, { person, principal, note: edit.note.trim() || undefined });
+      setEdit(null);
+      toast.success(t('plSaved'));
+    } catch {
+      toast.error(t('mloanSaveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeLoan = async (loan: PersonalLoan) => {
     if (!window.confirm(t('plDeleteConfirm'))) return;
     setBusy(true);
@@ -137,8 +155,29 @@ export function PersonalLoansPanel({
               ↩ {t('plRecordRepayment')}
             </button>
           )}
+          <button type="button" className="rowBtn" disabled={busy}
+            onClick={() => setEdit({ loanId: loan.id, person: loan.person, principal: String(loan.principal), note: loan.note || '' })}>
+            ✏️ {t('edit')}
+          </button>
           <button type="button" className="rowBtn" disabled={busy} onClick={() => { void removeLoan(loan); }}>🗑 {t('plDelete')}</button>
         </div>
+        {edit?.loanId === loan.id && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
+            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plPerson')}
+              <input value={edit.person} onChange={e => setEdit({ ...edit, person: e.target.value })} style={field} />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('amount')} ({loan.currency})
+              <input inputMode="decimal" value={edit.principal} onChange={e => { if (numeric(e.target.value)) setEdit({ ...edit, principal: e.target.value }); }} style={field} />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('note')}
+              <input value={edit.note} onChange={e => setEdit({ ...edit, note: e.target.value })} style={field} />
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" className="btn" disabled={busy || !edit.person.trim() || !(Number(edit.principal) > 0)} onClick={() => { void saveEdit(); }}>{t('save')}</button>
+              <button type="button" className="btn secondary" onClick={() => setEdit(null)}>{t('cancel')}</button>
+            </div>
+          </div>
+        )}
         {repaying && repay && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('amount')} ({loan.currency})

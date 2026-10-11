@@ -204,7 +204,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const [showCashBox, setShowCashBox] = useState(false);
   const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
-  const [roiPeriod, setRoiPeriod] = useState<'7d' | '30d'>('7d');
   const userId = resolvedUserId;
   const workspaceMerchantId = resolvedMerchantId;
 
@@ -776,48 +775,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 )}
                 {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600, marginLeft: hasAccounts ? 6 : 0 }}>{t('openCashMgmt')}</span>}
               </div>
-            </div>
-          );
-        })()}
-        {(() => {
-          const roiData = roiPeriod === '7d' ? d7 : d30;
-          const roiVal = stCost > 0 ? (roiData.net / stCost) * 100 : 0;
-          const isExpanded = expandedNewKpi === 'roi';
-          return (
-            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
-              <div className="kpi-lbl" style={{ color: 'var(--good)' }}>{t('roiLabel')}</div>
-              <div className={`kpi-val ${roiVal >= 0 ? 'good' : 'bad'}`}>{fmtPrice(roiVal)}%</div>
-              <div className="kpi-sub">{t('roiSub')}</div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span
-                  style={{
-                    fontSize: 9, padding: '1px 6px', cursor: 'pointer', borderRadius: 4,
-                    color: roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)',
-                    background: roiPeriod === '7d' ? 'color-mix(in srgb,var(--brand) 12%,transparent)' : 'transparent',
-                    fontWeight: roiPeriod === '7d' ? 700 : 400,
-                  }}
-                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('7d'); }}
-                >7D</span>
-                <span
-                  style={{
-                    fontSize: 9, padding: '1px 6px', cursor: 'pointer', borderRadius: 4,
-                    color: roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)',
-                    background: roiPeriod === '30d' ? 'color-mix(in srgb,var(--brand) 12%,transparent)' : 'transparent',
-                    fontWeight: roiPeriod === '30d' ? 700 : 400,
-                  }}
-                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('30d'); }}
-                >30D</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
-              </div>
-              {isExpanded && (
-                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
-                  <p>Return on invested capital for {roiPeriod === '7d' ? '7 days' : '30 days'} — normalizes profit vs full book.</p>
-                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Raw QAR profit is misleading without context of how much capital is deployed.</p>
-                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
-                    = {roiPeriod}.netQAR ÷ stockCostQAR × 100
-                  </div>
-                </div>
-              )}
             </div>
           );
         })()}

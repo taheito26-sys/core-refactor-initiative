@@ -142,6 +142,15 @@ export function usePersonalLoanActions() {
     await refresh();
   };
 
+  /** Corrects who, how much and the note on an existing loan; repayments and ledger links stay as they are. */
+  const update = async (loanId: string, patch: { person: string; principal: number; note?: string }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('personal_loans' as any)
+      .update({ person: patch.person, principal: patch.principal, note: patch.note || null }).eq('id', loanId);
+    if (error) throw error;
+    await refresh();
+  };
+
   const remove = async (loanId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from('personal_loans' as any).delete().eq('id', loanId);
@@ -149,5 +158,5 @@ export function usePersonalLoanActions() {
     await refresh();
   };
 
-  return { add, setRepayments, remove };
+  return { add, setRepayments, update, remove };
 }
