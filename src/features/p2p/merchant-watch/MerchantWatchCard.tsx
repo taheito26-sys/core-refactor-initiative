@@ -13,20 +13,20 @@ const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleStr
 
 function DayBars({ values, labels, lang }: { values: Array<number | null>; labels: string[]; lang: 'en' | 'ar' }) {
   const max = Math.max(1, ...values.map(v => v ?? 0));
-  const W = 224, H = 46, gap = 6, bw = (W - gap * (values.length - 1)) / values.length;
+  const W = 224, H = 46, top = 12, gap = 6, bw = (W - gap * (values.length - 1)) / values.length;
   return (
-    <svg viewBox={`0 0 ${W} ${H + 14}`} className="w-full" role="img" aria-label={lang === 'ar' ? 'الطلبات يوميًا' : 'Orders per day'}>
+    <svg viewBox={`0 0 ${W} ${top + H + 14}`} className="w-full" role="img" aria-label={lang === 'ar' ? 'الطلبات يوميًا' : 'Orders per day'}>
       {values.map((v, i) => {
         const h = v == null ? 0 : Math.max(v > 0 ? 3 : 1, (v / max) * H);
         const x = i * (bw + gap);
         const today = i === values.length - 1;
         return (
           <g key={i}>
-            <rect x={x} y={H - h} width={bw} height={h} rx={2} fill={today ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.45)'} />
-            {v != null && v > 0 && (
-              <text x={x + bw / 2} y={H - h - 2} textAnchor="middle" fontSize="8" fill="hsl(var(--foreground))">{v}</text>
+            <rect x={x} y={top + H - h} width={bw} height={h} rx={2} fill={today ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.45)'} />
+            {v != null && (
+              <text x={x + bw / 2} y={top + H - h - 2} textAnchor="middle" fontSize="9" fontWeight="700" fill="hsl(var(--foreground))">{v}</text>
             )}
-            <text x={x + bw / 2} y={H + 11} textAnchor="middle" fontSize="7.5" fill="hsl(var(--muted-foreground))">{labels[i]}</text>
+            <text x={x + bw / 2} y={top + H + 11} textAnchor="middle" fontSize="7.5" fill="hsl(var(--muted-foreground))">{labels[i]}</text>
           </g>
         );
       })}
@@ -89,7 +89,7 @@ function MerchantTile({ merchant, snaps, daily, events, lang, onRemove }: {
   const week = register.slice(0, 7).reverse();
   const bars = [...Array.from({ length: 7 - week.length }, () => null), ...week.map(d => d.orders)] as Array<number | null>;
   const dayLabel = (day: string, opts: Intl.DateTimeFormatOptions) => new Date(`${day}T12:00:00`).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', opts);
-  const labels = [...Array.from({ length: 7 - week.length }, () => ''), ...week.map(d => dayLabel(d.day, { weekday: 'narrow' }))];
+  const labels = [...Array.from({ length: 7 - week.length }, () => ''), ...week.map(d => dayLabel(d.day, { weekday: 'short' }))];
   const todayAll = register[0]?.orders ?? null;
   const todaySold = register[0]?.sold ?? null;
   const since = daily.length > 0 ? daily[0] : undefined;
