@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, SearchCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { extractImportedReference, stashTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { extractImportedReference } from '@/features/exchanges/tracker-import';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeOrderLinks } from '../hooks/useExchangeOrderLinks';
@@ -24,13 +23,15 @@ const fmtN = (n: number, d = 0) => n.toLocaleString('en-US', { maximumFractionDi
  * without opening anything; the dialog lists exactly which orders to register.
  */
 export function P2PAuditButton({
-  state, monthKey, lang, onRegisterSell,
+  state, monthKey, lang, side, onRegister,
 }: {
   state: TrackerState;
   monthKey: string;
   lang: 'en' | 'ar';
-  /** Loads a sell order into the new-sale form, exactly like picking it from the exchange list. */
-  onRegisterSell: (order: ExchangeOrderPayload) => void;
+  /** Which orders this page owns: sells on Orders, buys on Stock. */
+  side: 'sell' | 'buy';
+  /** Loads the order into this page's entry form, exactly like picking it from the exchange list. */
+  onRegister: (order: ExchangeOrderPayload) => void;
 }) {
   const isAr = lang === 'ar';
   const L = (en: string, ar: string) => (isAr ? ar : en);
@@ -38,7 +39,6 @@ export function P2PAuditButton({
   const [showAll, setShowAll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [kept, setKept] = useState<Set<string>>(new Set());
   const { data: orders } = useExchangeP2POrders({ includeDismissed: true });
@@ -56,8 +56,8 @@ export function P2PAuditButton({
       [...state.batches.map(b => extractImportedReference(b.note)), ...liveTrades.map(tr => extractImportedReference(tr.note))]
         .filter((r): r is string => !!r),
     );
-    return auditCompletedP2POrders({ orders, linksByOrder, liveEntityIds, importedReferences, monthKey });
-  }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, monthKey]);
+    return auditCompletedP2POrders({ orders, linksByOrder, liveEntityIds, importedReferences, monthKey, side });
+  }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, monthKey, side]);
 
   const alarms = audit.missing + audit.partial;
   const notRegistered = alarms + audit.ignored;
@@ -104,12 +104,7 @@ export function P2PAuditButton({
         await refreshOrders();
       }
       setOpen(false);
-      if (o.side === 'buy') {
-        stashTrackerImportPrefill({ ...payload, kind: 'batch' });
-        navigate('/trading/stock');
-      } else {
-        onRegisterSell(payload);
-      }
+      onRegister(payload);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : L('Could not open this order', 'تعذر فتح هذا الطلب'));
     } finally {
@@ -151,7 +146,9 @@ export function P2PAuditButton({
         type="button"
         className="rowBtn"
         onClick={() => setOpen(true)}
-        title={L('Check completed P2P orders against the tracker', 'مطابقة طلبات P2P المكتملة مع النظام')}
+        title={side === 'buy'
+          ? L('Check completed P2P buy orders against the stock', 'مطابقة طلبات شراء P2P المكتملة مع المخزون')
+          : L('Check completed P2P sell orders against the orders', 'مطابقة طلبات بيع P2P المكتملة مع الطلبات')}
         style={alarms > 0
           ? { borderColor: 'var(--bad)', color: 'var(--bad)', fontWeight: 800 }
           : audit.ignored > 0 ? { borderColor: 'var(--warn)', color: 'var(--warn)', fontWeight: 800 } : undefined}
@@ -165,11 +162,13 @@ export function P2PAuditButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto p-4" dir={isAr ? 'rtl' : 'ltr'}>
           <DialogHeader>
-            <DialogTitle className="text-base">{L('P2P check', 'مطابقة P2P')} · {monthKey === 'all' ? L('All months', 'كل الأشهر') : monthKey}</DialogTitle>
+            <DialogTitle className="text-base">{side === 'buy' ? L('P2P buy check', 'مطابقة شراء P2P') : L('P2P sell check', 'مطابقة بيع P2P')} · {monthKey === 'all' ? L('All months', 'كل الأشهر') : monthKey}</DialogTitle>
           </DialogHeader>
 
           <div className="text-xs text-muted-foreground">
-            {L('Completed Binance P2P orders compared with the orders registered in the tracker.', 'مطابقة طلبات Binance P2P المكتملة مع الطلبات المسجلة في النظام.')}
+            {side === 'buy'
+              ? L('Completed Binance P2P buy orders compared with the batches registered in stock.', 'مطابقة طلبات شراء Binance P2P المكتملة مع الدفعات المسجلة في المخزون.')
+              : L('Completed Binance P2P sell orders compared with the orders registered in the tracker.', 'مطابقة طلبات بيع Binance P2P المكتملة مع الطلبات المسجلة في النظام.')}
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 text-center">

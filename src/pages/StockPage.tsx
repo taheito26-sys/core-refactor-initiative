@@ -45,6 +45,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import { buildManualFixBatch, planManualFix } from '@/features/stock/manual-fix';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
+import { P2PAuditButton } from '@/features/exchanges/components/P2PAuditButton';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
@@ -1088,6 +1089,7 @@ export default function StockPage() {
             {hasActiveStockFilters && (
               <button className="rowBtn" onClick={clearStockFilters}>{t('clearFilters')}</button>
             )}
+            <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} side="buy" onRegister={applyExchangeOrderPrefill} />
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>

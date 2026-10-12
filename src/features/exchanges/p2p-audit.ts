@@ -50,11 +50,14 @@ export function auditCompletedP2POrders(input: {
   importedReferences: Set<string>;
   /** "YYYY-MM", or "all" for every month. */
   monthKey: string;
+  /** Sell orders belong on the Orders page, buy orders on the Stock page; each page checks only its own. */
+  side?: 'sell' | 'buy';
 }): P2PAudit {
   const rows: P2PAuditRow[] = [];
   for (const o of input.orders || []) {
     if (String(o.asset || '').toUpperCase() !== 'USDT') continue;
     if (!isCompletedP2POrder(o.status)) continue;
+    if (input.side && String(o.side || '').toLowerCase() !== input.side) continue;
     const ts = o.order_time ? new Date(o.order_time).getTime() : 0;
     if (input.monthKey !== 'all' && (!ts || localMonthOf(ts) !== input.monthKey)) continue;
 

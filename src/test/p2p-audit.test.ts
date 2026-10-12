@@ -50,4 +50,13 @@ describe('auditCompletedP2POrders', () => {
     expect(a.missingUSDT).toBe(100);
     expect(a.total).toBe(a.registered + a.partial + a.missing + a.ignored);
   });
+
+  it('keeps sells on the Orders check and buys on the Stock check', () => {
+    const orders = [mk({ id: 's', side: 'sell' }), mk({ id: 'b', side: 'buy', order_number: '2276' })];
+    const sells = auditCompletedP2POrders({ ...base, orders, side: 'sell' });
+    const buys = auditCompletedP2POrders({ ...base, orders, side: 'buy' });
+    expect(sells.rows.map(r => r.order.id)).toEqual(['s']);
+    expect(buys.rows.map(r => r.order.id)).toEqual(['b']);
+    expect(auditCompletedP2POrders({ ...base, orders }).total).toBe(2);
+  });
 });
