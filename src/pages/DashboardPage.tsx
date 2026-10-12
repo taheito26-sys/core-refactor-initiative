@@ -21,6 +21,8 @@ import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TopClientsKPI } from '@/components/dashboard/TopClientsKPI';
+import { CustomKpis } from '@/features/dashboard/components/CustomKpis';
+import type { KpiOption } from '@/features/dashboard/kpi-catalog';
 import { BanqueMisrInstaPayKPI } from '@/components/dashboard/BanqueMisrInstaPayKPI';
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -181,6 +183,25 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       hasLoans: loans.length > 0,
     };
   }, [state.customerLoans, state.deletedLoanIds]);
+
+  const trackerKpiOptions = useMemo<KpiOption[]>(() => {
+    const g = t.lang === 'ar' ? 'التراكر' : 'Tracker';
+    const orders = (label: string, d: { count: number }, id: string): KpiOption => ({ id, group: g, label, value: String(d.count), sub: 'trades' });
+    return [
+      orders('Trades · 7 days', d7, 'tracker:trades7'),
+      orders('Trades · 30 days', d30, 'tracker:trades30'),
+      orders('Trades · this month', dM, 'tracker:tradesMonth'),
+      { id: 'tracker:profit7', group: g, label: 'Net profit · 7 days', value: fmtDashboardAmount(d7.net) },
+      { id: 'tracker:profit30', group: g, label: 'Net profit · 30 days', value: fmtDashboardAmount(d30.net) },
+      { id: 'tracker:profitMonth', group: g, label: 'Net profit · this month', value: fmtDashboardAmount(dM.net) },
+      { id: 'tracker:volume30', group: g, label: 'USDT sold · 30 days', value: fmtTotal(d30.qty), sub: 'USDT' },
+      { id: 'tracker:margin30', group: g, label: 'Avg margin · 30 days', value: `${fmtPrice(d30.avgMgn)}%` },
+      { id: 'tracker:stock', group: g, label: 'USDT in stock', value: fmtTotal(stk), sub: 'USDT' },
+      { id: 'tracker:stockCost', group: g, label: 'Stock cost', value: fmtDashboardAmount(stCost) },
+      { id: 'tracker:cash', group: g, label: 'Cash (QAR accounts)', value: fmtDashboardAmount(liveCashQAR) },
+      { id: 'tracker:loans', group: g, label: 'Customer loans owed', value: loansUnpaid.lead ? `${fmtTotal(loansUnpaid.totalRemaining)}` : '0', sub: `${loansUnpaid.debtorCount} debtors` },
+    ];
+  }, [d7, d30, dM, stk, stCost, liveCashQAR, loansUnpaid, fmtDashboardAmount]);
 
   const cycleHours = useMemo(() => {
     const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
@@ -780,6 +801,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         })()}
 
       </div>
+
+      <CustomKpis trackerOptions={trackerKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} />
 
       <div className="dash-bottom">
         <TopClientsKPI
