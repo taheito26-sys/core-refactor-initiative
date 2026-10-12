@@ -270,6 +270,11 @@ export default function StockPage() {
   const residualDelta = reconcileExplanation.remaining;
   const residualMismatch = Math.abs(residualDelta) > 1;
   const mismatchExplained = reconciliationMismatch && reconcileExplanation.items.length > 0 && !residualMismatch;
+  /** One tone drives the whole reconciliation card: green = in sync, amber = gap explained by pending imports, red = real gap. */
+  const reconTone = !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)';
+  const reconTotalMax = Math.max(recentAvailableUsdt, exchangeUsdtTotal, 1);
+  /** Whole numbers hide a sub-unit gap as "-0", so small gaps are shown with decimals. */
+  const fmtReconDelta = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtU(Math.abs(n), Math.abs(n) < 1 ? 2 : 0)}`;
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
   const activeFifoBatch = useMemo(() => {
     const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
@@ -1144,49 +1149,63 @@ export default function StockPage() {
             </label>
             {reconcileExchangesEnabled && (
               <div style={{
-                marginTop: 6,
-                padding: 9,
+                marginTop: 8,
+                padding: 14,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 7,
-                background: `color-mix(in srgb, ${!reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)'} 8%, transparent)`,
-                border: `1px solid color-mix(in srgb, ${!reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)'} 25%, transparent)`,
-                borderRadius: 8,
+                gap: 14,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${reconTone} 14%, var(--panel, transparent)), color-mix(in srgb, ${reconTone} 4%, transparent))`,
+                border: `1px solid color-mix(in srgb, ${reconTone} 35%, transparent)`,
+                borderInlineStart: `4px solid ${reconTone}`,
+                borderRadius: 14,
                 fontSize: 11,
               }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 7 }}>
-                  <div>
-                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
-                      {t('reconciliationTrackerQty') || 'Tracker (available stock)'}
-                    </div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(recentAvailableUsdt)} USDT</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{
+                    width: 38, height: 38, flexShrink: 0, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, fontWeight: 800, color: '#fff', background: reconTone,
+                    boxShadow: `0 0 0 5px color-mix(in srgb, ${reconTone} 20%, transparent)`,
+                  }}>
+                    {!reconciliationMismatch ? '✓' : mismatchExplained ? '⏳' : '!'}
                   </div>
-                  <div>
-                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                  <div style={{ flex: 1, minWidth: 140 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: reconTone, lineHeight: 1.2 }}>
+                      {!reconciliationMismatch
+                        ? (t('reconciliationMatch') || 'Matches within tolerance')
+                        : mismatchExplained
+                          ? t('reconcileExplainedStatus')
+                          : (t('reconciliationMismatch') || 'Mismatch flagged')}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>
                       {t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}
                     </div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(exchangeUsdtTotal)} USDT</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
-                      {t('reconciliationDelta') || 'Delta'}
-                    </div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
-                      {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT
-                    </div>
+                  <div className="mono" style={{
+                    padding: '6px 14px', borderRadius: 999, fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
+                    color: reconTone, background: `color-mix(in srgb, ${reconTone} 16%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${reconTone} 40%, transparent)`,
+                  }}>
+                    {!reconciliationMismatch ? '0.00' : fmtReconDelta(reconciliationDelta)} USDT
                   </div>
-                  <div>
-                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
-                      {t('reconciliationStatus') || 'Status'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+                  {[
+                    { label: t('reconciliationTrackerQty') || 'Tracker (available stock)', value: recentAvailableUsdt },
+                    { label: t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)', value: exchangeUsdtTotal },
+                  ].map((row) => (
+                    <div key={row.label} style={{ padding: 10, borderRadius: 10, background: 'color-mix(in srgb, var(--text) 5%, transparent)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 4 }}>
+                        {row.label}
+                      </div>
+                      <div className="mono" style={{ fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                        {fmtU(row.value)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>USDT</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, marginTop: 8, background: 'color-mix(in srgb, var(--text) 10%, transparent)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.max(2, Math.min(100, (row.value / reconTotalMax) * 100))}%`, background: reconTone, borderRadius: 3 }} />
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
-                      {!reconciliationMismatch
-                        ? `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`
-                        : mismatchExplained
-                          ? `⏳ ${t('reconcileExplainedStatus')}`
-                          : `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}`}
-                    </div>
-                  </div>
+                  ))}
                 </div>
                 {reconciliationMismatch && reconcileExplanation.items.length > 0 && (
                   <div style={{ fontSize: 10.5, lineHeight: 1.4, borderTop: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
