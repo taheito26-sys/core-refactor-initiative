@@ -243,8 +243,8 @@ export default function StockPage() {
     return totals;
   }, [exchangeBalances]);
   const exchangeUsdtTotal = exchangeUsdtTotals.binance + exchangeUsdtTotals.okx;
-  /** Anything under a hundredth of a USDT is rounding noise, not a real reconciliation gap. */
-  const RECONCILIATION_TOLERANCE_USDT = 0.01;
+  /** A gap of up to 50 USDT between tracker and exchanges still counts as a match. */
+  const RECONCILIATION_TOLERANCE_USDT = 50;
 
   /** Filter to only recent batches (September 2026 onwards) for reconciliation */
   const septemberCutoff = new Date('2026-09-01T00:00:00Z').getTime();
@@ -1186,7 +1186,7 @@ export default function StockPage() {
                     color: reconTone, background: `color-mix(in srgb, ${reconTone} 16%, transparent)`,
                     border: `1px solid color-mix(in srgb, ${reconTone} 40%, transparent)`,
                   }}>
-                    {!reconciliationMismatch ? '0.00' : fmtReconDelta(reconciliationDelta)} USDT
+                    {fmtReconDelta(reconciliationDelta)} USDT
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
