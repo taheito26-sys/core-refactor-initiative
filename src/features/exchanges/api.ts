@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { ExchangeDismissReason, ExchangeId } from './types';
+import type { ExchangeDismissReason, ExchangeId, ExchangeP2POrder } from './types';
 
 export async function connectExchange(params: {
   exchange: ExchangeId;
@@ -59,6 +59,29 @@ export async function syncExchange(
   }
   if (data?.error) throw new Error(data.error);
   return data;
+}
+
+/**
+ * Re-reads one Binance P2P order straight from Binance before it is registered
+ * again, so a re-registered sale carries the order as it stands now (the full
+ * quantity taken, fee included, at the listed price) rather than a stale copy
+ * synced under older rules. A one-day window around the order keeps the call
+ * small. Returns null when the refresh or the lookup fails; the caller then
+ * falls back to the row it already holds.
+ */
+export async function fetchFreshExchangeOrder(order: { id: string; exchange: ExchangeId; order_time: string | null }): Promise<ExchangeP2POrder | null> {
+  if (order.exchange !== 'binance' || !order.order_time) return null;
+  try {
+    const at = new Date(order.order_time).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    await syncExchange('binance', 'p2p-orders', { startTimestamp: at - day, endTimestamp: at + day });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await supabase.from('exchange_p2p_orders' as any).select('*').eq('id', order.id).maybeSingle();
+    if (error || !data) return null;
+    return data as unknown as ExchangeP2POrder;
+  } catch {
+    return null;
+  }
 }
 
 export async function markTransfersLinked(
