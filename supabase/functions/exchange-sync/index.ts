@@ -169,14 +169,16 @@ async function fetchBinanceP2POrders(creds: Credentials, range?: { startTimestam
         const grossAmount = parseFloat(o.amount ?? "0");
         const total = parseFloat(o.totalPrice ?? o.total ?? "0");
         const commission = parseFloat(o.commission ?? "0");
-        // Binance deducts its P2P commission from the crypto leg on both sides:
-        // a BUY lands amount - commission in the wallet, while a SELL actually
-        // debits amount + commission (the seller sends extra USDT to cover the
-        // fee, so the nominal "amount" understates what was really sold).
-        // Recompute the unit price against the net amount so total (fiat paid
-        // or received) still reconciles, keeping the imported cost basis accurate.
-        const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount + commission;
-        const unitPrice = netAmount > 0 ? total / netAmount : parseFloat(o.unitPrice ?? o.price ?? "0");
+        // A BUY lands amount - commission in the wallet, so the cost basis is
+        // taken against that net amount. A SELL is different: the commission is
+        // the customer's to bear, not the merchant's, so the sale is recorded at
+        // the listed price on the nominal amount and the merchant's revenue is the
+        // full fiat total with no fee taken out of it.
+        const listedPrice = parseFloat(o.unitPrice ?? o.price ?? "0");
+        const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount;
+        const unitPrice = tradeType === "SELL"
+          ? (listedPrice > 0 ? listedPrice : grossAmount > 0 ? total / grossAmount : 0)
+          : netAmount > 0 ? total / netAmount : listedPrice;
         orders.push({
           order_number: String(o.orderNumber),
           side: tradeType === "BUY" ? "buy" : "sell",
