@@ -170,12 +170,12 @@ async function fetchBinanceP2POrders(creds: Credentials, range?: { startTimestam
         const total = parseFloat(o.totalPrice ?? o.total ?? "0");
         const commission = parseFloat(o.commission ?? "0");
         // A BUY lands amount - commission in the wallet, so the cost basis is
-        // taken against that net amount. A SELL is different: the commission is
-        // the customer's to bear, not the merchant's, so the sale is recorded at
-        // the listed price on the nominal amount and the merchant's revenue is the
-        // full fiat total with no fee taken out of it.
+        // taken against that net amount. A SELL debits amount + commission from
+        // the wallet (Binance's "Total Quantity"). The customer bears that fee, so
+        // the sale is recorded at the listed price on the full quantity taken from
+        // the merchant, and the stock leaves the tracker exactly as it leaves Binance.
         const listedPrice = parseFloat(o.unitPrice ?? o.price ?? "0");
-        const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount;
+        const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount + commission;
         const unitPrice = tradeType === "SELL"
           ? (listedPrice > 0 ? listedPrice : grossAmount > 0 ? total / grossAmount : 0)
           : netAmount > 0 ? total / netAmount : listedPrice;
