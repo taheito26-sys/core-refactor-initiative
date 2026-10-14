@@ -718,9 +718,12 @@ Deno.serve(async (req: Request) => {
           ? await fetchBinanceP2POrders(creds, p2pRange)
           : await fetchOkxP2POrders(creds);
 
-        if (orders.length > 0) {
+        // One row per Binance order number: a page returned twice, or an order listed
+        // under both trade types, must never be written (or counted) twice.
+        const uniqueOrders = [...new Map(orders.map((o) => [o.order_number, o])).values()];
+        if (uniqueOrders.length > 0) {
           const { error } = await admin.from("exchange_p2p_orders").upsert(
-            orders.map((o) => ({
+            uniqueOrders.map((o) => ({
               user_id: userId,
               exchange,
               order_number: o.order_number,
@@ -739,7 +742,7 @@ Deno.serve(async (req: Request) => {
           );
           if (error) throw error;
         }
-        summary.p2pOrders = orders.length;
+        summary.p2pOrders = uniqueOrders.length;
       } catch (err) {
         errors.p2pOrders = errMsg(err);
       }
