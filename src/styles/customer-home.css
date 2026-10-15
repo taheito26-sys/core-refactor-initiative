@@ -194,3 +194,6 @@
 .ch-nav-item.on .ch-nav-lbl { color: #1f63f0; font-weight: 700; }
 .ch-nav-bar { position: absolute; bottom: calc(2 * var(--q)); left: 50%; width: calc(40 * var(--q)); height: calc(3 * var(--q)); margin-left: calc(-20 * var(--q)); border-radius: calc(2 * var(--q)); background: #1f63f0; }
 .ch-nav-item .ch-badge { top: calc(3 * var(--q)); inset-inline-start: calc(50% + calc(6 * var(--q))); }
+
+/* arrows that point along the reading direction mirror in Arabic */
+.ch-root[dir=rtl] .ch-flip { transform: scaleX(-1); }

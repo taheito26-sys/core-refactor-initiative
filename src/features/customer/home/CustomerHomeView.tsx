@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
-  ArrowDown, ArrowDownRight, ArrowUpRight, Bell, CalendarDays, ChevronLeft, ChevronRight, Clock,
+  ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowUpLeft, ArrowUpRight, Bell, CalendarDays, ChevronLeft, ChevronRight, Clock,
   Database, FileText, Info, Landmark, List, Plus, ReceiptText, TrendingUp, User, UserPlus, Wallet,
 } from 'lucide-react';
 import '@/styles/customer-home.css';
@@ -123,7 +123,12 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
   const { lang, fmt } = p;
   const t = (en: string, ar: string) => L(lang, en, ar);
   const unit = lang === 'ar' ? 'ر.ق' : 'QAR';
-  const Chev = lang === 'ar' ? ChevronLeft : ChevronRight;
+  const rtl = lang === 'ar';
+  const Chev = rtl ? ChevronLeft : ChevronRight;
+  // Direction arrows point the reading way: mirrored in Arabic.
+  const ArrowUp = rtl ? ArrowUpLeft : ArrowUpRight;
+  const ArrowDownDiag = rtl ? ArrowDownLeft : ArrowDownRight;
+  const flowArrow = rtl ? '←' : '→';
 
   const actions: Array<{ key: string; label: string; icon: ReactNode; bg: string; color: string; go: () => void }> = [
     { key: 'new', label: t('New Order', 'طلب جديد'), icon: <Plus strokeWidth={2.2} />, bg: '#f0edfe', color: '#5b3fe0', go: p.onNewOrder },
@@ -146,7 +151,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
         <div className="ch-rate-foot">
           <span className="ch-rate-spark"><RateSpark trend={trend} up={trend.up} w={26} h={11} /></span>
           <span className={`ch-rate-chg ${trend.up ? '' : 'down'}`}>
-            {trend.up ? <ArrowUpRight /> : <ArrowDownRight />}
+            {trend.up ? <ArrowUp /> : <ArrowDownDiag />}
             <b>{trend.up ? '+' : '-'}{Math.abs(trend.pct).toFixed(2)}%</b>
           </span>
           <span className="ch-rate-unit">{unit}</span>
@@ -212,7 +217,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
             </div>
           </div>
           <div className="ch-tag">
-            <svg viewBox="0 0 40 32" fill="none" stroke="currentColor" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 27 14 15l7 6 14-15" /><path d="M24 5h11v11" /></svg>
+            <svg className="ch-flip" viewBox="0 0 40 32" fill="none" stroke="currentColor" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 27 14 15l7 6 14-15" /><path d="M24 5h11v11" /></svg>
             <span>{t('Every number here brings you closer to your goal', 'كل رقم هنا يُقرِّبك من هدفك')}</span>
           </div>
         </div>
@@ -241,7 +246,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
           <section className="ch-card ch-settle">
             <div className="ch-set-cols">
               {setCol(<FileText strokeWidth={2.2} />, '#e6f0fe', '#1760f0', '#1760f0', p.fmt(s.total), t('Total Debt', 'إجمالي المستحقات'))}
-              {setCol(<TrendingUp strokeWidth={2.2} />, '#e9f9f4', '#0b8a68', '#0b8a68', p.fmt(s.paid), t('Paid', 'المدفوع'))}
+              {setCol(<TrendingUp className="ch-flip" strokeWidth={2.2} />, '#e9f9f4', '#0b8a68', '#0b8a68', p.fmt(s.paid), t('Paid', 'المدفوع'))}
               {setCol(<ArrowDown strokeWidth={2} />, '#ffedf2', '#f0245b', '#f0245b', p.fmt(s.remaining), t('Remaining', 'المتبقي'))}
             </div>
             <div className="ch-mint">
@@ -265,10 +270,10 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
         <section className="ch-vol">
           <div className="ch-vol-chart"><MonthChart daily={p.volume.daily} /></div>
           {p.volume.fx != null && (
-            <div className="ch-vol-chip"><div className="in"><ArrowUpRight /><b>{p.fmt(p.volume.fx, 2)}</b><span>{unit}</span></div></div>
+            <div className="ch-vol-chip"><div className="in"><ArrowUp /><b>{p.fmt(p.volume.fx, 2)}</b><span>{unit}</span></div></div>
           )}
           <div className="ch-vol-txt">
-            <div className="ch-vol-l1">{p.currencyQar} → {p.currencyEgp} {'\u2022'} {t('This Month', 'هذا الشهر')}</div>
+            <div className="ch-vol-l1">{p.currencyQar} {flowArrow} {p.currencyEgp} {'\u2022'} {t('This Month', 'هذا الشهر')}</div>
             <div className="ch-vol-l2">{t('Delivered (EGP)', 'مُسلَّم (جنيه)')}</div>
             <div className="ch-vol-amt"><CoinStack />{p.fmt(p.volume.egp)}</div>
             <div className="ch-vol-l3">{t('from', 'من')} <b>{p.fmt(p.volume.qar)}</b> {p.currencyQar} {t('received', 'مستلم')}</div>

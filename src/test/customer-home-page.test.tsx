@@ -59,6 +59,8 @@ describe('customer home page', () => {
     expect(screen.getByText('90%')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
     expect(screen.getAllByText('دفع مستحقات').length).toBeGreaterThan(0);
+    // Direction arrows read right to left in Arabic.
+    expect(document.body.textContent).toContain('ريال ← جنيه');
   });
 
   it('switches language from the header pill and routes the quick actions', async () => {
@@ -77,5 +79,6 @@ describe('customer home page', () => {
     renderPage();
     expect(screen.getByText('Emergency Price')).toBeTruthy();
     expect(screen.getByText('Latest Activity')).toBeTruthy();
+    expect(document.body.textContent).toContain('QAR → EGP');
   });
 });
