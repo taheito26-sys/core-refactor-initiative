@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { readFileSync } from 'node:fs';
 
 vi.mock('@/lib/i18n', () => ({ useT: () => Object.assign((key: string) => key, { lang: 'en', isRTL: false }) }));
 vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { language: 'ar' } }) }));
@@ -21,7 +22,7 @@ describe('merchant mobile bottom navigation', () => {
   });
 
   it('is pinned to the bottom edge of the screen', () => {
-    const css = require('node:fs').readFileSync('src/index.css', 'utf8') as string;
+    const css = readFileSync('src/index.css', 'utf8');
     const rule = css.slice(css.indexOf('.mobile-bottom-nav {'), css.indexOf('}', css.indexOf('.mobile-bottom-nav {')));
     expect(rule).toContain('position: fixed');
     expect(rule).toContain('bottom: 0');
