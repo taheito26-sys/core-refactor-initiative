@@ -169,14 +169,16 @@ async function fetchBinanceP2POrders(creds: Credentials, range?: { startTimestam
         const grossAmount = parseFloat(o.amount ?? "0");
         const total = parseFloat(o.totalPrice ?? o.total ?? "0");
         const commission = parseFloat(o.commission ?? "0");
-        // Binance deducts its P2P commission from the crypto leg on both sides:
-        // a BUY lands amount - commission in the wallet, while a SELL actually
-        // debits amount + commission (the seller sends extra USDT to cover the
-        // fee, so the nominal "amount" understates what was really sold).
-        // Recompute the unit price against the net amount so total (fiat paid
-        // or received) still reconciles, keeping the imported cost basis accurate.
+        // A BUY lands amount - commission in the wallet, so the cost basis is
+        // taken against that net amount. A SELL debits amount + commission from
+        // the wallet (Binance's "Total Quantity"). The customer bears that fee, so
+        // the sale is recorded at the listed price on the full quantity taken from
+        // the merchant, and the stock leaves the tracker exactly as it leaves Binance.
+        const listedPrice = parseFloat(o.unitPrice ?? o.price ?? "0");
         const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount + commission;
-        const unitPrice = netAmount > 0 ? total / netAmount : parseFloat(o.unitPrice ?? o.price ?? "0");
+        const unitPrice = tradeType === "SELL"
+          ? (listedPrice > 0 ? listedPrice : grossAmount > 0 ? total / grossAmount : 0)
+          : netAmount > 0 ? total / netAmount : listedPrice;
         orders.push({
           order_number: String(o.orderNumber),
           side: tradeType === "BUY" ? "buy" : "sell",
@@ -716,9 +718,12 @@ Deno.serve(async (req: Request) => {
           ? await fetchBinanceP2POrders(creds, p2pRange)
           : await fetchOkxP2POrders(creds);
 
-        if (orders.length > 0) {
+        // One row per Binance order number: a page returned twice, or an order listed
+        // under both trade types, must never be written (or counted) twice.
+        const uniqueOrders = [...new Map(orders.map((o) => [o.order_number, o])).values()];
+        if (uniqueOrders.length > 0) {
           const { error } = await admin.from("exchange_p2p_orders").upsert(
-            orders.map((o) => ({
+            uniqueOrders.map((o) => ({
               user_id: userId,
               exchange,
               order_number: o.order_number,
@@ -737,7 +742,7 @@ Deno.serve(async (req: Request) => {
           );
           if (error) throw error;
         }
-        summary.p2pOrders = orders.length;
+        summary.p2pOrders = uniqueOrders.length;
       } catch (err) {
         errors.p2pOrders = errMsg(err);
       }

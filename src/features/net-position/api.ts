@@ -142,11 +142,14 @@ export function usePersonalLoanActions() {
     await refresh();
   };
 
-  /** Corrects who, how much and the note on an existing loan; repayments and ledger links stay as they are. */
-  const update = async (loanId: string, patch: { person: string; principal: number; note?: string }) => {
+  /** Corrects who, how much, when and the note on an existing loan; repayments and ledger links stay as they are. */
+  const update = async (loanId: string, patch: { person: string; principal: number; note?: string; lentAt?: number }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from('personal_loans' as any)
-      .update({ person: patch.person, principal: patch.principal, note: patch.note || null }).eq('id', loanId);
+      .update({
+        person: patch.person, principal: patch.principal, note: patch.note || null,
+        ...(patch.lentAt ? { lent_at: new Date(patch.lentAt).toISOString() } : {}),
+      }).eq('id', loanId);
     if (error) throw error;
     await refresh();
   };

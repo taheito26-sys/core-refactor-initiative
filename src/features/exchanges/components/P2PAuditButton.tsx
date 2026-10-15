@@ -9,7 +9,7 @@ import type { TrackerState } from '@/lib/tracker-helpers';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeOrderLinks } from '../hooks/useExchangeOrderLinks';
 import { useExchangeCredentials } from '../hooks/useExchangeCredentials';
-import { dismissExchangeRecord, restoreExchangeRecord, syncExchange } from '../api';
+import { dismissExchangeRecord, fetchFreshExchangeOrder, restoreExchangeRecord, syncExchange } from '../api';
 import type { ExchangeOrderPayload } from './ExchangeInbox';
 import { monthKeyToRange } from '../month-range';
 import { auditCompletedP2POrders, type P2PAuditRow } from '../p2p-audit';
@@ -81,28 +81,31 @@ export function P2PAuditButton({
 
   /** Opens the normal entry form for this order; an order ignored earlier is brought back first. */
   const register = async (r: P2PAuditRow) => {
-    const o = r.order;
-    const remaining = r.missingUSDT > 0 ? r.missingUSDT : Number(o.amount);
-    const isPartial = r.status === 'partial';
-    const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
-    const payload: ExchangeOrderPayload = {
-      exchange: o.exchange,
-      orderId: o.id,
-      orderNumber: o.order_number,
-      amountUSDT: remaining,
-      orderTotalUSDT: Number(o.amount),
-      ts: r.ts || Date.now(),
-      assigneeName: isPartial ? undefined : (o.counterparty ?? undefined),
-      priceFiat: needsQarRate ? 0 : Number(o.price),
-      needsQarRate,
-      ...(needsQarRate ? { originalFiat: o.fiat, originalPriceFiat: Number(o.price), originalTotalFiat: Number(o.total) } : {}),
-    };
-    setBusyId(o.id);
+    setBusyId(r.order.id);
     try {
+      // Pull the order from Binance again first, so a sale registered anew
+      // carries the total quantity taken and the listed price as they stand now.
+      const fresh = await fetchFreshExchangeOrder(r.order);
+      const o = fresh ?? r.order;
+      const isPartial = r.status === 'partial';
+      const remaining = r.missingUSDT > 0 && isPartial ? r.missingUSDT : Number(o.amount);
+      const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
+      const payload: ExchangeOrderPayload = {
+        exchange: o.exchange,
+        orderId: o.id,
+        orderNumber: o.order_number,
+        amountUSDT: remaining,
+        orderTotalUSDT: Number(o.amount),
+        ts: r.ts || Date.now(),
+        assigneeName: isPartial ? undefined : (o.counterparty ?? undefined),
+        priceFiat: needsQarRate ? 0 : Number(o.price),
+        needsQarRate,
+        ...(needsQarRate ? { originalFiat: o.fiat, originalPriceFiat: Number(o.price), originalTotalFiat: Number(o.total) } : {}),
+      };
       if (o.dismissed_at) {
         await restoreExchangeRecord({ source: 'order', id: o.id });
-        await refreshOrders();
       }
+      if (fresh || o.dismissed_at) await refreshOrders();
       setOpen(false);
       onRegister(payload);
     } catch (err) {

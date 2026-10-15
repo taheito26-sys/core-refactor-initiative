@@ -252,6 +252,10 @@ export function NetPositionView({ state, applyState }: { state: TrackerState; ap
             <span className="mono">{d.original && d.original.unit !== 'QAR' ? `${money(d.original.amount)} ${d.original.unit} · ` : ''}<b>{money(d.qar)}</b></span>
           </div>
         ))}
+        <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start', marginTop: 4 }}
+          onClick={() => document.getElementById('personal-loans-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          ✏️ {L('Edit or record repayments', 'تعديل أو تسجيل السداد')}
+        </button>
       </>
     );
   };

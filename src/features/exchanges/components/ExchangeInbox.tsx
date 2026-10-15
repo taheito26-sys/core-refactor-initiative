@@ -7,7 +7,7 @@ import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer } from '../types';
-import { dismissTransfer } from '../api';
+import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
 import { useT } from '@/lib/i18n';
 import type { LoanSource } from '@/features/stock/loan-ledger';
 
@@ -387,26 +387,29 @@ export function ExchangeInbox({
                 type="button"
                 disabled={imported}
                 title={imported ? 'Already in the tracker' : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
-                onClick={() =>
+                onClick={async () => {
+                  // Re-read the order from Binance first so a re-registered sale
+                  // carries the total quantity taken at the listed price.
+                  const f = (await fetchFreshExchangeOrder(o)) ?? o;
                   onPick({
-                    exchange: o.exchange,
-                    orderId: o.id,
-                    orderNumber: o.order_number,
-                    amountUSDT: pickAmount,
-                    orderTotalUSDT: o.amount,
-                    ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
-                    assigneeName: isPartial ? undefined : (o.counterparty ?? undefined),
-                    priceFiat: needsQarRate ? 0 : o.price,
+                    exchange: f.exchange,
+                    orderId: f.id,
+                    orderNumber: f.order_number,
+                    amountUSDT: isPartial ? remaining : f.amount,
+                    orderTotalUSDT: f.amount,
+                    ts: f.order_time ? new Date(f.order_time).getTime() : Date.now(),
+                    assigneeName: isPartial ? undefined : (f.counterparty ?? undefined),
+                    priceFiat: needsQarRate ? 0 : f.price,
                     needsQarRate,
                     ...(needsQarRate
-                      // o.total is the fiat amount the exchange itself reported for this
-                      // order -- o.amount is the crypto (USDT) leg, not fiat, so don't
+                      // f.total is the fiat amount the exchange itself reported for this
+                      // order -- f.amount is the crypto (USDT) leg, not fiat, so don't
                       // recompute the total from amount * price (that drifts from the
                       // real total once price has already been rounded once on sync).
-                      ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.total }
+                      ? { originalFiat: f.fiat, originalPriceFiat: f.price, originalTotalFiat: f.total }
                       : {}),
-                  })
-                }
+                  });
+                }}
                 className={cn(
                   'flex w-full max-w-full overflow-hidden rounded border text-left',
                   imported ? 'cursor-default border-dashed bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',

@@ -4,7 +4,7 @@ import { QuickDateField, fromDayString, toDayString } from '@/components/shared/
 import { useT } from '@/lib/i18n';
 import { deriveCashQAR, fmtTotal, getAccountBalance, uid, type CashLedgerEntry, type TrackerState } from '@/lib/tracker-helpers';
 import {
-  personalLoanOutstanding, personalLoanRepaid, type PersonalLoan, type PersonalLoanCurrency,
+  deletePersonalRepayment, editPersonalRepayment, personalLoanOutstanding, personalLoanRepaid, type PersonalLoan, type PersonalLoanCurrency,
 } from '@/lib/trading/personal-loans';
 import { usePersonalLoanActions } from '../api';
 import { ModernSelect } from '@/components/shared/ModernSelect';
@@ -43,7 +43,8 @@ export function PersonalLoansPanel({
   const accounts = useMemo(() => (state.cashAccounts || []).filter(a => a.status === 'active' && a.type !== 'merchant_custody'), [state.cashAccounts]);
   const [form, setForm] = useState({ person: '', amount: '', currency: 'QAR' as PersonalLoanCurrency, day: today, accountId: '', note: '' });
   const [repay, setRepay] = useState<{ loanId: string; amount: string; day: string; accountId: string } | null>(null);
-  const [edit, setEdit] = useState<{ loanId: string; person: string; principal: string; note: string } | null>(null);
+  const [edit, setEdit] = useState<{ loanId: string; person: string; principal: string; note: string; day: string } | null>(null);
+  const [editRepay, setEditRepay] = useState<{ loanId: string; repaymentId: string; amount: string; day: string; note: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [showSettled, setShowSettled] = useState(false);
 
@@ -51,6 +52,9 @@ export function PersonalLoansPanel({
   const withLedger = (entry: CashLedgerEntry) => {
     const ledger = [...(state.cashLedger || []), entry];
     applyState({ ...state, cashLedger: ledger, cashQAR: deriveCashQAR(state.cashAccounts, ledger) });
+  };
+  const replaceLedger = (ledger: CashLedgerEntry[]) => {
+    if (ledger !== state.cashLedger) applyState({ ...state, cashLedger: ledger, cashQAR: deriveCashQAR(state.cashAccounts, ledger) });
   };
 
   const open = loans.filter(l => personalLoanOutstanding(l) > 0);
@@ -114,9 +118,44 @@ export function PersonalLoansPanel({
     if (!person || !(principal > 0)) return;
     setBusy(true);
     try {
-      await actions.update(edit.loanId, { person, principal, note: edit.note.trim() || undefined });
+      await actions.update(edit.loanId, { person, principal, note: edit.note.trim() || undefined, lentAt: dayToTs(edit.day) });
       setEdit(null);
       toast.success(t('plSaved'));
+    } catch {
+      toast.error(t('mloanSaveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveRepaymentEdit = async (loan: PersonalLoan) => {
+    if (!editRepay) return;
+    const amount = Number(editRepay.amount);
+    if (!(amount > 0)) return;
+    const result = editPersonalRepayment(loan, editRepay.repaymentId, { amount, ts: dayToTs(editRepay.day), note: editRepay.note.trim() }, state.cashLedger || []);
+    if (!result) return;
+    setBusy(true);
+    try {
+      await actions.setRepayments(loan.id, result.loan.repayments);
+      replaceLedger(result.ledger);
+      setEditRepay(null);
+      toast.success(t('plRepaymentUpdated'));
+    } catch {
+      toast.error(t('mloanSaveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeRepayment = async (loan: PersonalLoan, repaymentId: string) => {
+    if (!window.confirm(t('plDeleteRepaymentConfirm'))) return;
+    const result = deletePersonalRepayment(loan, repaymentId, state.cashLedger || []);
+    if (!result) return;
+    setBusy(true);
+    try {
+      await actions.setRepayments(loan.id, result.loan.repayments);
+      replaceLedger(result.ledger);
+      toast.success(t('plRepaymentDeleted'));
     } catch {
       toast.error(t('mloanSaveFailed'));
     } finally {
@@ -156,11 +195,46 @@ export function PersonalLoansPanel({
             </button>
           )}
           <button type="button" className="rowBtn" disabled={busy}
-            onClick={() => setEdit({ loanId: loan.id, person: loan.person, principal: String(loan.principal), note: loan.note || '' })}>
+            onClick={() => setEdit({ loanId: loan.id, person: loan.person, principal: String(loan.principal), note: loan.note || '', day: toDayString(new Date(loan.lentAt)) })}>
             ✏️ {t('edit')}
           </button>
           <button type="button" className="rowBtn" disabled={busy} onClick={() => { void removeLoan(loan); }}>🗑 {t('plDelete')}</button>
         </div>
+        {(loan.repayments || []).length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plRepaymentsHistory')}</div>
+            {[...loan.repayments].sort((a, b) => b.ts - a.ts).map(r => (
+              editRepay?.repaymentId === r.id ? (
+                <div key={r.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('amount')} ({loan.currency})
+                    <input inputMode="decimal" value={editRepay.amount} onChange={e => { if (numeric(e.target.value)) setEditRepay({ ...editRepay, amount: e.target.value }); }} style={field} />
+                  </label>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plDateReceived')}</div>
+                  <QuickDateField value={editRepay.day} onChange={day => setEditRepay({ ...editRepay, day })} lang={lang} />
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('note')}
+                    <input value={editRepay.note} onChange={e => setEditRepay({ ...editRepay, note: e.target.value })} style={field} />
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" className="btn" disabled={busy || !(Number(editRepay.amount) > 0)} onClick={() => { void saveRepaymentEdit(loan); }}>{t('save')}</button>
+                    <button type="button" className="btn secondary" onClick={() => setEditRepay(null)}>{t('cancel')}</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                  <span style={{ minWidth: 0, overflowWrap: 'anywhere', color: 'var(--muted)' }}>
+                    {new Date(r.ts).toLocaleDateString()}{r.note ? ` · ${r.note}` : ''}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                    <b className="mono" style={{ color: 'var(--good)' }}>{fmtTotal(r.amount)} {loan.currency}</b>
+                    <button type="button" className="rowBtn" disabled={busy} aria-label={t('edit')}
+                      onClick={() => setEditRepay({ loanId: loan.id, repaymentId: r.id, amount: String(r.amount), day: toDayString(new Date(r.ts)), note: r.note || '' })}>✏️</button>
+                    <button type="button" className="rowBtn" disabled={busy} aria-label={t('plDelete')} onClick={() => { void removeRepayment(loan, r.id); }}>🗑</button>
+                  </span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
         {edit?.loanId === loan.id && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plPerson')}
@@ -169,6 +243,8 @@ export function PersonalLoansPanel({
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('amount')} ({loan.currency})
               <input inputMode="decimal" value={edit.principal} onChange={e => { if (numeric(e.target.value)) setEdit({ ...edit, principal: e.target.value }); }} style={field} />
             </label>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('plDateGiven')}</div>
+            <QuickDateField value={edit.day} onChange={day => setEdit({ ...edit, day })} lang={lang} />
             <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{t('note')}
               <input value={edit.note} onChange={e => setEdit({ ...edit, note: e.target.value })} style={field} />
             </label>
@@ -204,7 +280,7 @@ export function PersonalLoansPanel({
   const givingAccounts = accountsFor(form.currency);
 
   return (
-    <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div id="personal-loans-panel" className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div>
         <div style={{ fontSize: 12, fontWeight: 800 }}>🤝 {t('plTitle')}</div>
         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('plHint')}</div>
