@@ -195,6 +195,7 @@ html .app-shell {
 .main-shell {
   width: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: none;
   box-sizing: border-box;
 }
@@ -202,6 +203,7 @@ html .app-shell {
 .app-content-scroll {
   width: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
@@ -224,7 +226,10 @@ html .app-shell {
 }
 
 .mobile-bottom-nav {
-  position: sticky;
+  /* Pinned to the screen edge so the main navigation is always visible, whatever the page height. */
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
   z-index: 30;
   display: grid;
@@ -291,6 +296,11 @@ html .app-shell {
 }
 
 @media (max-width: 767px) {
+  /* Full-height screens (chat) keep their bottom edge above the fixed bar. */
+  .mobile-nav-clear {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+
   .app-content-scroll {
     padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }

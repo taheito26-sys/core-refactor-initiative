@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTheme } from '@/lib/theme-context';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 
 interface NavItem {
@@ -64,8 +66,12 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[5], // Chat
   ].filter(Boolean) as NavItem[];
 
-  return (
-    <nav className="mobile-bottom-nav">
+  const { settings } = useTheme();
+
+  // Mounted straight on the body and pinned to the screen's bottom edge, so no page height, zoom level,
+  // transform or scroll container above it can push the main navigation out of view.
+  const bar = (
+    <nav className="mobile-bottom-nav" dir={settings.language === 'ar' ? 'rtl' : 'ltr'} aria-label="Main">
       {primaryNav.map((item) => {
         const [itemPath, itemQuery] = item.path.split('?');
         const active = itemQuery
@@ -92,6 +98,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
       </button>
     </nav>
   );
+  return typeof document === 'undefined' ? bar : createPortal(bar, document.body);
 }
 
 export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose }: AppSidebarProps) {
