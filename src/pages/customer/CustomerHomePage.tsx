@@ -1,22 +1,25 @@
-﻿import { displayQarEgpRate } from '@/features/customer/display-rate';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowDownLeft, ListOrdered, X, Wallet, MessageCircle, Clock, Users, Info } from 'lucide-react';
+import { AlertCircle, Plus, X, Wallet, Clock } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
-  formatCustomerNumber, formatCustomerDate,
+  formatCustomerNumber,
   listCustomerConnections, resolveCustomerDisplayName,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
-import { getLocalizedCurrencyName, type CurrencyCode } from '@/lib/currency-locale';
+import { getLocalizedCurrencyName } from '@/lib/currency-locale';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { NewOrderForm } from './CustomerOrdersPage';
+import { useNotifications } from '@/hooks/useNotifications';
+import { CustomerHomeView } from '@/features/customer/home/CustomerHomeView';
+import { buildActivity } from '@/features/customer/home/home-model';
+import { useRateTrend } from '@/features/customer/home/useRateTrend';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -29,21 +32,9 @@ function startOfMonth(offset = 0): Date {
   return new Date(d.getFullYear(), d.getMonth() + offset, 1);
 }
 
-// ── Status map (customer vocabulary) ─────────────────────────────────────────
-const STATUS: Record<string, { en: string; ar: string; cls: string }> = {
-  pending_quote:    { en: 'Pending approval', ar: 'بانتظار الموافقة', cls: 'bg-amber-500/10 text-amber-600' },
-  quoted:           { en: 'Awaiting approval', ar: 'بانتظار الموافقة', cls: 'bg-blue-500/10 text-blue-600' },
-  quote_accepted:   { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
-  awaiting_payment: { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
-  payment_sent:     { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
-  completed:        { en: 'Approved',  ar: 'مكتمل',        cls: 'bg-emerald-500/10 text-emerald-600' },
-  cancelled:        { en: 'Cancelled', ar: 'ملغي',         cls: 'bg-muted text-muted-foreground' },
-  quote_rejected:   { en: 'Rejected', ar: 'مرفوض',         cls: 'bg-muted text-muted-foreground' },
-};
-
 export default function CustomerHomePage() {
   const { userId, customerProfile } = useAuth();
-  const { settings } = useTheme();
+  const { settings, update } = useTheme();
   const navigate = useNavigate();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
@@ -300,6 +291,7 @@ export default function CustomerHomePage() {
       thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisMonth.reduce((s, r) => s + r.qar, 0),
       lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0) + histLastMonth.reduce((s, r) => s + r.qar, 0),
       thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0) + histThisWeek.reduce((s, r) => s + r.qar, 0),
+      totalVol: receivedOrders.reduce((s, o) => s + (o.amount ?? 0), 0) + historyRows.reduce((s, r) => s + r.qar, 0),
       thisMonthVolEgp, lastMonthVolEgp, thisWeekVolEgp,
       monthQar, monthEgp, monthAvgFx,
       totalOrders, approvedOrders, pendingOrders, thisMonthOrders,
@@ -334,72 +326,26 @@ export default function CustomerHomePage() {
     });
   }
 
-  return (
-    <div className="space-y-3">
-      {/* Hero: greeting + live rates */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-4 text-primary-foreground space-y-3">
-        <div>
-          <p className="text-xs opacity-80">{L('Welcome back', 'مرحباً')}</p>
-          <h1 className="text-lg font-bold leading-tight">{resolveCustomerDisplayName(customerProfile, lang) ?? '—'}</h1>
-        </div>
+  const { unreadCount } = useNotifications();
+  const shell = useOutletContext<{ openMenu?: () => void } | null>();
+  const rateKey = (name: string) => `ch-rate:${userId ?? 'anon'}:${name}`;
+  const avgTrend = useRateTrend(rateKey('avg'), egyptBuyAvg);
+  const emergencyTrend = useRateTrend(rateKey('emergency'), egyptEmergencyAvg);
+  const activity = useMemo(
+    () => buildActivity({ orders, payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount }))) }),
+    [orders, historyStatements],
+  );
 
-        {/* Avg selling price — the live QAR/EGP guide rate is deliberately
-            not shown here; only the market's average selling price.
-            Emergency price sits beside it: a second Banque Misr quote from
-            the other side of the book, meant to read as "what you could
-            realistically get if you had to sell right now" -- see the (i)
-            for exactly how it's built. */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-white/10 px-3 py-2">
-            <p className="text-[9px] opacity-70 uppercase tracking-wide">{L('Avg Selling Price', 'متوسط سعر البيع')}</p>
-            <p className="text-lg font-black tabular-nums leading-tight">
-              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
-            </p>
-          </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setShowEmergencyInfo(v => !v)}
-              className="flex items-center gap-1 text-[9px] opacity-70 uppercase tracking-wide"
-            >
-              {L('Emergency Price', 'سعر الطوارئ')}
-              <Info className="h-2.5 w-2.5 shrink-0" />
-            </button>
-            <p className="text-lg font-black tabular-nums leading-tight">
-              {egyptEmergencyAvg != null ? fmt(egyptEmergencyAvg, 4) : '—'}
-            </p>
-          </div>
-        </div>
-        {showEmergencyInfo && (
-          <p className="text-[10px] leading-snug opacity-80 bg-white/10 rounded-lg px-3 py-2">
-            {L(
-              'Banque Misr sell offers on Binance P2P, ranks 2–9 by price (the single best-priced ad is dropped as an outlier).',
-              'عروض بيع بنك مصر على Binance P2P، من العرض الثاني حتى التاسع سعراً (يُستبعد أفضل عرض باعتباره استثناءً).',
-            )}
-          </p>
-        )}
-      </div>
-
-      {/* Quick actions — the main navigation surface for the page */}
-      <div className="grid grid-cols-5 gap-2">
-        {[
-          { icon: Plus, label: L('New Order', 'طلب جديد'), onClick: () => setShowNewOrder(true), tone: 'text-primary bg-primary/10' },
-          { icon: ListOrdered, label: L('Orders', 'الطلبات'), onClick: () => navigate('/c/orders'), tone: 'text-blue-600 bg-blue-500/10' },
-          { icon: Wallet, label: L('Wallet', 'المحفظة'), onClick: () => navigate('/c/wallet'), tone: 'text-emerald-600 bg-emerald-500/10' },
-          { icon: Users, label: L('Merchants', 'التجار'), onClick: () => navigate('/c/merchants'), tone: 'text-amber-600 bg-amber-500/10' },
-          { icon: MessageCircle, label: L('Chat', 'الدردشة'), onClick: () => navigate('/c/chat'), tone: 'text-violet-600 bg-violet-500/10' },
-        ].map(({ icon: Icon, label, onClick, tone }) => (
-          <button
-            key={label}
-            onClick={onClick}
-            className="flex flex-col items-center gap-1 rounded-xl border border-border/50 bg-card py-2.5 active:scale-[0.97] transition-transform"
-          >
-            <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', tone)}><Icon className="h-4 w-4" /></div>
-            <span className="text-[10px] font-semibold">{label}</span>
-          </button>
-        ))}
-      </div>
-
+  const belowHero = (showEmergencyInfo || alerts.length > 0) ? (
+    <div className="ch-below">
+      {showEmergencyInfo && (
+        <p className="rounded-xl bg-primary/10 px-3 py-2 text-[11px] leading-snug text-foreground">
+          {L(
+            'Banque Misr sell offers on Binance P2P, ranks 2–9 by price (the single best-priced ad is dropped as an outlier).',
+            'عروض بيع بنك مصر على Binance P2P، من العرض الثاني حتى التاسع سعراً (يُستبعد أفضل عرض باعتباره استثناءً).',
+          )}
+        </p>
+      )}
       {/* Alert stack — action needed / overdue balance / no cash account */}
       {alerts.length > 0 && (
         <div className="space-y-2">
@@ -428,6 +374,35 @@ export default function CustomerHomePage() {
           ))}
         </div>
       )}
+
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <CustomerHomeView
+        lang={lang}
+        name={resolveCustomerDisplayName(customerProfile, lang) ?? '—'}
+        unread={unreadCount}
+        emergency={{ value: egyptEmergencyAvg, trend: emergencyTrend }}
+        average={{ value: egyptBuyAvg, trend: avgTrend }}
+        settlement={debtSummary.totalDebt > 0 ? {
+          total: debtSummary.totalDebt, paid: debtSummary.totalPaid, remaining: debtSummary.outstanding, pct: debtSummary.settledPct,
+          count: paymentStats.count, avg: paymentStats.avg, lastTs: paymentStats.lastTs,
+        } : null}
+        volume={{ egp: metrics.monthEgp, qar: metrics.monthQar, fx: metrics.monthAvgFx, daily: metrics.trend.map(d => d.qar) }}
+        tiles={{ week: metrics.thisWeekVol, month: metrics.thisMonthVol, total: metrics.totalVol }}
+        activity={activity}
+        fmt={fmt}
+        currencyQar={getLocalizedCurrencyName('QAR', lang)}
+        currencyEgp={getLocalizedCurrencyName('EGP', lang)}
+        onNavigate={navigate}
+        onNewOrder={() => setShowNewOrder(true)}
+        onSetLang={l => update({ language: l })}
+        onOpenMenu={shell?.openMenu}
+        onToggleEmergencyInfo={() => setShowEmergencyInfo(v => !v)}
+        belowHero={belowHero}
+      />
 
       {/* Create Cash Account Modal — step by step */}
       {showCreateAccount && (
@@ -552,101 +527,6 @@ export default function CustomerHomePage() {
         </div>
       )}
 
-      {/* Settlement summary — running debt/payment totals, not scoped to
-          any month, matching the same figures shown on the Cash tab. */}
-      {/* Balance summary — debt/paid/remaining, the settlement progress bar,
-          and (if any exist) payment-history stats, all in one card instead
-          of three stacked ones. Payments only ever exist alongside a debt,
-          so folding them in as a second row here reads as one account
-          summary rather than a second near-duplicate card further down. */}
-      {debtSummary.totalDebt > 0 && (
-        <div className="rounded-2xl border border-border/50 bg-card p-3.5 space-y-3">
-          <div className="grid grid-cols-3 divide-x divide-border/40">
-            <div className="text-center">
-              <p className="text-lg font-black tabular-nums text-blue-600 leading-tight">{fmt(debtSummary.totalDebt)}</p>
-              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Total Debt', 'إجمالي المستحقات')}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-black tabular-nums text-emerald-600 leading-tight">{fmt(debtSummary.totalPaid)}</p>
-              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Paid', 'المدفوع')}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-black tabular-nums text-rose-600 leading-tight">{fmt(debtSummary.outstanding)}</p>
-              <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Remaining', 'المتبقي')}</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">{L('Settlement', 'التسوية')}</span>
-              <span className="text-xs font-bold text-emerald-600">{debtSummary.settledPct}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${debtSummary.settledPct}%` }} />
-            </div>
-          </div>
-
-          {paymentStats.count > 0 && (
-            <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40 pt-2.5">
-              <div className="text-center">
-                <p className="text-sm font-black tabular-nums leading-tight">{paymentStats.count}</p>
-                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Payments', 'الدفعات')}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-black tabular-nums leading-tight">{fmt(paymentStats.avg)}</p>
-                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Average', 'المتوسط')}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-bold leading-tight">
-                  {paymentStats.lastTs != null ? formatCustomerDate(new Date(paymentStats.lastTs), lang) : '—'}
-                </p>
-                <p className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{L('Last Payment', 'آخر دفعة')}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Corridor — one consolidated, EGP-led card. Delivered EGP leads as the
-          single hero figure; received QAR, the rate, and the three volume
-          periods are secondary reference numbers underneath. Everything here
-          used to be three separate cards (Volume tiles, FX summary, Order
-          Activity/Order Size) — merged so the page reads as one clear story
-          instead of a stack of near-duplicate boxes. */}
-      <div className="rounded-2xl border border-emerald-500/20 bg-card overflow-hidden">
-        <div className="px-4 pt-3.5 pb-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
-            </p>
-            {metrics.monthAvgFx != null && (
-              <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                <TrendingUp className="h-3 w-3" /> {fmt(metrics.monthAvgFx, 2)}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1"><ArrowDownLeft className="h-4 w-4 text-emerald-500" /><p className="text-xs font-semibold text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم (جنيه)')}</p></div>
-          <p className="text-3xl font-black tabular-nums text-emerald-600 mt-0.5">{fmt(metrics.monthEgp)}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {L('from', 'من')} {fmt(metrics.monthQar)} {getLocalizedCurrencyName('QAR', lang)} {L('received', 'مُستلَم')}
-          </p>
-        </div>
-        <div className="grid grid-cols-3 border-t border-border/40 divide-x divide-border/40">
-          <div className="p-2.5 text-center">
-            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('This week', 'هذا الأسبوع')}</p>
-            <p className="text-sm font-black tabular-nums">{fmt(metrics.thisWeekVolEgp)}</p>
-          </div>
-          <div className="p-2.5 text-center bg-emerald-500/5">
-            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('This month', 'هذا الشهر')}</p>
-            <p className="text-sm font-black tabular-nums text-emerald-600">{fmt(metrics.thisMonthVolEgp)}</p>
-          </div>
-          <div className="p-2.5 text-center">
-            <p className="text-[9.5px] text-muted-foreground mb-0.5">{L('Last month', 'الشهر الماضي')}</p>
-            <p className="text-sm font-black tabular-nums">{fmt(metrics.lastMonthVolEgp)}</p>
-          </div>
-        </div>
-      </div>
-
       {/* New Order Modal — opens inline without navigating away, triggered from Quick Actions above */}
       {showNewOrder && connections.length > 0 && (
         <NewOrderForm
@@ -658,68 +538,6 @@ export default function CustomerHomePage() {
         />
       )}
 
-      {/* Recent activity - Ledger style */}
-      {orders.length > 0 && (
-        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/40">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Recent Orders', 'الطلبات الأخيرة')}</p>
-              <button onClick={() => navigate('/c/orders')} className="text-xs text-primary font-medium">{L('View all', 'عرض الكل')}</button>
-            </div>
-          </div>
-          <div className="divide-y divide-border/40">
-            {orders.slice(0, 4).map(o => {
-              const total = o.fx_rate ? o.amount * o.fx_rate : null;
-              const rate  = o.fx_rate;
-              const sendCur = getLocalizedCurrencyName((o.send_currency ?? 'QAR') as CurrencyCode, lang === 'ar' ? 'ar' : 'en');
-              const receiveCur = getLocalizedCurrencyName((o.receive_currency ?? 'EGP') as CurrencyCode, lang === 'ar' ? 'ar' : 'en');
-
-              // Map workflow_status to status config for display
-              let cfg = STATUS.pending_quote;
-              if (o.workflow_status === 'approved') cfg = STATUS.quote_accepted;
-              else if (o.workflow_status === 'rejected') cfg = STATUS.quote_rejected;
-              else if (o.workflow_status === 'pending_customer_approval' || o.workflow_status === 'pending_merchant_approval') cfg = STATUS.quoted;
-              else if (o.workflow_status === 'cancelled') cfg = STATUS.cancelled;
-
-              return (
-                <button
-                  key={o.id}
-                  onClick={() => navigate(`/c/orders?id=${o.id}`)}
-                  className="w-full text-left px-4 py-2 hover:bg-muted/40 active:scale-[0.98] transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    {/* Amounts */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-sm font-semibold tabular-nums">{fmt(o.amount)} {sendCur}</span>
-                        {total != null && <span className="text-emerald-600 font-semibold">→ {fmt(total)} {receiveCur}</span>}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', cfg.cls)}>{lang === 'ar' ? cfg.ar : cfg.en}</span>
-                        <span className="text-[10px] text-muted-foreground">{formatCustomerDate(o.created_at, lang)}</span>
-                      </div>
-                    </div>
-                    {/* Rate */}
-                    {rate != null && (
-                      <div className="text-right">
-                        <p className="text-[11px] text-muted-foreground tabular-nums">@{fmt(displayQarEgpRate(rate, o.created_at), 4)}</p>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {orders.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border/50 py-8 text-center">
-          <p className="text-sm text-muted-foreground">{L('No orders yet', 'لا توجد طلبات بعد')}</p>
-          <p className="text-xs text-muted-foreground mt-1">{L('Place your first QAR → EGP order above', 'قدّم طلبك الأول أعلاه')}</p>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
