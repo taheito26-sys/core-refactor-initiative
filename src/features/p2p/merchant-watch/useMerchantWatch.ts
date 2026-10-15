@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { groupSnapshots, onlineState, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
+import { displayName, groupSnapshots, onlineState, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
 
 export interface MerchantChoice { userNo: string; nick: string; monthOrders: number | null }
 
@@ -173,7 +173,7 @@ export function useMerchantWatch() {
     lastOnline.current = next;
     if (!prev) return;
     for (const m of watched) {
-      if (m.user_no && next.get(m.user_no) && prev.get(m.user_no) === false) toast.success(`🟢 ${m.nick} is online`);
+      if (m.user_no && next.get(m.user_no) && prev.get(m.user_no) === false) toast.success(`🟢 ${displayName(m)} is online`);
     }
   }, [snapshots.data, watched, byMerchant]);
 
@@ -193,7 +193,7 @@ export function useMerchantWatch() {
       const before = m.user_no ? prev.get(m.user_no) : undefined;
       const now = m.user_no ? next.get(m.user_no) : undefined;
       if (before !== undefined && now !== undefined && now > before) {
-        toast.info(`🧾 ${m.nick}: +${now - before} order${now - before === 1 ? '' : 's'} (${now.toLocaleString('en-US')} total)`);
+        toast.info(`🧾 ${displayName(m)}: +${now - before} order${now - before === 1 ? '' : 's'} (${now.toLocaleString('en-US')} total)`);
       }
     }
   }, [snapshots.data, watched, byMerchant]);
@@ -206,7 +206,7 @@ export function useMerchantWatch() {
     const before = waitingIds.current;
     waitingIds.current = stillWaiting;
     if (!before) return;
-    for (const m of list.data) if (m.user_no && before.has(m.id)) toast.success(`🟢 ${m.nick} is now tracked and online`);
+    for (const m of list.data) if (m.user_no && before.has(m.id)) toast.success(`🟢 ${displayName(m)} is now tracked and online`);
   }, [list.data]);
 
   /**
@@ -269,6 +269,17 @@ export function useMerchantWatch() {
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not identify this merchant'),
   });
 
+  /** Renames a followed merchant: the user's own name and any other names. Empty values clear them. */
+  const rename = useMutation({
+    mutationFn: async (input: { id: string; alias: string; aka: string[] }) => {
+      const aka = Array.from(new Set(input.aka.map(a => a.trim()).filter(Boolean)));
+      const { error } = await table('p2p_watched_merchants').update({ alias: input.alias.trim() || null, aka }).eq('id', input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success('Name saved'); void qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onError: () => toast.error('Could not save the name'),
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await table('p2p_watched_merchants').delete().eq('id', id);
@@ -278,5 +289,5 @@ export function useMerchantWatch() {
     onError: () => toast.error('Could not remove this merchant'),
   });
 
-  return { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, remove, refresh };
+  return { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading: list.isLoading, unavailable: list.isError, add, identify, rename, remove, refresh };
 }
