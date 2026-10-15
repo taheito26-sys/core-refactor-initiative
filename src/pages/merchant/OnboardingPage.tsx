@@ -26,6 +26,10 @@ export default function OnboardingPage() {
     bio: '',
   });
 
+  // Arriving here is only right for a brand-new account: read the profile once more so an existing
+  // merchant who got here after a failed lookup is sent straight on.
+  useEffect(() => { void refreshProfile(); }, [refreshProfile]);
+
   useEffect(() => {
     if (!isLoading && merchantProfile?.id) {
       navigate('/dashboard', { replace: true });

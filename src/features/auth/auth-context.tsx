@@ -86,6 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  // What is already known, so a failed re-read never turns a known profile into "none".
+  const knownRef = useRef<{ profile: boolean; merchant: boolean; customer: boolean }>({ profile: false, merchant: false, customer: false });
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadAttemptsRef = useRef(0);
+  const knownUserRef = useRef<string | null>(null);
 
   const loadUserProfiles = useCallback(async (currentUserId?: string | null, retries = 2) => {
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
@@ -94,7 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setMerchantProfile(null);
       setCustomerProfile(null);
+      knownRef.current = { profile: false, merchant: false, customer: false };
       return;
+    }
+
+    // A different account starts with nothing known.
+    if (knownUserRef.current !== resolvedUserId) {
+      knownUserRef.current = resolvedUserId;
+      knownRef.current = { profile: false, merchant: false, customer: false };
     }
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -154,15 +166,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // On final attempt or success, apply whatever we got
-      setProfile(profileRes.data as Profile | null);
-      setMerchantProfile(merchantRes.data as MerchantProfile | null);
-      setCustomerProfile((customerRes.data as CustomerProfile | null) ?? ensuredCustomerProfile);
+      // Apply only what was actually read. A query that errored says nothing about whether the
+      // profile exists, so it must not overwrite a profile already known with "none" (that sent
+      // established merchants back to the onboarding form after a hiccup on one request).
+      if (!profileRes.error) { setProfile(profileRes.data as Profile | null); knownRef.current.profile = !!profileRes.data; }
+      if (!merchantRes.error) { setMerchantProfile(merchantRes.data as MerchantProfile | null); knownRef.current.merchant = !!merchantRes.data; }
+      if (!customerRes.error) {
+        setCustomerProfile((customerRes.data as CustomerProfile | null) ?? ensuredCustomerProfile);
+        knownRef.current.customer = !!(customerRes.data ?? ensuredCustomerProfile);
+      }
 
-      // If all queries errored on the final attempt, keep isLoading true
-      // so ProfileGuard shows spinner instead of redirecting to onboarding
-      if (hasError && profileRes.error && merchantRes.error && customerRes.error) {
-        console.error('[Auth] All profile queries failed after retries — keeping loading state');
+      // Not knowing is not the same as "no profile": if a merchant or customer lookup failed and nothing
+      // is known yet, report it unresolved so the guard keeps waiting instead of redirecting to onboarding.
+      const merchantUnknown = !!merchantRes.error && !knownRef.current.merchant;
+      const customerUnknown = !!customerRes.error && !knownRef.current.customer;
+      if (hasError && ((merchantUnknown && !knownRef.current.customer) || (customerUnknown && !knownRef.current.merchant))) {
+        console.error('[Auth] Profile lookup unresolved after retries — waiting instead of redirecting');
         return 'all_failed' as const;
       }
       return 'ok' as const;
@@ -248,9 +267,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // If all profile queries failed, keep isLoading true to prevent
           // ProfileGuard from falsely redirecting to onboarding
           if (result === 'all_failed' && !profilesLoadedRef.current) {
-            // Don't set isLoading false — retry will happen on next auth event
+            // Keep waiting (spinner) and try again with a growing pause, instead of guessing.
+            reloadAttemptsRef.current += 1;
+            const delay = Math.min(1500 * reloadAttemptsRef.current, 15000);
+            if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+            reloadTimerRef.current = setTimeout(() => { void syncAuthState(newSession); }, delay);
             return;
           }
+          reloadAttemptsRef.current = 0;
           profilesLoadedRef.current = true;
         }
       } else {
@@ -275,6 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isMounted = false;
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
       subscription.unsubscribe();
     };
   }, [loadUserProfiles]);
