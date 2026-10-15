@@ -11,23 +11,24 @@ export function CustomerHomeNav({ lang, chatUnread, onNavigate, onMore }: {
 }) {
   const t = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const items = [
-    { key: 'home', c: 111, label: t('Home', 'الرئيسية'), icon: <HomeSolid />, go: () => onNavigate('/c/home'), on: true },
-    { key: 'orders', c: 302, label: t('Orders', 'الطلبات'), icon: <ShoppingCart strokeWidth={1.7} />, go: () => onNavigate('/c/orders') },
-    { key: 'notifications', c: 511, label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications') },
-    { key: 'chat', c: 722, label: t('Chats', 'المحادثات'), icon: <MessageCircle strokeWidth={1.7} />, go: () => onNavigate('/c/chat'), badge: chatUnread },
-    { key: 'more', c: 918, label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
+    { key: 'home', label: t('Home', 'الرئيسية'), icon: <HomeSolid />, go: () => onNavigate('/c/home'), on: true },
+    { key: 'orders', label: t('Orders', 'الطلبات'), icon: <ShoppingCart strokeWidth={1.7} />, go: () => onNavigate('/c/orders') },
+    { key: 'notifications', label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications') },
+    { key: 'chat', label: t('Chats', 'المحادثات'), icon: <MessageCircle strokeWidth={1.7} />, go: () => onNavigate('/c/chat'), badge: chatUnread },
+    { key: 'more', label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
   ];
   return (
     <nav className="ch-nav" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      {items.map(i => (
-        <button key={i.key} type="button" className={`ch-nav-item ${i.on ? 'on' : ''}`} style={{ insetInlineStart: `calc(${i.c - 95} * var(--u))` }} onClick={i.go}>
-          {i.on && <span className="ch-nav-pill" />}
-          <span className="ch-nav-ic">{i.icon}</span>
-          {i.badge ? <span className="ch-badge">{i.badge > 9 ? '9+' : i.badge}</span> : null}
-          <span className="ch-nav-lbl">{i.label}</span>
-          {i.on && <span className="ch-nav-bar" />}
-        </button>
-      ))}
+      <div className="ch-nav-in">
+        {items.map(i => (
+          <button key={i.key} type="button" className={`ch-nav-item ${i.on ? 'on' : ''}`} onClick={i.go}>
+            <span className="ch-nav-ic">{i.icon}</span>
+            {i.badge ? <span className="ch-badge">{i.badge > 9 ? '9+' : i.badge}</span> : null}
+            <span className="ch-nav-lbl">{i.label}</span>
+            {i.on && <span className="ch-nav-bar" />}
+          </button>
+        ))}
+      </div>
     </nav>
   );
 }
