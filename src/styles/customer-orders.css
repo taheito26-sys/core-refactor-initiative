@@ -240,3 +240,10 @@ html[dir="rtl"] .co-r-chev svg { transform: scaleX(1); }
 /* unpaid status */
 .co-pill.warn { color: #b9770a; background: #fff1d6; }
 .co-row.warn .co-r-lbl i, .co-row.emerg .co-r-lbl i { background: #f59e0b; }
+
+/* rate and QAR total always visible on a recent-order row, inside the row's existing height */
+.co-r-dt { gap: calc(3 * var(--q)); }
+.co-r-dt .co-r-rate { font-size: calc(10 * var(--q)); color: #4d5d88; }
+.co-r-dt .co-r-rate b { font-weight: 800; color: var(--th-ink, #0f1f5e); direction: ltr; }
+.co-r-amt > span { display: inline-flex; align-items: baseline; gap: calc(3 * var(--q)); }
+.co-r-amt > span b { font-size: calc(10.5 * var(--q)); font-weight: 800; color: var(--th-ink, #0f1f5e); line-height: 1.2; direction: ltr; }

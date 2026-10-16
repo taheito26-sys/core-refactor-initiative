@@ -2,7 +2,7 @@ import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, ArrowUpRight, ArrowDownRight, Bell, CalendarDays, CalendarPlus, ChartNoAxesColumn, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Clock, FileText, Loader2, Package, Plus, User, Wallet, X, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
+import { ArrowRight, Coins, ArrowUpRight, ArrowDownRight, Bell, CalendarDays, CalendarPlus, ChartNoAxesColumn, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Clock, FileText, Loader2, Package, Plus, User, Wallet, X, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -2176,6 +2176,8 @@ export default function CustomerOrdersPage() {
                 const histKind = o.emergency ? 'emerg' : o.loaned ? (o.settled ? 'paid' : 'warn') : 'paid';
                 const histSeq = orderSequence.get(`hist:${o.key}`);
                 const histRate = o.qarToEgpRate != null && o.qarToEgpRate > 0 ? displayQarEgpRate(o.qarToEgpRate, o.date) : null;
+                const qarTotal = o.loanAmount != null && o.loanCurrency === 'QAR' ? o.loanAmount
+                  : o.sale && o.currency === 'EGP' && o.qarToEgpRate && o.qarToEgpRate > 0 ? o.totalAmount / o.qarToEgpRate : null;
                 const statusKind: 'done' | 'part' | 'open' = !o.loaned || o.settled ? 'done' : (o.loanPaid ?? 0) > 0 ? 'part' : 'open';
                 const rowKey = `${o.key}-${i}`;
                 const isOpen = openRows.has(rowKey);
@@ -2196,10 +2198,11 @@ export default function CustomerOrdersPage() {
                       <div className="co-r-dt">
                         <span><CalendarDays />{dateText}</span>
                         <span><Clock />{timeText}</span>
+                        {histRate != null && <span className="co-r-rate"><Coins />{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')} <b>{histRate.toFixed(2)}</b></span>}
                       </div>
                       <div className="co-r-amt">
                         <div><small>{o.currency}</small><b>{Math.round(o.totalAmount).toLocaleString('en-US')}</b></div>
-                        <span>{L('Amount', 'المبلغ')}</span>
+                        <span>{qarTotal != null ? <>{L('QAR', 'ريال')} <b>{Math.round(qarTotal).toLocaleString('en-US')}</b></> : L('Amount', 'المبلغ')}</span>
                       </div>
                       <div className="co-r-st">
                         {statusKind === 'done' && <span className="co-pill"><CheckCircle2 />{L('Completed', 'مكتمل')}</span>}
@@ -2221,7 +2224,6 @@ export default function CustomerOrdersPage() {
                         {o.loanAmount != null && <div><span>{L('Order total', 'إجمالي الطلب')} ({o.loanCurrency})</span><b>{Math.round(o.loanAmount).toLocaleString('en-US')}</b></div>}
                         {o.loanPaid != null && <div><span>{L('Paid', 'المدفوع')}</span><b>{Math.round(o.loanPaid).toLocaleString('en-US')}</b></div>}
                         {remaining != null && <div><span>{L('Remaining', 'المتبقي')}</span><b>{Math.round(remaining).toLocaleString('en-US')}</b></div>}
-                        {histRate != null && <div><span>{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}</span><b>{histRate.toFixed(2)}</b></div>}
                       </div>
                     )}
                   </div>
