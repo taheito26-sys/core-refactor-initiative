@@ -4,9 +4,9 @@ import { defaultPinned, merchantKpiOptions, resolvePinned, togglePinned } from '
 const jose = { userNo: 'u1', nick: 'Jose', today: 11, soldToday: 11, total: 171, month: 76 };
 
 describe('dashboard KPI catalog', () => {
-  it('offers four boxes per followed merchant', () => {
+  it('offers six boxes per followed merchant', () => {
     const o = merchantKpiOptions([jose], 'P2P');
-    expect(o.map(x => x.id)).toEqual(['merchant:u1:today', 'merchant:u1:sold', 'merchant:u1:total', 'merchant:u1:month']);
+    expect(o.map(x => x.id)).toEqual(['merchant:u1:today', 'merchant:u1:sold', 'merchant:u1:total', 'merchant:u1:month', 'merchant:u1:seen', 'merchant:u1:name']);
     expect(o[0].value).toBe('+11');
   });
   it('defaults to the first merchant daily count and nothing otherwise', () => {

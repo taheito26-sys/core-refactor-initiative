@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Loader2, Plus, RefreshCw, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
-import { agoLabel, dailyRegister, eventsByDay, onlineState, qatarClock, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
+import { MerchantNameEditor } from './MerchantNameEditor';
+import { agoLabel, dailyRegister, displayName, eventsByDay, lastOnlineAt, onlineState, qatarClock, qatarDateTime, type DailyRow, type MerchantSnapshot, type OrderEvent, type WatchedMerchant } from './merchant-watch';
 import { useMerchantWatch } from './useMerchantWatch';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('en-US'));
@@ -77,11 +78,13 @@ function WaitingTile({ merchant, lang, busy, onIdentify, onRemove }: {
   );
 }
 
-function MerchantTile({ merchant, snaps, daily, events, lang, onRemove }: {
-  merchant: WatchedMerchant; snaps: MerchantSnapshot[]; daily: DailyRow[]; events: OrderEvent[]; lang: 'en' | 'ar'; onRemove: () => void;
+function MerchantTile({ merchant, snaps, daily, events, lang, renaming, onRename, onRemove }: {
+  merchant: WatchedMerchant; snaps: MerchantSnapshot[]; daily: DailyRow[]; events: OrderEvent[]; lang: 'en' | 'ar'; renaming: boolean;
+  onRename: (alias: string, aka: string[]) => void; onRemove: () => void;
 }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const [logOpen, setLogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const latest = snaps.at(-1);
   const state = onlineState(latest);
   // Every day since this merchant was followed, newest first.
@@ -102,14 +105,22 @@ function MerchantTile({ merchant, snaps, daily, events, lang, onRemove }: {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', state.online ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40')} />
-            <span className="truncate text-sm font-bold" dir="ltr">{merchant.nick}</span>
+            <span className="truncate text-sm font-bold">{displayName(merchant)}</span>
+            <button type="button" onClick={() => setEditing(e => !e)} aria-label={L('Edit name', 'تعديل الاسم')} className="rounded p-0.5 text-muted-foreground hover:bg-muted">
+              <Pencil className="h-3 w-3" />
+            </button>
           </div>
+          {(merchant.alias || (merchant.aka ?? []).length > 0) && (
+            <div className="truncate text-[10px] text-muted-foreground">
+              {[merchant.alias ? `Binance: ${merchant.nick}` : '', ...(merchant.aka ?? [])].filter(Boolean).join(' · ')}
+            </div>
+          )}
           <div className={cn('text-[11px] mt-0.5', state.online ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
             {!latest
               ? L('Waiting for the first reading…', 'بانتظار أول قراءة…')
               : state.online
                 ? L('Online now', 'متصل الآن')
-                : `${L('Offline · last seen', 'غير متصل · آخر ظهور')} ${agoLabel(state.lastSeenSeconds, lang)}`}
+                : `${L('Offline · last seen', 'غير متصل · آخر ظهور')} ${agoLabel(state.lastSeenSeconds, lang)}${lastOnlineAt(latest) ? ` (${qatarDateTime(lastOnlineAt(latest)!, lang)})` : ''}`}
             {latest && state.stale && <span className="ms-1 text-amber-600">({L('reading is old', 'القراءة قديمة')})</span>}
           </div>
         </div>
@@ -117,6 +128,9 @@ function MerchantTile({ merchant, snaps, daily, events, lang, onRemove }: {
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {editing && <MerchantNameEditor merchant={merchant} lang={lang} busy={renaming} onCancel={() => setEditing(false)}
+        onSave={(alias, aka) => { onRename(alias, aka); setEditing(false); }} />}
 
       <div className="grid grid-cols-4 gap-1.5 text-center">
         {[
@@ -193,7 +207,7 @@ export function MerchantWatchCard() {
   const t = useT();
   const lang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading, unavailable, add, identify, remove, refresh } = useMerchantWatch();
+  const { watched, byMerchant, dailyByMerchant, eventsByMerchant, loading, unavailable, add, identify, rename, remove, refresh } = useMerchantWatch();
   const { data: orders } = useExchangeP2POrders({ includeDismissed: true });
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
@@ -300,7 +314,7 @@ export function MerchantWatchCard() {
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {watched.map(m => (m.user_no
-            ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} daily={dailyByMerchant.get(m.user_no) ?? []} events={eventsByMerchant.get(m.user_no) ?? []} lang={lang} onRemove={() => remove.mutate(m.id)} />
+            ? <MerchantTile key={m.id} merchant={m} snaps={byMerchant.get(m.user_no) ?? []} daily={dailyByMerchant.get(m.user_no) ?? []} events={eventsByMerchant.get(m.user_no) ?? []} lang={lang} renaming={rename.isPending} onRename={(alias, aka) => rename.mutate({ id: m.id, alias, aka })} onRemove={() => remove.mutate(m.id)} />
             : <WaitingTile key={m.id} merchant={m} lang={lang} busy={identify.isPending && identify.variables?.id === m.id}
                 onIdentify={link => identify.mutate({ id: m.id, link })} onRemove={() => remove.mutate(m.id)} />))}
         </div>

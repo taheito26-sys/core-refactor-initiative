@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
-import { dailyRegister } from '@/features/p2p/merchant-watch/merchant-watch';
+import { agoLabel, dailyRegister, displayName, lastOnlineAt, onlineState, qatarDateTime } from '@/features/p2p/merchant-watch/merchant-watch';
+import { MerchantNameEditor } from '@/features/p2p/merchant-watch/MerchantNameEditor';
 import { useMerchantWatch } from '@/features/p2p/merchant-watch/useMerchantWatch';
 import { defaultPinned, merchantKpiOptions, resolvePinned, togglePinned, type KpiOption, type WatchedKpiSource } from '../kpi-catalog';
 
@@ -22,19 +23,25 @@ export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { userId } = useAuth();
   const key = storageKey(userId);
-  const { watched, dailyByMerchant, byMerchant } = useMerchantWatch();
+  const { watched, dailyByMerchant, byMerchant, rename } = useMerchantWatch();
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string[] | null>(() => readPinned(key));
   const [picking, setPicking] = useState(false);
 
   const sources = useMemo<WatchedKpiSource[]>(() => watched.filter(m => m.user_no).map(m => {
     const register = dailyRegister(dailyByMerchant.get(m.user_no!) ?? [], { since: new Date(m.created_at).getTime() });
     const latest = byMerchant.get(m.user_no!)?.at(-1);
+    const seenAt = lastOnlineAt(latest);
+    const state = onlineState(latest);
     return {
-      userNo: m.user_no!, nick: m.nick,
+      userNo: m.user_no!, nick: displayName(m), binanceNick: m.nick, aka: m.aka ?? [],
+      online: state.online,
+      lastOnline: !latest || seenAt == null ? null : state.online ? L('Online now', 'متصل الآن') : agoLabel(Math.round((Date.now() - seenAt) / 1000), lang),
+      lastOnlineExact: seenAt == null ? null : `${state.online ? L('now', 'الآن') : qatarDateTime(seenAt, lang)} · ${L('Qatar time', 'بتوقيت قطر')}`,
       today: register[0]?.orders ?? null, soldToday: register[0]?.sold ?? null,
       total: latest?.total_orders ?? null, month: latest?.month_orders ?? null,
     };
-  }), [watched, dailyByMerchant, byMerchant]);
+  }), [watched, dailyByMerchant, byMerchant, lang]);
 
   const options = useMemo(() => [...trackerOptions, ...merchantKpiOptions(sources, L('Followed P2P merchants', 'تجار P2P المتابَعون'))], [trackerOptions, sources, lang]);
 
@@ -75,6 +82,22 @@ export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption
       )}
       {picking && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {watched.filter(m => m.user_no).length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', marginBottom: 4 }}>{L('Edit merchant names', 'تعديل أسماء التجار')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {watched.filter(m => m.user_no).map(m => editingId === m.id ? (
+                  <MerchantNameEditor key={m.id} merchant={m} lang={lang} busy={rename.isPending}
+                    onCancel={() => setEditingId(null)}
+                    onSave={(alias, aka) => rename.mutate({ id: m.id, alias, aka }, { onSuccess: () => setEditingId(null) })} />
+                ) : (
+                  <button key={m.id} type="button" className="rowBtn" style={{ fontSize: 11, textAlign: 'start' }} onClick={() => setEditingId(m.id)}>
+                    ✎ {displayName(m)}{m.alias ? ` (${m.nick})` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {groups.map(g => (
             <div key={g}>
               <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', marginBottom: 4 }}>{g}</div>

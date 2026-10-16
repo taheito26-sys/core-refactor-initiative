@@ -21,7 +21,31 @@ export interface WatchedMerchant {
   nick: string;
   /** What was asked for while waiting (a masked name like "Jos***"). */
   pending_query?: string | null;
+  /** The user's own name for this merchant; shown instead of the Binance nickname. */
+  alias?: string | null;
+  /** Other names the merchant goes by. */
+  aka?: string[] | null;
   created_at: string;
+}
+
+/** The name to show: the user's own, else Binance's nickname. */
+export function displayName(m: Pick<WatchedMerchant, 'nick' | 'alias'>): string {
+  return m.alias?.trim() || m.nick;
+}
+
+/** When the merchant was last online as a timestamp, or null when unknown. Online now counts as now. */
+export function lastOnlineAt(latest: MerchantSnapshot | undefined, now = Date.now()): number | null {
+  if (!latest) return null;
+  const state = onlineState(latest, now);
+  if (state.online) return now;
+  if (latest.last_active_at) return new Date(latest.last_active_at).getTime();
+  return state.lastSeenSeconds == null ? null : now - state.lastSeenSeconds * 1000;
+}
+
+/** A moment as "15 Oct, 08:54" in Qatar time. */
+export function qatarDateTime(ts: number, lang: 'en' | 'ar' = 'en'): string {
+  const date = new Date(ts).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-GB', { timeZone: 'Asia/Qatar', day: 'numeric', month: 'short' });
+  return `${date}, ${qatarClock(new Date(ts).toISOString()).slice(0, 5)}`;
 }
 
 export type OrderCounter = 'total_orders' | 'sell_orders';
