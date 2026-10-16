@@ -4,6 +4,7 @@ import {
   Database, FileText, Info, Landmark, List, Plus, ReceiptText, TrendingUp, User, UserPlus, Wallet,
 } from 'lucide-react';
 import '@/styles/customer-home.css';
+import '@/styles/customer-theme.css';
 import { chartPoints, formatActivityStamp, formatPaymentStamp, smoothPath, sparkPath, type ActivityRow, type RateTrend } from './home-model';
 
 export interface HomeSettlement { total: number; paid: number; remaining: number; pct: number; count: number; avg: number; lastTs: number | null }

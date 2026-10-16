@@ -57,6 +57,7 @@ import { comparePlacement } from '@/lib/order-sequence';
 import { useNotifications } from '@/hooks/useNotifications';
 import '@/styles/customer-home.css';
 import '@/styles/customer-orders.css';
+import '@/styles/customer-theme.css';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 

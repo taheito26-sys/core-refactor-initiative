@@ -1,0 +1,86 @@
+/* ─── Customer portal colour theme: Emerald ─────────────────────────────
+   One colour family for the phone pages (home and orders): the header, the
+   rate cards, the icon tiles, the bars and the bottom bar all draw from the
+   tokens below. Status colours stay semantic (amber partly paid, red unpaid
+   or remaining, green paid). Loaded after customer-home.css and
+   customer-orders.css so these rules win; the few !important are only for
+   colours that are set inline on an element. */
+
+.ch-root, .ch-nav {
+  --th-ink: #0f2a24;
+  --th-a: #10b981;
+  --th-a2: #34d399;
+  --th-ad: #047857;
+  --th-al: #d6f5e8;
+  --th-all: #ecfaf4;
+  --th-page: #f1f8f5;
+  --th-h1: #07231d;
+  --th-h2: #0c3b30;
+  --th-hue: hue-rotate(-75deg) saturate(.85);
+  --th-bell: #123a31;
+  --th-vol: linear-gradient(100deg, #07231d, #0b3a2f 55%, #0f4a3b);
+  --th-vn: #6ee7b7;
+  --th-track: #dcefe7;
+  --th-bad: #e11d48;
+  --th-badl: #ffe4ea;
+  --ch-navy: var(--th-ink);
+  --ch-blue: var(--th-a);
+}
+
+/* page and header */
+.ch-root { background: linear-gradient(var(--th-h1), var(--th-h1)) top / 100% env(safe-area-inset-top, 0px) no-repeat, var(--th-page); }
+.ch-hero-bg, .co-hero .ch-hero-bg { background: linear-gradient(160deg, var(--th-h1), var(--th-h2)) !important; }
+.ch-hero-bg::before { content: ''; position: absolute; inset: 0; background: url('../assets/customer-home-hero.webp') center top / cover no-repeat; filter: var(--th-hue); opacity: .85; }
+.co-hero .ch-hero-bg::before { background: url('../assets/customer-home-hero.webp') center top / 100% auto no-repeat; }
+.ch-pill button.on { background: linear-gradient(180deg, var(--th-a2), var(--th-a)); box-shadow: none; }
+.ch-bell { background: var(--th-bell); }
+.ch-avatar { background: linear-gradient(160deg, var(--th-a2), var(--th-ad)); }
+
+/* the two rate cards */
+.ch-rate.green { background: linear-gradient(112deg, #10b981, #047857); }
+.ch-rate.blue { background: linear-gradient(110deg, #0d9488, #0f766e); }
+.ch-rate-chg { color: #fff; opacity: .95; }
+.ch-rate-spark svg { stroke: #fff !important; }
+
+/* icon tiles and bars */
+.ch-act-tile, .ch-set-ic, .ch-stat-ic, .ch-tile-ic { background: var(--th-al) !important; color: var(--th-ad) !important; }
+.ch-set-col:nth-child(3) .ch-set-ic { background: var(--th-badl) !important; color: var(--th-bad) !important; }
+.ch-set-num { color: var(--th-ad) !important; }
+.ch-set-col:nth-child(3) .ch-set-num { color: var(--th-bad) !important; }
+.ch-mint { background: var(--th-all); }
+.ch-mint-t { color: var(--th-ad); }
+.ch-track { background: var(--th-track); }
+.ch-track i { background: linear-gradient(90deg, var(--th-a), var(--th-a2)); }
+.ch-act-label, .ch-head-t, .ch-row-t, .ch-tile-val b, .ch-stat-val { color: var(--th-ink); }
+.ch-tile.week, .ch-tile.month, .ch-tile.total { background: var(--th-all); }
+.ch-row-ic, .ch-row-ic.blue { background: var(--th-all); color: var(--th-ad); }
+.ch-all { color: var(--th-a); }
+
+/* month volume card */
+.ch-vol { background: var(--th-vol); }
+.ch-vol-amt { color: var(--th-vn); text-shadow: none; }
+.ch-vol-chip svg { color: var(--th-vn); }
+.ch-vol-chart path[stroke] { stroke: var(--th-vn); }
+.ch-vol-chart circle[fill="#3de3b0"] { fill: var(--th-vn); }
+.ch-vol-chart stop[stop-color="#35d9b0"] { stop-color: var(--th-vn); }
+
+/* bottom bar */
+.ch-nav-item { color: var(--th-ink); }
+.ch-nav-lbl { color: var(--th-ink); }
+.ch-nav-item.on .ch-nav-ic { background: var(--th-al); color: var(--th-ad); }
+.ch-nav-item.on .ch-nav-lbl { color: var(--th-ad); }
+.ch-nav-bar { background: var(--th-a); }
+
+/* orders page */
+.co-root { background: var(--th-page); }
+.co-chip.on, .co-new { background: linear-gradient(180deg, var(--th-a2), var(--th-a)); box-shadow: 0 3px 8px rgba(16, 185, 129, .35); }
+.co-tool.pdf, .co-tool.active, .co-btn.link { color: var(--th-ad); border-color: #a7e3c8; background: var(--th-all); }
+.co-kpi.blue, .co-kpi.lav, .co-kpi.mint, .co-mini { background: linear-gradient(135deg, var(--th-all), #f6fcf9); }
+.co-kpi.blue .ic, .co-kpi.lav .ic, .co-kpi.mint .ic { background: var(--th-al); color: var(--th-ad); }
+.co-kpi.blue .v, .co-kpi.lav .v { color: var(--th-ink); }
+.co-kpi.mint .v, .co-mini .v { color: var(--th-ad); }
+.co-prog { background: #f3f9f6; }
+.co-track { background: var(--th-track); }
+.co-day, .co-sec-h { color: var(--th-ink); }
+.co-card.pend::before { background: #0d9488; }
+.co-tag.blue { background: var(--th-al); color: var(--th-ad); }
