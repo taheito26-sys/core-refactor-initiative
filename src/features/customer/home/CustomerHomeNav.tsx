@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { Bell, House, Menu, MessageCircle, ShoppingCart, Wallet } from 'lucide-react';
 import '@/styles/customer-home.css';
 
