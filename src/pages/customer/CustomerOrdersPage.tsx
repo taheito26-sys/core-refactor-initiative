@@ -1,7 +1,8 @@
 import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Plus, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
+import { ArrowRight, ArrowDown, Bell, Coins, FileText, Hash, Loader2, Plus, TrendingUp, Wallet, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -53,6 +54,9 @@ import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '
 import { offlineSyncQueue } from '@/services/offlineSyncQueue';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 import { comparePlacement } from '@/lib/order-sequence';
+import { useNotifications } from '@/hooks/useNotifications';
+import '@/styles/customer-home.css';
+import '@/styles/customer-orders.css';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 
@@ -228,7 +232,7 @@ function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string
         ? (lang === 'ar' ? 'اليوم' : 'Today')
         : date === yesterday
         ? (lang === 'ar' ? 'أمس' : 'Yesterday')
-        : new Date(date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+        : new Date(date).toLocaleDateString(lang === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
     }));
 }
 
@@ -456,7 +460,10 @@ export function NewOrderForm({ connections, userId, lang, onClose, onCreated }: 
 export default function CustomerOrdersPage() {
   const { customerProfile, userId } = useAuth();
   const isMobile = useIsMobile();
-  const { settings } = useTheme();
+  const { settings, update } = useTheme();
+  const navigate = useNavigate();
+  const shell = useOutletContext<{ openMenu?: () => void } | null>();
+  const { unreadCount } = useNotifications();
   const lang = settings.language;
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const qc = useQueryClient();
@@ -1076,11 +1083,97 @@ export default function CustomerOrdersPage() {
     return rates;
   }, [orders, historyOrders]);
 
+  const monthLong = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'long', year: 'numeric' });
+  };
+  const monthShort = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'short', year: '2-digit' });
+  };
+  const periodLabel = selectedMonth ? monthLong(selectedMonth) : L('All months', 'كل الأشهر');
+  const shownCount = filteredOrders.length + filteredHistoryOrders.length;
+
   return (
-    <div className="space-y-6 pb-16">
+    <div className={cn(isMobile ? 'ch-root co-root' : 'space-y-6 pb-16')} dir={isMobile ? (lang === 'ar' ? 'rtl' : 'ltr') : undefined}>
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
       <MobileInstallBanner />
 
+      {isMobile ? (
+        <>
+          <section className="co-hero">
+            <div className="ch-hero-bg" aria-hidden="true" />
+            <div className="ch-top">
+              {shell?.openMenu ? (
+                <button type="button" className="ch-burger" onClick={shell.openMenu} aria-label={L('Menu', 'القائمة')}>
+                  <svg viewBox="0 0 25 22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M1 3h23M1 11h23M1 19h23" /></svg>
+                </button>
+              ) : null}
+              <span className="sp" />
+              <button type="button" className="ch-bell" onClick={() => navigate('/c/notifications')} aria-label={L('Notifications', 'التنبيهات')}>
+                <Bell strokeWidth={2} />
+                {unreadCount > 0 && <span className="ch-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+              </button>
+              <div className="ch-pill" role="group" aria-label={L('Language', 'اللغة')}>
+                <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => update({ language: 'ar' })}>AR</button>
+                <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>EN</button>
+              </div>
+            </div>
+            <div className="co-title-row">
+              <div className="co-title">
+                <h1>{L('My Orders', 'طلباتي')}</h1>
+                <p>{shownCount} {L('orders', 'طلب')} · {periodLabel}</p>
+              </div>
+              <button type="button" className="co-new" onClick={() => setShowNewOrder(true)} disabled={connections.length === 0}>
+                <Plus strokeWidth={2.6} />
+                {L('New Order', 'طلب جديد')}
+              </button>
+            </div>
+          </section>
+
+          {availableMonths.length > 0 && (
+            <div className="co-float">
+              <div className="ch-card">
+                <div className="co-months">
+                  <button type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }} className={`co-chip ${selectedMonth === null ? 'on' : ''}`}>
+                    {L('All Months', 'كل الأشهر')}
+                  </button>
+                  {availableMonths.map(m => (
+                    <button key={m} type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }} className={`co-chip ${selectedMonth === m ? 'on' : ''}`}>
+                      {monthShort(m)}
+                    </button>
+                  ))}
+                </div>
+                <div className="co-tools">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!hasOrderFilterCriteria) { setShowOrderFilter(true); return; }
+                      setOrderFilterOn(on => !on);
+                    }}
+                    className={`co-tool ${activeOrderFilterCount > 0 ? 'active' : ''}`}
+                  >
+                    <Filter />
+                    {L('Filter', 'تصفية')}
+                  </button>
+                  {hasOrderFilterCriteria && (
+                    <button type="button" onClick={() => setShowOrderFilter(true)} title={L('Edit filter', 'تعديل التصفية')} className="co-tool icon"><Pencil /></button>
+                  )}
+                  <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')} disabled={exportingFormat !== null} className="co-tool pdf">
+                    {exportingFormat === 'pdf' ? <Loader2 className="animate-spin" /> : <FileDown />}
+                    PDF
+                  </button>
+                  <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'xlsx')} disabled={exportingFormat !== null} className="co-tool xlsx">
+                    {exportingFormat === 'xlsx' ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+                    XLSX
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/40 px-4 py-4 -mx-4">
         <div className="flex items-center justify-between">
@@ -1177,6 +1270,8 @@ export default function CustomerOrdersPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {showNewOrder && connections.length > 0 && (
         <NewOrderForm
@@ -1230,10 +1325,10 @@ export default function CustomerOrdersPage() {
           <p className="text-muted-foreground">{orders.length === 0 && historyOrders.length === 0 ? L('No orders yet', 'لا توجد طلبات بعد') : L('No orders this month', 'لا توجد طلبات هذا الشهر')}</p>
         </div>
       ) : filteredOrders.length === 0 ? null : (
-        <div className="space-y-6 px-4">
+        <div className={cn('px-4', isMobile ? 'space-y-2' : 'space-y-6')}>
           {grouped.map(({ label, orders: dayOrders }) => (
-            <div key={label} className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3>
+            <div key={label} className={cn(isMobile ? 'space-y-2' : 'space-y-3')}>
+              <h3 className={cn(isMobile ? 'co-day' : 'text-xs font-semibold uppercase tracking-wide text-muted-foreground')}>{label}</h3>
               {dayOrders.map((order) => {
                 const isActioning = actioningId === order.id;
                 const isEditing = editingId === order.id;
@@ -1398,7 +1493,7 @@ export default function CustomerOrdersPage() {
                     : '—';
                   const sendCurrencyLabel = currencyLabel(order.send_currency);
                   const receiveCurrencyLabel = currencyLabel(order.receive_currency);
-                  const dateLabel = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                  const dateLabel = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -1408,155 +1503,106 @@ export default function CustomerOrdersPage() {
                       ? <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-[11px] leading-none text-emerald-400">✓</span>
                       : null;
 
+                  const cardKind = {
+                    pending_customer_approval: 'warn',
+                    pending_merchant_approval: 'pend',
+                    approved: 'paid',
+                    rejected: 'rej',
+                    cancelled: 'canc',
+                  }[order.workflow_status || 'cancelled'] || 'canc';
+                  const tagTone = {
+                    pending_customer_approval: 'warn',
+                    pending_merchant_approval: 'blue',
+                    approved: 'ok',
+                    rejected: 'bad',
+                    cancelled: 'grey',
+                  }[order.workflow_status || 'cancelled'] || 'grey';
+                  const seq = orderSequence.get(`live:${order.id}`);
+                  const openHistory = async () => {
+                    try {
+                      const history = await getOrderHistory(order.id);
+                      setOrderHistory(history);
+                      setSelectedOrderForHistory(order);
+                      setShowOrderHistory(true);
+                    } catch (e) {
+                      toast.error(L('Failed to load history', 'فشل في تحميل السجل'));
+                    }
+                  };
+
                   return (
                     <div key={order.id} className="space-y-2">
-                    <div
-                      dir={lang === 'ar' ? 'rtl' : 'ltr'}
-                      className={cn(
-                        'overflow-hidden rounded-[20px] border px-3 py-2.5 text-[12px] text-slate-100',
-                        statusTone.card,
-                        lang === 'ar' && 'text-right',
-                      )}
-                    >
-                      <div className={cn('flex items-start justify-between gap-2', lang === 'ar' && 'flex-row-reverse')}>
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {orderSequence.get(`live:${order.id}`) != null && (
-                            <span className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-bold text-slate-300">
-                              #{orderSequence.get(`live:${order.id}`)}
-                            </span>
-                          )}
-                          {approvalBadge}
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] font-medium text-slate-300">
-                          <span>{dateLabel}</span>
-                        </div>
+                    <div className={cn('co-card', cardKind)}>
+                      <div className="co-card-top">
+                        {seq != null && <span className="co-no">#{seq}</span>}
+                        <span className="co-date">{dateLabel}</span>
+                        <span className={cn('co-tag', tagTone)}>{approvalBadge ? '✓ ' : ''}{statusLabel}</span>
                       </div>
 
-                      <div className={cn('mt-2 grid grid-cols-2 gap-2', lang === 'ar' && 'text-right')}>
-                        <div className="rounded-xl bg-white/[0.03] px-2 py-1.5">
-                          <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{lang === 'ar' ? 'المستلم' : 'Received'}</div>
-                          <div className="mt-1 text-[17px] font-black leading-none text-slate-50">
-                            {sendAmountLabel}
-                          </div>
-                          <div className="mt-0.5 text-[10px] font-semibold text-slate-300">{sendCurrencyLabel}</div>
+                      <div className="co-card-mid">
+                        <div className="co-amt-col">
+                          <div className="k">{L('Received', 'المستلم')}</div>
+                          <div className="co-amt"><small>{sendCurrencyLabel}</small><b>{sendAmountLabel}</b></div>
                         </div>
-                        <div className="rounded-xl bg-white/[0.03] px-2 py-1.5 text-right">
-                          <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{lang === 'ar' ? 'المرسل' : 'Sent'}</div>
-                          <div className="mt-1 text-[17px] font-black leading-none text-slate-50">
-                            {receiveAmountLabel}
-                          </div>
-                          <div className="mt-0.5 text-[10px] font-semibold text-slate-300">{receiveCurrencyLabel}</div>
+                        <div className="co-amt-col end">
+                          <div className="k">{L('Sent', 'المرسل')}</div>
+                          <div className="co-amt"><small>{receiveCurrencyLabel}</small><b>{receiveAmountLabel}</b></div>
                         </div>
                       </div>
-
-                      <div className={cn('mt-2 text-[10px] leading-4 text-slate-400', lang === 'ar' && 'text-right')}>
-                        1 {sendCurrencyLabel} = {fxRateLabel} {receiveCurrencyLabel}
+                      <div className="co-rate-row">
+                        <span className="co-rate">1 {sendCurrencyLabel} = <b>{fxRateLabel}</b> {receiveCurrencyLabel}</span>
                       </div>
 
                       {(canApprove || canReject || canEdit) && (
-                        <div className="mt-2 space-y-1.5 border-t border-white/5 pt-2.5">
+                        <div className="co-acts">
                           {isEditing ? (
-                            <div className="space-y-2">
-                              <label className="block text-[10px] font-medium tracking-wide text-slate-400">
-                                {L('New amount', 'المبلغ الجديد')}
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  value={editAmount}
-                                  onChange={e => setEditAmount(e.target.value)}
-                                  placeholder={String(order.amount)}
-                                  className="h-9 flex-1 rounded-xl border border-white/10 bg-[#0b1224] px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/30"
-                                />
-                                <button
-                                  onClick={() => editMutation.mutate({ order })}
-                                  disabled={editMutation.isPending}
-                                  className="flex h-9 items-center justify-center rounded-xl bg-sky-500/15 px-3 text-xs font-semibold text-sky-300 disabled:opacity-50"
-                                >
-                                  {editMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Update', 'تحديث')}
+                            <>
+                              <label className="co-lbl">{L('New amount', 'المبلغ الجديد')}</label>
+                              <div className="co-edit">
+                                <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} placeholder={String(order.amount)} />
+                                <button type="button" className="co-btn link" onClick={() => editMutation.mutate({ order })} disabled={editMutation.isPending}>
+                                  {editMutation.isPending ? <Loader2 className="animate-spin" /> : L('Update', 'تحديث')}
                                 </button>
-                                <button
-                                  onClick={() => { setEditingId(null); setEditAmount(''); }}
-                                  className="flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/0 px-3 text-xs font-semibold text-slate-300"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
+                                <button type="button" className="co-btn" onClick={() => { setEditingId(null); setEditAmount(''); }} aria-label={L('Cancel', 'إلغاء')}><X /></button>
                               </div>
-                            </div>
+                            </>
                           ) : (
-                            <div className="flex flex-wrap gap-2">
+                            <>
                               {canApprove && (
-                                <button
-                                  onClick={() => setAcceptingOrder(order)}
-                                  disabled={isActioning}
-                                  className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 disabled:opacity-50"
-                                >
-                                  {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                <button type="button" className="co-btn ok" onClick={() => setAcceptingOrder(order)} disabled={isActioning}>
+                                  {isActioning ? <Loader2 className="animate-spin" /> : <Check />}
                                   {L('Approve', 'موافقة')}
                                 </button>
                               )}
                               {canReject && (
-                                <button
-                                  onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
-                                  disabled={isActioning}
-                                  className="flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-300 disabled:opacity-50"
-                                >
-                                  {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                <button type="button" className="co-btn bad" onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }} disabled={isActioning}>
+                                  {isActioning ? <Loader2 className="animate-spin" /> : <XCircle />}
                                   {L('Reject', 'رفض')}
                                 </button>
                               )}
                               {canEdit && (
-                                <button
-                                  onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
-                                  className="rounded-full border border-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300"
-                                >
+                                <button type="button" className="co-btn" onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}>
                                   {L('Edit', 'تعديل')}
                                 </button>
                               )}
                               {order.revision_no > 1 && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const history = await getOrderHistory(order.id);
-                                      setOrderHistory(history);
-                                      setSelectedOrderForHistory(order);
-                                      setShowOrderHistory(true);
-                                    } catch (e) {
-                                      toast.error(L('Failed to load history', 'فشل في تحميل السجل'));
-                                    }
-                                  }}
-                                  className="rounded-full border border-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300"
-                                >
-                                  {L('History', 'السجل')}
-                                </button>
+                                <button type="button" className="co-btn" onClick={openHistory}>{L('History', 'السجل')}</button>
                               )}
-                            </div>
+                            </>
                           )}
                         </div>
                       )}
-                      {/* Link to Cash & Verify — shown on approved orders */}
+
                       {order.workflow_status === 'approved' && (
-                        <div className="mt-2 border-t border-white/5 pt-2 space-y-1.5">
-                          {/* Verify Order Receipt */}
-                          <button
-                            onClick={e => { e.stopPropagation(); setVerifyingOrder(order); }}
-                            className="w-full flex items-center gap-1.5 justify-center rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-blue-300 hover:bg-blue-500/20"
-                          >
+                        <div className="co-acts">
+                          <button type="button" className="co-btn link wide" onClick={e => { e.stopPropagation(); setVerifyingOrder(order); }}>
                             ✓ {L('Verify Receipt & Amount', 'تحقق من الاستلام والمبلغ')}
                           </button>
-                          {/* Link to Cash Account */}
                           {orderCashLinkMap.has(order.id) ? (
-                            <button
-                              onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
-                              className="w-full flex items-center gap-1.5 justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
-                            >
+                            <button type="button" className="co-btn ok wide" onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}>
                               ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
                             </button>
                           ) : (
-                            <button
-                              onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
-                              className="w-full flex items-center gap-1.5 justify-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
-                            >
+                            <button type="button" className="co-btn link wide" onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}>
                               💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
                             </button>
                           )}
@@ -1842,10 +1888,85 @@ export default function CustomerOrdersPage() {
           orders — no counterparty, no exchange badge. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {L('Order History', 'سجل الطلبات')}
-          </h3>
+          <div className={cn(isMobile ? 'co-sec-h' : '')}>
+            <h3 className={cn(isMobile ? '' : 'text-xs font-semibold uppercase tracking-wide text-muted-foreground')}>
+              {L('Order History', 'سجل الطلبات')}
+            </h3>
+            {isMobile && <small>{periodLabel}</small>}
+          </div>
 
+          {isMobile && (
+            <div className="ch-card co-sum">
+              <div className="co-kpis">
+                {[
+                  { cls: 'blue', icon: <Hash />, label: L('Count', 'العدد'), value: String(historyKpi.count) },
+                  { cls: 'lav', icon: <Coins />, label: L('Volume (EGP)', 'الحجم (جنيه)'), value: Math.round(historyKpi.volumeEgp).toLocaleString('en-US') },
+                  { cls: 'mint', icon: <Wallet />, label: L('Total (QAR)', 'الإجمالي (ريال)'), value: Math.round(historyKpi.totalQar).toLocaleString('en-US') },
+                ].map(k => (
+                  <div key={k.label} className={`co-kpi ${k.cls}`}>
+                    <div className="ic">{k.icon}</div>
+                    <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
+                  </div>
+                ))}
+              </div>
+              {!hasLoans && (
+                <div className="co-kpis">
+                  {[
+                    { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.shownAvgRate != null ? historyKpi.shownAvgRate.toFixed(2) : '—', cls: 'blue' },
+                    { label: L('Best rate', 'أفضل سعر'), value: salesKpi.bestRate != null ? salesKpi.bestRate.toFixed(2) : '—', cls: 'mint' },
+                    { label: L('Lowest rate', 'أقل سعر'), value: salesKpi.lowestRate != null ? salesKpi.lowestRate.toFixed(2) : '—', cls: 'rose' },
+                    { label: `${L('Avg order', 'متوسط الطلب')} (EGP)`, value: salesKpi.avgOrderEgp != null ? Math.round(salesKpi.avgOrderEgp).toLocaleString('en-US') : '—', cls: 'lav' },
+                    { label: `${L('Largest order', 'أكبر طلب')} (EGP)`, value: salesKpi.largestOrderEgp != null ? Math.round(salesKpi.largestOrderEgp).toLocaleString('en-US') : '—', cls: 'lav' },
+                    {
+                      label: L('Last order', 'آخر طلب'),
+                      value: salesKpi.lastOrderDate != null
+                        ? new Date(salesKpi.lastOrderDate).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })
+                        : '—',
+                      cls: 'blue',
+                    },
+                  ].map(k => (
+                    <div key={k.label} className={`co-kpi ${k.cls} plain`}>
+                      <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {hasLoans && (
+                <>
+                  <div className="co-kpis">
+                    {[
+                      { cls: 'blue', icon: <FileText />, label: `${L('Total Debt', 'إجمالي المديونية')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalDebt).toLocaleString('en-US') },
+                      { cls: 'mint', icon: <TrendingUp />, label: `${L('Paid', 'المدفوع')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalPaid).toLocaleString('en-US') },
+                      { cls: debtKpi.outstanding > 0 ? 'rose' : 'mint', icon: <ArrowDown />, label: `${L('Outstanding', 'المتبقي')} (${debtKpi.currency})`, value: Math.round(debtKpi.outstanding).toLocaleString('en-US') },
+                    ].map(k => (
+                      <div key={k.label} className={`co-kpi ${k.cls}`}>
+                        <div className="ic">{k.icon}</div>
+                        <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="co-prog">
+                    {[
+                      { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct },
+                      { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct },
+                    ].map(row => (
+                      <div key={row.label} className="co-line">
+                        <span className="t">{row.label}</span>
+                        <div className="co-track"><i style={{ width: `${row.pct ?? 0}%`, background: row.pct != null && row.pct >= 100 ? 'linear-gradient(90deg,#08b182,#0bb985)' : 'linear-gradient(90deg,#f59e0b,#fbbf24)' }} /></div>
+                        <b style={{ color: row.pct == null ? '#6b7a9c' : row.pct >= 100 ? '#0b9a68' : '#c27a06' }}>{row.pct != null ? `${row.pct}%` : '—'}</b>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="co-pair">
+                    <div className="co-mini"><span className="l">{L('Settled (month)', 'مسددة (الشهر)')}</span><span className="v">{repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}</span></div>
+                    <div className="co-mini"><span className="l">{L('Settled (all)', 'مسددة (إجمالي)')}</span><span className="v">{repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}</span></div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {!isMobile && (
+            <>
           {/* KPI bar — same tile styling as the merchant Orders page's own
               COUNT/VOLUME/NET P&L row. Top row is scoped to the selected
               month; bottom row is running debt/payment totals across all
@@ -1979,69 +2100,43 @@ export default function CustomerOrdersPage() {
           </div>
             </>
           )}
+            </>
+          )}
 
           {isMobile ? (
             <div>
               {filteredHistoryOrders.map((o, i) => {
                 const settledPct = o.loanAmount ? Math.min(100, Math.round(((o.loanPaid ?? 0) / o.loanAmount) * 100)) : null;
+                const histKind = o.emergency ? 'emerg' : o.loaned ? (o.settled ? 'paid' : 'warn') : 'paid';
+                const histSeq = orderSequence.get(`hist:${o.key}`);
+                const histRate = o.qarToEgpRate != null && o.qarToEgpRate > 0 ? displayQarEgpRate(o.qarToEgpRate, o.date) : null;
                 return (
-                  <div
-                    key={`${o.key}-${i}`}
-                    className="panel"
-                    style={{ margin: '0 0 8px', overflow: 'hidden', padding: '10px 12px', ...(o.emergency ? { borderLeft: '3px solid var(--bad)', background: 'color-mix(in srgb, var(--bad) 7%, var(--panel))' } : o.loaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                        {orderSequence.get(`hist:${o.key}`) != null && (
-                          <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', border: '1px solid color-mix(in srgb, var(--muted) 30%, transparent)', borderRadius: 6, padding: '1px 5px' }}>
-                            #{orderSequence.get(`hist:${o.key}`)}
-                          </span>
-                        )}
-                        <div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
-                          {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </div>
-                        {o.emergency && (
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: 'var(--bad)', color: '#fff', whiteSpace: 'nowrap' }}>
-                            🚨 {L('Emergency', 'طوارئ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mono" style={{ fontSize: 15, fontWeight: 800 }}>
-                        {Math.round(o.totalAmount).toLocaleString()} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{o.currency}</span>
-                      </div>
+                  <div key={`${o.key}-${i}`} className={cn('co-card co-hist', histKind)}>
+                    <div className="co-card-top">
+                      {histSeq != null && <span className="co-no">#{histSeq}</span>}
+                      <span className="co-date">
+                        {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </span>
+                      {o.emergency ? (
+                        <span className="co-tag bad">🚨 {L('Emergency', 'طوارئ')}</span>
+                      ) : o.loaned ? (
+                        o.settled
+                          ? <span className="co-tag ok">✓ {L('Settled', 'مسدد')}</span>
+                          : <span className="co-tag warn">{L('Unpaid', 'غير مسدد')}</span>
+                      ) : null}
                     </div>
-
-                    {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
-                      <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 10 }}>
-                        {o.qarToEgpRate != null && o.qarToEgpRate > 0 && (
-                          <span>
-                            <span style={{ color: 'var(--muted)' }}>{L('QAR → EGP', 'ريال → جنيه')}: </span>
-                            <span className="mono" style={{ fontWeight: 700 }}>{displayQarEgpRate(o.qarToEgpRate, o.date).toFixed(2)}</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-
+                    <div className="co-card-mid">
+                      <div className="co-amt"><small>{o.currency}</small><b>{Math.round(o.totalAmount).toLocaleString('en-US')}</b></div>
+                      {histRate != null && (
+                        <div className="co-rate">{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}: <b>{histRate.toFixed(2)}</b></div>
+                      )}
+                    </div>
                     {o.loaned && o.loanAmount != null && (
-                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
-                            <span>{L('Repaid', 'المسدد')}</span>
-                          </div>
-                          <div className="prog" style={{ height: 8, maxWidth: 'none' }}>
-                            <span style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'var(--good)' : 'var(--warn)' }} />
-                          </div>
+                      <div className="co-card-bot">
+                        <div className="grow">
+                          <div className="co-track"><i style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'linear-gradient(90deg,#08b182,#0bb985)' : 'linear-gradient(90deg,#f59e0b,#fbbf24)' }} /></div>
                         </div>
-                        <span
-                          className="mono"
-                          style={{
-                            flexShrink: 0, fontSize: 13, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
-                            color: o.settled ? 'var(--good)' : 'var(--warn)',
-                            background: o.settled ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'color-mix(in srgb, var(--warn) 12%, transparent)',
-                          }}
-                        >
-                          {settledPct ?? 0}%
-                        </span>
+                        <span className={cn('co-pct', o.settled ? 'ok' : 'warn')}>{settledPct ?? 0}%</span>
                       </div>
                     )}
                   </div>

@@ -63,6 +63,9 @@ export function CustomerLayout() {
   const isWideRoute = location.pathname.startsWith('/c/orders');
   // The home page draws its own header, bottom bar and background.
   const isHomeRoute = location.pathname === '/c/home' || location.pathname === '/c/home/';
+  // On a phone the orders page draws its own header and uses the same bottom bar as home.
+  const isOrdersPhone = isMobile && (location.pathname === '/c/orders' || location.pathname === '/c/orders/');
+  const ownsShell = isHomeRoute || isOrdersPhone;
   const chatUnread = useChatStore(s => Object.values(s.unreadCounts).reduce((sum, n) => sum + (n || 0), 0));
   const displayName = resolveCustomerDisplayName(customerProfile, lang);
 
@@ -115,7 +118,7 @@ export function CustomerLayout() {
 
       <div className="main-shell flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        {!isHomeRoute && <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
+        {!ownsShell && <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
@@ -137,11 +140,11 @@ export function CustomerLayout() {
             the chat route, the message composer). */}
         <main
           className={cn('flex-1 min-h-0', isChatRoute ? 'overflow-hidden' : 'overflow-y-auto')}
-          style={isHomeRoute ? { background: '#f1f6fc' } : isMobile ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : undefined}
+          style={ownsShell ? { background: '#f1f6fc' } : isMobile ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : undefined}
         >
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>
-          ) : isHomeRoute ? (
+          ) : ownsShell ? (
             <Outlet context={{ openMenu: isMobile ? () => setDrawerOpen(true) : undefined }} />
           ) : (
             // No max-width below the lg breakpoint — a wide phone or tablet
@@ -161,10 +164,10 @@ export function CustomerLayout() {
             flowed past the fold, so the user had to scroll the whole page
             to reach it instead of it always being visible. `main`'s
             bottom padding above keeps content from sitting underneath it. */}
-        {isMobile && isHomeRoute && (
-          <CustomerHomeNav lang={lang} chatUnread={chatUnread} onNavigate={go} onMore={() => setDrawerOpen(true)} />
+        {isMobile && ownsShell && (
+          <CustomerHomeNav lang={lang} chatUnread={chatUnread} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : 'orders'} />
         )}
-        {isMobile && !isHomeRoute && (
+        {isMobile && !ownsShell && (
           <nav
             className="fixed inset-x-0 bottom-0 z-30 flex h-14 items-stretch border-t border-border/50 bg-background/95 backdrop-blur"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}

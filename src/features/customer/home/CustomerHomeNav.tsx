@@ -1,4 +1,4 @@
-import { Bell, Menu, MessageCircle, ShoppingCart } from 'lucide-react';
+import { Bell, House, Menu, MessageCircle, ShoppingCart } from 'lucide-react';
 import '@/styles/customer-home.css';
 
 function HomeSolid() {
@@ -6,15 +6,17 @@ function HomeSolid() {
 }
 
 /** The home page's bottom bar: Home, Orders, Notifications, Chat, More. */
-export function CustomerHomeNav({ lang, chatUnread, onNavigate, onMore }: {
+export function CustomerHomeNav({ lang, chatUnread, onNavigate, onMore, activeKey = 'home' }: {
   lang: 'en' | 'ar'; chatUnread: number; onNavigate: (path: string) => void; onMore: () => void;
+  /** Which of home / orders / notifications / chat is the current page. */
+  activeKey?: 'home' | 'orders' | 'notifications' | 'chat';
 }) {
   const t = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const items = [
-    { key: 'home', label: t('Home', 'الرئيسية'), icon: <HomeSolid />, go: () => onNavigate('/c/home'), on: true },
-    { key: 'orders', label: t('Orders', 'الطلبات'), icon: <ShoppingCart strokeWidth={1.7} />, go: () => onNavigate('/c/orders') },
-    { key: 'notifications', label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications') },
-    { key: 'chat', label: t('Chats', 'المحادثات'), icon: <MessageCircle strokeWidth={1.7} />, go: () => onNavigate('/c/chat'), badge: chatUnread },
+    { key: 'home', label: t('Home', 'الرئيسية'), icon: activeKey === 'home' ? <HomeSolid /> : <House strokeWidth={1.7} />, go: () => onNavigate('/c/home'), on: activeKey === 'home' },
+    { key: 'orders', label: t('Orders', 'الطلبات'), icon: <ShoppingCart strokeWidth={1.7} />, go: () => onNavigate('/c/orders'), on: activeKey === 'orders' },
+    { key: 'notifications', label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications'), on: activeKey === 'notifications' },
+    { key: 'chat', label: t('Chats', 'المحادثات'), icon: <MessageCircle strokeWidth={1.7} />, go: () => onNavigate('/c/chat'), badge: chatUnread, on: activeKey === 'chat' },
     { key: 'more', label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
   ];
   return (
