@@ -67,7 +67,7 @@ describe('customer orders page on a phone', () => {
     expect(screen.getByText('92%')).toBeTruthy();
     expect(container.querySelectorAll('.co-row').length).toBe(2);
     expect(container.querySelector('.co-row.emerg')).toBeTruthy();
-    expect(container.querySelector('.co-row.warn')).toBeTruthy();
+    expect(container.querySelector('.co-row.warn .co-pill.warn')).toBeTruthy();
     expect(container.querySelectorAll('.co-r-bar').length).toBeGreaterThan(0);
     expect(screen.getByText('الطلبات الأخيرة')).toBeTruthy();
   });

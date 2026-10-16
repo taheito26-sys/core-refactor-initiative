@@ -1107,11 +1107,13 @@ export default function CustomerOrdersPage() {
   const trendDown = !!gTotal && !gTotal.up;
   const GrowthLine = ({ g, percent }: { g: { pct: number | null; delta: number; up: boolean }; percent?: boolean }) => (
     <>
-      <div className={cn('co-t-g', g.up ? 'up' : 'down')}>
-        {g.up ? <ArrowUpRight /> : <ArrowDownRight />}
-        {percent ? (g.pct != null ? `${g.up ? '+' : ''}${g.pct}%` : '—') : `${g.delta >= 0 ? '+' : ''}${g.delta}`}
+      <div className="co-t-gl">
+        <span className={cn('co-t-g', g.up ? 'up' : 'down')}>
+          {g.up ? <ArrowUpRight /> : <ArrowDownRight />}
+          {percent ? (g.pct != null ? `${g.up ? '+' : ''}${g.pct}%` : '—') : `${g.delta >= 0 ? '+' : ''}${g.delta}`}
+        </span>
+        <span className="co-t-c">{L('vs last month', 'مقارنة بالشهر الماضي')}</span>
       </div>
-      <div className="co-t-c">{L('vs last month', 'مقارنة بالشهر الماضي')}</div>
     </>
   );
   const shownCount = filteredOrders.length + filteredHistoryOrders.length;
@@ -2170,6 +2172,7 @@ export default function CustomerOrdersPage() {
                 const histKind = o.emergency ? 'emerg' : o.loaned ? (o.settled ? 'paid' : 'warn') : 'paid';
                 const histSeq = orderSequence.get(`hist:${o.key}`);
                 const histRate = o.qarToEgpRate != null && o.qarToEgpRate > 0 ? displayQarEgpRate(o.qarToEgpRate, o.date) : null;
+                const statusKind: 'done' | 'part' | 'open' = !o.loaned || o.settled ? 'done' : (o.loanPaid ?? 0) > 0 ? 'part' : 'open';
                 const rowKey = `${o.key}-${i}`;
                 const isOpen = openRows.has(rowKey);
                 const when = new Date(o.date);
@@ -2195,7 +2198,9 @@ export default function CustomerOrdersPage() {
                         <span>{L('Amount', 'المبلغ')}</span>
                       </div>
                       <div className="co-r-st">
-                        <span className="co-pill"><CheckCircle2 />{L('Completed', 'مكتمل')}</span>
+                        {statusKind === 'done' && <span className="co-pill"><CheckCircle2 />{L('Completed', 'مكتمل')}</span>}
+                        {statusKind === 'part' && <span className="co-pill warn"><Clock />{L('Partially paid', 'مسدد جزئياً')}</span>}
+                        {statusKind === 'open' && <span className="co-pill warn"><Clock />{L('Unpaid', 'غير مسدد')}</span>}
                         {o.emergency && <span className="co-pill bad">🚨 {L('Emergency', 'طوارئ')}</span>}
                         <button type="button" className={cn('co-r-chev', isOpen && 'open')} onClick={() => toggleRow(rowKey)} aria-expanded={isOpen} aria-label={L('Details', 'التفاصيل')}><ChevronLeft /></button>
                       </div>

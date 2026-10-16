@@ -228,3 +228,18 @@ html[dir="rtl"] .co-r-chev svg { transform: scaleX(1); }
 .co-r-more { display: grid; grid-template-columns: 1fr 1fr; gap: calc(6 * var(--q)); padding-top: calc(8 * var(--q)); border-top: 1px solid #edf2f9; }
 .co-r-more div { display: flex; justify-content: space-between; gap: calc(6 * var(--q)); font-size: calc(10 * var(--q)); color: #6b7a9c; }
 .co-r-more b { color: var(--th-ink, #0f1f5e); direction: ltr; }
+
+/* compact tiles + unpaid status */
+.co-tiles { gap: calc(6 * var(--q)); }
+.co-t { padding: calc(7 * var(--q)) calc(9 * var(--q)); gap: calc(2 * var(--q)); border-radius: calc(11 * var(--q)); }
+.co-t-top { gap: calc(6 * var(--q)); }
+.co-t-ic { width: calc(20 * var(--q)); height: calc(20 * var(--q)); }
+.co-t-ic svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }
+.co-t-l { font-size: calc(9.5 * var(--q)); }
+.co-t-v { font-size: calc(16 * var(--q)); }
+.co-t-gl { display: flex; align-items: center; gap: calc(5 * var(--q)); flex-wrap: wrap; }
+.co-t-g { font-size: calc(10 * var(--q)); }
+.co-t-g svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }
+.co-t-c { font-size: calc(8.5 * var(--q)); }
+.co-pill.warn { color: #b9770a; background: #fff1d6; }
+.co-row.warn .co-r-lbl i, .co-row.emerg .co-r-lbl i { background: #f59e0b; }
