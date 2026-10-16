@@ -1107,13 +1107,11 @@ export default function CustomerOrdersPage() {
   const trendDown = !!gTotal && !gTotal.up;
   const GrowthLine = ({ g, percent }: { g: { pct: number | null; delta: number; up: boolean }; percent?: boolean }) => (
     <>
-      <div className="co-t-gl">
-        <span className={cn('co-t-g', g.up ? 'up' : 'down')}>
-          {g.up ? <ArrowUpRight /> : <ArrowDownRight />}
-          {percent ? (g.pct != null ? `${g.up ? '+' : ''}${g.pct}%` : '—') : `${g.delta >= 0 ? '+' : ''}${g.delta}`}
-        </span>
-        <span className="co-t-c">{L('vs last month', 'مقارنة بالشهر الماضي')}</span>
+      <div className={cn('co-t-g', g.up ? 'up' : 'down')}>
+        {g.up ? <ArrowUpRight /> : <ArrowDownRight />}
+        {percent ? (g.pct != null ? `${g.up ? '+' : ''}${g.pct}%` : '—') : `${g.delta >= 0 ? '+' : ''}${g.delta}`}
       </div>
+      <div className="co-t-c">{L('vs last month', 'مقارنة بالشهر الماضي')}</div>
     </>
   );
   const shownCount = filteredOrders.length + filteredHistoryOrders.length;
@@ -1148,14 +1146,20 @@ export default function CustomerOrdersPage() {
             </div>
             <div className="co-head">
               <div className="co-ttl">
-                <span className="co-ttl-ic"><ClipboardList strokeWidth={1.8} /></span>
-                <div>
+                <div className="co-ttl-row">
+                  <ClipboardList className="co-ttl-ic" strokeWidth={1.7} />
                   <h1>{L('Orders', 'الطلبات')}</h1>
-                  <p>{L('Follow all your orders and stats with ease', 'تابع جميع طلباتك وإحصائياتك بسهولة')}</p>
                 </div>
+                <p>{L('Follow all your orders and stats with ease', 'تابع جميع طلباتك وإحصائياتك بسهولة')}</p>
               </div>
               <div className="co-grow">
-                <span className="co-grow-ic"><ChartNoAxesColumn strokeWidth={3} /></span>
+                <svg className="co-grow-ic" viewBox="0 0 16 18" aria-hidden="true">
+                  <defs><linearGradient id="co-gbars" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#22c58b" /><stop offset="1" stopColor="#3b82f6" /></linearGradient></defs>
+                  <rect x="0" y="11" width="3" height="7" rx="1" fill="url(#co-gbars)" />
+                  <rect x="4.3" y="7" width="3" height="11" rx="1" fill="url(#co-gbars)" />
+                  <rect x="8.6" y="4" width="3" height="14" rx="1" fill="url(#co-gbars)" />
+                  <rect x="12.9" y="0" width="3" height="18" rx="1" fill="url(#co-gbars)" />
+                </svg>
                 <div>
                   <b>{trendDown ? L('Slower this month', 'تراجع هذا الشهر') : L('Steady growth', 'نمو مستمر')}</b>
                   <span>{trendDown ? L('Your performance is down', 'أداؤك في انخفاض') : L('Your performance is rising', 'أداؤك في ارتفاع')}</span>
@@ -1224,23 +1228,23 @@ export default function CustomerOrdersPage() {
                   <div className={cn('co-tiles', !hasLoans && 'three')}>
                     {hasLoans && (
                       <div className="co-t t1">
-                        <div className="co-t-top"><span className="co-t-ic"><Wallet /></span><span className="co-t-l">{L('Total amounts', 'إجمالي المبالغ')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span></div>
+                        <div className="co-t-top"><span className="co-t-l">{L('Total amounts', 'إجمالي المبالغ')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span><span className="co-t-ic"><Wallet /></span></div>
                         <div className="co-t-v">{Math.round(debtKpi.totalDebt).toLocaleString('en-US')}</div>
                         {gDebt && <GrowthLine g={gDebt} percent />}
                       </div>
                     )}
                     <div className="co-t t2">
-                      <div className="co-t-top"><span className="co-t-ic"><Package /></span><span className="co-t-l">{L('Orders', 'الطلبات')}</span></div>
+                      <div className="co-t-top"><span className="co-t-l">{L('Orders', 'الطلبات')}</span><span className="co-t-ic"><Package /></span></div>
                       <div className="co-t-v">{historyKpi.count}</div>
                       {gCount && <GrowthLine g={gCount} />}
                     </div>
                     <div className="co-t t3">
-                      <div className="co-t-top"><span className="co-t-ic"><FileText /></span><span className="co-t-l">{L('Total sales', 'إجمالي المبيع')} ({L('EGP', 'جنيه')})</span></div>
+                      <div className="co-t-top"><span className="co-t-l">{L('Total sales', 'إجمالي المبيع')} ({L('EGP', 'جنيه')})</span><span className="co-t-ic"><FileText /></span></div>
                       <div className="co-t-v">{Math.round(historyKpi.volumeEgp).toLocaleString('en-US')}</div>
                       {gVolume && <GrowthLine g={gVolume} percent />}
                     </div>
                     <div className="co-t t4">
-                      <div className="co-t-top"><span className="co-t-ic"><Check strokeWidth={3} /></span><span className="co-t-l">{L('Total executed', 'إجمالي المنفذ')} ({L('QAR', 'ريال')})</span></div>
+                      <div className="co-t-top"><span className="co-t-l">{L('Total executed', 'إجمالي المنفذ')} ({L('QAR', 'ريال')})</span><span className="co-t-ic"><Check strokeWidth={3} /></span></div>
                       <div className="co-t-v">{Math.round(historyKpi.totalQar).toLocaleString('en-US')}</div>
                       {gTotal && <GrowthLine g={gTotal} percent />}
                     </div>
@@ -1270,30 +1274,30 @@ export default function CustomerOrdersPage() {
                     <>
                       <div className="co-prs">
                         {[
-                          { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct, icon: <FileText /> },
-                          { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct, icon: <ChartNoAxesColumn strokeWidth={3} /> },
+                          { key: 'month', label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct, icon: <FileText /> },
+                          { key: 'all', label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct, icon: <ChartNoAxesColumn strokeWidth={3} /> },
                         ].map(row => {
-                          const done = row.pct != null && row.pct >= 100;
+                          const tone = row.key === 'all' || (row.pct != null && row.pct >= 100) ? 'g' : 'a';
                           return (
-                            <div key={row.label} className="co-pr">
+                            <div key={row.key} className="co-pr">
                               <div className="co-pr-top">
-                                <span className={cn('co-pr-ic', done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'b')}>{row.icon}</span>
+                                <span className={cn('co-pr-ic', row.key === 'all' ? 'g' : 'b')}>{row.icon}</span>
                                 <span className="co-pr-l">{row.label}</span>
-                                <b className={cn('co-pr-v', done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'a')}>{row.pct != null ? `${row.pct}%` : '—'}</b>
+                                <b className={cn('co-pr-v', tone)}>{row.pct != null ? `${row.pct}%` : '—'}</b>
                               </div>
-                              <div className="co-track"><i className={done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'a'} style={{ width: `${row.pct ?? 0}%` }} /></div>
+                              <div className="co-track"><i className={tone} style={{ width: `${row.pct ?? 0}%` }} /></div>
                             </div>
                           );
                         })}
                       </div>
                       <div className="co-cnts">
                         <div className="co-cnt c1">
+                          <div><div className="co-cnt-l">{L('Settled orders (month)', 'الطلبات المسددة (الشهر)')}</div><div className="co-cnt-v"><bdi dir="ltr">{repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}</bdi></div></div>
                           <span className="co-cnt-ic"><Clock /></span>
-                          <div><div className="co-cnt-l">{L('Settled orders (month)', 'الطلبات المسددة (الشهر)')}</div><div className="co-cnt-v">{repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}</div></div>
                         </div>
                         <div className="co-cnt c2">
+                          <div><div className="co-cnt-l">{L('Settled orders (total)', 'الطلبات المسددة (الإجمالي)')}</div><div className="co-cnt-v"><bdi dir="ltr">{repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}</bdi></div></div>
                           <span className="co-cnt-ic"><CalendarDays /></span>
-                          <div><div className="co-cnt-l">{L('Settled orders (total)', 'الطلبات المسددة (الإجمالي)')}</div><div className="co-cnt-v">{repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}</div></div>
                         </div>
                       </div>
                     </>
