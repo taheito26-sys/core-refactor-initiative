@@ -7,8 +7,8 @@ function HomeSolid() {
 }
 
 /** The phone pages' bottom bar: Home, Orders, Cash, Notifications, Chat, More, matching PRIMARY_NAV in CustomerLayout. */
-export function CustomerHomeNav({ lang, chatUnread, onNavigate, onMore, activeKey = 'home' }: {
-  lang: 'en' | 'ar'; chatUnread: number; onNavigate: (path: string) => void; onMore: () => void;
+export function CustomerHomeNav({ lang, chatUnread, notificationsUnread = 0, onNavigate, onMore, activeKey = 'home' }: {
+  lang: 'en' | 'ar'; chatUnread: number; notificationsUnread?: number; onNavigate: (path: string) => void; onMore: () => void;
   /** Which of home / orders / notifications / chat is the current page. */
   activeKey?: 'home' | 'orders' | 'cash' | 'notifications' | 'chat';
 }) {
@@ -17,7 +17,7 @@ export function CustomerHomeNav({ lang, chatUnread, onNavigate, onMore, activeKe
     { key: 'home', label: t('Home', 'الرئيسية'), icon: activeKey === 'home' ? <HomeSolid /> : <House strokeWidth={1.7} />, go: () => onNavigate('/c/home'), on: activeKey === 'home' },
     { key: 'orders', label: t('Orders', 'الطلبات'), icon: <ShoppingCart strokeWidth={1.7} />, go: () => onNavigate('/c/orders'), on: activeKey === 'orders' },
     { key: 'cash', label: t('Cash', 'النقد'), icon: <Wallet strokeWidth={1.7} />, go: () => onNavigate('/c/wallet'), on: activeKey === 'cash' },
-    { key: 'notifications', label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications'), on: activeKey === 'notifications' },
+    { key: 'notifications', label: t('Notifications', 'التنبيهات'), icon: <Bell strokeWidth={1.7} />, go: () => onNavigate('/c/notifications'), badge: notificationsUnread, on: activeKey === 'notifications' },
     { key: 'chat', label: t('Chats', 'المحادثات'), icon: <MessageCircle strokeWidth={1.7} />, go: () => onNavigate('/c/chat'), badge: chatUnread, on: activeKey === 'chat' },
     { key: 'more', label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
   ];

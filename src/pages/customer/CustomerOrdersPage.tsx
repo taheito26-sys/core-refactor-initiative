@@ -2,7 +2,7 @@ import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, ArrowDown, Bell, Coins, FileText, Hash, Loader2, Plus, TrendingUp, Wallet, X, Check, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, ArrowDownRight, Bell, CalendarDays, CalendarPlus, ChartNoAxesColumn, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Clock, FileText, Loader2, Package, Plus, User, Wallet, X, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -25,7 +25,8 @@ import {
   canEditOrder,
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
-import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
+import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
+import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
 /** The loan statement plus the opt-in sale rows returned for ?sales=1. */
@@ -485,6 +486,8 @@ export default function CustomerOrdersPage() {
   const [orderHistory, setOrderHistory] = useState<WorkflowOrder[]>([]);
   const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<WorkflowOrder | null>(null);
   const [verifyingOrder, setVerifyingOrder] = useState<WorkflowOrder | null>(null);
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  const toggleRow = (key: string) => setOpenRows(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
 
   // Query cash ledger entries linked to customer orders — used to show linked account name
   const { data: orderCashLinks = [] } = useQuery({
@@ -1093,6 +1096,24 @@ export default function CustomerOrdersPage() {
     return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'short', year: '2-digit' });
   };
   const periodLabel = selectedMonth ? monthLong(selectedMonth) : L('All months', 'كل الأشهر');
+  const displayName = resolveCustomerDisplayName(customerProfile, lang === 'ar' ? 'ar' : 'en') ?? '—';
+  // This month against last month, for the summary tiles. Only meaningful for a single month.
+  const cur = selectedMonth ? monthFigures(historyOrders, selectedMonth) : null;
+  const prev = selectedMonth ? monthFigures(historyOrders, previousMonth(selectedMonth)) : null;
+  const gCount = cur && prev ? growth(cur.count, prev.count) : null;
+  const gVolume = cur && prev ? growth(cur.volumeEgp, prev.volumeEgp) : null;
+  const gTotal = cur && prev ? growth(cur.totalQar, prev.totalQar) : null;
+  const gDebt = cur && prev ? growth(cur.debtThrough, prev.debtThrough) : null;
+  const trendDown = !!gTotal && !gTotal.up;
+  const GrowthLine = ({ g, percent }: { g: { pct: number | null; delta: number; up: boolean }; percent?: boolean }) => (
+    <>
+      <div className={cn('co-t-g', g.up ? 'up' : 'down')}>
+        {g.up ? <ArrowUpRight /> : <ArrowDownRight />}
+        {percent ? (g.pct != null ? `${g.up ? '+' : ''}${g.pct}%` : '—') : `${g.delta >= 0 ? '+' : ''}${g.delta}`}
+      </div>
+      <div className="co-t-c">{L('vs last month', 'مقارنة بالشهر الماضي')}</div>
+    </>
+  );
   const shownCount = filteredOrders.length + filteredHistoryOrders.length;
 
   return (
@@ -1102,49 +1123,73 @@ export default function CustomerOrdersPage() {
 
       {isMobile ? (
         <>
-          <section className="co-hero">
-            <div className="ch-hero-bg" aria-hidden="true" />
-            <div className="ch-top">
-              {shell?.openMenu ? (
-                <button type="button" className="ch-burger" onClick={shell.openMenu} aria-label={L('Menu', 'القائمة')}>
-                  <svg viewBox="0 0 25 22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M1 3h23M1 11h23M1 19h23" /></svg>
+          <section className="co-hero2">
+            <div className="co-hero2-bg" aria-hidden="true" />
+            <div className="co-top">
+              <div className="co-who">
+                <div className="ch-avatar"><User fill="#fff" stroke="#fff" /></div>
+                <div>
+                  <div className="ch-name">{displayName}</div>
+                  <div className="ch-greet">{L('Welcome to your dashboard', 'مرحباً بك في لوحة التحكم')}</div>
+                </div>
+              </div>
+              <div className="co-ctl">
+                <button type="button" className="ch-bell" onClick={() => navigate('/c/notifications')} aria-label={L('Notifications', 'التنبيهات')}>
+                  <Bell strokeWidth={2} />
+                  {unreadCount > 0 && <span className="ch-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
                 </button>
-              ) : null}
-              <span className="sp" />
-              <button type="button" className="ch-bell" onClick={() => navigate('/c/notifications')} aria-label={L('Notifications', 'التنبيهات')}>
-                <Bell strokeWidth={2} />
-                {unreadCount > 0 && <span className="ch-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-              </button>
-              <div className="ch-pill" role="group" aria-label={L('Language', 'اللغة')}>
-                <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => update({ language: 'ar' })}>AR</button>
-                <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>EN</button>
+                <div className="ch-pill" role="group" aria-label={L('Language', 'اللغة')}>
+                  <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => update({ language: 'ar' })}>AR</button>
+                  <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>EN</button>
+                </div>
               </div>
             </div>
-            <div className="co-title-row">
-              <div className="co-title">
-                <h1>{L('My Orders', 'طلباتي')}</h1>
-                <p>{shownCount} {L('orders', 'طلب')} · {periodLabel}</p>
+            <div className="co-head">
+              <div className="co-ttl">
+                <span className="co-ttl-ic"><ClipboardList strokeWidth={1.8} /></span>
+                <div>
+                  <h1>{L('Orders', 'الطلبات')}</h1>
+                  <p>{L('Follow all your orders and stats with ease', 'تابع جميع طلباتك وإحصائياتك بسهولة')}</p>
+                </div>
               </div>
-              <button type="button" className="co-new" onClick={() => setShowNewOrder(true)} disabled={connections.length === 0}>
-                <Plus strokeWidth={2.6} />
-                {L('New Order', 'طلب جديد')}
-              </button>
+              <div className="co-grow">
+                <span className="co-grow-ic"><ChartNoAxesColumn strokeWidth={3} /></span>
+                <div>
+                  <b>{trendDown ? L('Slower this month', 'تراجع هذا الشهر') : L('Steady growth', 'نمو مستمر')}</b>
+                  <span>{trendDown ? L('Your performance is down', 'أداؤك في انخفاض') : L('Your performance is rising', 'أداؤك في ارتفاع')}</span>
+                </div>
+                {trendDown ? <ArrowDownRight className="co-grow-arrow down" strokeWidth={2.4} /> : <ArrowUpRight className="co-grow-arrow" strokeWidth={2.4} />}
+              </div>
             </div>
           </section>
 
-          {availableMonths.length > 0 && (
-            <div className="co-float">
-              <div className="ch-card">
-                <div className="co-months">
-                  <button type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }} className={`co-chip ${selectedMonth === null ? 'on' : ''}`}>
-                    {L('All Months', 'كل الأشهر')}
-                  </button>
-                  {availableMonths.map(m => (
-                    <button key={m} type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }} className={`co-chip ${selectedMonth === m ? 'on' : ''}`}>
-                      {monthShort(m)}
-                    </button>
-                  ))}
+          <div className="co-mainwrap">
+            <div className="ch-card co-main">
+              <div className="co-mtop">
+                <div className="co-mcol">
+                  {availableMonths.length > 0 && (
+                    <>
+                      <div className="co-mlabel">{L('Month', 'الشهر')}</div>
+                      <div className="co-months">
+                        <button type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }} className={`co-chip ${selectedMonth === null ? 'on' : ''}`}>
+                          {L('All Months', 'كل الأشهر')}
+                        </button>
+                        {availableMonths.map(m => (
+                          <button key={m} type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }} className={`co-chip ${selectedMonth === m ? 'on' : ''}`}>
+                            {monthShort(m)}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
+                <button type="button" className="co-new" onClick={() => setShowNewOrder(true)} disabled={connections.length === 0}>
+                  <CalendarPlus strokeWidth={1.9} />
+                  {L('New Order', 'طلب جديد')}
+                </button>
+              </div>
+
+              {availableMonths.length > 0 && (
                 <div className="co-tools">
                   <button
                     type="button"
@@ -1156,12 +1201,13 @@ export default function CustomerOrdersPage() {
                   >
                     <Filter />
                     {L('Filter', 'تصفية')}
+                    <ChevronDown className="co-chev" />
                   </button>
                   {hasOrderFilterCriteria && (
                     <button type="button" onClick={() => setShowOrderFilter(true)} title={L('Edit filter', 'تعديل التصفية')} className="co-tool icon"><Pencil /></button>
                   )}
                   <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')} disabled={exportingFormat !== null} className="co-tool pdf">
-                    {exportingFormat === 'pdf' ? <Loader2 className="animate-spin" /> : <FileDown />}
+                    {exportingFormat === 'pdf' ? <Loader2 className="animate-spin" /> : <FileText />}
                     PDF
                   </button>
                   <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'xlsx')} disabled={exportingFormat !== null} className="co-tool xlsx">
@@ -1169,9 +1215,91 @@ export default function CustomerOrdersPage() {
                     XLSX
                   </button>
                 </div>
-              </div>
+              )}
+
+              {filteredHistoryOrders.length > 0 && (
+                <>
+                  <div className={cn('co-tiles', !hasLoans && 'three')}>
+                    {hasLoans && (
+                      <div className="co-t t1">
+                        <div className="co-t-top"><span className="co-t-ic"><Wallet /></span><span className="co-t-l">{L('Total amounts', 'إجمالي المبالغ')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span></div>
+                        <div className="co-t-v">{Math.round(debtKpi.totalDebt).toLocaleString('en-US')}</div>
+                        {gDebt && <GrowthLine g={gDebt} percent />}
+                      </div>
+                    )}
+                    <div className="co-t t2">
+                      <div className="co-t-top"><span className="co-t-ic"><Package /></span><span className="co-t-l">{L('Orders', 'الطلبات')}</span></div>
+                      <div className="co-t-v">{historyKpi.count}</div>
+                      {gCount && <GrowthLine g={gCount} />}
+                    </div>
+                    <div className="co-t t3">
+                      <div className="co-t-top"><span className="co-t-ic"><FileText /></span><span className="co-t-l">{L('Total sales', 'إجمالي المبيع')} ({L('EGP', 'جنيه')})</span></div>
+                      <div className="co-t-v">{Math.round(historyKpi.volumeEgp).toLocaleString('en-US')}</div>
+                      {gVolume && <GrowthLine g={gVolume} percent />}
+                    </div>
+                    <div className="co-t t4">
+                      <div className="co-t-top"><span className="co-t-ic"><Check strokeWidth={3} /></span><span className="co-t-l">{L('Total executed', 'إجمالي المنفذ')} ({L('QAR', 'ريال')})</span></div>
+                      <div className="co-t-v">{Math.round(historyKpi.totalQar).toLocaleString('en-US')}</div>
+                      {gTotal && <GrowthLine g={gTotal} percent />}
+                    </div>
+                  </div>
+
+                  {!hasLoans && (
+                    <div className="co-kpis">
+                      {[
+                        { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.shownAvgRate != null ? historyKpi.shownAvgRate.toFixed(2) : '—' },
+                        { label: L('Best rate', 'أفضل سعر'), value: salesKpi.bestRate != null ? salesKpi.bestRate.toFixed(2) : '—' },
+                        { label: L('Lowest rate', 'أقل سعر'), value: salesKpi.lowestRate != null ? salesKpi.lowestRate.toFixed(2) : '—' },
+                        { label: `${L('Avg order', 'متوسط الطلب')} (EGP)`, value: salesKpi.avgOrderEgp != null ? Math.round(salesKpi.avgOrderEgp).toLocaleString('en-US') : '—' },
+                        { label: `${L('Largest order', 'أكبر طلب')} (EGP)`, value: salesKpi.largestOrderEgp != null ? Math.round(salesKpi.largestOrderEgp).toLocaleString('en-US') : '—' },
+                        {
+                          label: L('Last order', 'آخر طلب'),
+                          value: salesKpi.lastOrderDate != null
+                            ? new Date(salesKpi.lastOrderDate).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })
+                            : '—',
+                        },
+                      ].map(k => (
+                        <div key={k.label} className="co-kpi blue plain"><div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div></div>
+                      ))}
+                    </div>
+                  )}
+
+                  {hasLoans && (
+                    <>
+                      <div className="co-prs">
+                        {[
+                          { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct, icon: <FileText /> },
+                          { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct, icon: <ChartNoAxesColumn strokeWidth={3} /> },
+                        ].map(row => {
+                          const done = row.pct != null && row.pct >= 100;
+                          return (
+                            <div key={row.label} className="co-pr">
+                              <div className="co-pr-top">
+                                <span className={cn('co-pr-ic', done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'b')}>{row.icon}</span>
+                                <span className="co-pr-l">{row.label}</span>
+                                <b className={cn('co-pr-v', done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'a')}>{row.pct != null ? `${row.pct}%` : '—'}</b>
+                              </div>
+                              <div className="co-track"><i className={done || row.label === L('Repaid all time', 'المسدد إجمالي') ? 'g' : 'a'} style={{ width: `${row.pct ?? 0}%` }} /></div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="co-cnts">
+                        <div className="co-cnt c1">
+                          <span className="co-cnt-ic"><Clock /></span>
+                          <div><div className="co-cnt-l">{L('Settled orders (month)', 'الطلبات المسددة (الشهر)')}</div><div className="co-cnt-v">{repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}</div></div>
+                        </div>
+                        <div className="co-cnt c2">
+                          <span className="co-cnt-ic"><CalendarDays /></span>
+                          <div><div className="co-cnt-l">{L('Settled orders (total)', 'الطلبات المسددة (الإجمالي)')}</div><div className="co-cnt-v">{repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}</div></div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
         </>
       ) : (
         <>
@@ -1889,83 +2017,14 @@ export default function CustomerOrdersPage() {
           orders — no counterparty, no exchange badge. */}
       {filteredHistoryOrders.length > 0 && (
         <div className="px-4 space-y-2">
-          <div className={cn(isMobile ? 'co-sec-h' : '')}>
-            <h3 className={cn(isMobile ? '' : 'text-xs font-semibold uppercase tracking-wide text-muted-foreground')}>
+          {isMobile ? (
+            <div className="co-rec-h"><Clock /><h3>{L('Recent orders', 'الطلبات الأخيرة')}</h3><span className="co-rec-line" /></div>
+          ) : (
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {L('Order History', 'سجل الطلبات')}
             </h3>
-            {isMobile && <small>{periodLabel}</small>}
-          </div>
-
-          {isMobile && (
-            <div className="ch-card co-sum">
-              <div className="co-kpis">
-                {[
-                  { cls: 'blue', icon: <Hash />, label: L('Count', 'العدد'), value: String(historyKpi.count) },
-                  { cls: 'lav', icon: <Coins />, label: L('Volume (EGP)', 'الحجم (جنيه)'), value: Math.round(historyKpi.volumeEgp).toLocaleString('en-US') },
-                  { cls: 'mint', icon: <Wallet />, label: L('Total (QAR)', 'الإجمالي (ريال)'), value: Math.round(historyKpi.totalQar).toLocaleString('en-US') },
-                ].map(k => (
-                  <div key={k.label} className={`co-kpi ${k.cls}`}>
-                    <div className="ic">{k.icon}</div>
-                    <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
-                  </div>
-                ))}
-              </div>
-              {!hasLoans && (
-                <div className="co-kpis">
-                  {[
-                    { label: L('Avg QAR → EGP', 'متوسط ريال → جنيه'), value: historyKpi.shownAvgRate != null ? historyKpi.shownAvgRate.toFixed(2) : '—', cls: 'blue' },
-                    { label: L('Best rate', 'أفضل سعر'), value: salesKpi.bestRate != null ? salesKpi.bestRate.toFixed(2) : '—', cls: 'mint' },
-                    { label: L('Lowest rate', 'أقل سعر'), value: salesKpi.lowestRate != null ? salesKpi.lowestRate.toFixed(2) : '—', cls: 'rose' },
-                    { label: `${L('Avg order', 'متوسط الطلب')} (EGP)`, value: salesKpi.avgOrderEgp != null ? Math.round(salesKpi.avgOrderEgp).toLocaleString('en-US') : '—', cls: 'lav' },
-                    { label: `${L('Largest order', 'أكبر طلب')} (EGP)`, value: salesKpi.largestOrderEgp != null ? Math.round(salesKpi.largestOrderEgp).toLocaleString('en-US') : '—', cls: 'lav' },
-                    {
-                      label: L('Last order', 'آخر طلب'),
-                      value: salesKpi.lastOrderDate != null
-                        ? new Date(salesKpi.lastOrderDate).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })
-                        : '—',
-                      cls: 'blue',
-                    },
-                  ].map(k => (
-                    <div key={k.label} className={`co-kpi ${k.cls} plain`}>
-                      <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {hasLoans && (
-                <>
-                  <div className="co-kpis">
-                    {[
-                      { cls: 'blue', icon: <FileText />, label: `${L('Total Debt', 'إجمالي المديونية')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalDebt).toLocaleString('en-US') },
-                      { cls: 'mint', icon: <TrendingUp />, label: `${L('Paid', 'المدفوع')} (${debtKpi.currency})`, value: Math.round(debtKpi.totalPaid).toLocaleString('en-US') },
-                      { cls: debtKpi.outstanding > 0 ? 'rose' : 'mint', icon: <ArrowDown />, label: `${L('Outstanding', 'المتبقي')} (${debtKpi.currency})`, value: Math.round(debtKpi.outstanding).toLocaleString('en-US') },
-                    ].map(k => (
-                      <div key={k.label} className={`co-kpi ${k.cls}`}>
-                        <div className="ic">{k.icon}</div>
-                        <div className="tx"><div className="l">{k.label}</div><div className="v">{k.value}</div></div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="co-prog">
-                    {[
-                      { label: L('Repaid this month', 'المسدد هذا الشهر'), pct: repaymentProgress.monthPct },
-                      { label: L('Repaid all time', 'المسدد إجمالي'), pct: repaymentProgress.allPct },
-                    ].map(row => (
-                      <div key={row.label} className="co-line">
-                        <span className="t">{row.label}</span>
-                        <div className="co-track"><i style={{ width: `${row.pct ?? 0}%`, background: row.pct != null && row.pct >= 100 ? 'linear-gradient(90deg,#08b182,#0bb985)' : 'linear-gradient(90deg,#f59e0b,#fbbf24)' }} /></div>
-                        <b style={{ color: row.pct == null ? '#6b7a9c' : row.pct >= 100 ? '#0b9a68' : '#c27a06' }}>{row.pct != null ? `${row.pct}%` : '—'}</b>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="co-pair">
-                    <div className="co-mini"><span className="l">{L('Settled (month)', 'مسددة (الشهر)')}</span><span className="v">{repaymentProgress.monthSettledCount} / {repaymentProgress.monthLoanedCount}</span></div>
-                    <div className="co-mini"><span className="l">{L('Settled (all)', 'مسددة (إجمالي)')}</span><span className="v">{repaymentProgress.allSettledCount} / {repaymentProgress.allLoanedCount}</span></div>
-                  </div>
-                </>
-              )}
-            </div>
           )}
+
           {!isMobile && (
             <>
           {/* KPI bar — same tile styling as the merchant Orders page's own
@@ -2111,33 +2170,49 @@ export default function CustomerOrdersPage() {
                 const histKind = o.emergency ? 'emerg' : o.loaned ? (o.settled ? 'paid' : 'warn') : 'paid';
                 const histSeq = orderSequence.get(`hist:${o.key}`);
                 const histRate = o.qarToEgpRate != null && o.qarToEgpRate > 0 ? displayQarEgpRate(o.qarToEgpRate, o.date) : null;
+                const rowKey = `${o.key}-${i}`;
+                const isOpen = openRows.has(rowKey);
+                const when = new Date(o.date);
+                const dateText = when.toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                const timeText = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const remaining = o.loanAmount != null ? Math.max(0, o.loanAmount - (o.loanPaid ?? 0)) : null;
                 return (
-                  <div key={`${o.key}-${i}`} className={cn('co-card co-hist', histKind)}>
-                    <div className="co-card-top">
-                      {histSeq != null && <span className="co-no">#{histSeq}</span>}
-                      <span className="co-date">
-                        {new Date(o.date).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                      </span>
-                      {o.emergency ? (
-                        <span className="co-tag bad">🚨 {L('Emergency', 'طوارئ')}</span>
-                      ) : o.loaned ? (
-                        o.settled
-                          ? <span className="co-tag ok">✓ {L('Settled', 'مسدد')}</span>
-                          : <span className="co-tag warn">{L('Unpaid', 'غير مسدد')}</span>
-                      ) : null}
-                    </div>
-                    <div className="co-card-mid">
-                      <div className="co-amt"><small>{o.currency}</small><b>{Math.round(o.totalAmount).toLocaleString('en-US')}</b></div>
-                      {histRate != null && (
-                        <div className="co-rate">{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}: <b>{histRate.toFixed(2)}</b></div>
-                      )}
+                  <div key={rowKey} className={cn('co-row', histKind)}>
+                    <div className="co-row-main">
+                      <div className="co-r-id">
+                        <span className="co-r-ic"><FileText strokeWidth={1.9} /></span>
+                        <div>
+                          {histSeq != null && <span className="co-r-no">#{histSeq}</span>}
+                          <span className="co-r-sub">{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}</span>
+                        </div>
+                      </div>
+                      <div className="co-r-dt">
+                        <span><CalendarDays />{dateText}</span>
+                        <span><Clock />{timeText}</span>
+                      </div>
+                      <div className="co-r-amt">
+                        <div><small>{o.currency}</small><b>{Math.round(o.totalAmount).toLocaleString('en-US')}</b></div>
+                        <span>{L('Amount', 'المبلغ')}</span>
+                      </div>
+                      <div className="co-r-st">
+                        <span className="co-pill"><CheckCircle2 />{L('Completed', 'مكتمل')}</span>
+                        {o.emergency && <span className="co-pill bad">🚨 {L('Emergency', 'طوارئ')}</span>}
+                        <button type="button" className={cn('co-r-chev', isOpen && 'open')} onClick={() => toggleRow(rowKey)} aria-expanded={isOpen} aria-label={L('Details', 'التفاصيل')}><ChevronLeft /></button>
+                      </div>
                     </div>
                     {o.loaned && o.loanAmount != null && (
-                      <div className="co-card-bot">
-                        <div className="grow">
-                          <div className="co-track"><i style={{ width: `${settledPct ?? 0}%`, background: o.settled ? 'linear-gradient(90deg,#08b182,#0bb985)' : 'linear-gradient(90deg,#f59e0b,#fbbf24)' }} /></div>
-                        </div>
-                        <span className={cn('co-pct', o.settled ? 'ok' : 'warn')}>{settledPct ?? 0}%</span>
+                      <div className="co-r-bar">
+                        <span className="co-r-lbl"><i className={o.settled ? 'g' : 'a'} />{L('Repaid', 'المسدد')}</span>
+                        <div className="co-track"><i className={o.settled ? 'g' : 'a'} style={{ width: `${settledPct ?? 0}%` }} /></div>
+                        <span className="co-r-pct">{settledPct ?? 0}%</span>
+                      </div>
+                    )}
+                    {isOpen && (
+                      <div className="co-r-more">
+                        {o.loanAmount != null && <div><span>{L('Order total', 'إجمالي الطلب')} ({o.loanCurrency})</span><b>{Math.round(o.loanAmount).toLocaleString('en-US')}</b></div>}
+                        {o.loanPaid != null && <div><span>{L('Paid', 'المدفوع')}</span><b>{Math.round(o.loanPaid).toLocaleString('en-US')}</b></div>}
+                        {remaining != null && <div><span>{L('Remaining', 'المتبقي')}</span><b>{Math.round(remaining).toLocaleString('en-US')}</b></div>}
+                        {histRate != null && <div><span>{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}</span><b>{histRate.toFixed(2)}</b></div>}
                       </div>
                     )}
                   </div>

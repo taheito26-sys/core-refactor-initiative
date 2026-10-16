@@ -165,7 +165,7 @@ export function CustomerLayout() {
             to reach it instead of it always being visible. `main`'s
             bottom padding above keeps content from sitting underneath it. */}
         {isMobile && ownsShell && (
-          <CustomerHomeNav lang={lang} chatUnread={chatUnread} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : 'orders'} />
+          <CustomerHomeNav lang={lang} chatUnread={chatUnread} notificationsUnread={unreadCount} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : 'orders'} />
         )}
         {isMobile && !ownsShell && (
           <nav

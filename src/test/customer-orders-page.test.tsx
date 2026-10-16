@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -59,14 +59,17 @@ describe('customer orders page on a phone', () => {
     language = 'ar';
     const { container } = renderPage();
     expect(container.querySelector('.ch-root.co-root')).toBeTruthy();
-    expect(screen.getByText('طلباتي')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('الطلبات');
+    await waitFor(() => expect(container.querySelector('.co-chip')).toBeTruthy());
+    fireEvent.click(screen.getByText('كل الأشهر'));
     await waitFor(() => expect(screen.getByText('1,733,974')).toBeTruthy());
-    expect(screen.getByText('1,599,045')).toBeTruthy();
-    expect(screen.getByText('134,929')).toBeTruthy();
-    expect(container.querySelectorAll('.co-card.co-hist').length).toBe(2);
-    expect(container.querySelector('.co-card.emerg')).toBeTruthy();
-    expect(container.querySelector('.co-card.warn.co-hist')).toBeTruthy();
-    expect(screen.getByText('غير مسدد')).toBeTruthy();
+    expect(container.querySelectorAll('.co-t').length).toBe(4);
+    expect(screen.getByText('92%')).toBeTruthy();
+    expect(container.querySelectorAll('.co-row').length).toBe(2);
+    expect(container.querySelector('.co-row.emerg')).toBeTruthy();
+    expect(container.querySelector('.co-row.warn')).toBeTruthy();
+    expect(container.querySelectorAll('.co-r-bar').length).toBeGreaterThan(0);
+    expect(screen.getByText('الطلبات الأخيرة')).toBeTruthy();
   });
 
   it('keeps the approve and reject actions on a live order waiting for the customer', async () => {

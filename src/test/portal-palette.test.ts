@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { PORTAL_PALETTES, DEFAULT_PORTAL_PALETTE, applyPortalPalette, normalizePortalPalette } from '@/lib/portal-palette';
 
 describe('portal palettes', () => {
-  it('offers emerald, gold and ocean with emerald as the default', () => {
-    expect(PORTAL_PALETTES.map(p => p.id)).toEqual(['emerald', 'gold', 'ocean']);
+  it('offers emerald, gold, ocean and navy with emerald as the default', () => {
+    expect(PORTAL_PALETTES.map(p => p.id)).toEqual(['emerald', 'gold', 'ocean', 'navy']);
     expect(DEFAULT_PORTAL_PALETTE).toBe('emerald');
   });
 
@@ -29,9 +29,9 @@ describe('portal palettes', () => {
       return css.slice(start, css.indexOf('}', start));
     };
     const base = block(':root {');
-    const required = ['--th-ink', '--th-a', '--th-a2', '--th-ad', '--th-al', '--th-all', '--th-page', '--th-h1', '--th-h2', '--th-c1a', '--th-c2a', '--th-vol', '--th-vn'];
+    const required = ['--th-i1', '--th-i4', '--th-b1', '--th-b4', '--th-ink', '--th-a', '--th-a2', '--th-ad', '--th-al', '--th-all', '--th-page', '--th-h1', '--th-h2', '--th-c1a', '--th-c2a', '--th-vol', '--th-vn'];
     for (const token of required) expect(base).toContain(`${token}:`);
-    for (const id of ['gold', 'ocean']) {
+    for (const id of ['gold', 'ocean', 'navy']) {
       const overrides = block(`:root[data-portal-palette="${id}"]`);
       // A palette overrides the colours, not just a few of them: accent, header and the dark card at least.
       for (const token of ['--th-a:', '--th-h1:', '--th-c1a:', '--th-vol:', '--th-vn:', '--th-page:']) expect(overrides).toContain(token);

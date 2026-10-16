@@ -1,4 +1,4 @@
-/* ─── Customer portal colour palettes: Emerald, Gold & Charcoal, Ocean Teal ──
+/* ─── Customer portal colour palettes: Emerald, Gold & Charcoal, Ocean Teal, Navy Blue ──
    One colour family for the phone pages (home and orders): the header, the
    rate cards, the icon tiles, the bars and the bottom bar all draw from the
    tokens below. Status colours stay semantic (amber partly paid, red unpaid
@@ -35,6 +35,9 @@
   --th-track: #dcefe7;
   --th-bad: #e11d48;
   --th-badl: #ffe4ea;
+  /* the four summary tiles on the orders page: icon circle and tile tint */
+  --th-i1: #10b981; --th-i2: #0d9488; --th-i3: #34d399; --th-i4: #047857;
+  --th-b1: #ecfaf4; --th-b2: #eef9f7; --th-b3: #f0fbf5; --th-b4: #e9f7f0;
 }
 :root[data-portal-palette="gold"] {
   --th-ink: #1c1f26;
@@ -60,6 +63,8 @@
   --th-vol: linear-gradient(100deg, #121418, #1d222b 55%, #262c37);
   --th-vn: #f0c75e;
   --th-track: #ece6da;
+  --th-i1: #d4a017; --th-i2: #3a4252; --th-i3: #e5b53b; --th-i4: #8a5d06;
+  --th-b1: #fbf5e6; --th-b2: #f1f2f5; --th-b3: #fdf8ec; --th-b4: #f8f1de;
 }
 :root[data-portal-palette="ocean"] {
   --th-ink: #0b2f3a;
@@ -84,6 +89,36 @@
   --th-vol: linear-gradient(100deg, #052a36, #0a3f50 55%, #0a4a5c);
   --th-vn: #67e8f9;
   --th-track: #d9eef3;
+  --th-i1: #06b6d4; --th-i2: #0369a1; --th-i3: #22d3ee; --th-i4: #0e7490;
+  --th-b1: #ebf9fc; --th-b2: #eaf3fa; --th-b3: #eefbfd; --th-b4: #e6f5f9;
+}
+:root[data-portal-palette="navy"] {
+  --th-ink: #0f1f5e;
+  --th-a: #2f73f4;
+  --th-a2: #4b8dff;
+  --th-ad: #1f56c9;
+  --th-al: #dbe8ff;
+  --th-all: #eef4ff;
+  --th-all2: #f6f9ff;
+  --th-page: #eef3fb;
+  --th-prog: #f4f7fd;
+  --th-edge: #bcd3fb;
+  --th-rgb: 47, 115, 244;
+  --th-h1: #0a1630;
+  --th-h2: #17306e;
+  --th-hue: none;
+  --th-bell: #1b2a52;
+  --th-c1a: #31b28b;
+  --th-c1b: #137a7c;
+  --th-c2a: #2e55d6;
+  --th-c2b: #3a2dbd;
+  --th-vol: linear-gradient(100deg, #0b1c3a, #0c2548 40%, #11365f 78%, #123a68);
+  --th-vn: #4df0c3;
+  --th-track: #dfeaf8;
+  --th-bad: #f0245b;
+  --th-badl: #ffedf2;
+  --th-i1: #f5a524; --th-i2: #8b6ff0; --th-i3: #5b8def; --th-i4: #2fb27a;
+  --th-b1: #fff8ee; --th-b2: #f5f2ff; --th-b3: #eff5ff; --th-b4: #edf9f3;
 }
 .ch-root, .ch-nav {
   --ch-navy: var(--th-ink);

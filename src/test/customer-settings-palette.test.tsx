@@ -29,7 +29,7 @@ vi.mock('@/features/customer/customer-portal', () => ({
 import CustomerSettingsPage from '@/pages/customer/CustomerSettingsPage';
 
 describe('customer settings: home and orders colours', () => {
-  it('lists all three palettes and saves the chosen one', () => {
+  it('lists the palettes and saves the chosen one', () => {
     render(<MemoryRouter><CustomerSettingsPage /></MemoryRouter>);
     expect(screen.getByText('Home & orders colours')).toBeTruthy();
     expect(screen.getByText('Emerald').closest('button')?.getAttribute('aria-pressed')).toBe('true');
@@ -37,6 +37,8 @@ describe('customer settings: home and orders colours', () => {
     expect(update).toHaveBeenCalledWith({ portalPalette: 'gold' });
     screen.getByText('Ocean Teal').click();
     expect(update).toHaveBeenCalledWith({ portalPalette: 'ocean' });
+    screen.getByText('Navy Blue').click();
+    expect(update).toHaveBeenCalledWith({ portalPalette: 'navy' });
   });
 
   it('shows emerald as chosen when nothing has been saved yet', () => {
