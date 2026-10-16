@@ -3,6 +3,7 @@ import { AppSettings, LogEntry, ThemeDef, LayoutDef } from './theme/types';
 import { LAYOUTS } from './theme/layouts';
 import { applyThemeToDOM, getTheme, detectOptimalFontSize, FONT_CONFIG } from './theme/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { applyPortalPalette, DEFAULT_PORTAL_PALETTE } from './portal-palette';
 
 export * from './theme/types';
 export * from './theme/layouts';
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   currency: 'QAR',
   baseFiatCurrency: 'QAR',
   language: 'ar',
+  portalPalette: DEFAULT_PORTAL_PALETTE,
   searchQuery: '',
   lowStockThreshold: 5000,
   priceAlertThreshold: 2,
@@ -86,6 +88,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => { applyThemeToDOM(draft); }, [draft]);
+  useEffect(() => { applyPortalPalette(draft.portalPalette); }, [draft.portalPalette]);
 
   useEffect(() => {
     const onResize = () => { if (!settingsRef.current.autoFontDisable) applyThemeToDOM(settingsRef.current); };

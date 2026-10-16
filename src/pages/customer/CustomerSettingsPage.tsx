@@ -2,6 +2,7 @@
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme, LAYOUTS, THEME_NAMES } from '@/lib/theme-context';
 import { resolveThemeForLayout } from '@/lib/theme/utils';
+import { PORTAL_PALETTES, normalizePortalPalette } from '@/lib/portal-palette';
 import { Loader2, LogOut, Bell, Globe, User, ChevronRight, Check, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES, updateCustomerProfile, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
@@ -90,6 +91,36 @@ export default function CustomerSettingsPage() {
         </div>
 
         <div className="px-4 py-4 space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{L('Home & orders colours', 'ألوان الرئيسية والطلبات')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {PORTAL_PALETTES.map(p => {
+                const active = normalizePortalPalette(settings.portalPalette) === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => update({ portalPalette: p.id })}
+                    aria-pressed={active}
+                    className={`relative rounded-xl border p-2 transition-colors ${active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border/50 hover:border-primary/40'}`}
+                  >
+                    {active && (
+                      <span className="absolute top-1 end-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                        <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                      </span>
+                    )}
+                    <span className="mb-1.5 flex h-8 overflow-hidden rounded-md">
+                      <span className="flex-[2]" style={{ background: p.swatches[0] }} />
+                      <span className="flex-1" style={{ background: p.swatches[1] }} />
+                      <span className="flex-1" style={{ background: p.swatches[2] }} />
+                    </span>
+                    <span className="block text-center text-[10px] font-medium leading-tight">{p.name[lang === 'ar' ? 'ar' : 'en']}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <p className="mb-2 text-xs font-medium text-muted-foreground">{L('Layout', 'التخطيط')}</p>
             <div className="grid grid-cols-2 gap-2">

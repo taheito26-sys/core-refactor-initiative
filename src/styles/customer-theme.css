@@ -1,4 +1,4 @@
-/* ─── Customer portal colour theme: Emerald ─────────────────────────────
+/* ─── Customer portal colour palettes: Emerald, Gold & Charcoal, Ocean Teal ──
    One colour family for the phone pages (home and orders): the header, the
    rate cards, the icon tiles, the bars and the bottom bar all draw from the
    tokens below. Status colours stay semantic (amber partly paid, red unpaid
@@ -6,23 +6,86 @@
    customer-orders.css so these rules win; the few !important are only for
    colours that are set inline on an element. */
 
-.ch-root, .ch-nav {
+/* The tokens sit on :root so any ancestor (the layout's page background, for one) can read them.
+   Emerald is the default; the other palettes are chosen in the customer settings and switch
+   html[data-portal-palette]. */
+:root {
   --th-ink: #0f2a24;
   --th-a: #10b981;
   --th-a2: #34d399;
   --th-ad: #047857;
   --th-al: #d6f5e8;
   --th-all: #ecfaf4;
+  --th-all2: #f6fcf9;
   --th-page: #f1f8f5;
+  --th-prog: #f3f9f6;
+  --th-edge: #a7e3c8;
+  --th-rgb: 16, 185, 129;
   --th-h1: #07231d;
   --th-h2: #0c3b30;
   --th-hue: hue-rotate(-75deg) saturate(.85);
   --th-bell: #123a31;
+  --th-c1a: #10b981;
+  --th-c1b: #047857;
+  --th-c2a: #0d9488;
+  --th-c2b: #0f766e;
+  --th-pillfg: #fff;
   --th-vol: linear-gradient(100deg, #07231d, #0b3a2f 55%, #0f4a3b);
   --th-vn: #6ee7b7;
   --th-track: #dcefe7;
   --th-bad: #e11d48;
   --th-badl: #ffe4ea;
+}
+:root[data-portal-palette="gold"] {
+  --th-ink: #1c1f26;
+  --th-a: #c58a0e;
+  --th-a2: #e5b53b;
+  --th-ad: #8a5d06;
+  --th-al: #f6e8c4;
+  --th-all: #fbf5e6;
+  --th-all2: #fdf9ef;
+  --th-page: #f6f3ee;
+  --th-prog: #f8f4ea;
+  --th-edge: #e8cf8f;
+  --th-rgb: 197, 138, 14;
+  --th-h1: #13151a;
+  --th-h2: #232832;
+  --th-hue: grayscale(.85) brightness(.85);
+  --th-bell: #2a2f3a;
+  --th-c1a: #e2b13c;
+  --th-c1b: #b8860b;
+  --th-c2a: #3a4252;
+  --th-c2b: #232832;
+  --th-pillfg: #1c1f26;
+  --th-vol: linear-gradient(100deg, #121418, #1d222b 55%, #262c37);
+  --th-vn: #f0c75e;
+  --th-track: #ece6da;
+}
+:root[data-portal-palette="ocean"] {
+  --th-ink: #0b2f3a;
+  --th-a: #0891b2;
+  --th-a2: #22d3ee;
+  --th-ad: #0e7490;
+  --th-al: #d3f1f8;
+  --th-all: #ebf9fc;
+  --th-all2: #f4fcfd;
+  --th-page: #eff8fa;
+  --th-prog: #f1f9fb;
+  --th-edge: #9edcea;
+  --th-rgb: 8, 145, 178;
+  --th-h1: #052a36;
+  --th-h2: #08485b;
+  --th-hue: hue-rotate(-30deg);
+  --th-bell: #0c3d4d;
+  --th-c1a: #06b6d4;
+  --th-c1b: #0e7490;
+  --th-c2a: #0369a1;
+  --th-c2b: #075985;
+  --th-vol: linear-gradient(100deg, #052a36, #0a3f50 55%, #0a4a5c);
+  --th-vn: #67e8f9;
+  --th-track: #d9eef3;
+}
+.ch-root, .ch-nav {
   --ch-navy: var(--th-ink);
   --ch-blue: var(--th-a);
 }
@@ -32,14 +95,15 @@
 .ch-hero-bg, .co-hero .ch-hero-bg { background: linear-gradient(160deg, var(--th-h1), var(--th-h2)) !important; }
 .ch-hero-bg::before { content: ''; position: absolute; inset: 0; background: url('../assets/customer-home-hero.webp') center top / cover no-repeat; filter: var(--th-hue); opacity: .85; }
 .co-hero .ch-hero-bg::before { background: url('../assets/customer-home-hero.webp') center top / 100% auto no-repeat; }
-.ch-pill button.on { background: linear-gradient(180deg, var(--th-a2), var(--th-a)); box-shadow: none; }
+.ch-pill button.on { background: linear-gradient(180deg, var(--th-a2), var(--th-a)); color: var(--th-pillfg); box-shadow: none; }
 .ch-bell { background: var(--th-bell); }
 .ch-avatar { background: linear-gradient(160deg, var(--th-a2), var(--th-ad)); }
 
 /* the two rate cards */
-.ch-rate.green { background: linear-gradient(112deg, #10b981, #047857); }
-.ch-rate.blue { background: linear-gradient(110deg, #0d9488, #0f766e); }
+.ch-rate.green { background: linear-gradient(112deg, var(--th-c1a), var(--th-c1b)); }
+.ch-rate.blue { background: linear-gradient(110deg, var(--th-c2a), var(--th-c2b)); }
 .ch-rate-chg { color: #fff; opacity: .95; }
+.ch-rate-chg.down { color: #ffd9e0; }
 .ch-rate-spark svg { stroke: #fff !important; }
 
 /* icon tiles and bars */
@@ -73,14 +137,14 @@
 
 /* orders page */
 .co-root { background: var(--th-page); }
-.co-chip.on, .co-new { background: linear-gradient(180deg, var(--th-a2), var(--th-a)); box-shadow: 0 3px 8px rgba(16, 185, 129, .35); }
-.co-tool.pdf, .co-tool.active, .co-btn.link { color: var(--th-ad); border-color: #a7e3c8; background: var(--th-all); }
-.co-kpi.blue, .co-kpi.lav, .co-kpi.mint, .co-mini { background: linear-gradient(135deg, var(--th-all), #f6fcf9); }
+.co-chip.on, .co-new { color: var(--th-pillfg); background: linear-gradient(180deg, var(--th-a2), var(--th-a)); box-shadow: 0 3px 8px rgba(var(--th-rgb), .35); }
+.co-tool.pdf, .co-tool.active, .co-btn.link { color: var(--th-ad); border-color: var(--th-edge); background: var(--th-all); }
+.co-kpi.blue, .co-kpi.lav, .co-kpi.mint, .co-mini { background: linear-gradient(135deg, var(--th-all), var(--th-all2)); }
 .co-kpi.blue .ic, .co-kpi.lav .ic, .co-kpi.mint .ic { background: var(--th-al); color: var(--th-ad); }
 .co-kpi.blue .v, .co-kpi.lav .v { color: var(--th-ink); }
 .co-kpi.mint .v, .co-mini .v { color: var(--th-ad); }
-.co-prog { background: #f3f9f6; }
+.co-prog { background: var(--th-prog); }
 .co-track { background: var(--th-track); }
 .co-day, .co-sec-h { color: var(--th-ink); }
-.co-card.pend::before { background: #0d9488; }
+.co-card.pend::before { background: var(--th-c2a); }
 .co-tag.blue { background: var(--th-al); color: var(--th-ad); }

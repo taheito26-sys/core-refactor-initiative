@@ -140,7 +140,7 @@ export function CustomerLayout() {
             the chat route, the message composer). */}
         <main
           className={cn('flex-1 min-h-0', isChatRoute ? 'overflow-hidden' : 'overflow-y-auto')}
-          style={ownsShell ? { background: '#f1f8f5' } : isMobile ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : undefined}
+          style={ownsShell ? { background: 'var(--th-page, #f1f8f5)' } : isMobile ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : undefined}
         >
           {isChatRoute ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden"><Outlet /></div>

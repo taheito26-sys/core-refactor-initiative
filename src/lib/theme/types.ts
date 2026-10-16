@@ -56,6 +56,8 @@ export interface AppSettings {
   /** Preferred base fiat currency for new records (QAR or EGP) */
   baseFiatCurrency: 'QAR' | 'EGP';
   language: 'en' | 'ar';
+  /** Colour palette of the customer portal's phone pages: emerald, gold or ocean. */
+  portalPalette?: 'emerald' | 'gold' | 'ocean';
   searchQuery: string;
   lowStockThreshold: number;
   priceAlertThreshold: number;
