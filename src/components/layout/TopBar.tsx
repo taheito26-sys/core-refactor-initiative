@@ -1,12 +1,12 @@
 import { useLocation } from 'react-router-dom';
-import { useMemo, useState, useEffect } from 'react';
-import { Menu, Bell, Users, TrendingUp, User, ZoomIn, ZoomOut } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
-import { applyZoom, getStoredZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from '@/lib/app-zoom';
+import { ZoomControls } from '@/components/shared/ZoomControls';
 import { UserProfileModal } from '@/features/profile/UserProfileModal';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
@@ -44,15 +44,6 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(() => getStoredZoom());
-
-  useEffect(() => {
-    applyZoom(zoomLevel);
-  }, [zoomLevel]);
-
-  const handleZoom = (direction: 'in' | 'out') => {
-    setZoomLevel((z) => applyZoom(direction === 'in' ? z + ZOOM_STEP : z - ZOOM_STEP));
-  };
 
   return (
     <header
@@ -135,27 +126,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       </div>
 
       {/* ── Zoom Controls ── */}
-      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
-        <button
-          onClick={() => handleZoom('out')}
-          title="Zoom out"
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
-          disabled={zoomLevel <= ZOOM_MIN}
-        >
-          <ZoomOut className="h-4 w-4" />
-        </button>
-        <span className="hidden md:inline text-[9px] font-semibold text-muted-foreground px-0.5 min-w-[24px] text-center">
-          {Math.round(zoomLevel * 100)}%
-        </span>
-        <button
-          onClick={() => handleZoom('in')}
-          title="Zoom in"
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
-          disabled={zoomLevel >= ZOOM_MAX}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </button>
-      </div>
+      <ZoomControls />
 
       {/* ── Activity ── */}
       <div className="max-md:order-[-1] shrink-0">
