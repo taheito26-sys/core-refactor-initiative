@@ -183,7 +183,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
   );
 
   const rowTitle = (r: ActivityRow) => (r.kind === 'received' ? t('Payment received', 'استلام دفعة') : r.kind === 'paid' ? t('Dues payment', 'دفع مستحقات') : t('New order', 'طلب جديد'));
-  const rowSub = (r: ActivityRow) => (r.kind === 'new' ? (r.currency === 'EGP' ? p.currencyEgp : r.currency ?? p.currencyEgp) : t('Bank transfer', 'تحويل بنكي'));
+  const rowSub = (r: ActivityRow) => (r.kind === 'new' ? (r.currency === 'EGP' ? p.currencyEgp : r.currency ?? p.currencyEgp) : r.method === 'cash' ? t('Cash handover', 'تسليم نقدي') : r.method === 'bank' ? t('Bank transfer', 'تحويل بنكي') : t('Payment', 'دفعة'));
   const rowIcon = (r: ActivityRow) => (r.kind === 'received' ? <Landmark strokeWidth={2.2} /> : r.kind === 'new' ? <FileText strokeWidth={2.2} /> : <Wallet strokeWidth={2.2} />);
   const rowPill = (r: ActivityRow) => (r.cancelled ? t('Cancelled', 'ملغي') : r.status === 'proc' ? t('Processing', 'قيد المعالجة') : t('Completed', 'مكتمل'));
 

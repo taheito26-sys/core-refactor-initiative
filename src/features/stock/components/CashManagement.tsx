@@ -8,7 +8,7 @@ import {
   type TrackerState,
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
-  type CustomerLoan, type LoanRepayment, type Customer, type Trade,
+  type CustomerLoan, type LoanRepayment, type RepaymentMethod, type Customer, type Trade,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
   getLoanRepaid, getLoanRemaining, customerNameVariants,
 } from '@/lib/tracker-helpers';
@@ -1136,6 +1136,43 @@ function toLocalInput(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Cash handed over, or money that came in by bank transfer — shown to the buyer on their activity. */
+function PaymentMethodField({ value, onChange }: { value: RepaymentMethod; onChange: (m: RepaymentMethod) => void }) {
+  const t = useT();
+  const options: Array<{ key: RepaymentMethod; label: string }> = [
+    { key: 'cash', label: t('paymentMethodCash') },
+    { key: 'bank', label: t('paymentMethodBank') },
+  ];
+  return (
+    <div className="field2" style={{ marginBottom: 10 }}>
+      <div className="lbl">{t('paymentMethod')}</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {options.map(o => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            aria-pressed={value === o.key}
+            style={{
+              flex: 1, padding: '8px 10px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+              border: `1px solid ${value === o.key ? 'var(--brand, var(--good))' : 'var(--line)'}`,
+              background: value === o.key ? 'color-mix(in srgb, var(--brand, var(--good)) 16%, transparent)' : 'var(--panel)',
+              color: 'var(--text)',
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A bank account suggests a transfer; anything else is cash in hand. The merchant can still flip it. */
+function defaultMethod(accounts: CashAccount[], accountId: string): RepaymentMethod {
+  return accounts.find(a => a.id === accountId)?.type === 'bank' ? 'bank' : 'cash';
+}
+
 interface RepayLoanModalProps {
   loan: CustomerLoan;
   /** How much this payment may cover — the loan's balance with `existing` taken back out. */
@@ -1149,7 +1186,7 @@ interface RepayLoanModalProps {
    * it did nothing — the caller's own commit() already toasts on failure,
    * but a synchronous error thrown before that point had nowhere to land.
    */
-  onSave: (accountId: string | null, amount: number, ts: number, note?: string) => void | Promise<void>;
+  onSave: (accountId: string | null, amount: number, ts: number, note?: string, method?: RepaymentMethod) => void | Promise<void>;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -1167,9 +1204,15 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   const [amount, setAmount] = useState(String(existing?.amount ?? (remaining || '')));
   const [date, setDate] = useState(() => toLocalInput(existing?.ts ?? Date.now()));
   const [note, setNote] = useState(existing?.note || '');
+  const [method, setMethod] = useState<RepaymentMethod>(existing?.method ?? defaultMethod(accounts, accountId));
+  const [methodTouched, setMethodTouched] = useState(!!existing?.method);
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
   const amtNum = num(amount, 0);
+
+  useEffect(() => {
+    if (!methodTouched && addToCash) setMethod(defaultMethod(accounts, accountId));
+  }, [accountId, addToCash, accounts, methodTouched]);
 
   const selectStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
@@ -1185,7 +1228,7 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
     if (!Number.isFinite(ts)) { setErr(t('date')); return; }
     setSaving(true);
     try {
-      await onSave(addToCash ? accountId : null, amtNum, ts, note.trim() || undefined);
+      await onSave(addToCash ? accountId : null, amtNum, ts, note.trim() || undefined, method);
     } catch (error) {
       // A failure here is unexpected -- commit() itself already toasts on a
       // save failure and returns without throwing, so reaching this catch
@@ -1232,6 +1275,8 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
           <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
         </div>
 
+        <PaymentMethodField value={method} onChange={m => { setMethod(m); setMethodTouched(true); }} />
+
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentDate')}</div>
           <div className="inputBox"><input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} /></div>
@@ -1257,7 +1302,7 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
 interface EditPaymentGroupModalProps {
   group: PaymentGroup;
   accounts: CashAccount[];
-  onSave: (patch: { ts: number; note?: string; accountId: string | null }) => Promise<boolean | void> | void;
+  onSave: (patch: { ts: number; note?: string; accountId: string | null; method?: RepaymentMethod }) => Promise<boolean | void> | void;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -1273,6 +1318,7 @@ function EditPaymentGroupModal({ group, accounts, onSave, onClose, isMobile = fa
   const [accountId, setAccountId] = useState(accounts[0]?.id || '');
   const [date, setDate] = useState(() => toLocalInput(group.ts));
   const [note, setNote] = useState(group.description || '');
+  const [method, setMethod] = useState<RepaymentMethod>(group.method ?? defaultMethod(accounts, accounts[0]?.id || ''));
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -1290,7 +1336,7 @@ function EditPaymentGroupModal({ group, accounts, onSave, onClose, isMobile = fa
     if (!Number.isFinite(ts)) { setErr(t('date')); return; }
     setSaving(true);
     try {
-      await onSave({ ts, note: note.trim() || undefined, accountId: addToCash ? accountId : null });
+      await onSave({ ts, note: note.trim() || undefined, accountId: addToCash ? accountId : null, method });
     } catch (error) {
       setErr(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1327,6 +1373,8 @@ function EditPaymentGroupModal({ group, accounts, onSave, onClose, isMobile = fa
             </ModernSelect>
           </div>
         )}
+
+        <PaymentMethodField value={method} onChange={setMethod} />
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentDate')}</div>
@@ -2159,7 +2207,7 @@ interface SplitRepaymentModalProps {
       button so one day's orders can be settled without scrolling the rest. */
   restrictToLoanIds?: string[];
   accounts: CashAccount[];
-  onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string) => void;
+  onSave: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string | null, ts: number, note?: string, method?: RepaymentMethod) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -2187,7 +2235,13 @@ function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, o
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [addToCash, setAddToCash] = useState(true);
+  const [method, setMethod] = useState<RepaymentMethod>(() => defaultMethod(accounts, accounts.find(a => a.currency === statement.currency)?.id || accounts[0]?.id || ''));
+  const [methodTouched, setMethodTouched] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!methodTouched && addToCash) setMethod(defaultMethod(accounts, accountId));
+  }, [accountId, addToCash, accounts, methodTouched]);
 
   const selectStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
@@ -2235,7 +2289,7 @@ function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, o
       if (amt > row.remaining + 0.005) { setErr(t('loanPaymentCap')); return; }
       allocations.push({ loan: row.loan, amount: amt });
     }
-    onSave(allocations, addToCash ? accountId : null, ts, note.trim() || undefined);
+    onSave(allocations, addToCash ? accountId : null, ts, note.trim() || undefined, method);
   };
 
   return (
@@ -2277,6 +2331,8 @@ function SplitRepaymentModal({ statement, restrictToLoanIds, accounts, onSave, o
             </ModernSelect>
           </div>
         )}
+
+        <PaymentMethodField value={method} onChange={m => { setMethod(m); setMethodTouched(true); }} />
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentDate')}</div>
@@ -3252,7 +3308,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   /** The loan list with `loan` swapped in. */
   const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>, batchId?: string) => {
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string | null, amount: number, ts: number, note?: string, banknoteBreakdown?: Record<number, number>, batchId?: string, method?: RepaymentMethod) => {
     // Wrapped end-to-end: a throw anywhere in here used to reject silently
     // (this runs from the modal's fire-and-forget onSave), leaving the click
     // looking like it did nothing. Now the modal awaits this and shows
@@ -3274,6 +3330,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       const repayment: LoanRepayment = {
         id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note,
         ...(batchId ? { batchId } : {}),
+        ...(method ? { method } : {}),
       };
       const newLedger = entry ? [...ledger, entry] : ledger;
       const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
@@ -3308,6 +3365,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     note?: string,
     banknoteBreakdown?: Record<number, number>,
     forcedBatchId?: string,
+    method?: RepaymentMethod,
   ) => {
     const batchId = forcedBatchId || uid();
     let newLedger = ledger;
@@ -3326,6 +3384,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       if (entry?.banknoteBreakdown) breakdownAttached = true;
       const repayment: LoanRepayment = {
         id: uid(), ts, amount, accountId: accountId ?? undefined, ledgerEntryId: entry?.id, note, batchId,
+        ...(method ? { method } : {}),
       };
       newLedger = entry ? [...newLedger, entry] : newLedger;
       const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
@@ -3598,13 +3657,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    * dropped it) is not recreated: only the recorded payment changes.
    */
   const updateLoanRepayment = async (
-    loan: CustomerLoan, repaymentId: string, accountId: string | null, amount: number, ts: number, note?: string,
+    loan: CustomerLoan, repaymentId: string, accountId: string | null, amount: number, ts: number, note?: string, method?: RepaymentMethod,
   ) => {
     // The dialog holds a snapshot; a sync may have landed another payment on
     // this loan since it opened, so edit the loan as it stands now.
     const live = loans.find(l => l.id === loan.id) || loan;
     const next = editRepayment(
-      live, repaymentId, { accountId, amount, ts, note, newLedgerEntryId: uid() }, ledger, repaymentLedgerNote(live, note),
+      live, repaymentId, { accountId, amount, ts, note, method, newLedgerEntryId: uid() }, ledger, repaymentLedgerNote(live, note),
     );
     if (!next) { setEditingRepayment(null); return; }
 
@@ -3676,7 +3735,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
    */
   const updateLoanRepayments = async (
     targets: Array<{ loan: CustomerLoan; repaymentId: string }>,
-    patch: { ts: number; note?: string; accountId: string | null },
+    patch: { ts: number; note?: string; accountId: string | null; method?: RepaymentMethod },
   ) => {
     let workingLedger = ledger;
     let newLoans = loans;
@@ -3712,7 +3771,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (ok) { setDeletingPaymentGroup(null); toast.success(t('loanPaymentDeleted')); }
   };
 
-  const confirmEditPaymentGroup = async (patch: { ts: number; note?: string; accountId: string | null }) => {
+  const confirmEditPaymentGroup = async (patch: { ts: number; note?: string; accountId: string | null; method?: RepaymentMethod }) => {
     if (!editingPaymentGroup) return;
     const targets = editingPaymentGroup.members
       .map(findRepayment)
@@ -5630,8 +5689,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           getLoanRemaining={getLoanRemaining}
           isMobile={isMobile}
           onAddToCash={addLedgerEntry}
-          onRepayLoan={(loan, accountId, amount, ts, note, banknoteBreakdown) => addLoanRepayment(loan, accountId, amount, ts, note, banknoteBreakdown)}
-          onSplitRepay={(allocations, accountId, ts, note, banknoteBreakdown) => addSplitLoanRepayment(allocations, accountId, ts, note, banknoteBreakdown)}
+          onRepayLoan={(loan, accountId, amount, ts, note, banknoteBreakdown) => addLoanRepayment(loan, accountId, amount, ts, note, banknoteBreakdown, undefined, 'cash')}
+          onSplitRepay={(allocations, accountId, ts, note, banknoteBreakdown) => addSplitLoanRepayment(allocations, accountId, ts, note, banknoteBreakdown, undefined, 'cash')}
           onClose={() => setShowCashCounter(false)}
         />
       )}
@@ -5642,7 +5701,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           remaining={getLoanRemaining(repayingLoan)}
           accounts={activeAccounts}
           isMobile={isMobile}
-          onSave={(accountId, amount, ts, note) => addLoanRepayment(repayingLoan, accountId, amount, ts, note)}
+          onSave={(accountId, amount, ts, note, method) => addLoanRepayment(repayingLoan, accountId, amount, ts, note, undefined, undefined, method)}
           onClose={() => setRepayingLoan(null)}
         />
       )}
@@ -5653,7 +5712,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           restrictToLoanIds={splitPaymentStatement.loanIds}
           accounts={activeAccounts}
           isMobile={isMobile}
-          onSave={(allocations, accountId, ts, note) => addSplitLoanRepayment(allocations, accountId, ts, note)}
+          onSave={(allocations, accountId, ts, note, method) => addSplitLoanRepayment(allocations, accountId, ts, note, undefined, undefined, method)}
           onClose={() => setSplitPaymentStatement(null)}
         />
       )}
@@ -5667,8 +5726,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           accounts={activeAccounts}
           existing={editingRepayment.repayment}
           isMobile={isMobile}
-          onSave={(accountId, amount, ts, note) => updateLoanRepayment(
-            editingRepayment.loan, editingRepayment.repayment.id, accountId, amount, ts, note,
+          onSave={(accountId, amount, ts, note, method) => updateLoanRepayment(
+            editingRepayment.loan, editingRepayment.repayment.id, accountId, amount, ts, note, method,
           )}
           onClose={() => setEditingRepayment(null)}
         />

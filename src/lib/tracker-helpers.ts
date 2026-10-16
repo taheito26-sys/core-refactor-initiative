@@ -551,6 +551,8 @@ export interface CashTransaction {
 }
 
 /** One repayment against a customer loan. */
+export type RepaymentMethod = 'cash' | 'bank';
+
 export interface LoanRepayment {
   id: string;
   ts: number;
@@ -560,6 +562,8 @@ export interface LoanRepayment {
   /** ID of the companion CashLedgerEntry that credited the account */
   ledgerEntryId?: string;
   note?: string;
+  /** How the money was handed over. Unset on payments recorded before the merchant could choose. */
+  method?: RepaymentMethod;
   /**
    * Shared id across the repayments created by one physical payment that was
    * split to close several orders/loans at once — lets the statement show

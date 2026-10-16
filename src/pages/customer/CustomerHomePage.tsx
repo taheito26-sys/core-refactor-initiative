@@ -332,7 +332,7 @@ export default function CustomerHomePage() {
   const avgTrend = useRateTrend(rateKey('avg'), egyptBuyAvg);
   const emergencyTrend = useRateTrend(rateKey('emergency'), egyptEmergencyAvg);
   const activity = useMemo(
-    () => buildActivity({ orders, payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount }))) }),
+    () => buildActivity({ orders, payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount, method: p.method ?? null }))) }),
     [orders, historyStatements],
   );
 

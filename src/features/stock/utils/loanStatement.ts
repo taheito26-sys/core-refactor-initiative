@@ -9,6 +9,7 @@ import {
   type CashCurrency,
   type Customer,
   type CustomerLoan,
+  type RepaymentMethod,
   type Trade,
 } from '../../../lib/tracker-helpers.ts';
 
@@ -49,6 +50,8 @@ export interface StatementEntry {
   repaymentId?: string;
   /** Payments only — set when this payment was part of a split-across-orders batch. */
   batchId?: string;
+  /** Payments only — cash handover or bank transfer, when the merchant recorded it. */
+  method?: RepaymentMethod;
 }
 
 /** One or more payment entries shown as a single line — grouped when they share a `batchId`. */
@@ -59,6 +62,7 @@ export interface PaymentGroup {
   refs: string[];
   credit: number;
   accountName?: string;
+  method?: RepaymentMethod;
   description: string;
   members: StatementEntry[];
 }
@@ -77,7 +81,7 @@ export function groupPayments(payments: StatementEntry[]): PaymentGroup[] {
     const key = p.batchId || p.id;
     let group = groups.get(key);
     if (!group) {
-      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, description: p.description, members: [] };
+      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, method: p.method, description: p.description, members: [] };
       groups.set(key, group);
       order.push(key);
     }
@@ -86,6 +90,7 @@ export function groupPayments(payments: StatementEntry[]): PaymentGroup[] {
     group.credit = round2(group.credit + p.credit);
     group.ts = Math.min(group.ts, p.ts);
     if (!group.description && p.description) group.description = p.description;
+    if (!group.method && p.method) group.method = p.method;
   }
   return order.map(key => groups.get(key)!);
 }
@@ -105,7 +110,7 @@ export function groupPaymentsByDay(payments: StatementEntry[]): PaymentGroup[] {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     let group = groups.get(key);
     if (!group) {
-      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, description: p.description, members: [] };
+      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, method: p.method, description: p.description, members: [] };
       groups.set(key, group);
       order.push(key);
     }
@@ -114,6 +119,7 @@ export function groupPaymentsByDay(payments: StatementEntry[]): PaymentGroup[] {
     group.credit = round2(group.credit + p.credit);
     group.ts = Math.min(group.ts, p.ts);
     if (!group.description && p.description) group.description = p.description;
+    if (!group.method && p.method) group.method = p.method;
   }
   return order.map(key => groups.get(key)!);
 }
@@ -266,6 +272,7 @@ export function buildBuyerStatements({
           accountName: accountName(r.accountId),
           loanId: row.loan.id,
           batchId: r.batchId,
+          method: r.method,
         });
       }
     }

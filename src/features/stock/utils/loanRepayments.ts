@@ -3,6 +3,7 @@ import {
   type CashLedgerEntry,
   type CustomerLoan,
   type LoanRepayment,
+  type RepaymentMethod,
 } from '@/lib/tracker-helpers';
 
 /**
@@ -21,6 +22,8 @@ export interface RepaymentPatch {
   amount: number;
   ts: number;
   note?: string;
+  /** Left out to keep the payment's current method. */
+  method?: RepaymentMethod;
   /** Id for a newly created cash_ledger row, only used when this edit turns
    * cash-linking on for a payment that didn't have one before. */
   newLedgerEntryId?: string;
@@ -94,7 +97,7 @@ export function editRepayment(
   const nextLoan = withDerivedStatus({
     ...loan,
     repayments: (loan.repayments || []).map(r => (
-      r.id === repaymentId ? { ...r, ts, amount, accountId: accountId || undefined, ledgerEntryId: nextLedgerEntryId, note } : r
+      r.id === repaymentId ? { ...r, ts, amount, accountId: accountId || undefined, ledgerEntryId: nextLedgerEntryId, note, ...(patch.method ? { method: patch.method } : {}) } : r
     )),
   });
 

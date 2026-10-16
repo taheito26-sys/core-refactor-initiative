@@ -19,9 +19,11 @@ export interface ActivityRow {
   currency?: string;
   /** Where the activity came from, for navigation. */
   orderId?: string;
+  /** How a payment was handed over, when the merchant recorded it. */
+  method?: 'cash' | 'bank' | null;
 }
 
-export interface PaymentLike { date: number; amount: number }
+export interface PaymentLike { date: number; amount: number; method?: 'cash' | 'bank' | null }
 
 /**
  * The newest activity first: orders the customer received or placed, plus the
@@ -43,7 +45,7 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
     else rows.push({ id: o.id, kind: 'paid', ts, amount: o.amount ?? 0, sign: '-', status: 'bad', orderId: o.id });
   }
   input.payments.forEach((p, i) => {
-    if (p.amount > 0 && Number.isFinite(p.date)) rows.push({ id: `pay-${i}-${p.date}`, kind: 'paid', ts: p.date, amount: p.amount, sign: '-', status: 'bad' });
+    if (p.amount > 0 && Number.isFinite(p.date)) rows.push({ id: `pay-${i}-${p.date}`, kind: 'paid', ts: p.date, amount: p.amount, sign: '-', status: 'bad', method: p.method ?? null });
   });
   return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 3);
 }

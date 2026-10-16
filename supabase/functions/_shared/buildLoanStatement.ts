@@ -265,6 +265,7 @@ export async function buildLoanStatementResponse(
       date: g.ts,
       amount: Math.round(g.credit),
       note: g.description || null,
+      method: g.method ?? null,
       // Order references identify which specific orders a payment settled —
       // that breakdown is for the merchant's own internal view only.
       ref: clientSafe ? null : g.refs.join(", "),
@@ -338,7 +339,7 @@ export interface MonthlyStatementResponse {
   totalRepaidAllTime: number;
   issueDate: string;
   month: string;
-  payments: Array<{ date: number; amount: number; note: string | null; ref: string | null }>;
+  payments: Array<{ date: number; amount: number; note: string | null; ref: string | null; method?: 'cash' | 'bank' | null }>;
   /**
    * This buyer's own EGP sell transactions in the selected month — the
    * FX-sourcing trail behind their settlements, scoped the same way the

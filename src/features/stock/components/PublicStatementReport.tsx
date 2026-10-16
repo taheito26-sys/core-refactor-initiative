@@ -5,6 +5,7 @@ export interface PublicPayment {
   amount: number;
   note: string | null;
   ref: string | null;
+  method?: 'cash' | 'bank' | null;
 }
 
 export interface PublicOrder {
