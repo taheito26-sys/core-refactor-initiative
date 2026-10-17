@@ -251,3 +251,7 @@ html[dir="rtl"] .co-r-chev svg { transform: scaleX(1); }
 /* the expand arrow reads as a button: accent-filled with a white chevron */
 .co-r-chev { background: var(--th-a, #2f73f4); color: #fff; box-shadow: 0 calc(2 * var(--q)) calc(5 * var(--q)) color-mix(in srgb, var(--th-a, #2f73f4) 40%, transparent); }
 .co-r-chev svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); stroke-width: 2.6; }
+
+.co-ctl .ch-zoom { height: calc(18 * var(--q)); border-radius: calc(9 * var(--q)); }
+.co-ctl .ch-zoom button { height: calc(18 * var(--q)); padding: 0 calc(4 * var(--q)); border-radius: calc(9 * var(--q)); }
+.co-ctl .ch-zoom svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }

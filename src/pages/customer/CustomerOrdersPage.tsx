@@ -26,6 +26,7 @@ import {
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
+import { ZoomControls } from '@/components/shared/ZoomControls';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
@@ -1142,6 +1143,7 @@ export default function CustomerOrdersPage() {
                   <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => update({ language: 'ar' })}>AR</button>
                   <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>EN</button>
                 </div>
+                <ZoomControls className="ch-zoom" />
               </div>
             </div>
             <div className="co-head">

@@ -3,6 +3,7 @@ import {
   ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowUpLeft, ArrowUpRight, Bell, CalendarDays, ChevronLeft, ChevronRight, Clock,
   Database, FileText, Info, Landmark, List, Plus, ReceiptText, TrendingUp, User, UserPlus, Wallet,
 } from 'lucide-react';
+import { ZoomControls } from '@/components/shared/ZoomControls';
 import '@/styles/customer-home.css';
 import '@/styles/customer-theme.css';
 import { chartPoints, formatActivityStamp, formatPaymentStamp, smoothPath, sparkPath, type ActivityRow, type RateTrend } from './home-model';
@@ -207,6 +208,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
             <button type="button" className={p.lang === 'ar' ? 'on' : ''} onClick={() => p.onSetLang('ar')}>AR</button>
             <button type="button" className={p.lang === 'en' ? 'on' : ''} onClick={() => p.onSetLang('en')}>EN</button>
           </div>
+          <ZoomControls className="ch-zoom" />
         </div>
 
         <div className="ch-id">

@@ -97,7 +97,6 @@ export function CustomerLayout() {
         ))}
       </nav>
       <div className="border-t border-border/50 p-3 space-y-1">
-        <ZoomControls className="w-full justify-between" showPercent="always" />
         <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-0.5">
           {(['en', 'ar'] as const).map(l => (
             <button key={l} onClick={() => update({ language: l })} className={cn('flex-1 rounded-md py-1 text-[11px] font-semibold transition-colors', settings.language === l ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground')}>

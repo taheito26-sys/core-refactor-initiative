@@ -197,3 +197,11 @@
 
 /* arrows that point along the reading direction mirror in Arabic */
 .ch-root[dir=rtl] .ch-flip { transform: scaleX(-1); }
+
+/* zoom stepper beside the language pill, on the dark hero */
+.ch-zoom { height: calc(26 * var(--q)); padding: 0; gap: 0; border-radius: calc(13 * var(--q)); background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.ch-zoom button { height: calc(26 * var(--q)); padding: 0 calc(6 * var(--q)); color: #cfd9f5; background: transparent !important; border-radius: calc(13 * var(--q)); display: flex; align-items: center; }
+.ch-zoom button:hover:not(:disabled) { background: rgba(255,255,255,.14) !important; color: #fff; }
+.ch-zoom button:disabled { opacity: .4; }
+.ch-zoom svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); }
+.ch-zoom span { display: none; }
