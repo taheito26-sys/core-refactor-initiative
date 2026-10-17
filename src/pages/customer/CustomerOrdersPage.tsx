@@ -2192,7 +2192,6 @@ export default function CustomerOrdersPage() {
                         <span className="co-r-ic"><FileText strokeWidth={1.9} /></span>
                         <div>
                           {histSeq != null && <span className="co-r-no">#{histSeq}</span>}
-                          <span className="co-r-sub">{L('QAR', 'ريال')} {lang === 'ar' ? '←' : '→'} {L('EGP', 'جنيه')}</span>
                         </div>
                       </div>
                       <div className="co-r-dt">
