@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
-import { computeFIFO, fmtDate, fmtP, fmtQ, fmtU, inRange, rangeLabel, type TrackerState } from '@/lib/tracker-helpers';
+import { computeFIFO, fmtDate, fmtP, fmtQ, fmtU, inRange, rangeLabel, resolveCustomerName, type TrackerState } from '@/lib/tracker-helpers';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { getWorkspaceDealPerspective, isDealVisibleInWorkspace } from '@/features/orders/utils/workspaceDealScope';
 import '@/styles/tracker.css';
@@ -344,7 +344,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState, workspace 
                 const net = ok ? c!.netQAR : NaN;
                 const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
                 const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                const cn = (() => { const cu = state.customers.find(x => x.id === tr.customerId); return cu ? resolveCustomerName(cu, t.lang) : ''; })();
                 const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
                 return (
                   <tr key={tr.id} style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>

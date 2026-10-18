@@ -256,11 +256,15 @@ export function SuppliersPanel({ state, applyState }: { state: TrackerState; app
       setSuppError('A supplier with this name already exists.');
       return;
     }
+    // A batch names its supplier in `source`, so a rename has to move the batches with it: otherwise
+    // the supplier loses its stock and profit figures and the old name is re-created from the batches.
+    const oldKey = supplierKey(editingSupp);
     applyState({
       ...state,
       suppliers: (state.suppliers || []).map(s =>
         s.name.toLowerCase() === editingSupp.toLowerCase() ? { ...s, name: nextName } : s,
       ),
+      batches: state.batches.map(b => (supplierKey(b.source || '') === oldKey ? { ...b, source: nextName } : b)),
     });
     setShowSuppModal(false);
   };

@@ -600,6 +600,11 @@ export default function OrdersPage() {
     });
   }, [customerLastUsedByCanonicalName]);
   const sortedCustomers = useMemo(() => sortByCustomerUsage(state.customers), [state.customers, sortByCustomerUsage]);
+  // `Customer.name` is the identity key and never changes; what the merchant sees and edits is nameEn / nameAr.
+  const customerLabel = useCallback((id: string) => {
+    const c = state.customers.find(x => x.id === id);
+    return c ? resolveCustomerName(c, t.lang) : '';
+  }, [state.customers, t.lang]);
   const allBuyerOptions = useMemo<ListedCustomer[]>(
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
     [connectedCustomers, state.customers, sortByCustomerUsage],
@@ -1046,7 +1051,7 @@ export default function OrdersPage() {
     return list.filter(t => {
       if (query) {
         const c = state.customers.find(x => x.id === t.customerId);
-        const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase();
+        const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), ...(c ? customerNameVariants(c) : [])].join(' ').toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
@@ -2527,7 +2532,7 @@ export default function OrdersPage() {
         secondTrade.buyerType = 'connected_customer';
         secondTrade.connectedCustomerId = secondPortalUserId;
       }
-      const secondBuyerName = splitCustomers.find(c => c.id === secondCustomerId)?.name || newSaleSplitCustomerText.trim();
+      const secondBuyerName = (() => { const sc = splitCustomers.find(c => c.id === secondCustomerId); return sc ? resolveCustomerName(sc, t.lang) : ''; })() || newSaleSplitCustomerText.trim();
 
       // One loan per loaned half, each for its own amount at its own price.
       const splitLoans: CustomerLoan[] = [];
@@ -2703,7 +2708,7 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === id);
     if (!tr) return;
     // Allow editing approved trades — will trigger re-approval
-    const cn = state.customers.find(c => c.id === tr.customerId)?.name || '';
+    const cn = customerLabel(tr.customerId);
     setEditingTradeId(id);
     setEditDate(toInputFromTs(tr.ts));
     setEditQty(String(tr.amountUSDT));
@@ -3249,7 +3254,7 @@ export default function OrdersPage() {
     if (splitResult) {
       toast.success(t('splitSuccess'));
       const { primaryTrade, secondTrade } = splitResult;
-      const secondBuyerName = state.customers.find(c => c.id === secondTrade.customerId)?.name || '';
+      const secondBuyerName = customerLabel(secondTrade.customerId);
       // An imported exchange order is tracked per allocation: shrink the
       // original's share and register the moved amount, so the inbox still
       // sees the whole order accounted for.
@@ -3661,7 +3666,7 @@ export default function OrdersPage() {
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
-    const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
+    const cn = customerLabel(tr.customerId) || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
     const isExpanded = !!expandedCards[tr.id];
     const qty = linkedRow?.quantity ?? tr.amountUSDT;
@@ -4046,7 +4051,7 @@ export default function OrdersPage() {
                 >
                   <option value="">{t('allBuyers')}</option>
                   {buyerFilterOptions.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{resolveCustomerName(c, t.lang)}</option>
                   ))}
                 </ModernSelect>
                 <DayFilterDropdown
@@ -4122,7 +4127,7 @@ export default function OrdersPage() {
                         const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
                         const margin = Number.isFinite(net) && rev > 0 ? net / rev : NaN;
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                        const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                        const cn = customerLabel(tr.customerId);
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         const loan = loanByTradeId.get(tr.id);
                         const isLoaned = !!loan;
@@ -4870,8 +4875,8 @@ export default function OrdersPage() {
                     {buyerMenuOpen && (
                       <LookupMenuPortal anchorRef={buyerShellRef} onClose={() => setBuyerMenuOpen(false)}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
-                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.source === 'connected' ? c.customerUserId : c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
-                            <span>{c.name}</span><span className="lookupMeta">{portalUsernameFor(c) ? `@${portalUsernameFor(c)}` : c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
+                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(resolveCustomerName(c, t.lang)); setBuyerId(c.source === 'connected' ? c.customerUserId : c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
+                            <span>{resolveCustomerName(c, t.lang)}</span><span className="lookupMeta">{portalUsernameFor(c) ? `@${portalUsernameFor(c)}` : c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
                       </LookupMenuPortal>
@@ -5839,7 +5844,7 @@ export default function OrdersPage() {
                 >
                   <option value="">{t('noCustomerSelected')}</option>
                   {sortedCustomers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                    <option key={c.id} value={c.id}>{resolveCustomerName(c, t.lang)}{c.phone ? ` · ${c.phone}` : ''}</option>
                   ))}
                 </ModernSelect>
               </div>

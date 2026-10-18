@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQ, fmtQRaw, fmtU, fmtP, fmtPct, fmtQWithUnit,
-  getMonthlyLoanPayments, type DayPayment,
+  getMonthlyLoanPayments, resolveCustomerName, type DayPayment,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -113,7 +113,7 @@ export default function CalendarPage() {
       mData[d2].paymentCount++;
       mData[d2].paymentList.push({
         ...p,
-        customer: state.customers.find(c => c.id === p.customerId)?.name || p.customerId,
+        customer: (() => { const cu = state.customers.find(c => c.id === p.customerId); return cu ? resolveCustomerName(cu, t.lang) : p.customerId; })(),
       });
     }
   }

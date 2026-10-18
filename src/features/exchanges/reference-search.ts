@@ -1,4 +1,4 @@
-import { fmtDate, type TrackerState } from '@/lib/tracker-helpers';
+import { fmtDate, resolveCustomerName, type TrackerState } from '@/lib/tracker-helpers';
 import { extractImportedReference } from './tracker-import';
 import { sumLinkedAmount, type ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
 import type { ExchangeDismissReason, ExchangeId, ExchangeP2POrder, ExchangeTransfer } from './types';
@@ -132,7 +132,7 @@ export function searchReferences(input: {
     if (l.source?.type === 'exchange_order') taggedOrderIds.add(l.source.orderId);
   }
 
-  const customerName = (id: string) => (input.state.customers || []).find(c => c.id === id)?.name || '';
+  const customerName = (id: string) => { const c = (input.state.customers || []).find(x => x.id === id); return c ? resolveCustomerName(c, 'en') : ''; };
   const trackerHitFor = (kind: 'batch' | 'trade' | 'loan', id: string): TrackerReferenceHit | undefined => {
     if (kind === 'batch') {
       const b = batches.find(x => x.id === id);

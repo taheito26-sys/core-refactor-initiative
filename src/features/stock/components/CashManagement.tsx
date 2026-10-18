@@ -10,7 +10,7 @@ import {
   type CashLedgerEntry, type LedgerEntryType,
   type CustomerLoan, type LoanRepayment, type RepaymentMethod, type Customer, type Trade,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
-  getLoanRepaid, getLoanRemaining, customerNameVariants,
+  getLoanRepaid, getLoanRemaining, customerNameVariants, resolveCustomerName,
 } from '@/lib/tracker-helpers';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -1503,7 +1503,7 @@ function CashCounterModal({
     () => account ? loans.filter(l => l.currency === account.currency && getLoanRemaining(l) > 0) : [],
     [loans, account, getLoanRemaining]
   );
-  const customerName = (id: string) => customers.find(c => c.id === id)?.name || id;
+  const customerName = (id: string) => { const c = customers.find(x => x.id === id); return c ? resolveCustomerName(c, t.lang) : id; };
 
   const cashAllocated = actions.has('add') ? num(cashAmount, 0) : 0;
   const splitAllocated = useMemo(
@@ -3301,7 +3301,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   /** Default note on the cash-side row when the payment itself carries none. */
   const repaymentLedgerNote = (loan: CustomerLoan, note?: string) => {
-    const customerName = (state.customers || []).find(c => c.id === loan.customerId)?.name || '';
+    const cust = (state.customers || []).find(c => c.id === loan.customerId);
+    const customerName = cust ? resolveCustomerName(cust, t.lang) : '';
     return note || `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`;
   };
 
