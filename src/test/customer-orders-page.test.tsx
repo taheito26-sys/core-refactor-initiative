@@ -63,7 +63,8 @@ describe('customer orders page on a phone', () => {
     await waitFor(() => expect(container.querySelector('.co-chip')).toBeTruthy());
     fireEvent.click(screen.getByText('كل الأشهر'));
     await waitFor(() => expect(screen.getByText('1,733,974')).toBeTruthy());
-    expect(container.querySelectorAll('.co-t').length).toBe(4);
+    expect(container.querySelectorAll('.co-t').length).toBe(5);
+    expect(container.querySelector('.co-t-out')?.textContent).toContain('134,929');
     expect(screen.getByText('92%')).toBeTruthy();
     expect(container.querySelectorAll('.co-row').length).toBe(2);
     expect(container.querySelector('.co-row.emerg')).toBeTruthy();

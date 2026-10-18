@@ -2,7 +2,7 @@ import { displayQarEgpRate } from '@/features/customer/display-rate';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Coins, ArrowUpRight, ArrowDownRight, Bell, CalendarDays, CalendarPlus, ChartNoAxesColumn, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Clock, FileText, Loader2, Package, Plus, User, Wallet, X, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
+import { ArrowRight, Banknote, Coins, ArrowUpRight, ArrowDownRight, Bell, CalendarDays, CalendarPlus, ChartNoAxesColumn, Check, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Clock, FileText, Loader2, Package, Plus, User, Wallet, X, XCircle, FileDown, FileSpreadsheet, Filter, Pencil, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -1252,6 +1252,16 @@ export default function CustomerOrdersPage() {
                       <div className="co-t-v">{Math.round(historyKpi.totalQar).toLocaleString('en-US')}</div>
                       {gTotal && <GrowthLine g={gTotal} percent />}
                     </div>
+                    {hasLoans && (
+                      <div className={cn('co-t co-t-out', debtKpi.outstanding > 0.5 ? 'owed' : 'clear')}>
+                        <span className="co-t-ic"><Banknote /></span>
+                        <div className="co-t-out-txt">
+                          <span className="co-t-l">{L('Outstanding balance', 'الرصيد المستحق')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span>
+                          <span className="co-t-c">{L('Paid', 'المدفوع')} {Math.round(debtKpi.totalPaid).toLocaleString('en-US')} {L('of', 'من')} {Math.round(debtKpi.totalDebt).toLocaleString('en-US')}</span>
+                        </div>
+                        <div className="co-t-v">{Math.round(Math.max(0, debtKpi.outstanding)).toLocaleString('en-US')}</div>
+                      </div>
+                    )}
                   </div>
 
                   {!hasLoans && (
