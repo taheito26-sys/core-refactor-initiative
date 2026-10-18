@@ -17,6 +17,7 @@ import { P2PAuditButton } from '@/features/exchanges/components/P2PAuditButton';
 import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
+import { fiatPerQar } from '@/features/orders/fiat-conversion';
 import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
 import { ordersReportLabels } from '@/features/orders/orders-report-labels';
 import * as api from '@/lib/api';
@@ -1363,6 +1364,19 @@ export default function OrdersPage() {
       }),
     };
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
+  // A P2P order paid in another currency (EGP) is sold at a QAR/USDT rate, so the buyer's real conversion
+  // is the exchange's fiat price per USDT divided by that QAR rate: 54 EGP/USDT at 3.83 QAR/USDT is 14.10 EGP per QAR.
+  const fiatConversion = useMemo(() => {
+    if (pendingImport?.kind !== 'order' || !pendingImport.originalFiat || pendingImport.originalFiat === baseFiat) return null;
+    const rate = fiatPerQar({
+      fiatPricePerUsdt: pendingImport.originalFiatPriceUSDT,
+      sellQarPerUsdt: saleDraft.sellPriceQar,
+      fiatTotal: pendingImport.originalFiatAmount,
+      qarRevenue: salePreview?.revenue,
+    });
+    return rate ? { fiat: pendingImport.originalFiat, rate } : null;
+  }, [pendingImport, baseFiat, saleDraft.sellPriceQar, salePreview]);
+
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
 
@@ -5536,6 +5550,12 @@ export default function OrdersPage() {
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
                       <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
+                      {fiatConversion && (
+                        <div className="prev-row" data-testid="fiat-conversion-preview" style={{ padding: '4px 6px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand, var(--good)) 12%, transparent)' }}>
+                          <span className="muted">{t.lang === 'ar' ? `سعر التحويل ${localCur('QAR', t.lang)} ← ${localCur(fiatConversion.fiat, t.lang)}` : `QAR → ${fiatConversion.fiat} rate`}</span>
+                          <strong className="mono">{fiatConversion.rate.toFixed(2)}</strong>
+                        </div>
+                      )}
                       {isInsufficientStock && (
                         <>
                           <div className="prev-row"><span className="muted">{t('coveredFifoQty')}</span><strong>{fmtU(salePreview.coveredQty || 0)} USDT</strong></div>
