@@ -199,6 +199,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
               <svg viewBox="0 0 25 22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M1 3h23M1 11h23M1 19h23" /></svg>
             </button>
           ) : null}
+          <ZoomControls variant="hero" label={t('Zoom', 'تكبير')} />
           <span className="sp" />
           <button type="button" className="ch-bell" onClick={() => p.onNavigate('/c/notifications')} aria-label={t('Notifications', 'التنبيهات')}>
             <Bell strokeWidth={2} />
@@ -208,7 +209,6 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
             <button type="button" className={p.lang === 'ar' ? 'on' : ''} onClick={() => p.onSetLang('ar')}>AR</button>
             <button type="button" className={p.lang === 'en' ? 'on' : ''} onClick={() => p.onSetLang('en')}>EN</button>
           </div>
-          <ZoomControls className="ch-zoom" />
         </div>
 
         <div className="ch-id">

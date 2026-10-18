@@ -252,6 +252,8 @@ html[dir="rtl"] .co-r-chev svg { transform: scaleX(1); }
 .co-r-chev { background: var(--th-a, #2f73f4); color: #fff; box-shadow: 0 calc(2 * var(--q)) calc(5 * var(--q)) color-mix(in srgb, var(--th-a, #2f73f4) 40%, transparent); }
 .co-r-chev svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); stroke-width: 2.6; }
 
-.co-ctl .ch-zoom { height: calc(18 * var(--q)); border-radius: calc(9 * var(--q)); }
-.co-ctl .ch-zoom button { height: calc(18 * var(--q)); padding: 0 calc(4 * var(--q)); border-radius: calc(9 * var(--q)); }
-.co-ctl .ch-zoom svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }
+/* top row: zoom on the start side, notifications and language on the other; the name gets its own row below */
+.co-hero2 { height: calc(148 * var(--q)); }
+.co-top { height: calc(32 * var(--q)); margin-top: 0; }
+.co-ctl { margin-top: 0; height: calc(32 * var(--q)); }
+.co-idrow { margin-top: calc(4 * var(--q)); height: calc(38 * var(--q)); display: flex; align-items: center; }

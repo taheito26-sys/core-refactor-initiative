@@ -1127,13 +1127,7 @@ export default function CustomerOrdersPage() {
           <section className="co-hero2">
             <div className="co-hero2-bg" aria-hidden="true" />
             <div className="co-top">
-              <div className="co-who">
-                <div className="ch-avatar"><User fill="#fff" stroke="#fff" /></div>
-                <div>
-                  <div className="ch-name">{displayName}</div>
-                  <div className="ch-greet">{L('Welcome to your dashboard', 'مرحباً بك في لوحة التحكم')}</div>
-                </div>
-              </div>
+              <ZoomControls variant="hero" label={L('Zoom', 'تكبير')} />
               <div className="co-ctl">
                 <button type="button" className="ch-bell" onClick={() => navigate('/c/notifications')} aria-label={L('Notifications', 'التنبيهات')}>
                   <Bell strokeWidth={2} />
@@ -1143,7 +1137,15 @@ export default function CustomerOrdersPage() {
                   <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => update({ language: 'ar' })}>AR</button>
                   <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>EN</button>
                 </div>
-                <ZoomControls className="ch-zoom" />
+              </div>
+            </div>
+            <div className="co-idrow">
+              <div className="co-who">
+                <div className="ch-avatar"><User fill="#fff" stroke="#fff" /></div>
+                <div>
+                  <div className="ch-name">{displayName}</div>
+                  <div className="ch-greet">{L('Welcome to your dashboard', 'مرحباً بك في لوحة التحكم')}</div>
+                </div>
               </div>
             </div>
             <div className="co-head">

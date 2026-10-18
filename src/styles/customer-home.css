@@ -198,10 +198,14 @@
 /* arrows that point along the reading direction mirror in Arabic */
 .ch-root[dir=rtl] .ch-flip { transform: scaleX(-1); }
 
-/* zoom stepper beside the language pill, on the dark hero */
-.ch-zoom { height: calc(26 * var(--q)); padding: 0; gap: 0; border-radius: calc(13 * var(--q)); background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-.ch-zoom button { height: calc(26 * var(--q)); padding: 0 calc(6 * var(--q)); color: #cfd9f5; background: transparent !important; border-radius: calc(13 * var(--q)); display: flex; align-items: center; }
-.ch-zoom button:hover:not(:disabled) { background: rgba(255,255,255,.14) !important; color: #fff; }
-.ch-zoom button:disabled { opacity: .4; }
-.ch-zoom svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); }
-.ch-zoom span { display: none; }
+/* zoom stepper on the dark hero: minus and plus as coloured buttons around the current percentage */
+.zh { direction: ltr; display: flex; align-items: center; gap: calc(6 * var(--q)); height: calc(32 * var(--q)); padding: calc(3 * var(--q)); border-radius: calc(16 * var(--q)); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), 0 calc(2 * var(--q)) calc(8 * var(--q)) rgba(0,0,0,.18); }
+.zh-btn { width: calc(26 * var(--q)); height: calc(26 * var(--q)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 calc(2 * var(--q)) calc(5 * var(--q)) rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.35); transition: transform .12s, filter .12s; }
+.zh-btn:active:not(:disabled) { transform: scale(.92); }
+.zh-btn:disabled { opacity: .35; filter: grayscale(.6); }
+.zh-btn svg { width: calc(16 * var(--q)); height: calc(16 * var(--q)); }
+.zh-out { background: linear-gradient(135deg, #ffb24a, #ff6a3d); }
+.zh-in { background: linear-gradient(135deg, #3ee0a0, #12a7c9); }
+.zh-mid { min-width: calc(38 * var(--q)); display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.zh-mid b { font-size: calc(12 * var(--q)); font-weight: 800; color: #fff; }
+.zh-mid small { margin-top: calc(2 * var(--q)); font-size: calc(7 * var(--q)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #b3c1e6; }
