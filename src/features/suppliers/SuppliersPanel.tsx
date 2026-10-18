@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n';
 import { fmtTotal, fmtPrice, fmtDate, uid, shortRef, type Supplier, type TrackerState } from '@/lib/tracker-helpers';
 import { localCur } from '@/lib/currency-locale';
+import { supplierKey, supplierProfitByName, type SupplierProfit } from './supplier-profit';
 
 // ── Modal wrapper — defined OUTSIDE the panel so React never remounts it ──
 function SupplierModal({
@@ -58,7 +59,7 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 }
 
 function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
-  supplier: { id: string; name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number };
+  supplier: { id: string; name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number; profit: SupplierProfit | null };
   maxUSDT: number;
   onEdit: () => void;
   onDelete: () => void;
@@ -92,6 +93,30 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtTotal(supplier.spentQAR)}</div>
         </div>
       </div>
+
+      {supplier.profit && supplier.profit.soldUSDT > 0 ? (
+        <div style={{
+          padding: '8px 10px', borderRadius: 8,
+          background: `color-mix(in srgb, var(${supplier.profit.netProfitQAR >= 0 ? '--good' : '--bad'}) 10%, transparent)`,
+          border: `1px solid color-mix(in srgb, var(${supplier.profit.netProfitQAR >= 0 ? '--good' : '--bad'}) 35%, transparent)`,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>
+              {lang === 'ar' ? 'صافي الربح' : 'Net profit'} {localCur('QAR', lang)}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono, monospace)', color: supplier.profit.netProfitQAR >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+              {supplier.profit.netProfitQAR >= 0 ? '+' : ''}{fmtTotal(supplier.profit.netProfitQAR)}
+            </div>
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>
+            {lang === 'ar'
+              ? `من ${fmtTotal(supplier.profit.soldUSDT)} USDT مباعة في ${supplier.profit.tradeCount} طلب · الإيراد ${fmtTotal(supplier.profit.revenueQAR)} − التكلفة ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − الرسوم ${fmtTotal(supplier.profit.feeQAR)}` : ''}`
+              : `From ${fmtTotal(supplier.profit.soldUSDT)} USDT sold across ${supplier.profit.tradeCount} order${supplier.profit.tradeCount === 1 ? '' : 's'} · Revenue ${fmtTotal(supplier.profit.revenueQAR)} − Cost ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − Fees ${fmtTotal(supplier.profit.feeQAR)}` : ''}`}
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{lang === 'ar' ? 'لا توجد مبيعات من هذا المورد بعد' : 'No sales from this supplier yet'}</div>
+      )}
 
       <div style={{ fontSize: 10, color: 'var(--muted)' }}>Last supply: {fmtDate(supplier.lastDate)}</div>
 
@@ -149,6 +174,11 @@ export function SuppliersPanel({ state, applyState }: { state: TrackerState; app
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.batches]);
 
+  const profitBySupplier = useMemo(
+    () => supplierProfitByName({ batches: state.batches, trades: state.trades, usdtTransfers: state.usdtTransfers }),
+    [state.batches, state.trades, state.usdtTransfers],
+  );
+
   const suppliers = useMemo(() => {
     const batchStats = new Map<string, { batchCount: number; totalUSDT: number; spentQAR: number; lastDate: number }>();
     let grandTotal = 0;
@@ -181,9 +211,10 @@ export function SuppliersPanel({ state, applyState }: { state: TrackerState; app
         avgCost: totalUSDT > 0 ? spentQAR / totalUSDT : 0,
         lastDate: stats?.lastDate ?? supplier.createdAt,
         volumePct: grandTotal > 0 ? (totalUSDT / grandTotal) * 100 : 0,
+        profit: profitBySupplier.get(supplierKey(supplier.name)) ?? null,
       };
     }).sort((a, b) => b.totalUSDT - a.totalUSDT || a.name.localeCompare(b.name));
-  }, [state.batches, supplierMaster]);
+  }, [state.batches, supplierMaster, profitBySupplier]);
 
   const filteredSuppliers = useMemo(() => {
     if (!search) return suppliers;
