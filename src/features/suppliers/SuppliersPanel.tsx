@@ -110,8 +110,8 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
           </div>
           <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>
             {lang === 'ar'
-              ? `من ${fmtTotal(supplier.profit.soldUSDT)} USDT مباعة في ${supplier.profit.tradeCount} طلب · الإيراد ${fmtTotal(supplier.profit.revenueQAR)} − التكلفة ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − الرسوم ${fmtTotal(supplier.profit.feeQAR)}` : ''}`
-              : `From ${fmtTotal(supplier.profit.soldUSDT)} USDT sold across ${supplier.profit.tradeCount} order${supplier.profit.tradeCount === 1 ? '' : 's'} · Revenue ${fmtTotal(supplier.profit.revenueQAR)} − Cost ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − Fees ${fmtTotal(supplier.profit.feeQAR)}` : ''}`}
+              ? `من ${fmtTotal(supplier.profit.soldUSDT)} USDT مباعة في ${supplier.profit.tradeCount} طلب · الإيراد ${fmtTotal(supplier.profit.revenueQAR)} − التكلفة ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − الرسوم ${fmtTotal(supplier.profit.feeQAR)}` : ''}${supplier.profit.partnerShareQAR > 0.005 ? ` − حصة الشريك ${fmtTotal(supplier.profit.partnerShareQAR)}` : ''}`
+              : `From ${fmtTotal(supplier.profit.soldUSDT)} USDT sold across ${supplier.profit.tradeCount} order${supplier.profit.tradeCount === 1 ? '' : 's'} · Revenue ${fmtTotal(supplier.profit.revenueQAR)} − Cost ${fmtTotal(supplier.profit.costQAR)}${supplier.profit.feeQAR ? ` − Fees ${fmtTotal(supplier.profit.feeQAR)}` : ''}${supplier.profit.partnerShareQAR > 0.005 ? ` − Partner share ${fmtTotal(supplier.profit.partnerShareQAR)}` : ''}`}
           </div>
         </div>
       ) : (

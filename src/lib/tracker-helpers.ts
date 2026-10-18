@@ -1123,7 +1123,7 @@ function getMySharePct(trade: Trade): number {
   return 100;
 }
 
-function applyMyShare(trade: Trade, fullNet: number): number {
+export function applyMyShare(trade: Trade, fullNet: number): number {
   if (trade.linkedDealId || trade.linkedRelId) {
     return fullNet * getMySharePct(trade) / 100;
   }

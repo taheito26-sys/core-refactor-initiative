@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { supplierProfitByName } from '@/features/suppliers/supplier-profit';
-import type { Batch, Trade } from '@/lib/tracker-helpers';
+import { supplierProfitByName, supplierProfitReport } from '@/features/suppliers/supplier-profit';
+import { computeFIFO, kpiFor, type Batch, type TrackerState, type Trade } from '@/lib/tracker-helpers';
 
 const batch = (id: string, ts: number, source: string, usdt: number, price: number) =>
   ({ id, ts, source, note: '', buyPriceQAR: price, initialUSDT: usdt, revisions: [] }) as Batch;
@@ -40,5 +40,30 @@ describe('supplierProfitByName', () => {
   it('matches supplier names regardless of case and spacing', () => {
     const map = supplierProfitByName({ batches: [batch('b1', 1, ' ALI ', 100, 3)], trades: [trade({ id: 't', amountUSDT: 50, sellPriceQAR: 4 })], usdtTransfers: [] });
     expect(map.get('ali')?.netProfitQAR).toBeCloseTo(50);
+  });
+
+  it('counts only the merchant\'s own share on orders linked to a partner, like the dashboard does', () => {
+    const linked = trade({ id: 'l', amountUSDT: 1000, sellPriceQAR: 3.8, linkedDealId: 'deal-1', merchantPct: 60 });
+    const map = supplierProfitByName({ batches, trades: [linked], usdtTransfers: [] });
+    const ali = map.get('ali')!;
+    // full net 200, merchant keeps 60%
+    expect(ali.netProfitQAR).toBeCloseTo(120);
+    expect(ali.partnerShareQAR).toBeCloseTo(80);
+    expect(ali.revenueQAR - ali.costQAR - ali.feeQAR - ali.partnerShareQAR).toBeCloseTo(ali.netProfitQAR);
+  });
+
+  it('adds up to the tracker\'s own total net profit', () => {
+    const trades = [
+      trade({ id: 'a', ts: 10, amountUSDT: 700, sellPriceQAR: 3.9, feeQAR: 5 }),
+      trade({ id: 'b', ts: 20, amountUSDT: 900, sellPriceQAR: 3.85, feeQAR: 7, linkedRelId: 'rel', merchantPct: 70 }),
+      trade({ id: 'c', ts: 30, amountUSDT: 300, sellPriceQAR: 3.95 }),
+    ];
+    const input = { batches, trades, usdtTransfers: [] };
+    const report = supplierProfitReport(input);
+    const sum = [...report.bySupplier.values()].reduce((s, r) => s + r.netProfitQAR, 0) + report.unattributedNetQAR;
+    const derived = computeFIFO(batches, trades, []);
+    const total = kpiFor({ ...input } as unknown as TrackerState, derived, 'all').net;
+    expect(sum).toBeCloseTo(total, 6);
+    expect(report.unattributedNetQAR).toBeCloseTo(0);
   });
 });
