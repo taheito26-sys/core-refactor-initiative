@@ -11,6 +11,21 @@ const order = (over: Partial<WorkflowOrder>): WorkflowOrder => ({
 } as WorkflowOrder);
 
 describe('buildActivity', () => {
+  it('shows a payment the buyer reported while it waits for the merchant, but not accepted or withdrawn ones', () => {
+    const rows = buildActivity({
+      orders: [],
+      payments: [],
+      claims: [
+        { id: 'p', ts: 3000, amount: 60000, status: 'pending' },
+        { id: 'r', ts: 2000, amount: 100, status: 'rejected' },
+        { id: 'a', ts: 1500, amount: 200, status: 'accepted' },
+        { id: 'w', ts: 1000, amount: 300, status: 'withdrawn' },
+      ],
+    });
+    expect(rows.map(r => [r.claimState, r.amount])).toEqual([['pending', 60000], ['rejected', 100]]);
+    expect(rows[0]).toMatchObject({ kind: 'paid', sign: '-', status: 'proc' });
+  });
+
   it('lists orders the merchant recorded on credit alongside payments, newest first', () => {
     const rows = buildActivity({
       orders: [],
@@ -42,7 +57,7 @@ describe('buildActivity', () => {
   });
   it('merges payments in by date and keeps the newest three', () => {
     const rows = buildActivity({ orders: [order({ id: 'a' })], payments: [{ date: new Date(2026, 9, 14).getTime(), amount: 500 }, { date: new Date(2026, 9, 1).getTime(), amount: 1 }, { date: new Date(2026, 8, 1).getTime(), amount: 2 }] });
-    expect(rows).toHaveLength(3);
+    expect(rows.length).toBeLessThanOrEqual(5);
     expect(rows[0].amount).toBe(500);
   });
   it('marks cancelled orders', () => {

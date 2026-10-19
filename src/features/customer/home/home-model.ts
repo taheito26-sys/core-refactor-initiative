@@ -25,6 +25,8 @@ export interface ActivityRow {
   loanState?: 'settled' | 'partial' | 'unpaid';
   /** Share of a loaned order already repaid, 0–100. */
   loanPct?: number;
+  /** A payment the buyer reported that the merchant has not confirmed yet, or has turned down. */
+  claimState?: 'pending' | 'rejected';
 }
 
 export interface PaymentLike { date: number; amount: number; method?: 'cash' | 'bank' | null }
@@ -42,7 +44,10 @@ export interface LoanLike {
  * the design: a received payment (+, green), a new order still processing
  * (+, blue) and a settled payment of dues (-, red).
  */
-export function buildActivity(input: { orders: WorkflowOrder[]; payments: PaymentLike[]; loans?: LoanLike[]; limit?: number }): ActivityRow[] {
+/** A payment the buyer reported themselves; it counts once the merchant accepts it. */
+export interface ClaimLike { id: string; ts: number; amount: number; status: 'pending' | 'accepted' | 'rejected' | 'withdrawn' }
+
+export function buildActivity(input: { orders: WorkflowOrder[]; payments: PaymentLike[]; loans?: LoanLike[]; claims?: ClaimLike[]; limit?: number }): ActivityRow[] {
   const rows: ActivityRow[] = [];
   for (const o of input.orders) {
     const ts = new Date(o.created_at).getTime();
@@ -68,7 +73,12 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
       status: l.settled ? 'ok' : 'proc', currency: inEgp ? 'EGP' : l.currency, loanState, loanPct,
     });
   });
-  return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 3);
+  // Accepted claims are already real payments on the statement, and withdrawn ones are gone.
+  for (const c of input.claims ?? []) {
+    if ((c.status !== 'pending' && c.status !== 'rejected') || !(c.amount > 0) || !Number.isFinite(c.ts)) continue;
+    rows.push({ id: `claim-${c.id}`, kind: 'paid', ts: c.ts, amount: c.amount, sign: '-', status: c.status === 'pending' ? 'proc' : 'bad', claimState: c.status });
+  }
+  return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 5);
 }
 
 /** "13 أكتوبر 2026 • 12:00" in the user's language, Western digits, 24-hour clock. */

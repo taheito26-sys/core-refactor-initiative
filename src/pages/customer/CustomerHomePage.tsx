@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Plus, X, Wallet, Clock } from 'lucide-react';
@@ -331,6 +332,7 @@ export default function CustomerHomePage() {
   const rateKey = (name: string) => `ch-rate:${userId ?? 'anon'}:${name}`;
   const avgTrend = useRateTrend(rateKey('avg'), egyptBuyAvg);
   const emergencyTrend = useRateTrend(rateKey('emergency'), egyptEmergencyAvg);
+  const { claims: paymentClaims } = useLoanPaymentClaims('customer');
   const activity = useMemo(
     () => buildActivity({
       orders,
@@ -342,8 +344,9 @@ export default function CustomerHomePage() {
           egpAmount: o.tradeId ? egpByTrade.get(o.tradeId) ?? null : null,
         }));
       }),
+      claims: paymentClaims.map(c => ({ id: c.id, ts: new Date(c.paidAt).getTime(), amount: c.amount, status: c.status })),
     }),
-    [orders, historyStatements],
+    [orders, historyStatements, paymentClaims],
   );
 
   const belowHero = (showEmergencyInfo || alerts.length > 0) ? (
