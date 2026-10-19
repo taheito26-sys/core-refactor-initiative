@@ -27,6 +27,7 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ZoomControls } from '@/components/shared/ZoomControls';
+import { statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
@@ -585,16 +586,10 @@ export default function CustomerOrdersPage() {
   // on its own — Orders keeps the polling since it's the page a buyer
   // actually watches for merchant-side changes.
   const { data: historyStatements = [], isLoading: isHistoryQueryLoading } = useQuery({
-    // Own key: this call also asks for the buyer's non-loan sales (?sales=1),
+    // Own variant: this call also asks for the buyer's non-loan sales (?sales=1),
     // which the Home and Wallet pages must not receive from the shared cache.
-    queryKey: ['c-loan-statement-history-with-sales', userId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('customer-loan-statement?sales=1', { method: 'GET' });
-      if (error || !data || (data as { error?: string }).error) return [];
-      return (data as { statements: HistoryStatement[] }).statements;
-    },
-    enabled: !!userId,
-    refetchInterval: 20000,
+    ...statementQueryOptions<HistoryStatement>('sales', userId),
+    refetchInterval: 45000,
   });
   // This edge-function-backed query resolves slower than the live 'c-orders'
   // query above, so without folding its own loading state in here, the page

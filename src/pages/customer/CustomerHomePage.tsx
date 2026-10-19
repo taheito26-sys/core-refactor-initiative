@@ -1,4 +1,5 @@
 ﻿import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
+import { statementQueryOptions } from '@/features/customer/statements-api';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -72,14 +73,8 @@ export default function CustomerHomePage() {
   }, []);
 
   const { data: historyStatements = [] } = useQuery({
-    queryKey: ['c-loan-statement-history', userId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('customer-loan-statement', { method: 'GET' });
-      if (error || !data || (data as { error?: string }).error) return [];
-      return (data as { statements: PublicStatement[] }).statements;
-    },
+    ...statementQueryOptions<PublicStatement>('plain', userId),
     enabled: !!userId && historyReady,
-    staleTime: 5 * 60_000,
   });
 
   // `paired` marks rows where the QAR and EGP figures come from the same
@@ -344,7 +339,7 @@ export default function CustomerHomePage() {
   const activity = useMemo(
     () => buildActivity({
       orders,
-      payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount, method: p.method ?? null }))),
+      payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount, method: p.method ?? null, egpRate: s.currency === 'QAR' ? claimEgpRate : null }))),
       loans: historyStatements.flatMap(s => {
         const egpByTrade = new Map((s.binanceOrders ?? []).filter(b => b.fiat === 'EGP').map(b => [b.tradeId, b.fiatAmount]));
         return s.orders.map(o => ({

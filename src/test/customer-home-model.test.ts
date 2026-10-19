@@ -11,6 +11,14 @@ const order = (over: Partial<WorkflowOrder>): WorkflowOrder => ({
 } as WorkflowOrder);
 
 describe('buildActivity', () => {
+  it('reads a recorded payment in EGP when a rate is known, and keeps QAR when not', () => {
+    const rows = buildActivity({
+      orders: [],
+      payments: [{ date: 2000, amount: 38000, method: 'cash', egpRate: 13.9 }, { date: 1000, amount: 500 }],
+    });
+    expect(rows.map(r => [r.amount, r.currency])).toEqual([[528200, 'EGP'], [500, undefined]]);
+  });
+
   it('shows a payment the buyer reported while it waits for the merchant, but not accepted or withdrawn ones', () => {
     const rows = buildActivity({
       orders: [],

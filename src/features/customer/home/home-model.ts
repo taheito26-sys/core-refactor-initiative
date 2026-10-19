@@ -29,7 +29,11 @@ export interface ActivityRow {
   claimState?: 'pending' | 'rejected';
 }
 
-export interface PaymentLike { date: number; amount: number; method?: 'cash' | 'bank' | null }
+export interface PaymentLike {
+  date: number; amount: number; method?: 'cash' | 'bank' | null;
+  /** EGP per QAR, to read the QAR amount in Egyptian pounds; the amount stays in QAR without one. */
+  egpRate?: number | null;
+}
 
 /** An order the merchant recorded for this buyer on credit, as the buyer's statement lists it. */
 export interface LoanLike {
@@ -65,7 +69,12 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
     else rows.push({ id: o.id, kind: 'paid', ts, amount: o.amount ?? 0, sign: '-', status: 'bad', orderId: o.id });
   }
   input.payments.forEach((p, i) => {
-    if (p.amount > 0 && Number.isFinite(p.date)) rows.push({ id: `pay-${i}-${p.date}`, kind: 'paid', ts: p.date, amount: p.amount, sign: '-', status: 'bad', method: p.method ?? null });
+    if (!(p.amount > 0) || !Number.isFinite(p.date)) return;
+    const inEgp = p.egpRate != null && p.egpRate > 0;
+    rows.push({
+      id: `pay-${i}-${p.date}`, kind: 'paid', ts: p.date, amount: inEgp ? Math.round(p.amount * (p.egpRate as number)) : p.amount,
+      sign: '-', status: 'bad', method: p.method ?? null, currency: inEgp ? 'EGP' : undefined,
+    });
   });
   (input.loans ?? []).forEach((l, i) => {
     if (!(l.amount > 0) || !Number.isFinite(l.date)) return;

@@ -1,3 +1,4 @@
+import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText } from "lucide-react";
@@ -497,14 +498,8 @@ export default function CustomerWalletPage() {
   // instead of each independently invoking and polling the (comparatively
   // heavy, server-side tracker-state-walking) edge function on its own.
   const { data: loanStatements = [] } = useQuery({
-    queryKey: ["c-loan-statement-history", userId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("customer-loan-statement", { method: "GET" });
-      if (error || !data || (data as { error?: string }).error) return [];
-      return (data as { statements: PublicStatement[] }).statements;
-    },
-    enabled: !!userId,
-    refetchInterval: 20000,
+    ...statementQueryOptions<PublicStatement>('plain', userId),
+    refetchInterval: 45000,
   });
 
   // Which (merchant, customer_id, currency) loans this customer is

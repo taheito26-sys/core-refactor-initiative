@@ -2,6 +2,8 @@
 import { ZoomControls } from '@/components/shared/ZoomControls';
 import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, type LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { statementQueryOptions } from '@/features/customer/statements-api';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -28,35 +30,36 @@ const DRAWER_NAV = [
   { path: '/c/settings',      icon: Settings,   en: 'Settings',      ar: 'الإعدادات' },
 ] as const;
 
+/** Ticks every second on its own, so the clock redraws instead of the whole portal shell. */
+function LiveClock({ isRTL }: { isRTL: boolean }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const time = now.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: !isRTL });
+  const date = now.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">{`${date} ${time}`}</span>;
+}
+
 export function CustomerLayout() {
   const location  = useLocation();
   const navigate  = useNavigate();
   const isMobile  = useIsMobile();
-  const { logout, customerProfile } = useAuth();
+  const { logout, customerProfile, userId } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Start the slow statement calls as soon as the portal opens, so Home and Orders find them ready instead of
+  // starting them on arrival. Orders' variant goes a moment later so the two don't compete.
+  useEffect(() => {
+    if (!userId) return;
+    void queryClient.prefetchQuery(statementQueryOptions('plain', userId));
+    const later = setTimeout(() => { void queryClient.prefetchQuery(statementQueryOptions('sales', userId)); }, 1500);
+    return () => clearTimeout(later);
+  }, [userId, queryClient]);
   const { settings, update } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { unreadCount } = useNotifications();
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatDateTime = (date: Date, isRTL: boolean) => {
-    const time = date.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: !isRTL
-    });
-    const dateStr = date.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-    return `${dateStr} ${time}`;
-  };
 
   const isRTL = settings.language === 'ar';
   const lang  = isRTL ? 'ar' : 'en';
@@ -123,7 +126,7 @@ export function CustomerLayout() {
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
-          <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(currentDateTime, isRTL)}</span>
+          <LiveClock isRTL={isRTL} />
           <ZoomControls />
           <CustomerActivityCenter />
           {isMobile && (
