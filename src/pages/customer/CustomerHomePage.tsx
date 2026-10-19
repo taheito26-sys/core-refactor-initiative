@@ -333,6 +333,14 @@ export default function CustomerHomePage() {
   const avgTrend = useRateTrend(rateKey('avg'), egyptBuyAvg);
   const emergencyTrend = useRateTrend(rateKey('emergency'), egyptEmergencyAvg);
   const { claims: paymentClaims } = useLoanPaymentClaims('customer');
+  // A reported payment is in QAR; read it in EGP at the buyer's own average rate across the orders whose QAR and EGP legs are both known,
+  // or the live market rate until there are any.
+  const claimEgpRate = useMemo(() => {
+    const paired = historyRows.filter(r => r.paired);
+    const qar = paired.reduce((s, r) => s + r.qar, 0);
+    const egp = paired.reduce((s, r) => s + r.egp, 0);
+    return qar > 0 && egp > 0 ? egp / qar : (guideRate ?? egyptBuyAvg ?? null);
+  }, [historyRows, guideRate, egyptBuyAvg]);
   const activity = useMemo(
     () => buildActivity({
       orders,
@@ -344,9 +352,9 @@ export default function CustomerHomePage() {
           egpAmount: o.tradeId ? egpByTrade.get(o.tradeId) ?? null : null,
         }));
       }),
-      claims: paymentClaims.map(c => ({ id: c.id, ts: new Date(c.paidAt).getTime(), amount: c.amount, status: c.status })),
+      claims: paymentClaims.map(c => ({ id: c.id, ts: new Date(c.paidAt).getTime(), amount: c.amount, status: c.status, egpRate: c.currency === 'QAR' ? claimEgpRate : null })),
     }),
-    [orders, historyStatements, paymentClaims],
+    [orders, historyStatements, paymentClaims, claimEgpRate],
   );
 
   const belowHero = (showEmergencyInfo || alerts.length > 0) ? (

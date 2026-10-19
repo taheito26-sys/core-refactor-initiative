@@ -16,13 +16,14 @@ describe('buildActivity', () => {
       orders: [],
       payments: [],
       claims: [
-        { id: 'p', ts: 3000, amount: 60000, status: 'pending' },
+        { id: 'p', ts: 3000, amount: 60000, status: 'pending', egpRate: 13.9 },
         { id: 'r', ts: 2000, amount: 100, status: 'rejected' },
         { id: 'a', ts: 1500, amount: 200, status: 'accepted' },
         { id: 'w', ts: 1000, amount: 300, status: 'withdrawn' },
       ],
     });
-    expect(rows.map(r => [r.claimState, r.amount])).toEqual([['pending', 60000], ['rejected', 100]]);
+    expect(rows.map(r => [r.claimState, r.amount])).toEqual([['pending', 834000], ['rejected', 100]]);
+    expect(rows[0].currency).toBe('EGP');
     expect(rows[0]).toMatchObject({ kind: 'paid', sign: '-', status: 'proc' });
   });
 

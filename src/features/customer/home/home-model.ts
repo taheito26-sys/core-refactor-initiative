@@ -45,7 +45,11 @@ export interface LoanLike {
  * (+, blue) and a settled payment of dues (-, red).
  */
 /** A payment the buyer reported themselves; it counts once the merchant accepts it. */
-export interface ClaimLike { id: string; ts: number; amount: number; status: 'pending' | 'accepted' | 'rejected' | 'withdrawn' }
+export interface ClaimLike {
+  id: string; ts: number; amount: number; status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  /** EGP per QAR to read the reported QAR amount in Egyptian pounds; the amount stays in QAR without one. */
+  egpRate?: number | null;
+}
 
 export function buildActivity(input: { orders: WorkflowOrder[]; payments: PaymentLike[]; loans?: LoanLike[]; claims?: ClaimLike[]; limit?: number }): ActivityRow[] {
   const rows: ActivityRow[] = [];
@@ -76,7 +80,11 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
   // Accepted claims are already real payments on the statement, and withdrawn ones are gone.
   for (const c of input.claims ?? []) {
     if ((c.status !== 'pending' && c.status !== 'rejected') || !(c.amount > 0) || !Number.isFinite(c.ts)) continue;
-    rows.push({ id: `claim-${c.id}`, kind: 'paid', ts: c.ts, amount: c.amount, sign: '-', status: c.status === 'pending' ? 'proc' : 'bad', claimState: c.status });
+    const inEgp = c.egpRate != null && c.egpRate > 0;
+    rows.push({
+      id: `claim-${c.id}`, kind: 'paid', ts: c.ts, amount: inEgp ? Math.round(c.amount * (c.egpRate as number)) : c.amount, sign: '-',
+      status: c.status === 'pending' ? 'proc' : 'bad', claimState: c.status, currency: inEgp ? 'EGP' : undefined,
+    });
   }
   return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 5);
 }
