@@ -3,7 +3,7 @@
 import type { WorkflowOrder } from '@/features/orders/shared-order-workflow';
 
 export type ActivityTone = 'ok' | 'proc' | 'bad';
-export type ActivityKind = 'received' | 'new' | 'paid';
+export type ActivityKind = 'received' | 'new' | 'paid' | 'loan';
 
 export interface ActivityRow {
   id: string;
@@ -21,9 +21,14 @@ export interface ActivityRow {
   orderId?: string;
   /** How a payment was handed over, when the merchant recorded it. */
   method?: 'cash' | 'bank' | null;
+  /** Repayment state of a loaned order. */
+  loanState?: 'settled' | 'partial' | 'unpaid';
 }
 
 export interface PaymentLike { date: number; amount: number; method?: 'cash' | 'bank' | null }
+
+/** An order the merchant recorded for this buyer on credit, as the buyer's statement lists it. */
+export interface LoanLike { ref: string; date: number; amount: number; paid: number; settled: boolean; currency?: string }
 
 /**
  * The newest activity first: orders the customer received or placed, plus the
@@ -31,7 +36,7 @@ export interface PaymentLike { date: number; amount: number; method?: 'cash' | '
  * the design: a received payment (+, green), a new order still processing
  * (+, blue) and a settled payment of dues (-, red).
  */
-export function buildActivity(input: { orders: WorkflowOrder[]; payments: PaymentLike[]; limit?: number }): ActivityRow[] {
+export function buildActivity(input: { orders: WorkflowOrder[]; payments: PaymentLike[]; loans?: LoanLike[]; limit?: number }): ActivityRow[] {
   const rows: ActivityRow[] = [];
   for (const o of input.orders) {
     const ts = new Date(o.created_at).getTime();
@@ -46,6 +51,11 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
   }
   input.payments.forEach((p, i) => {
     if (p.amount > 0 && Number.isFinite(p.date)) rows.push({ id: `pay-${i}-${p.date}`, kind: 'paid', ts: p.date, amount: p.amount, sign: '-', status: 'bad', method: p.method ?? null });
+  });
+  (input.loans ?? []).forEach((l, i) => {
+    if (!(l.amount > 0) || !Number.isFinite(l.date)) return;
+    const loanState = l.settled ? 'settled' : l.paid > 0 ? 'partial' : 'unpaid';
+    rows.push({ id: `loan-${i}-${l.ref}-${l.date}`, kind: 'loan', ts: l.date, amount: l.amount, sign: '+', status: l.settled ? 'ok' : 'proc', currency: l.currency, loanState });
   });
   return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 3);
 }

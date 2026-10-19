@@ -18,6 +18,7 @@ import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdow
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
 import { fiatPerQar } from '@/features/orders/fiat-conversion';
+import { getP2PRates } from '@/lib/p2p-rates';
 import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
 import { ordersReportLabels } from '@/features/orders/orders-report-labels';
 import * as api from '@/lib/api';
@@ -1366,16 +1367,31 @@ export default function OrdersPage() {
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
   // A P2P order paid in another currency (EGP) is sold at a QAR/USDT rate, so the buyer's real conversion
   // is the exchange's fiat price per USDT divided by that QAR rate: 54 EGP/USDT at 3.83 QAR/USDT is 14.10 EGP per QAR.
+  // A manual order keeps no exchange price to divide, so for a merchant selling in EGP the preview uses the
+  // live P2P market rate instead and shows the QAR price per USDT it implies.
+  const [marketQarToEgp, setMarketQarToEgp] = useState<number | null>(null);
+  useEffect(() => {
+    if (baseFiat !== 'EGP') return;
+    let alive = true;
+    getP2PRates().then(r => { if (alive && r?.qarToEgp > 0) setMarketQarToEgp(r.qarToEgp); }).catch(() => {});
+    return () => { alive = false; };
+  }, [baseFiat]);
+
   const fiatConversion = useMemo(() => {
-    if (pendingImport?.kind !== 'order' || !pendingImport.originalFiat || pendingImport.originalFiat === baseFiat) return null;
-    const rate = fiatPerQar({
-      fiatPricePerUsdt: pendingImport.originalFiatPriceUSDT,
-      sellQarPerUsdt: saleDraft.sellPriceQar,
-      fiatTotal: pendingImport.originalFiatAmount,
-      qarRevenue: salePreview?.revenue,
-    });
-    return rate ? { fiat: pendingImport.originalFiat, rate } : null;
-  }, [pendingImport, baseFiat, saleDraft.sellPriceQar, salePreview]);
+    if (pendingImport?.kind === 'order' && pendingImport.originalFiat && pendingImport.originalFiat !== baseFiat) {
+      const rate = fiatPerQar({
+        fiatPricePerUsdt: pendingImport.originalFiatPriceUSDT,
+        sellQarPerUsdt: saleDraft.sellPriceQar,
+        fiatTotal: pendingImport.originalFiatAmount,
+        qarRevenue: salePreview?.revenue,
+      });
+      return rate ? { fiat: pendingImport.originalFiat, rate, market: false, impliedQarPerUsdt: null as number | null } : null;
+    }
+    if (baseFiat === 'EGP' && marketQarToEgp && saleDraft.sellPriceQar > 0) {
+      return { fiat: 'EGP', rate: marketQarToEgp, market: true, impliedQarPerUsdt: saleDraft.sellPriceQar / marketQarToEgp };
+    }
+    return null;
+  }, [pendingImport, baseFiat, marketQarToEgp, saleDraft.sellPriceQar, salePreview]);
 
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
@@ -5552,8 +5568,11 @@ export default function OrdersPage() {
                       <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
                       {fiatConversion && (
                         <div className="prev-row" data-testid="fiat-conversion-preview" style={{ padding: '4px 6px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand, var(--good)) 12%, transparent)' }}>
-                          <span className="muted">{t.lang === 'ar' ? `سعر التحويل ${localCur('QAR', t.lang)} ← ${localCur(fiatConversion.fiat, t.lang)}` : `QAR → ${fiatConversion.fiat} rate`}</span>
-                          <strong className="mono">{fiatConversion.rate.toFixed(2)}</strong>
+                          <span className="muted">{t.lang === 'ar' ? `سعر التحويل ${localCur('QAR', t.lang)} ← ${localCur(fiatConversion.fiat, t.lang)}` : `QAR → ${fiatConversion.fiat} rate`}{fiatConversion.market ? (t.lang === 'ar' ? ' (السوق)' : ' (market)') : ''}</span>
+                          <strong className="mono">
+                            {fiatConversion.rate.toFixed(2)}
+                            {fiatConversion.impliedQarPerUsdt != null && <span className="muted" style={{ fontWeight: 400, marginInlineStart: 6 }}>≈ {fiatConversion.impliedQarPerUsdt.toFixed(2)} {localCur('QAR', t.lang)}/USDT</span>}
+                          </strong>
                         </div>
                       )}
                       {isInsufficientStock && (

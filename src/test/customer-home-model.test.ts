@@ -11,6 +11,22 @@ const order = (over: Partial<WorkflowOrder>): WorkflowOrder => ({
 } as WorkflowOrder);
 
 describe('buildActivity', () => {
+  it('lists orders the merchant recorded on credit alongside payments, newest first', () => {
+    const rows = buildActivity({
+      orders: [],
+      payments: [{ date: 1000, amount: 500 }],
+      loans: [
+        { ref: 'A', date: 3000, amount: 8000, paid: 0, settled: false, currency: 'QAR' },
+        { ref: 'B', date: 2000, amount: 4000, paid: 1000, settled: false },
+        { ref: 'C', date: 500, amount: 100, paid: 100, settled: true },
+      ],
+      limit: 10,
+    });
+    expect(rows.map(r => r.kind)).toEqual(['loan', 'loan', 'paid', 'loan']);
+    expect(rows.filter(r => r.kind === 'loan').map(r => r.loanState)).toEqual(['unpaid', 'partial', 'settled']);
+    expect(rows[0]).toMatchObject({ sign: '+', amount: 8000 });
+  });
+
   it('maps the three kinds of rows the design shows', () => {
     const rows = buildActivity({
       orders: [
