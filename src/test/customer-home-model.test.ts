@@ -16,7 +16,7 @@ describe('buildActivity', () => {
       orders: [],
       payments: [{ date: 1000, amount: 500 }],
       loans: [
-        { ref: 'A', date: 3000, amount: 8000, paid: 0, settled: false, currency: 'QAR' },
+        { ref: 'A', date: 3000, amount: 8000, paid: 0, settled: false, currency: 'QAR', egpAmount: 112000 },
         { ref: 'B', date: 2000, amount: 4000, paid: 1000, settled: false },
         { ref: 'C', date: 500, amount: 100, paid: 100, settled: true },
       ],
@@ -24,7 +24,9 @@ describe('buildActivity', () => {
     });
     expect(rows.map(r => r.kind)).toEqual(['loan', 'loan', 'paid', 'loan']);
     expect(rows.filter(r => r.kind === 'loan').map(r => r.loanState)).toEqual(['unpaid', 'partial', 'settled']);
-    expect(rows[0]).toMatchObject({ sign: '+', amount: 8000 });
+    // an order whose exchange record is known reads in the Egyptian pound the buyer received
+    expect(rows[0]).toMatchObject({ sign: '+', amount: 112000, currency: 'EGP', loanPct: 0 });
+    expect(rows[1]).toMatchObject({ amount: 4000, currency: undefined, loanPct: 25 });
   });
 
   it('maps the three kinds of rows the design shows', () => {

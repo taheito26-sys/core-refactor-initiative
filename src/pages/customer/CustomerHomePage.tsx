@@ -335,7 +335,13 @@ export default function CustomerHomePage() {
     () => buildActivity({
       orders,
       payments: historyStatements.flatMap(s => s.payments.map(p => ({ date: p.date, amount: p.amount, method: p.method ?? null }))),
-      loans: historyStatements.flatMap(s => s.orders.map(o => ({ ref: o.ref, date: o.date, amount: o.amount, paid: o.paid, settled: o.settled, currency: s.currency }))),
+      loans: historyStatements.flatMap(s => {
+        const egpByTrade = new Map((s.binanceOrders ?? []).filter(b => b.fiat === 'EGP').map(b => [b.tradeId, b.fiatAmount]));
+        return s.orders.map(o => ({
+          ref: o.ref, date: o.date, amount: o.amount, paid: o.paid, settled: o.settled, currency: s.currency,
+          egpAmount: o.tradeId ? egpByTrade.get(o.tradeId) ?? null : null,
+        }));
+      }),
     }),
     [orders, historyStatements],
   );

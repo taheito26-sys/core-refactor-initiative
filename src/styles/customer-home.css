@@ -209,3 +209,12 @@
 .zh-mid { min-width: calc(38 * var(--q)); display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .zh-mid b { font-size: calc(12 * var(--q)); font-weight: 800; color: #fff; }
 .zh-mid small { margin-top: calc(2 * var(--q)); font-size: calc(7 * var(--q)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #b3c1e6; }
+
+/* orders on credit in the latest activity: amber while unpaid, green once settled, with a repayment hairline */
+.ch-row-ic.amber { background: #fff1d6; color: #c27a06; }
+.ch-row-ic.green { background: #e3f7ee; color: #0b9a68; }
+.ch-row-p.warn { background: #fff1d6; color: #b9770a; font-weight: 700; }
+.ch-row-a.loan { color: #0f1f5e; }
+.ch-row-bar { height: calc(3 * var(--q)); width: 70%; max-width: calc(110 * var(--q)); border-radius: calc(2 * var(--q)); background: #edf2f9; margin-top: calc(4 * var(--q)); overflow: hidden; direction: ltr; }
+.ch-row-bar i { display: block; height: 100%; border-radius: calc(2 * var(--q)); background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.ch-row-bar.settled i { background: linear-gradient(90deg, #08b182, #0bb985); }

@@ -23,12 +23,18 @@ export interface ActivityRow {
   method?: 'cash' | 'bank' | null;
   /** Repayment state of a loaned order. */
   loanState?: 'settled' | 'partial' | 'unpaid';
+  /** Share of a loaned order already repaid, 0–100. */
+  loanPct?: number;
 }
 
 export interface PaymentLike { date: number; amount: number; method?: 'cash' | 'bank' | null }
 
 /** An order the merchant recorded for this buyer on credit, as the buyer's statement lists it. */
-export interface LoanLike { ref: string; date: number; amount: number; paid: number; settled: boolean; currency?: string }
+export interface LoanLike {
+  ref: string; date: number; amount: number; paid: number; settled: boolean; currency?: string;
+  /** What the buyer received in EGP for this order, when its exchange record is on the statement. */
+  egpAmount?: number | null;
+}
 
 /**
  * The newest activity first: orders the customer received or placed, plus the
@@ -55,7 +61,12 @@ export function buildActivity(input: { orders: WorkflowOrder[]; payments: Paymen
   (input.loans ?? []).forEach((l, i) => {
     if (!(l.amount > 0) || !Number.isFinite(l.date)) return;
     const loanState = l.settled ? 'settled' : l.paid > 0 ? 'partial' : 'unpaid';
-    rows.push({ id: `loan-${i}-${l.ref}-${l.date}`, kind: 'loan', ts: l.date, amount: l.amount, sign: '+', status: l.settled ? 'ok' : 'proc', currency: l.currency, loanState });
+    const inEgp = l.egpAmount != null && l.egpAmount > 0;
+    const loanPct = l.settled ? 100 : l.amount > 0 ? Math.max(0, Math.min(100, Math.round((l.paid / l.amount) * 100))) : 0;
+    rows.push({
+      id: `loan-${i}-${l.ref}-${l.date}`, kind: 'loan', ts: l.date, amount: inEgp ? l.egpAmount as number : l.amount, sign: '+',
+      status: l.settled ? 'ok' : 'proc', currency: inEgp ? 'EGP' : l.currency, loanState, loanPct,
+    });
   });
   return rows.sort((a, b) => b.ts - a.ts).slice(0, input.limit ?? 3);
 }
