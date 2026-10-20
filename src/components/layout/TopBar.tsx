@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useMemo, useState } from 'react';
-import { Menu, Bell, Users, TrendingUp, User, Search, SlidersHorizontal } from 'lucide-react';
+import { Menu, Bell, Users, TrendingUp, User, Search, Filter } from 'lucide-react';
 import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
@@ -53,7 +53,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
   return (
     <header
-      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? 'flex-nowrap' : 'max-md:flex-wrap max-md:justify-start')}
+      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? 'flex-nowrap' : 'border-b border-border', onPhoneDashboard ? '' : 'max-md:flex-wrap max-md:justify-start')}
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -138,7 +138,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             <Search className="h-4 w-4" />
           </button>
           <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-1 rounded-full border border-border bg-card text-foreground hover:bg-muted">
-            <SlidersHorizontal className="h-4 w-4" />
+            <Filter className="h-4 w-4" />
             {dashFiltersActive && <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-primary" />}
           </button>
         </div>

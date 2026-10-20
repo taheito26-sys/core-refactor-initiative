@@ -57,23 +57,21 @@ export function CustomKpis({ trackerOptions, lang, period, onPeriod }: { tracker
   };
 
   // Until the user picks something, the four boxes of the dashboard home are shown.
-  const effectivePinned = pinned ?? dashboardDefaultPinned(sources);
+  const effectivePinned = pinned ?? dashboardDefaultPinned();
   const shown = resolvePinned(effectivePinned, options);
   const groups = Array.from(new Set(options.map(o => o.group)));
 
   return (
     <section className="dh-card dh-kpis">
       <header className="dh-kpis-head">
-        <h2><BarChart3 />{L('My KPIs', 'مؤشراتي')}</h2>
+        <h2><svg className="dh-bars" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="11" width="5.5" height="11" rx="1.6" /><rect x="9.2" y="3" width="5.5" height="19" rx="1.6" /><rect x="16.5" y="8" width="5.5" height="14" rx="1.6" /></svg>{L('My KPIs', 'مؤشراتي')}</h2>
         <DhSelect
           value={period}
           onChange={onPeriod}
           ariaLabel={L('Period', 'الفترة')}
           options={[{ value: 'today', label: L('Today', 'اليوم') }, { value: '7d', label: L('7 Days', '7 أيام') }, { value: '30d', label: L('30 Days', '30 يوماً') }]}
+          action={{ label: picking ? L('Done', 'تم') : L('Choose boxes…', 'اختيار المؤشرات…'), onClick: () => setPicking(p => !p) }}
         />
-        <button type="button" className="dh-kpis-edit" onClick={() => setPicking(p => !p)}>
-          {picking ? L('Done', 'تم') : `＋ ${L('Add / remove', 'إضافة / إزالة')}`}
-        </button>
       </header>
       {shown.length === 0 && !picking && (
         <div className="dh-kempty">{L('Pick any figure to show here.', 'اختر أي رقم ليظهر هنا.')}</div>
@@ -85,10 +83,15 @@ export function CustomKpis({ trackerOptions, lang, period, onPeriod }: { tracker
             const tone = o.tone ?? 'brand';
             return (
               <div key={o.id} className="dh-kbox" style={{ ['--tone' as string]: `var(--${tone})` }}>
-                <header><span className="dh-ic"><Icon /></span><h3>{o.label}</h3></header>
-                <div className={`dh-val ${o.strong ? 'strong' : ''}`}><b>{o.value}</b></div>
-                {o.sub && <div className="dh-sub">{o.sub}</div>}
-                {o.spark && o.spark.some(v => v !== 0) && <Sparkline className="dh-kbox-spark" values={o.spark} color={`var(--${tone})`} />}
+                <span className="dh-ic"><Icon /></span>
+                <div className="dh-kbox-t">
+                  <h3>{o.label}</h3>
+                  <div className={`dh-val ${o.strong ? 'strong' : ''}`}><b>{o.value}</b></div>
+                </div>
+                <div className="dh-kbox-b">
+                  {o.spark && o.spark.some(v => v !== 0) ? <Sparkline className="dh-kbox-spark" values={o.spark} color={`var(--${tone})`} /> : <span className="dh-kbox-spark" />}
+                  {o.sub && <div className="dh-sub">{o.sub}</div>}
+                </div>
               </div>
             );
           })}

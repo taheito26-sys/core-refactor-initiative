@@ -233,7 +233,8 @@ html .app-shell {
   bottom: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* The cash tab carries the longest label, so it gets the widest column. */
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.05fr) minmax(0, .9fr);
   gap: 2px;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid hsl(var(--border));
@@ -275,7 +276,7 @@ html .app-shell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
 }
 

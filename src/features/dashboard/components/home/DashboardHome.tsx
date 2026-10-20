@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, Crown, Layers, Target, Wallet,
   type LucideIcon,
@@ -6,7 +6,7 @@ import {
 import { useT } from '@/lib/i18n';
 import { useDashboardFilters } from '../../dashboard-filters';
 import {
-  pctChange, scopePoints, sparkline, summarizeWithPrevious, topClients,
+  deltaWindow, pctChange, scopePoints, sparkline, summarizeWithPrevious, topClients,
   type DashPoint, type RangeWindow,
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
@@ -27,6 +27,12 @@ export interface HomeTile {
   unit?: string;
   /** Colour of the value itself: a status, or the card's own tone. */
   valueTone?: Tone;
+  /** Colour of the unit next to the value; the brand colour when not given. */
+  unitTone?: Tone;
+  /** The icon sits in a circle by default, or a rounded square. */
+  square?: boolean;
+  /** Scale the trend line to its own range (prices) instead of from zero. */
+  fit?: boolean;
   sub?: ReactNode;
   spark?: number[];
   path?: string;
@@ -58,41 +64,85 @@ interface DashboardHomeProps {
 }
 
 const SEGMENT_TONES: Tone[] = ['good', 'brand', 't5', 'warn', 'bad'];
-const MEDAL_TONES: Tone[] = ['warn', 'brand2', 'bad', 'brand', 'good'];
+/** Gold, silver, bronze, then two soft reds, each mixed from the theme's own colours. */
+const MEDALS = [
+  'var(--warn)',
+  'color-mix(in srgb, var(--muted) 65%, var(--card-bg))',
+  'color-mix(in srgb, var(--warn) 55%, var(--bad))',
+  'color-mix(in srgb, var(--bad) 70%, var(--card-bg))',
+  'color-mix(in srgb, var(--bad) 55%, var(--card-bg))',
+];
+const BARS = [
+  'var(--good)',
+  'var(--brand)',
+  'var(--t5)',
+  'color-mix(in srgb, var(--t5) 55%, var(--card-bg))',
+  'color-mix(in srgb, var(--bad) 55%, var(--card-bg))',
+];
 
 function Delta({ pct, label }: { pct: number | null; label: string }) {
   if (pct == null) return <div className="dh-delta none">—</div>;
   const up = pct >= 0;
   return (
     <div className={`dh-delta ${up ? 'up' : 'down'}`}>
-      {up ? <ArrowUp /> : <ArrowDown />}
-      <b>{up ? '+' : ''}{pct.toFixed(1)}%</b>
+      <p>{up ? <ArrowUp /> : <ArrowDown />}<b>{up ? '+' : ''}{pct.toFixed(1)}%</b></p>
       <span>{label}</span>
     </div>
   );
 }
 
+/** Real flag artwork for the two currencies of the corridor; these are country flags, not theme colours. */
+function QatarFlag({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const id = useId();
+  const zig = Array.from({ length: 9 }, (_, i) => `${cx - r * 0.35 + (i % 2 ? 0 : r * 0.28)},${cy - r + (i * 2 * r) / 8}`).join(' ');
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r + 2} style={{ fill: 'var(--card-bg)', filter: 'drop-shadow(0 1px 2px color-mix(in srgb, var(--text) 25%, transparent))' }} />
+      <clipPath id={id}><circle cx={cx} cy={cy} r={r} /></clipPath>
+      <g clipPath={`url(#${id})`}>
+        <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} fill="#fff" />
+        <polygon points={`${zig} ${cx + r},${cy + r} ${cx + r},${cy - r}`} fill="#8a1538" />
+      </g>
+    </g>
+  );
+}
+
+function EgyptFlag({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const id = useId();
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r + 2.4} style={{ fill: 'var(--warn)' }} />
+      <circle cx={cx} cy={cy} r={r + 0.6} style={{ fill: 'var(--card-bg)' }} />
+      <clipPath id={id}><circle cx={cx} cy={cy} r={r} /></clipPath>
+      <g clipPath={`url(#${id})`}>
+        <rect x={cx - r} y={cy - r} width={r * 2} height={r * 0.67} fill="#ce1126" />
+        <rect x={cx - r} y={cy - r * 0.33} width={r * 2} height={r * 0.67} fill="#fff" />
+        <rect x={cx - r} y={cy + r * 0.33} width={r * 2} height={r * 0.67} fill="#000" />
+        <circle cx={cx} cy={cy} r={r * 0.2} fill="#c09300" />
+      </g>
+    </g>
+  );
+}
+
 function HeroArt() {
   return (
-    <svg className="dh-hero-art" viewBox="0 0 230 92" aria-hidden="true" preserveAspectRatio="xMaxYMax meet">
+    <svg className="dh-hero-art" viewBox="0 0 165 75" aria-hidden="true" preserveAspectRatio="xMaxYMax meet">
       <defs>
         <linearGradient id="dhBars" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--good)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--brand)', stopOpacity: 0.55 }} />
+          <stop offset="1" style={{ stopColor: 'var(--brand)' }} />
         </linearGradient>
       </defs>
-      <ellipse cx="124" cy="86" rx="100" ry="6" style={{ fill: 'var(--brand)', opacity: 0.12 }} />
-      {[18, 30, 24, 40, 52, 46, 64].map((h, i) => (
-        <rect key={i} x={84 + i * 17} y={86 - h} width="11" height={h} rx="2.5" fill="url(#dhBars)" />
+      <path d="M0 75 C14 52 30 60 48 48 C70 34 84 44 104 30 C122 18 140 26 165 6 L165 75 Z" style={{ fill: 'var(--card-bg)', opacity: 0.4 }} />
+      {[22, 30, 26, 36, 40, 50].map((h, i) => (
+        <rect key={i} x={90 + i * 12} y={74 - h} width="8.5" height={h} rx="2.2" fill="url(#dhBars)" />
       ))}
-      <path d="M72 70 C 100 62, 118 52, 142 38 S 188 14, 214 8" fill="none" strokeWidth="3.2" strokeLinecap="round" style={{ stroke: 'var(--good)' }} />
-      <path d="M200 4 L216 7.5 L207 20 Z" style={{ fill: 'var(--good)' }} />
-      <circle cx="40" cy="58" r="15" style={{ fill: 'var(--good)' }} />
-      <text x="40" y="64.5" textAnchor="middle" fontSize="17" fontWeight="800" style={{ fill: 'var(--card-bg)' }}>₮</text>
-      <circle cx="140" cy="22" r="13" style={{ fill: 'var(--brand)' }} />
-      <text x="140" y="25" textAnchor="middle" fontSize="7.5" fontWeight="800" style={{ fill: 'var(--card-bg)' }}>QAR</text>
-      <circle cx="176" cy="36" r="13" style={{ fill: 'var(--warn)' }} />
-      <text x="176" y="39" textAnchor="middle" fontSize="7.5" fontWeight="800" style={{ fill: 'var(--card-bg)' }}>EGP</text>
+      <path d="M55 74 C75 62 92 52 108 38 S130 14 142 7" fill="none" strokeWidth="2.8" strokeLinecap="round" style={{ stroke: 'var(--good)' }} />
+      <path d="M133 3.5 L148 4 L142.5 17.5 Z" style={{ fill: 'var(--good)' }} />
+      <circle cx="25" cy="58" r="13" style={{ fill: 'var(--good)', stroke: 'var(--card-bg)', strokeWidth: 2 }} />
+      <text x="25" y="64" textAnchor="middle" fontSize="16" fontWeight="800" style={{ fill: 'var(--card-bg)' }}>₮</text>
+      <QatarFlag cx={86} cy={36} r={11.5} />
+      <EgyptFlag cx={146} cy={46} r={12.5} />
     </svg>
   );
 }
@@ -105,17 +155,23 @@ export function DashboardHome({
   const { scope, setScope } = useDashboardFilters();
   const [clientMetric, setClientMetric] = useState<'profit' | 'volume'>('profit');
 
-  const { cur, prev } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
+  const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
+  const dwin = useMemo(() => deltaWindow(win, now), [win, now]);
+  const { cur: dCur, prev: dPrev } = useMemo(() => summarizeWithPrevious(points, dwin), [points, dwin]);
+  const changeByClient = useMemo(
+    () => (win.prevFrom == null ? new Map(topClients(points, dwin, clientMetric, 500).map(c => [c.name, c.change])) : null),
+    [points, win, dwin, clientMetric],
+  );
   const volSpark = useMemo(() => sparkline(points, win, p => p.vol, 6), [points, win]);
   const ownVolSpark = useMemo(() => sparkline(points, win, p => (p.own ? p.vol : 0), 6), [points, win]);
   const netSpark = useMemo(() => sparkline(points, win, p => p.net, 12), [points, win]);
   const clients = useMemo(() => topClients(points, win, clientMetric), [points, win, clientMetric]);
   const maxOrders = Math.max(1, ...clients.map(c => c.orders));
 
-  const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; value: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
-    { key: 'trading', label: t('dhTradingVolume'), Icon: BarChart3, tone: 'good', value: cur.ownVol, pct: pctChange(cur.ownVol, prev?.ownVol), spark: ownVolSpark, kind: 'bars' },
-    { key: 'total', label: t('dhTotalVolume'), Icon: Layers, tone: 't5', value: cur.vol, pct: pctChange(cur.vol, prev?.vol), spark: volSpark, kind: 'bars' },
-    { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', value: cur.net, pct: pctChange(cur.net, prev?.net), spark: netSpark, kind: 'line' },
+  const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; unit: string; value: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
+    { key: 'trading', label: t('dhTradingVolume'), Icon: BarChart3, tone: 'good', unit: 'var(--brand)', value: cur.ownVol, pct: pctChange(dCur.ownVol, dPrev?.ownVol), spark: ownVolSpark, kind: 'bars' },
+    { key: 'total', label: t('dhTotalVolume'), Icon: Layers, tone: 't5', unit: 'var(--t5)', value: cur.vol, pct: pctChange(dCur.vol, dPrev?.vol), spark: volSpark, kind: 'bars' },
+    { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', unit: 'var(--text)', value: cur.net, pct: pctChange(dCur.net, dPrev?.net), spark: netSpark, kind: 'line' },
   ];
 
   const scopeLabel = scope === 'own' ? t('dhOwnOrders') : scope === 'partner' ? t('dhPartnerOrders') : t('dhAllOrders');
@@ -150,10 +206,10 @@ export function DashboardHome({
           const p = parts(s.value);
           return (
             <section key={s.key} className="dh-card dh-stat" style={{ ['--tone' as string]: toneVar(s.tone) }}>
-              <header><span className="dh-ic"><s.Icon /></span><h3>{s.label}</h3></header>
-              <div className="dh-val"><b>{p.n}</b><small>{p.u}</small></div>
+              <header><span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3></header>
+              <div className="dh-val"><b>{p.n}</b><small style={{ color: s.unit }}>{p.u}</small></div>
               <Delta pct={s.pct} label={t('dhVsPrev')} />
-              <Sparkline className="dh-stat-spark" values={s.spark} color={toneVar(s.key === 'total' ? 't5' : s.key === 'net' ? 'good' : 'good')} kind={s.kind} />
+              <Sparkline className={`dh-stat-spark ${s.kind}`} values={s.spark} color={toneVar(s.tone)} kind={s.kind} />
             </section>
           );
         })}
@@ -173,13 +229,13 @@ export function DashboardHome({
           <section key={tile.key} className={`dh-card dh-tile${tile.path ? ' link' : ''}`} style={{ ['--tone' as string]: toneVar(tile.tone) }}
             onClick={tile.path && !isAdminView ? () => onGo(tile.path as string) : undefined}>
             <header>
-              <span className="dh-ic"><tile.Icon /></span>
+              <span className={`dh-ic solid${tile.square ? ' sq' : ''}`}><tile.Icon /></span>
               <h3>{tile.label}</h3>
               {tile.path && !isAdminView && <span className="dh-go" aria-hidden="true"><ArrowRight /></span>}
             </header>
-            <div className="dh-val" style={tile.valueTone ? { color: toneVar(tile.valueTone) } : undefined}><b>{tile.value}</b>{tile.unit && <small>{tile.unit}</small>}</div>
+            <div className="dh-val" style={tile.valueTone ? { color: toneVar(tile.valueTone) } : undefined}><b>{tile.value}</b>{tile.unit && <small style={{ color: tile.unitTone ? toneVar(tile.unitTone) : undefined }}>{tile.unit}</small>}</div>
             {tile.sub && <div className="dh-sub">{tile.sub}</div>}
-            {tile.spark && <Sparkline className="dh-tile-spark" values={tile.spark} color={toneVar(tile.tone)} />}
+            {tile.spark && <Sparkline className="dh-tile-spark" values={tile.spark} color={toneVar(tile.tone)} fit={tile.fit} />}
           </section>
         ))}
       </div>
@@ -187,7 +243,7 @@ export function DashboardHome({
       {/* Cash */}
       <section className="dh-card dh-cash" style={{ ['--tone' as string]: 'var(--warn)' }}>
         <div className="dh-cash-l">
-          <span className="dh-ic big"><Wallet /></span>
+          <span className="dh-ic big solid"><Wallet /></span>
           <div>
             <h3>{t('dhCash')}</h3>
             <div className="dh-val"><b>{cash.total}</b><small>{cash.unit}</small></div>
@@ -227,18 +283,22 @@ export function DashboardHome({
         ) : (
           <table className="dh-table">
             <thead>
-              <tr><th>#</th><th>{t('dhClient')}</th><th>{t('dhOrders')}</th><th className="r">{clientMetric === 'profit' ? t('dhNetProfitTab') : t('dhVolume')}</th><th className="r">{t('dhChange')}</th></tr>
+              <tr><th>#</th><th>{t('dhClient')}</th><th colSpan={2}>{t('dhOrders')}</th><th className="r">{clientMetric === 'profit' ? t('dhNetProfitTab') : t('dhVolume')}</th><th className="r">{t('dhChange')}</th></tr>
             </thead>
             <tbody>
-              {clients.map((c, i) => (
-                <tr key={c.name}>
-                  <td><span className="dh-medal" style={{ ['--tone' as string]: toneVar(MEDAL_TONES[i]) }}>{i + 1}</span></td>
-                  <td className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span>{c.name}</span></td>
-                  <td className="dh-ord"><b>{c.orders}</b><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }} /></i></td>
-                  <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</td>
-                  <td className={`r ${c.change == null ? '' : c.change >= 0 ? 'dh-good' : 'dh-bad'}`}>{c.change == null ? '—' : `${c.change >= 0 ? '+' : ''}${Math.round(c.change)}%`}</td>
-                </tr>
-              ))}
+              {clients.map((c, i) => {
+                const change = changeByClient ? changeByClient.get(c.name) ?? null : c.change;
+                return (
+                  <tr key={c.name}>
+                    <td><span className="dh-medal" style={{ background: MEDALS[i] }}>{i + 1}</span></td>
+                    <td className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span>{c.name}</span></td>
+                    <td className="dh-ord-n">{c.orders}</td>
+                    <td className="dh-ord-bar"><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: BARS[i] }} /></i></td>
+                    <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</td>
+                    <td className={`r ${change == null ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : `${change >= 0 ? '+' : ''}${Math.round(change)}%`}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

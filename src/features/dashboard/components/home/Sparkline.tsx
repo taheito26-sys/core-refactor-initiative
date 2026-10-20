@@ -5,16 +5,18 @@ interface SparklineProps {
   /** A CSS colour: a theme variable such as var(--good). */
   color: string;
   kind?: 'line' | 'bars';
+  /** Scale the line to its own range instead of from zero, for prices that barely move. */
+  fit?: boolean;
   className?: string;
 }
 
 /** The little trend drawn on a card: a filled line or a few rising bars, in the colour it is given. */
-export function Sparkline({ values, color, kind = 'line', className }: SparklineProps) {
+export function Sparkline({ values, color, kind = 'line', fit = false, className }: SparklineProps) {
   const id = useId();
   const w = 100;
   const h = 40;
   const max = Math.max(...values, 0);
-  const min = Math.min(...values, 0);
+  const min = fit ? Math.min(...values) : Math.min(...values, 0);
   const span = max - min || 1;
   const x = (i: number) => (values.length <= 1 ? w : (i / (values.length - 1)) * w);
   const y = (v: number) => h - 3 - ((v - min) / span) * (h - 8);
@@ -25,7 +27,7 @@ export function Sparkline({ values, color, kind = 'line', className }: Sparkline
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={className} aria-hidden="true">
         {values.map((v, i) => {
           const bh = Math.max(3, ((v - min) / span) * (h - 4) + 3);
-          return <rect key={i} x={i * bw + bw * 0.14} y={h - bh} width={bw * 0.72} height={bh} rx={bw * 0.18} style={{ fill: color, opacity: 0.35 + 0.65 * ((i + 1) / values.length) }} />;
+          return <rect key={i} x={i * bw + bw * 0.14} y={h - bh} width={bw * 0.72} height={bh} rx={bw * 0.22} style={{ fill: color, opacity: 0.3 + 0.7 * ((i + 1) / values.length) }} />;
         })}
       </svg>
     );

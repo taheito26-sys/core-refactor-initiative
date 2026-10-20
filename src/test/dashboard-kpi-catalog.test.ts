@@ -24,9 +24,7 @@ describe('dashboard KPI catalog', () => {
 });
 
 describe('dashboardDefaultPinned', () => {
-  it('starts with the four boxes of the dashboard home, using the first followed merchant for last online', () => {
-    const jose = { userNo: 'u1', nick: 'Jose', today: 1, soldToday: 0, total: 1, month: 1 };
-    expect(dashboardDefaultPinned([jose])).toEqual(['tracker:newOrders', 'merchant:u1:seen', 'tracker:conversion', 'tracker:activeClients']);
-    expect(dashboardDefaultPinned([])).toEqual(['tracker:newOrders', 'tracker:conversion', 'tracker:activeClients']);
+  it('starts with the four boxes of the dashboard home', () => {
+    expect(dashboardDefaultPinned()).toEqual(['tracker:newOrders', 'tracker:lastOnline', 'tracker:conversion', 'tracker:activeClients']);
   });
 });

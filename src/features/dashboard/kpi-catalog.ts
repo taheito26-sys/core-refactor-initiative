@@ -68,10 +68,9 @@ export function defaultPinned(sources: WatchedKpiSource[]): string[] {
 }
 
 /**
- * What the My KPIs box shows before the user has chosen anything: new orders, the first followed
- * merchant's last online, conversion and active clients. A choice the user saved replaces it.
+ * What the My KPIs box shows before the user has chosen anything: new orders, the merchant's own
+ * last activity, conversion and active clients. A choice the user saved replaces it.
  */
-export function dashboardDefaultPinned(sources: WatchedKpiSource[]): string[] {
-  const first = sources[0];
-  return ['tracker:newOrders', ...(first ? [`merchant:${first.userNo}:seen`] : []), 'tracker:conversion', 'tracker:activeClients'];
+export function dashboardDefaultPinned(): string[] {
+  return ['tracker:newOrders', 'tracker:lastOnline', 'tracker:conversion', 'tracker:activeClients'];
 }

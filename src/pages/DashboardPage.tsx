@@ -27,10 +27,13 @@ import { useBanqueMisrRate } from '@/features/dashboard/hooks/useBanqueMisrRate'
 import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import {
   activeClients, rangeWindow, scopePoints, sparkline, summarize, summarizeWithPrevious,
-  type DashPoint,
+  resample, runningAverage, runningTotal, type DashPoint,
 } from '@/features/dashboard/dashboard-model';
+import { agoLabel } from '@/features/p2p/merchant-watch/merchant-watch';
 import { listSharedOrdersForActor } from '@/features/orders/shared-order-workflow';
-import { ArrowLeftRight, BadgeDollarSign, Clock, Coins, Landmark, PieChart } from 'lucide-react';
+import { ArrowLeftRight, BadgeDollarSign, Clock, Landmark, PieChart } from 'lucide-react';
+
+const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
 import '@/styles/tracker.css';
 import '@/styles/dashboard-home.css';
 
@@ -522,6 +525,33 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     };
   }, [state.cashAccounts, state.cashLedger, state.cashQAR]);
 
+  const { data: customerOrders } = useQuery({
+    queryKey: ['dashboard-customer-orders', workspaceMerchantId],
+    queryFn: () => listSharedOrdersForActor({ merchantId: workspaceMerchantId }),
+    enabled: !!workspaceMerchantId,
+    staleTime: 30_000,
+  });
+
+  // Each tile's little trend is drawn from the history the app already keeps for that figure.
+  const tileSparks = useMemo(() => {
+    const live = state.trades.filter(tr => !tr.voided && tr.usesStock);
+    const usdt = resample(runningTotal([
+      ...state.batches.map(b => ({ ts: b.ts, amount: b.initialUSDT })),
+      ...live.map(tr => ({ ts: tr.ts, amount: -tr.amountUSDT })),
+    ]));
+    const loans = (state.customerLoans || []).filter(l => !(state.deletedLoanIds || []).includes(l.id));
+    const unpaid = resample(runningTotal(loans.flatMap(l => [
+      { ts: l.ts, amount: l.principal },
+      ...(l.repayments || []).map(r => ({ ts: r.ts, amount: -r.amount })),
+    ])));
+    const avg = resample(runningAverage(state.batches.map(b => ({ ts: b.ts, price: b.buyPriceQAR, weight: b.initialUSDT }))));
+    const rate = resample((customerOrders || [])
+      .filter(o => Number(o.fx_rate) > 0)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map(o => Number(o.fx_rate)));
+    return { usdt, unpaid, avg, rate };
+  }, [state.trades, state.batches, state.customerLoans, state.deletedLoanIds, customerOrders]);
+
   const tiles: HomeTile[] = (() => {
     const profit = fiatParts(homeCur.fullNet);
     const unpaid = !loansUnpaid.lead
@@ -532,13 +562,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     const vsP2p = averageStockPrice && p2pAvgs.avgSell ? (p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100 : null;
     const avg = averageStockPrice ? priceParts(averageStockPrice) : null;
     return [
-      { key: 'profit', label: t('dhProfit'), Icon: BadgeDollarSign, tone: 'good', value: profit.n, unit: profit.u, sub: `${t('dhFromWord')} ${homeCur.orders} ${t('dhOrdersWord')}`, spark: profitSpark, path: '/trading/orders' },
+      { key: 'profit', label: t('dhProfit'), Icon: BadgeDollarSign, tone: 'good', unitTone: 'brand', value: profit.n, unit: profit.u, sub: `${t('dhFromWord')} ${homeCur.orders} ${t('dhOrdersWord')}`, spark: profitSpark, path: '/trading/orders' },
       {
-        key: 'rate', label: t('dhQarEgp'), Icon: ArrowLeftRight, tone: 'brand', value: misrLoading ? '…' : misr ? misr.instaPayV1BanqueMisr.toFixed(4) : '—',
+        key: 'rate', label: t('dhQarEgp'), Icon: ArrowLeftRight, tone: 'brand', square: true, fit: true, spark: tileSparks.rate, value: misrLoading ? '…' : misr ? misr.instaPayV1BanqueMisr.toFixed(4) : '—',
         sub: misr ? `${t('dhBanqueTop')} ${misr.egSellBanqueMisrAvg.toFixed(3)} EGP` : t('noDataAvailable'), path: '/trading/p2p',
       },
       {
-        key: 'unpaid', label: t('dhUnpaid'), Icon: Clock, tone: 'bad', valueTone: loansUnpaid.totalRemaining > 0 ? 'bad' : 'good', value: unpaid.n, unit: unpaid.u,
+        key: 'unpaid', label: t('dhUnpaid'), Icon: Clock, tone: 'bad', unitTone: 'bad', spark: tileSparks.unpaid, valueTone: loansUnpaid.totalRemaining > 0 ? 'bad' : 'good', value: unpaid.n, unit: unpaid.u,
         sub: !loansUnpaid.hasLoans
           ? t('kpiNoLoans')
           : loansUnpaid.totalRemaining === 0
@@ -546,10 +576,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             : `${loansUnpaid.openCount} ${t('loanCustomerOpenCount')} • ${loansUnpaid.debtorCount} ${loansUnpaid.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`,
         path: '/trading/cash',
       },
-      { key: 'usdt', label: t('dhUsdtBalance'), Icon: Coins, tone: 'good', valueTone: isLow ? 'bad' : undefined, value: fmtU(stk, 0), unit: 'USDT', sub: `≈ ${money(stCost)}`, path: '/trading/stock' },
-      { key: 'exchange', label: t('dhExchangeBalance'), Icon: Landmark, tone: 'brand', value: fmtU(binanceUsdt, 0), sub: t('dhSpotFunding'), path: '/trading/stock' },
+      { key: 'usdt', label: t('dhUsdtBalance'), Icon: UsdtGlyph, tone: 'good', unitTone: 'brand', spark: tileSparks.usdt, valueTone: isLow ? 'bad' : undefined, value: fmtU(stk, 0), unit: 'USDT', sub: `≈ ${money(stCost)}`, path: '/trading/stock' },
+      { key: 'exchange', label: t('dhExchangeBalance'), Icon: Landmark, tone: 'brand', square: true, value: fmtU(binanceUsdt, 0), sub: t('dhSpotFunding'), path: '/trading/stock' },
       {
-        key: 'avg', label: t('dhAvgCost'), Icon: PieChart, tone: 'brand2', value: avg ? avg.n : t('noStock'), unit: avg?.u,
+        key: 'avg', label: t('dhAvgCost'), Icon: PieChart, tone: 'brand', unitTone: 'brand', fit: true, spark: tileSparks.avg, value: avg ? avg.n : t('noStock'), unit: avg?.u,
         sub: vsP2p !== null
           ? <span className={vsP2p >= 0 ? 'good' : 'bad'}>{vsP2p >= 0 ? '↑' : '↓'} {vsP2p >= 0 ? '+' : ''}{fmtPrice(vsP2p)}% {t('dhVsP2p')}</span>
           : t('sellAboveAvPrice'),
@@ -560,12 +590,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   // ── My KPIs ──
   const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('today');
-  const { data: customerOrders } = useQuery({
-    queryKey: ['dashboard-customer-orders', workspaceMerchantId],
-    queryFn: () => listSharedOrdersForActor({ merchantId: workspaceMerchantId }),
-    enabled: !!workspaceMerchantId,
-    staleTime: 30_000,
-  });
   const homeKpiOptions = useMemo<KpiOption[]>(() => {
     const L = (en: string, ar: string) => (t.lang === 'ar' ? ar : en);
     const g = L('Tracker', 'التراكر');
@@ -580,15 +604,30 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     });
     const approved = periodOrders.filter(o => o.workflow_status === 'approved').length;
     const clients = activeClients(allPoints, nowMinute * 60000, 30);
+    const nowMs = nowMinute * 60000;
+    const clientsSpark = Array.from({ length: 6 }, (_, k) => activeClients(allPoints.filter(p => p.ts <= nowMs - (5 - k) * 7 * 864e5), nowMs - (5 - k) * 7 * 864e5, 30).active);
+    const convSpark = Array.from({ length: 7 }, (_, k) => {
+      const from = nowMs - (7 - k) * 864e5;
+      const day = (customerOrders || []).filter(o => { const ts = new Date(o.created_at).getTime(); return ts >= from && ts < from + 864e5 && o.workflow_status !== 'cancelled'; });
+      return day.length ? day.filter(o => o.workflow_status === 'approved').length / day.length : 0;
+    });
+    const stamps = [...allPoints.map(p => p.ts), ...(customerOrders || []).map(o => new Date(o.created_at).getTime())].filter(Number.isFinite);
+    const lastSeen = stamps.length ? Math.max(...stamps) : null;
     const fresh: KpiOption[] = [
       { id: 'tracker:newOrders', group: g, label: L('New Orders', 'طلبات جديدة'), value: `+${cur.orders}`, sub: `${diff >= 0 ? '+' : ''}${diff} ${vs}`, strong: cur.orders > 0, icon: 'orders', tone: 'good', spark: sparkline(allPoints, week, () => 1, 7) },
       {
         id: 'tracker:conversion', group: g, label: L('Conversion Rate', 'معدل التحويل'),
         value: periodOrders.length ? `${Math.round((approved / periodOrders.length) * 100)}%` : '—',
         sub: periodOrders.length ? `${approved}/${periodOrders.length} ${L('orders', 'طلب')}` : L('no orders yet', 'لا توجد طلبات'),
-        icon: 'conversion', tone: 't5',
+        icon: 'conversion', tone: 't5', spark: convSpark,
       },
-      { id: 'tracker:activeClients', group: g, label: L('Active Clients', 'العملاء النشطون'), value: String(clients.active), sub: `+${clients.newThisMonth} ${L('this month', 'هذا الشهر')}`, icon: 'clients', tone: 'warn' },
+      { id: 'tracker:activeClients', group: g, label: L('Active Clients', 'العملاء النشطون'), value: String(clients.active), sub: `+${clients.newThisMonth} ${L('this month', 'هذا الشهر')}`, icon: 'clients', tone: 'warn', spark: clientsSpark },
+      {
+        id: 'tracker:lastOnline', group: g, label: L('Last Online', 'آخر ظهور'),
+        value: lastSeen == null ? '—' : agoLabel(Math.round((nowMs - lastSeen) / 1000), t.lang === 'ar' ? 'ar' : 'en'),
+        sub: lastSeen == null ? undefined : new Date(lastSeen).toLocaleString(t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Qatar' }),
+        icon: 'online', tone: 'brand',
+      },
     ];
     return [...fresh, ...trackerKpiOptions];
   }, [t.lang, kpiPeriod, allPoints, firstTs, nowMinute, customerOrders, trackerKpiOptions]);

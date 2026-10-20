@@ -7,13 +7,15 @@ interface DhSelectProps<T extends string> {
   onChange: (value: T) => void;
   ariaLabel: string;
   className?: string;
+  /** An extra item under the options that does something instead of choosing a value. */
+  action?: { label: string; onClick: () => void };
 }
 
 /**
  * A small dropdown drawn with the theme's variables. A native <select> cannot be used here: the app
  * forces every native select to fixed dark colours, which would ignore the theme the user picked.
  */
-export function DhSelect<T extends string>({ value, options, onChange, ariaLabel, className }: DhSelectProps<T>) {
+export function DhSelect<T extends string>({ value, options, onChange, ariaLabel, className, action }: DhSelectProps<T>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -47,6 +49,11 @@ export function DhSelect<T extends string>({ value, options, onChange, ariaLabel
               </button>
             </li>
           ))}
+          {action && (
+            <li className="dh-menu-action">
+              <button type="button" onClick={() => { action.onClick(); setOpen(false); }}>{action.label}</button>
+            </li>
+          )}
         </ul>
       )}
     </div>

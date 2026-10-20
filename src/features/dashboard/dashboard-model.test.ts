@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeClients, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
+  activeClients, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
   type DashPoint,
 } from './dashboard-model';
 
@@ -79,12 +79,17 @@ describe('sparkline', () => {
 });
 
 describe('trendBuckets', () => {
-  it('gives twelve months ending with the current one', () => {
+  it('gives the months of this year up to the current one', () => {
     const b = trendBuckets([pt(at(2026, 10, 3)), pt(at(2026, 10, 9)), pt(at(2026, 9, 5)), pt(at(2025, 1, 5))], 'month', NOW);
-    expect(b).toHaveLength(12);
-    expect(b[11].net).toBe(200);
-    expect(b[10].net).toBe(100);
+    expect(b).toHaveLength(10);
+    expect(new Date(b[0].start).getMonth()).toBe(0);
+    expect(b[9].net).toBe(200);
+    expect(b[8].net).toBe(100);
     expect(b.reduce((s, x) => s + x.net, 0)).toBe(300);
+  });
+
+  it('shows at least six months early in the year', () => {
+    expect(trendBuckets([], 'month', new Date(2026, 1, 10).getTime())).toHaveLength(6);
   });
 
   it('gives thirty days and twelve weeks', () => {
@@ -124,5 +129,19 @@ describe('activeClients', () => {
   it('counts distinct recent clients and the ones new this month', () => {
     const pts = [pt(at(2026, 10, 10), { client: 'A' }), pt(at(2026, 10, 12), { client: 'B' }), pt(at(2026, 8, 1), { client: 'B' }), pt(at(2026, 7, 1), { client: 'C' })];
     expect(activeClients(pts, NOW)).toEqual({ active: 2, newThisMonth: 1 });
+  });
+});
+
+describe('deltaWindow', () => {
+  it('keeps a window that has a previous period', () => {
+    const w = rangeWindow('7d', NOW, null);
+    expect(deltaWindow(w, NOW)).toBe(w);
+  });
+
+  it('compares the last 30 days with the 30 before for all time', () => {
+    const w = deltaWindow(rangeWindow('all', NOW, at(2026, 3, 6)), NOW);
+    expect(w.to).toBe(NOW);
+    expect(w.from).toBe(NOW - 30 * DAY);
+    expect(w.prevTo).toBe(w.from - 1);
   });
 });

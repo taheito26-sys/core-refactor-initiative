@@ -80,6 +80,16 @@ export function rangeWindow(range: string, now: number, firstTs: number | null, 
   }
 }
 
+/**
+ * The window a "vs previous period" figure compares: the selected one, or for all time (which has
+ * nothing before it) the last 30 days against the 30 before.
+ */
+export function deltaWindow(win: RangeWindow, now: number): RangeWindow {
+  if (win.prevFrom != null && win.prevTo != null) return win;
+  const from = now - 30 * DAY;
+  return { from, to: now, prevFrom: from - 30 * DAY, prevTo: from - 1 };
+}
+
 export const inWindow = (ts: number, from: number, to: number) => ts >= from && ts <= to;
 
 /** Percent change from `prev` to `cur`; null when there is no earlier figure to compare with. */
@@ -126,12 +136,13 @@ export type Granularity = 'month' | 'week' | 'day';
 
 export interface TrendBucket { start: number; net: number; vol: number }
 
-/** Profit and volume per month (last 12), week (last 12) or day (last 30), oldest first. */
+/** Profit and volume per month (this year so far, at least six), week (last 12) or day (last 30), oldest first. */
 export function trendBuckets(points: DashPoint[], granularity: Granularity, now: number): TrendBucket[] {
   const starts: number[] = [];
   const d = new Date(now);
   if (granularity === 'month') {
-    for (let i = 11; i >= 0; i -= 1) starts.push(new Date(d.getFullYear(), d.getMonth() - i, 1).getTime());
+    const months = Math.max(6, d.getMonth() + 1);
+    for (let i = months - 1; i >= 0; i -= 1) starts.push(new Date(d.getFullYear(), d.getMonth() - i, 1).getTime());
   } else if (granularity === 'week') {
     const today = startOfDay(now);
     for (let i = 11; i >= 0; i -= 1) starts.push(today - (i * 7 + 6) * DAY);
@@ -194,4 +205,30 @@ export function activeClients(points: DashPoint[], now: number, days = 30): { ac
   let newThisMonth = 0;
   for (const [client, ts] of first) if (active.has(client) && ts >= monthStart) newThisMonth += 1;
   return { active: active.size, newThisMonth };
+}
+
+/** A long series squeezed to `n` points (the last value of each slice), so a card can draw its trend. */
+export function resample(values: number[], n = 12): number[] {
+  if (values.length <= n) return values.slice();
+  return Array.from({ length: n }, (_, i) => values[Math.min(values.length - 1, Math.floor(((i + 1) / n) * values.length) - 1)]);
+}
+
+/** Running total of dated amounts, oldest first: a balance that rises and falls over time. */
+export function runningTotal(events: Array<{ ts: number; amount: number }>): number[] {
+  let sum = 0;
+  return [...events].sort((a, b) => a.ts - b.ts).map(e => (sum += e.amount));
+}
+
+/** Running weighted average of dated (price, weight) entries, oldest first. */
+export function runningAverage(entries: Array<{ ts: number; price: number; weight: number }>): number[] {
+  let cost = 0;
+  let qty = 0;
+  const out: number[] = [];
+  for (const e of [...entries].sort((a, b) => a.ts - b.ts)) {
+    if (!(e.weight > 0) || !(e.price > 0)) continue;
+    cost += e.price * e.weight;
+    qty += e.weight;
+    out.push(cost / qty);
+  }
+  return out;
 }

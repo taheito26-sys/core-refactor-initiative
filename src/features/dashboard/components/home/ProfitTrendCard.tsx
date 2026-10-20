@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useId, useMemo, useState } from 'react';
+import { Bar, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import { DhSelect } from './DhSelect';
 import { trendBuckets, type DashPoint, type Granularity } from '../../dashboard-model';
@@ -42,7 +42,8 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
     };
   }), [points, granularity, now, locale]);
 
-  const tick = { fontSize: 7, fill: 'var(--muted)' };
+  const tick = { fontSize: 8, fill: 'var(--muted)' };
+  const gradId = useId();
 
   return (
     <section className="dh-card dh-trend">
@@ -59,12 +60,18 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
         />
       </header>
       <div className="dh-trend-chart" dir="ltr">
+        <div className="dh-trend-frame" aria-hidden="true" />
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
-            <CartesianGrid vertical={false} strokeDasharray="2 3" stroke="var(--line)" />
-            <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={{ stroke: 'var(--line)' }} interval="preserveStartEnd" />
-            <YAxis yAxisId="net" tick={tick} tickLine={false} axisLine={false} width={26} tickFormatter={compact} />
-            <YAxis yAxisId="vol" orientation="right" tick={tick} tickLine={false} axisLine={false} width={24} tickFormatter={compact} />
+          <ComposedChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" style={{ stopColor: 'var(--good)', stopOpacity: 0.95 }} />
+                <stop offset="1" style={{ stopColor: 'var(--good)', stopOpacity: 0.45 }} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval={0} height={16} />
+            <YAxis yAxisId="net" tick={tick} tickLine={false} axisLine={false} width={30} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
+            <YAxis yAxisId="vol" orientation="right" tick={tick} tickLine={false} axisLine={false} width={28} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
             <Tooltip
               cursor={{ fill: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}
               content={({ active, payload }) => {
@@ -79,8 +86,8 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
                 );
               }}
             />
-            <Bar yAxisId="net" dataKey="net" radius={[3, 3, 0, 0]} maxBarSize={14} fill="var(--good)" fillOpacity={0.85} />
-            <Line yAxisId="vol" type="monotone" dataKey="vol" stroke="var(--brand)" strokeWidth={1.4} dot={{ r: 1.6, fill: 'var(--brand)', stroke: 'var(--card-bg)', strokeWidth: 0.8 }} activeDot={{ r: 3 }} />
+            <Bar yAxisId="net" dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={15} fill={`url(#${gradId})`} />
+            <Line yAxisId="vol" type="monotone" dataKey="vol" stroke="var(--brand)" strokeWidth={1.5} dot={{ r: 2.2, fill: 'var(--brand)', stroke: 'var(--card-bg)', strokeWidth: 0.8 }} activeDot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
