@@ -1,7 +1,7 @@
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, Menu, User, Bell, Info, FilePlus } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, Menu, User, Bell, Info, FilePlus, Users, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { giverPaymentNumbers, normalizeGiverText, resolveGiver } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import "@/styles/customer-wallet.css";
 import { fmtTotal } from "@/lib/tracker-helpers";
@@ -352,19 +353,25 @@ function dateInputValue(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang, saving }: {
+function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang, saving, givers, onAddGiver }: {
   links: StatementLinkOption[];
   /** Present when correcting an already-submitted claim instead of logging a new one. */
-  existing?: { id: string; currency: string; amount: number; note: string | null; paidAt: string };
+  existing?: { id: string; currency: string; amount: number; note: string | null; paidAt: string; giver?: string | null };
+  /** The buyer's list of people who hand over cash. */
+  givers: string[];
+  onAddGiver: (name: string) => Promise<void>;
   /** The claim was already accepted, so this edit is a request the merchant has to apply. */
   needsApproval?: boolean;
-  onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt: number }) => void;
+  onSave: (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt: number; giver?: string }) => void;
   onClose: () => void; lang: string; saving: boolean;
 }) {
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const [linkIndex, setLinkIndex] = useState(0);
   const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
-  const [note, setNote] = useState(existing?.note || "");
+  const [giver, setGiver] = useState(existing?.giver ?? "");
+  const [addingGiver, setAddingGiver] = useState(givers.length === 0);
+  const [newGiver, setNewGiver] = useState("");
+  const [savingGiver, setSavingGiver] = useState(false);
   const [dateStr, setDateStr] = useState(dateInputValue(existing ? new Date(existing.paidAt).getTime() : Date.now()));
   const [err, setErr] = useState("");
   const link = links[linkIndex];
@@ -373,6 +380,7 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
   const handle = () => {
     if (!existing && !link) { setErr(L("No linked loan found", "لا يوجد قرض مرتبط")); return; }
     if (!(amtNum > 0)) { setErr(L("Enter a valid amount", "أدخل مبلغاً صحيحاً")); return; }
+    if (!existing && !giver) { setErr(L("Choose who gave the cash", "اختر من سلّم المبلغ")); return; }
     const paidAt = new Date(`${dateStr}T00:00:00`).getTime();
     if (!Number.isFinite(paidAt)) { setErr(L("Enter a valid date", "أدخل تاريخاً صحيحاً")); return; }
     onSave({
@@ -380,9 +388,30 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
       customerId: link?.customerId ?? "",
       currency: existing?.currency ?? link!.currency,
       amount: amtNum,
-      note: note.trim() || undefined,
+      // The giver's name is the note: the merchant sees who handed over the cash, and the
+      // statement recognises the giver again once the payment is accepted. A correction that
+      // keeps the same giver leaves the existing note untouched.
+      note: giver ? (existing?.note && giver === (existing.giver ?? "") ? existing.note : giver) : (existing?.note || undefined),
+      giver: giver || undefined,
       paidAt,
     });
+  };
+
+  const addGiver = async () => {
+    const name = newGiver.trim();
+    if (!name) return;
+    setSavingGiver(true);
+    try {
+      await onAddGiver(name);
+      setGiver(givers.find(g => normalizeGiverText(g) === normalizeGiverText(name)) ?? name);
+      setNewGiver("");
+      setAddingGiver(false);
+      setErr("");
+    } catch {
+      // the failure is already toasted by the mutation
+    } finally {
+      setSavingGiver(false);
+    }
   };
 
   return (
@@ -427,9 +456,30 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
           <QuickDateField value={dateStr} onChange={setDateStr} lang={lang === "ar" ? "ar" : "en"} />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">{L("Note (optional)", "ملاحظة (اختياري)")}</label>
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder={L("e.g. bank transfer ref #1234", "مثل: تحويل بنكي رقم 1234")}
-            className="h-10 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+          <label className="text-xs font-medium text-muted-foreground">{L("Cash giver", "من سلّم المبلغ")}{existing ? ` ${L("(optional)", "(اختياري)")}` : ""}</label>
+          <ModernSelect value={giver} placeholder={L("Select who gave the cash", "اختر من سلّم المبلغ")}
+            onChange={e => {
+              if (e.target.value === "__new__") { setAddingGiver(true); return; }
+              setGiver(e.target.value);
+            }}
+            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none">
+            {existing && <option value="">{L("— None —", "— بدون —")}</option>}
+            {givers.map(g => <option key={g} value={g}>{g}</option>)}
+            <option value="__new__">＋ {L("Add new giver", "إضافة شخص جديد")}</option>
+          </ModernSelect>
+          {addingGiver && (
+            <div className="flex items-center gap-2 pt-1">
+              <input autoFocus value={newGiver} onChange={e => setNewGiver(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void addGiver(); } }}
+                placeholder={L("Name, e.g. Hassan", "الاسم، مثل: حسن")}
+                className="h-10 min-w-0 flex-1 rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+              <button type="button" onClick={() => void addGiver()} disabled={savingGiver || !newGiver.trim()}
+                className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50">
+                {savingGiver ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                {L("Add", "إضافة")}
+              </button>
+            </div>
+          )}
         </div>
         {err && <p className="text-xs text-destructive">⚠ {err}</p>}
         <div className="flex gap-2">
@@ -440,6 +490,66 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
               : existing ? L("Save", "حفظ") : L("Submit", "إرسال")}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Tags one payment with a giver, and keeps the buyer's list (add / remove).
+function GiverPickerModal({ givers, current, onPick, onAdd, onDelete, onClose, lang }: {
+  givers: string[]; current: string | null;
+  onPick: (name: string | null) => void;
+  onAdd: (name: string) => Promise<void>;
+  onDelete: (name: string) => void;
+  onClose: () => void; lang: string;
+}) {
+  const L = (en: string, ar: string) => lang === "ar" ? ar : en;
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    const n = name.trim();
+    if (!n) return;
+    setBusy(true);
+    try { await onAdd(n); onPick(n); } catch { /* toasted by the mutation */ } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md space-y-3 rounded-t-2xl bg-background p-5 pb-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="flex items-center gap-2 text-sm font-bold"><Users className="h-4 w-4" />{L("Cash giver", "من سلّم المبلغ")}</p>
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="max-h-[40vh] space-y-1.5 overflow-y-auto">
+          {givers.map(g => (
+            <div key={g} className="flex items-center gap-2">
+              <button onClick={() => onPick(g)}
+                className={cn("flex h-11 min-w-0 flex-1 items-center justify-between rounded-xl border px-3 text-sm font-semibold",
+                  current && normalizeGiverText(current) === normalizeGiverText(g) ? "border-primary bg-primary/10 text-primary" : "border-border/50 bg-card")}>
+                <span className="truncate">{g}</span>
+                {current && normalizeGiverText(current) === normalizeGiverText(g) && <Check className="h-4 w-4 shrink-0" />}
+              </button>
+              <button onClick={() => { if (window.confirm(L(`Remove ${g} from your list?`, `حذف ${g} من القائمة؟`))) onDelete(g); }}
+                aria-label={L("Remove", "حذف")} className="rounded-full p-2 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          {givers.length === 0 && <p className="py-2 text-center text-xs text-muted-foreground">{L("No givers yet — add the first one below.", "لا يوجد أشخاص بعد — أضف الأول أدناه.")}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void add(); } }}
+            placeholder={L("New giver's name", "اسم شخص جديد")}
+            className="h-10 min-w-0 flex-1 rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+          <button onClick={() => void add()} disabled={busy || !name.trim()}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}{L("Add", "إضافة")}
+          </button>
+        </div>
+        {current && (
+          <button onClick={() => onPick(null)} className="h-10 w-full rounded-xl border border-border/50 text-xs font-semibold text-muted-foreground hover:bg-muted">
+            {L("Clear giver for this payment", "إزالة الشخص من هذه الدفعة")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -696,6 +806,74 @@ export default function CustomerWalletPage() {
     onError: (e: any) => toast.error(e?.message),
   });
 
+  /* The two giver tables are newer than the generated Supabase types, so they are addressed untyped. */
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  // The buyer's cash givers and the payments tagged with one. The tables are the
+  // buyer's own annotations (see the migration), so a failed read just means no givers.
+  const { data: giverRows = [] } = useQuery({
+    queryKey: ["customer-cash-givers", userId],
+    queryFn: async () => {
+      if (!userId) return [] as { name: string }[];
+      const { data, error } = await supabase.from("customer_cash_givers" as any).select("name").eq("user_id", userId).order("created_at", { ascending: true });
+      if (error) { console.warn("[CustomerWalletPage] cash givers query error:", error.message); return [] as { name: string }[]; }
+      return (data ?? []) as unknown as { name: string }[];
+    },
+    enabled: !!userId,
+  });
+  const giverNames = useMemo(() => giverRows.map(g => g.name), [giverRows]);
+  const { data: giverAssignments = [] } = useQuery({
+    queryKey: ["customer-payment-givers", userId],
+    queryFn: async () => {
+      if (!userId) return [] as { payment_key: string; giver_name: string }[];
+      const { data, error } = await supabase.from("customer_payment_givers" as any).select("payment_key, giver_name").eq("user_id", userId);
+      if (error) { console.warn("[CustomerWalletPage] payment givers query error:", error.message); return [] as { payment_key: string; giver_name: string }[]; }
+      return (data ?? []) as unknown as { payment_key: string; giver_name: string }[];
+    },
+    enabled: !!userId,
+  });
+  const assignedGiverByKey = useMemo(() => new Map(giverAssignments.map(a => [a.payment_key, a.giver_name])), [giverAssignments]);
+
+  const addGiver = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase.from("customer_cash_givers" as any).insert({ user_id: userId, name });
+      // 23505: the name is already on the list, which is what the buyer wanted anyway.
+      if (error && (error as { code?: string }).code !== "23505") throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customer-cash-givers", userId] }); },
+    onError: (e: any) => toast.error(e?.message),
+  });
+  const deleteGiver = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase.from("customer_cash_givers" as any).delete().eq("user_id", userId).eq("name", name);
+      if (error) throw error;
+      await supabase.from("customer_payment_givers" as any).delete().eq("user_id", userId).eq("giver_name", name);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["customer-cash-givers", userId] });
+      qc.invalidateQueries({ queryKey: ["customer-payment-givers", userId] });
+    },
+    onError: (e: any) => toast.error(e?.message),
+  });
+  const assignGiver = useMutation({
+    mutationFn: async ({ key, giver }: { key: string; giver: string | null }) => {
+      if (giver) {
+        const { error } = await supabase.from("customer_payment_givers" as any).upsert(
+          { user_id: userId, payment_key: key, giver_name: giver },
+          { onConflict: "user_id,payment_key" },
+        );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("customer_payment_givers" as any).delete().eq("user_id", userId).eq("payment_key", key);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customer-payment-givers", userId] }); },
+    onError: (e: any) => toast.error(e?.message),
+  });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const [giverPicker, setGiverPicker] = useState<{ key: string; current: string | null } | null>(null);
+  const claimPaymentKey = (c: { currency: string; paidAt: string; amount: number }) => `${c.currency}:${new Date(c.paidAt).getTime()}:${c.amount}`;
+
   // Month filter. Payments are historical (they predate the portal for most
   // buyers), so defaulting to the calendar's current month — which the
   // Orders page does deliberately — would silently show an empty list for
@@ -794,11 +972,9 @@ export default function CustomerWalletPage() {
   const activePaymentFilterCount = paymentFilterOn && hasPaymentFilterCriteria ? 1 : 0;
 
   const displayedLoanPayments = useMemo(() => {
-    const q = paymentSearch.trim().toLowerCase();
     const minAmount = paymentFilterMinAmount.trim() ? parseFloat(paymentFilterMinAmount) : null;
     const maxAmount = paymentFilterMaxAmount.trim() ? parseFloat(paymentFilterMaxAmount) : null;
     const filtered = groupedLoanPayments.filter(p => {
-      if (q && !(p.note ?? "").toLowerCase().includes(q)) return false;
       if (paymentFilterOn) {
         if (paymentFilterDay && localDayKey(p.date) !== paymentFilterDay) return false;
         if (minAmount != null && Number.isFinite(minAmount) && p.amount < minAmount) return false;
@@ -816,7 +992,7 @@ export default function CustomerWalletPage() {
       }
     });
     return sorted;
-  }, [groupedLoanPayments, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+  }, [groupedLoanPayments, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
   const displayedLoanPaymentsTotal = useMemo(
     () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
     [displayedLoanPayments],
@@ -850,7 +1026,32 @@ export default function CustomerWalletPage() {
     addedByCustomer: boolean;
     payment: (typeof groupedLoanPayments)[number] | null;
     claim: (typeof myPaymentClaims)[number] | null;
+    /** Who handed over the cash, and which of their payments this is (1 = their first). */
+    giver: string | null;
+    giverNo: number | null;
+    /** Key the giver assignment is stored under. */
+    assignKey: string;
   };
+
+  // Giver per payment, and each giver's running payment number across everything the buyer
+  // has paid (not just the month on screen). A reported payment still waiting on the merchant
+  // counts, so a payment just logged is already number 1; a rejected one gets no number.
+  const giverInfo = useMemo(() => {
+    const giverByRow = new Map<string, string | null>();
+    const entries: { key: string; date: number; giver: string | null }[] = [];
+    for (const p of loanPayments) {
+      const giver = resolveGiver(assignedGiverByKey.get(p.key), [p.note, paymentNoteByKey.get(p.key)], giverNames);
+      giverByRow.set(p.key, giver);
+      entries.push({ key: p.key, date: p.date, giver });
+    }
+    for (const c of unsettledPaymentClaims) {
+      const key = `claim:${c.id}`;
+      const giver = resolveGiver(assignedGiverByKey.get(claimPaymentKey(c)), [c.note], giverNames);
+      giverByRow.set(key, giver);
+      if (c.status === "pending") entries.push({ key, date: new Date(c.paidAt).getTime(), giver });
+    }
+    return { giverByRow, numbers: giverPaymentNumbers(entries) };
+  }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames]);
 
   const paymentRows = useMemo<PaymentRow[]>(() => {
     const q = paymentSearch.trim().toLowerCase();
@@ -859,10 +1060,10 @@ export default function CustomerWalletPage() {
     const rows: PaymentRow[] = displayedLoanPayments.map(p => ({
       kind: "payment", key: p.key, status: "completed", date: p.date, amount: p.amount, currency: p.currency,
       note: p.note, addedByCustomer: p.addedByCustomer, payment: p, claim: null,
+      giver: giverInfo.giverByRow.get(p.key) ?? null, giverNo: giverInfo.numbers.get(p.key) ?? null, assignKey: p.key,
     }));
     for (const c of unsettledPaymentClaims) {
       if (paymentsMonth && localMonthKey(c.paidAt) !== paymentsMonth) continue;
-      if (q && !(c.note ?? "").toLowerCase().includes(q)) continue;
       if (paymentFilterOn) {
         if (paymentFilterDay && localDayKey(c.paidAt) !== paymentFilterDay) continue;
         if (minAmount != null && Number.isFinite(minAmount) && c.amount < minAmount) continue;
@@ -871,9 +1072,13 @@ export default function CustomerWalletPage() {
       rows.push({
         kind: "claim", key: `claim:${c.id}`, status: c.status === "pending" ? "pending" : "rejected",
         date: new Date(c.paidAt).getTime(), amount: c.amount, currency: c.currency, note: c.note, addedByCustomer: true, payment: null, claim: c,
+        giver: giverInfo.giverByRow.get(`claim:${c.id}`) ?? null, giverNo: giverInfo.numbers.get(`claim:${c.id}`) ?? null, assignKey: claimPaymentKey(c),
       });
     }
-    rows.sort((a, b) => {
+    const matching = q
+      ? rows.filter(r => [r.note, r.giver, r.payment ? paymentNoteByKey.get(r.payment.key) : null].some(t => t && t.toLowerCase().includes(q)))
+      : rows;
+    matching.sort((a, b) => {
       switch (paymentSort) {
         case "date_asc": return a.date - b.date;
         case "amount_desc": return b.amount - a.amount;
@@ -881,8 +1086,8 @@ export default function CustomerWalletPage() {
         default: return b.date - a.date;
       }
     });
-    return rows;
-  }, [displayedLoanPayments, unsettledPaymentClaims, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+    return matching;
+  }, [displayedLoanPayments, unsettledPaymentClaims, giverInfo, paymentNoteByKey, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
 
   const statusCounts = useMemo(() => {
     const counts = { all: paymentRows.length, completed: 0, pending: 0, rejected: 0 };
@@ -1552,7 +1757,7 @@ export default function CustomerWalletPage() {
                               </span>
                               <div className="cw-amt">
                                 <div className="cw-amt-v" style={{ color: accent }}><bdi dir="ltr">{r.currency} {fmtTotal(r.amount)}</bdi></div>
-                                {r.note && <div className="cw-amt-s">{r.note}</div>}
+                                {(r.giver || r.note) && <div className="cw-amt-s">{r.giver ? `${r.giver} ${L("payment", "دفعة")}${r.giverNo ? ` ${r.giverNo}` : ""}` : r.note}</div>}
                               </div>
                               <span className={cn("cw-src", !r.addedByCustomer && "merchant")}>
                                 <Info fill="currentColor" stroke="#fff" strokeWidth={2.5} />
@@ -1645,6 +1850,11 @@ export default function CustomerWalletPage() {
                                 <div><span>{L("Currency", "العملة")}</span><b>{r.currency}</b></div>
                                 <div><span>{L("Source", "المصدر")}</span><b>{sourceLabel}</b></div>
                                 <div><span>{L("Status", "الحالة")}</span><b>{st.label(L)}</b></div>
+                                {r.giver && <div><span>{L("Cash giver", "من سلّم المبلغ")}</span><b>{r.giver}</b></div>}
+                                {r.giverNo && <div><span>{L("Payment no.", "رقم الدفعة")}</span><b>{r.giverNo}</b></div>}
+                                {r.note && r.giver && normalizeGiverText(r.note) !== normalizeGiverText(r.giver) && (
+                                  <div style={{ gridColumn: "1 / -1" }}><span>{L("Note", "ملاحظة")}</span><b>{r.note}</b></div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1659,6 +1869,9 @@ export default function CustomerWalletPage() {
                                 <div className="cw-scrim" onClick={() => setMenuRowKey(null)} />
                                 <div className="cw-pop">
                                   <button type="button" onClick={toggleDetails}><ListIcon /> {L("View details", "عرض التفاصيل")}</button>
+                                  <button type="button" onClick={() => { setMenuRowKey(null); setGiverPicker({ key: r.assignKey, current: r.giver }); }}>
+                                    <Users /> {L("Cash giver", "من سلّم المبلغ")}
+                                  </button>
                                   {p && (
                                     <button type="button" onClick={() => { setMenuRowKey(null); setEditingNoteKey(p.key); setNoteDraft(myNote); }}>
                                       <MessageSquare /> {myNote ? L("Edit note", "تعديل الملاحظة") : L("Add note", "إضافة ملاحظة")}
@@ -1800,6 +2013,7 @@ export default function CustomerWalletPage() {
       )}
       {showLogPayment && (
         <LogPaymentModal lang={lang} links={statementLinks} saving={submitClaim.isPending}
+          givers={giverNames} onAddGiver={name => addGiver.mutateAsync(name)}
           onClose={() => setShowLogPayment(false)}
           onSave={input => {
             submitClaim.mutate(input, { onSuccess: () => setShowLogPayment(false) });
@@ -1808,13 +2022,20 @@ export default function CustomerWalletPage() {
       {editingClaim && (
         <LogPaymentModal lang={lang} links={statementLinks}
           saving={editingClaim.status === "accepted" ? requestChange.isPending : updateClaim.isPending}
-          existing={{ id: editingClaim.id, currency: editingClaim.currency, amount: editingClaim.amount, note: editingClaim.note, paidAt: editingClaim.paidAt }}
+          givers={giverNames} onAddGiver={name => addGiver.mutateAsync(name)}
+          existing={{
+            id: editingClaim.id, currency: editingClaim.currency, amount: editingClaim.amount, note: editingClaim.note, paidAt: editingClaim.paidAt,
+            giver: resolveGiver(assignedGiverByKey.get(claimPaymentKey(editingClaim)), [editingClaim.note], giverNames),
+          }}
           needsApproval={editingClaim.status === "accepted"}
           onClose={() => setEditingClaimId(null)}
           onSave={input => {
             // A claim the merchant already accepted has become a repayment
             // in their tracker -- correcting it is a request they apply,
             // not a write this side can make.
+            // The note carries the new giver; an explicit tag on the old payment would outrank it.
+            const oldGiver = resolveGiver(assignedGiverByKey.get(claimPaymentKey(editingClaim)), [editingClaim.note], giverNames);
+            if (input.giver && input.giver !== oldGiver) assignGiver.mutate({ key: claimPaymentKey(editingClaim), giver: editingClaim.status === "accepted" ? input.giver : null });
             if (editingClaim.status === "accepted") {
               requestChange.mutate(
                 { id: editingClaim.id, kind: "edit", amount: input.amount, note: input.note, paidAt: input.paidAt },
@@ -1825,21 +2046,32 @@ export default function CustomerWalletPage() {
             updateClaim.mutate({ id: editingClaim.id, amount: input.amount, note: input.note, paidAt: input.paidAt }, { onSuccess: () => setEditingClaimId(null) });
           }} />
       )}
+      {giverPicker && (
+        <GiverPickerModal lang={lang} givers={giverNames} current={giverPicker.current}
+          onClose={() => setGiverPicker(null)}
+          onAdd={name => addGiver.mutateAsync(name)}
+          onDelete={name => deleteGiver.mutate(name)}
+          onPick={name => { assignGiver.mutate({ key: giverPicker.key, giver: name }); setGiverPicker(null); }} />
+      )}
       {editingMerchantPayment && (
         <LogPaymentModal
           lang={lang}
           links={statementLinks}
           saving={requestMerchantPaymentChange.isPending}
+          givers={giverNames} onAddGiver={name => addGiver.mutateAsync(name)}
           existing={{
             id: editingMerchantPayment.bucket, currency: editingMerchantPayment.currency,
             amount: editingMerchantPayment.amount, note: editingMerchantPayment.note,
             paidAt: new Date(editingMerchantPayment.date).toISOString(),
+            giver: resolveGiver(assignedGiverByKey.get(editingMerchantPayment.bucket), [editingMerchantPayment.note, paymentNoteByKey.get(editingMerchantPayment.bucket)], giverNames),
           }}
           needsApproval
           onClose={() => setEditingMerchantPayment(null)}
           onSave={input => {
             const link = statementLinks.find(l => l.currency === editingMerchantPayment.currency);
             if (!link) return;
+            const oldGiver = resolveGiver(assignedGiverByKey.get(editingMerchantPayment.bucket), [editingMerchantPayment.note, paymentNoteByKey.get(editingMerchantPayment.bucket)], giverNames);
+            if (input.giver && input.giver !== oldGiver) assignGiver.mutate({ key: editingMerchantPayment.bucket, giver: input.giver });
             requestMerchantPaymentChange.mutate(
               {
                 merchantUserId: link.merchantUserId, customerId: link.customerId, currency: editingMerchantPayment.currency,
