@@ -151,10 +151,10 @@ button.co-tool, button.co-chip, button.co-new { cursor: pointer; font-family: in
 .co-grow-arrow.down { color: #ff7a93; }
 .co-mainwrap { padding: calc(6 * var(--q)) var(--pad) 0; position: relative; }
 .co-main { padding: calc(10 * var(--q)) calc(10 * var(--q)) calc(12 * var(--q)); display: block; border-radius: calc(16 * var(--q)); }
-.co-mtop { display: flex; align-items: flex-start; justify-content: space-between; gap: calc(10 * var(--q)); }
+.co-mtop { display: flex; align-items: center; justify-content: space-between; gap: calc(10 * var(--q)); }
 .co-mcol { min-width: 0; flex: 1; }
 .co-mlabel { font-size: calc(11 * var(--q)); font-weight: 700; line-height: calc(15 * var(--q)); color: var(--th-ink, #0f1f5e); }
-.co-main .co-months { padding: calc(8 * var(--q)) 0 0; gap: calc(6 * var(--q)); }
+.co-main .co-months { padding: calc(8 * var(--q)) calc(2 * var(--q)) calc(4 * var(--q)); gap: calc(6 * var(--q)); }
 .co-main .co-chip { height: calc(26 * var(--q)); padding: 0 calc(12 * var(--q)); border-radius: calc(9 * var(--q)); font-size: calc(10.5 * var(--q)); font-weight: 600; background: #f3f6fb; box-shadow: inset 0 0 0 1px #dfe7f3; }
 .co-main .co-chip.on { box-shadow: 0 calc(3 * var(--q)) calc(7 * var(--q)) rgba(47,115,244,.3); background: var(--th-a, #2f73f4); }
 .co-main .co-new { flex: none; height: calc(34 * var(--q)); padding: 0 calc(14 * var(--q)); gap: calc(7 * var(--q)); border-radius: calc(11 * var(--q)); font-size: calc(12 * var(--q)); background: var(--th-a, #2f73f4); box-shadow: 0 calc(4 * var(--q)) calc(10 * var(--q)) rgba(47,115,244,.35); }

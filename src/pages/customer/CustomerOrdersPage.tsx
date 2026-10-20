@@ -1170,29 +1170,27 @@ export default function CustomerOrdersPage() {
 
           <div className="co-mainwrap">
             <div className="ch-card co-main">
+              {/* The button shares the label's row, not the chips' row, so the month chips get the
+                  card's full width and none of them ends up tucked beside or under the button. */}
               <div className="co-mtop">
-                <div className="co-mcol">
-                  {availableMonths.length > 0 && (
-                    <>
-                      <div className="co-mlabel">{L('Month', 'الشهر')}</div>
-                      <div className="co-months">
-                        <button type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }} className={`co-chip ${selectedMonth === null ? 'on' : ''}`}>
-                          {L('All Months', 'كل الأشهر')}
-                        </button>
-                        {availableMonths.map(m => (
-                          <button key={m} type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }} className={`co-chip ${selectedMonth === m ? 'on' : ''}`}>
-                            {monthShort(m)}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
+                {availableMonths.length > 0 ? <div className="co-mlabel">{L('Month', 'الشهر')}</div> : <span />}
                 <button type="button" className="co-new" onClick={() => setShowNewOrder(true)} disabled={connections.length === 0}>
                   <CalendarPlus strokeWidth={1.9} />
                   {L('New Order', 'طلب جديد')}
                 </button>
               </div>
+              {availableMonths.length > 0 && (
+                <div className="co-months">
+                  <button type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(null); }} className={`co-chip ${selectedMonth === null ? 'on' : ''}`}>
+                    {L('All Months', 'كل الأشهر')}
+                  </button>
+                  {availableMonths.map(m => (
+                    <button key={m} type="button" onClick={() => { userPickedMonth.current = true; setSelectedMonth(m); }} className={`co-chip ${selectedMonth === m ? 'on' : ''}`}>
+                      {monthShort(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {availableMonths.length > 0 && (
                 <div className="co-tools">
