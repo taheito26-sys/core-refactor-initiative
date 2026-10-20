@@ -7,12 +7,10 @@ function HomeSolid() {
 }
 
 /** The phone pages' bottom bar: Home, Orders, Cash, Notifications, Chat, More, matching PRIMARY_NAV in CustomerLayout. */
-export function CustomerHomeNav({ lang, chatUnread, notificationsUnread = 0, onNavigate, onMore, activeKey = 'home', className }: {
+export function CustomerHomeNav({ lang, chatUnread, notificationsUnread = 0, onNavigate, onMore, activeKey = 'home' }: {
   lang: 'en' | 'ar'; chatUnread: number; notificationsUnread?: number; onNavigate: (path: string) => void; onMore: () => void;
   /** Which of home / orders / notifications / chat is the current page. */
   activeKey?: 'home' | 'orders' | 'cash' | 'notifications' | 'chat';
-  /** Extra class on the bar, for a page that restyles it. */
-  className?: string;
 }) {
   const t = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const items = [
@@ -24,7 +22,7 @@ export function CustomerHomeNav({ lang, chatUnread, notificationsUnread = 0, onN
     { key: 'more', label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
   ];
   return (
-    <nav className={className ? `ch-nav ${className}` : 'ch-nav'} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <nav className="ch-nav" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div className="ch-nav-in">
         {items.map(i => (
           <button key={i.key} type="button" className={`ch-nav-item ${i.on ? 'on' : ''}`} onClick={i.go}>

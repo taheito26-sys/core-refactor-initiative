@@ -1,17 +1,21 @@
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, Menu, User, Bell, Info, FilePlus, Users, UserPlus } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, User, Bell, Info, FilePlus, Users, UserPlus, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { giverPaymentNumbers, normalizeGiverText, resolveGiver } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
+import { ZoomControls } from "@/components/shared/ZoomControls";
+import "@/styles/customer-home.css";
+import "@/styles/customer-orders.css";
+import "@/styles/customer-theme.css";
 import "@/styles/customer-wallet.css";
 import { fmtTotal } from "@/lib/tracker-helpers";
 import { QuickDateField } from "@/components/shared/QuickDateField";
@@ -577,78 +581,12 @@ function MoneyBagIcon() {
   );
 }
 
-// Banner illustration, drawn in the design's own coordinates: a platform,
-// two parcels, a tilted checklist clipboard, a rising arrow and a check badge.
-function PaymentsBannerArt({ className }: { className?: string }) {
-  const cube = (x: number, y: number, w: number, h: number) => {
-    const mx = x + w / 2, top = y, mid = y + w * 0.22, low = y + w * 0.44;
-    return (
-      <g>
-        <polygon points={`${x},${mid} ${mx},${top} ${x + w},${mid} ${mx},${low}`} fill="#ffd98a" />
-        <polygon points={`${x},${mid} ${mx},${low} ${mx},${low + h} ${x},${mid + h}`} fill="#f59e0b" />
-        <polygon points={`${x + w},${mid} ${mx},${low} ${mx},${low + h} ${x + w},${mid + h}`} fill="#fbbf24" />
-        <polygon points={`${x + w * 0.3},${mid - w * 0.12} ${x + w * 0.42},${mid - w * 0.17} ${x + w * 0.74},${mid + w * 0.0} ${x + w * 0.62},${mid + w * 0.05}`} fill="#fff4d6" opacity="0.85" />
-      </g>
-    );
-  };
-  return (
-    <svg viewBox="0 0 360 210" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="cwFrame" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7d8cff" />
-          <stop offset="1" stopColor="#4f46e5" />
-        </linearGradient>
-        <linearGradient id="cwBoard" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="1" stopColor="#e6eaff" />
-        </linearGradient>
-        <linearGradient id="cwArrow" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#0fb57e" />
-          <stop offset="1" stopColor="#5ee8b5" />
-        </linearGradient>
-        <linearGradient id="cwBadge" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#34d399" />
-          <stop offset="1" stopColor="#059669" />
-        </linearGradient>
-        <radialGradient id="cwPlatform" cx="0.5" cy="0.4" r="0.6">
-          <stop offset="0" stopColor="#8fc2ff" />
-          <stop offset="1" stopColor="#3f73f2" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="170" cy="176" rx="168" ry="34" fill="url(#cwPlatform)" opacity="0.8" />
-      <ellipse cx="170" cy="170" rx="122" ry="20" fill="#9fd0ff" opacity="0.55" />
-      <path d="M236 122 L280 88 L294 100 L326 70" fill="none" stroke="url(#cwArrow)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-      <polygon points="312,54 348,44 340,80" fill="#22c58b" />
-      {cube(18, 98, 82, 36)}
-      <g transform="rotate(12 195 95)">
-        <rect x="108" y="16" width="172" height="160" rx="18" fill="url(#cwFrame)" />
-        <rect x="119" y="30" width="150" height="136" rx="12" fill="url(#cwBoard)" />
-        <rect x="166" y="4" width="56" height="28" rx="10" fill="#3730a3" />
-        <circle cx="194" cy="14" r="5" fill="#c7d2fe" />
-        {[52, 90, 128].map(y => (
-          <g key={y}>
-            <rect x="133" y={y} width="24" height="24" rx="6" fill="#3b6cf6" />
-            <path d={`M139 ${y + 12} l4.5 4.5 l8 -9`} fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="168" y={y + 4} width="78" height="8" rx="4" fill="#8e98f6" />
-            <rect x="168" y={y + 15} width="52" height="6" rx="3" fill="#c9cffc" />
-          </g>
-        ))}
-      </g>
-      {cube(276, 118, 76, 30)}
-      <circle cx="104" cy="176" r="26" fill="url(#cwBadge)" stroke="#c9f5e2" strokeWidth="5" />
-      <path d="M92 176 l8.5 8.5 l15 -16" fill="none" stroke="#fff" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function CustomerWalletPage() {
   const { userId, customerProfile } = useAuth();
   const { settings, update } = useTheme();
   const isPhone = useIsMobile();
   const navigate = useNavigate();
-  const shell = useOutletContext<{ openMenu?: () => void } | null>();
   const { unreadCount } = useNotifications();
-  const paymentSearchRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const lang = settings.language;
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
@@ -933,9 +871,14 @@ export default function CustomerWalletPage() {
   // restarting at #1 each calendar month — same convention as the Orders
   // page's sequence numbers. Built from the full, unfiltered loanPayments
   // (not the month-filtered groupedLoanPayments) so a payment's number
-  // never depends on which month filter is active.
+  // never depends on which month filter is active. A payment still waiting
+  // on the merchant is numbered in the same date order, so the list never
+  // shows a gap and the number stays the same once the merchant accepts it.
   const paymentSequence = useMemo(() => {
-    const sorted = [...loanPayments].sort((a, b) => a.date - b.date);
+    const sorted = [
+      ...loanPayments.map(p => ({ key: p.key, date: p.date })),
+      ...unsettledPaymentClaims.filter(c => c.status === "pending").map(c => ({ key: `claim:${c.id}`, date: new Date(c.paidAt).getTime() })),
+    ].sort((a, b) => a.date - b.date || a.key.localeCompare(b.key));
     const map = new Map<string, number>();
     const countByMonth = new Map<string, number>();
     for (const p of sorted) {
@@ -945,14 +888,14 @@ export default function CustomerWalletPage() {
       map.set(p.key, next);
     }
     return map;
-  }, [loanPayments]);
+  }, [loanPayments, unsettledPaymentClaims]);
 
   // Search + sort controls for the Payments Received list — lets the buyer
   // find a specific payment by its note instead of scrolling the whole
   // month, and re-order it (newest/oldest/largest/smallest) rather than
   // being stuck with insertion order.
   const [paymentSearch, setPaymentSearch] = useState("");
-  const [paymentSort, setPaymentSort] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
+  const [paymentSort, setPaymentSort] = useState<"date_desc" | "date_asc">("date_desc");
 
   // Day + amount-range filter — separate from the month pills above (those
   // narrow to a whole month; this narrows further, to one specific day
@@ -985,10 +928,8 @@ export default function CustomerWalletPage() {
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       switch (paymentSort) {
-        case "date_asc": return a.date - b.date;
-        case "amount_desc": return b.amount - a.amount;
-        case "amount_asc": return a.amount - b.amount;
-        default: return b.date - a.date;
+        case "date_asc": return a.date - b.date || a.key.localeCompare(b.key);
+        default: return b.date - a.date || b.key.localeCompare(a.key);
       }
     });
     return sorted;
@@ -1080,10 +1021,8 @@ export default function CustomerWalletPage() {
       : rows;
     matching.sort((a, b) => {
       switch (paymentSort) {
-        case "date_asc": return a.date - b.date;
-        case "amount_desc": return b.amount - a.amount;
-        case "amount_asc": return a.amount - b.amount;
-        default: return b.date - a.date;
+        case "date_asc": return a.date - b.date || a.key.localeCompare(b.key);
+        default: return b.date - a.date || b.key.localeCompare(a.key);
       }
     });
     return matching;
@@ -1320,42 +1259,67 @@ export default function CustomerWalletPage() {
   // before `userId` resolves from auth — so without `!userId` this briefly
   // renders "No accounts yet" on every load, before flashing to the real list.
   const isLoading = accLoading || ledgerLoading || !userId;
+  // Same rule as the Orders page's growth card: down only when last month had more.
+  const trendDown = !!monthOverMonth?.previous && monthOverMonth.current.total < monthOverMonth.previous.total;
 
   return (
-    <div className="cw-root" dir={lang === "ar" ? "rtl" : "ltr"}>
+    <div className="ch-root co-root cw-root" dir={lang === "ar" ? "rtl" : "ltr"}>
       {/* The Accounts tab is hidden; with Payments the only tab left there is nothing to switch between. */}
       {isPhone && (
-        <div className="cw-head">
-          <div className="cw-who">
-            <button type="button" className="cw-hbtn menu" onClick={() => shell?.openMenu?.()} aria-label={L("Menu", "القائمة")}>
-              <Menu />
-            </button>
-            <div className="cw-avatar"><User fill="#fff" stroke="#fff" /></div>
-            <div className="cw-who-t">
-              <div className="cw-name">{displayName}</div>
-              <div className="cw-greet">{L("Welcome to your dashboard", "مرحباً بك في لوحة التحكم")}</div>
+        <section className="co-hero2">
+          <div className="co-hero2-bg" aria-hidden="true" />
+          <div className="co-top">
+            <ZoomControls variant="hero" label={L("Zoom", "تكبير")} />
+            <div className="co-ctl">
+              <button type="button" className="ch-bell" onClick={() => navigate("/c/notifications")} aria-label={L("Notifications", "التنبيهات")}>
+                <Bell strokeWidth={2} />
+                {unreadCount > 0 && <span className="ch-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+              </button>
+              <div className="ch-pill" role="group" aria-label={L("Language", "اللغة")}>
+                <button type="button" className={lang === "ar" ? "on" : ""} onClick={() => update({ language: "ar" })}>AR</button>
+                <button type="button" className={lang === "en" ? "on" : ""} onClick={() => update({ language: "en" })}>EN</button>
+              </div>
             </div>
           </div>
-          <div className="cw-ctl">
-            <button type="button" className="cw-hbtn" onClick={() => { paymentSearchRef.current?.focus(); paymentSearchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }} aria-label={L("Search", "بحث")}>
-              <Search />
-            </button>
-            <button type="button" className="cw-hbtn" onClick={() => navigate("/c/notifications")} aria-label={L("Notifications", "التنبيهات")}>
-              <Bell />
-              {unreadCount > 0 && <span className="cw-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-            </button>
-            <div className="cw-lang" role="group" aria-label={L("Language", "اللغة")}>
-              <button type="button" className={lang === "ar" ? "on" : ""} onClick={() => update({ language: "ar" })}>AR</button>
-              <button type="button" className={lang === "en" ? "on" : ""} onClick={() => update({ language: "en" })}>EN</button>
+          <div className="co-idrow">
+            <div className="co-who">
+              <div className="ch-avatar"><User fill="#fff" stroke="#fff" /></div>
+              <div>
+                <div className="ch-name">{displayName}</div>
+                <div className="ch-greet">{L("Welcome to your dashboard", "مرحباً بك في لوحة التحكم")}</div>
+              </div>
             </div>
           </div>
-        </div>
+          <div className="co-head">
+            <div className="co-ttl">
+              <div className="co-ttl-row">
+                <Wallet2 className="co-ttl-ic" strokeWidth={1.7} />
+                <h1>{L("Cash", "النقد")}</h1>
+              </div>
+              <p>{L("Follow your payments with ease", "تابع جميع دفعاتك وإحصائياتك بسهولة")}</p>
+            </div>
+            <div className="co-grow">
+              <svg className="co-grow-ic" viewBox="0 0 16 18" aria-hidden="true">
+                <defs><linearGradient id="co-gbars" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#22c58b" /><stop offset="1" stopColor="#3b82f6" /></linearGradient></defs>
+                <rect x="0" y="11" width="3" height="7" rx="1" fill="url(#co-gbars)" />
+                <rect x="4.3" y="7" width="3" height="11" rx="1" fill="url(#co-gbars)" />
+                <rect x="8.6" y="4" width="3" height="14" rx="1" fill="url(#co-gbars)" />
+                <rect x="12.9" y="0" width="3" height="18" rx="1" fill="url(#co-gbars)" />
+              </svg>
+              <div>
+                <b>{trendDown ? L("Slower this month", "تراجع هذا الشهر") : L("Steady growth", "نمو مستمر")}</b>
+                <span>{trendDown ? L("Your payments are down", "دفعاتك في انخفاض") : L("Your payments are rising", "دفعاتك في ارتفاع")}</span>
+              </div>
+              {trendDown ? <ArrowDownRight className="co-grow-arrow down" strokeWidth={2.4} /> : <ArrowUpRight className="co-grow-arrow" strokeWidth={2.4} />}
+            </div>
+          </div>
+        </section>
       )}
 
       {isLoading ? (
         <div className="cw-loading"><Loader2 className="h-6 w-6 animate-spin" /></div>
       ) : (
-        <div>
+        <div className="cw-body">
           {/* ── ACCOUNTS TAB ── */}
           {tab === "accounts" && (
             <div className="space-y-3">
@@ -1515,106 +1479,24 @@ export default function CustomerWalletPage() {
               minus the account/edit/delete/merge actions (merchant-only). ── */}
           {tab === "payments" && (
             <>
-              {/* Banner */}
-              <section className="cw-banner">
-                <PaymentsBannerArt className="cw-banner-art" />
-                <button
-                  type="button"
-                  className="cw-banner-cta"
-                  dir={lang === "ar" ? "rtl" : "ltr"}
-                  onClick={() => setShowLogPayment(true)}
-                  disabled={statementLinks.length === 0}
-                >
-                  <Plus />
-                  {L("Log a Payment", "تسجيل دفعة")}
-                </button>
-                <p className="cw-banner-sub" dir={lang === "ar" ? "rtl" : "ltr"}>
-                  {L("Track your payments and stats easily", "تابع جميع دفعاتك وإحصائياتها بسهولة")}
-                </p>
-              </section>
-
-              {/* Headline figures */}
-              <div className="cw-stats">
-                {[
-                  { label: L("Total Orders", "إجمالي الطلبات"), value: loanTotals.totalDebt, icon: <Database />, bg: "#efe9ff", fg: "#7c3aed" },
-                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#e4edff", fg: "#2563eb" },
-                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#dff7ea", fg: "#16a34a" },
-                ].map(c => (
-                  <div key={c.label} className="cw-card cw-stat">
-                    <div className="cw-stat-t">
-                      <div className="cw-stat-l">{c.label}</div>
-                      <div className="cw-stat-v">{fmtTotal(c.value)}</div>
-                      <div className="cw-stat-u">({loanTotals.currency})</div>
-                    </div>
-                    <span className="cw-stat-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
+              {/* Main card — month row with the button, month chips, tools and the figures, as on the Orders page. */}
+              <div className="co-mainwrap">
+                <div className="ch-card co-main">
+                  <div className="co-mtop">
+                    <div className="co-mlabel">{L("Month", "الشهر")}</div>
+                    <button type="button" className="co-new" onClick={() => setShowLogPayment(true)} disabled={statementLinks.length === 0}>
+                      <Plus strokeWidth={2.4} />
+                      {L("Log a Payment", "تسجيل دفعة")}
+                    </button>
                   </div>
-                ))}
-              </div>
-
-              {/* Counters — cancelled sits rightmost in Arabic and the count
-                  card leftmost in both languages, as in the design. */}
-              <div className="cw-kpis">
-                {(() => {
-                  const pctOf = (n: number) => (overallCounts.total > 0 ? Math.round((n / overallCounts.total) * 100) : 0);
-                  const cards = [
-                    { key: "rejected", label: L("Cancelled", "ملغي"), value: overallCounts.rejected, icon: <X />, bg: "#fde4e8", fg: "#ef4444", track: "#fbd0d7", fill: "linear-gradient(90deg,#f87171,#fb7185)", pct: pctOf(overallCounts.rejected) },
-                    { key: "pending", label: L("Processing", "قيد المعالجة"), value: overallCounts.pending, icon: <Clock />, bg: "#ffefd6", fg: "#f59e0b", track: "#ffe9c7", fill: "linear-gradient(90deg,#f59e0b,#fbbf24)", pct: pctOf(overallCounts.pending) },
-                    { key: "completed", label: L("Completed", "مكتمل"), value: overallCounts.completed, icon: <Check />, bg: "#dff7ea", fg: "#16a34a", track: "#d4f3e2", fill: "linear-gradient(90deg,#10b981,#34d399)", pct: pctOf(overallCounts.completed) },
-                    { key: "count", label: L("Payments", "عدد الدفعات"), value: overallCounts.total, icon: <Wallet2 />, bg: "#e4edff", fg: "#2563eb", track: "", fill: "", pct: 0 },
-                  ];
-                  return (lang === "ar" ? cards : [...cards].reverse()).map(c => (
-                    <div key={c.key} className="cw-card cw-kpi">
-                      <div className="cw-kpi-top">
-                        <div className="cw-kpi-t">
-                          <div className="cw-kpi-l">{c.label}</div>
-                          <div className="cw-kpi-v">{c.value}</div>
-                        </div>
-                        <span className="cw-kpi-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
-                      </div>
-                      {c.track && (
-                        <div className="cw-kpi-bar">
-                          <div className="cw-kpi-track" style={{ background: c.track }}>
-                            <div className="cw-kpi-fill" style={{ width: `${c.pct}%`, background: c.fill }} />
-                          </div>
-                          <span className="cw-kpi-pct" style={{ color: c.fg }}>{c.pct}%</span>
-                        </div>
-                      )}
-                    </div>
-                  ));
-                })()}
-              </div>
-
-              {/* Settlement */}
-              <div className="cw-card cw-settle">
-                <div className="cw-settle-t">
-                  <div className="cw-settle-ttl" dir={lang === "ar" ? "rtl" : "ltr"} style={{ textAlign: "left" }}>{L("Total Settled", "إجمالي المسدد")}</div>
-                  <div className="cw-settle-v">
-                    <b>{fmtTotal(loanTotals.totalPaid)}</b>
-                    <span>/ {fmtTotal(loanTotals.totalDebt)} ({loanTotals.currency})</span>
-                  </div>
-                  <div className="cw-settle-track"><div className="cw-settle-fill" style={{ width: `${loanTotals.settledPct}%` }} /></div>
-                </div>
-                <div className="cw-ring">
-                  <svg viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="27" fill="none" stroke="#dcf5ea" strokeWidth="7" />
-                    <circle
-                      cx="32" cy="32" r="27" fill="none" stroke="#10b981" strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={2 * Math.PI * 27}
-                      strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
-                    />
-                  </svg>
-                  <b>{loanTotals.settledPct}%</b>
-                </div>
-              </div>
-
               {/* Months */}
               <div className="cw-months">
-                <div className="cw-months-in">
+                <div className="co-months">
                   {[{ key: null as string | null, label: L("All Months", "كل الأشهر") }, ...paymentsMonths.map(m => ({ key: m as string | null, label: monthPillLabel(m) }))].map(m => (
                     <button
                       key={m.key ?? "all"}
                       type="button"
-                      className={cn("cw-month", m.key === null && "all", paymentsMonth === m.key && "on")}
+                      className={cn("co-chip", paymentsMonth === m.key && "on")}
                       onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
                     >
                       {m.label}
@@ -1631,10 +1513,9 @@ export default function CustomerWalletPage() {
                 <label className="cw-search">
                   <Search />
                   <input
-                    ref={paymentSearchRef}
                     value={paymentSearch}
                     onChange={e => setPaymentSearch(e.target.value)}
-                    placeholder={L("Search...", "بحث في الدفعات...")}
+                    placeholder={L("Search...", "بحث...")}
                   />
                 </label>
                 <button type="button" className="cw-card cw-tool xlsx" disabled={exportingFormat !== null} onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}>
@@ -1677,6 +1558,57 @@ export default function CustomerWalletPage() {
                 </button>
               </div>
 
+              {/* Headline figures */}
+              <div className="cw-stats">
+                {[
+                  { label: L("Total", "الإجمالي"), value: loanTotals.totalDebt, icon: <Database />, bg: "#efe9ff", fg: "#7c3aed" },
+                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#e4edff", fg: "#2563eb" },
+                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#dff7ea", fg: "#16a34a" },
+                ].map(c => (
+                  <div key={c.label} className="cw-card cw-stat">
+                    <div className="cw-stat-t">
+                      <div className="cw-stat-l">{c.label}</div>
+                      <div className="cw-stat-v">{fmtTotal(c.value)}</div>
+                      <div className="cw-stat-u">({loanTotals.currency})</div>
+                    </div>
+                    <span className="cw-stat-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* The one counter: every payment registered or waiting on the merchant. */}
+              <div className="cw-card cw-kpi1">
+                <span className="cw-kpi-ic" style={{ background: "#e4edff", color: "#2563eb" }}><Wallet2 /></span>
+                <span className="cw-kpi1-l">{L("Total payments", "إجمالي الدفعات")}</span>
+                <b className="cw-kpi1-v">{overallCounts.completed + overallCounts.pending}</b>
+              </div>
+
+              {/* Settlement */}
+              <div className="cw-card cw-settle">
+                <div className="cw-settle-t">
+                  <div className="cw-settle-ttl" dir={lang === "ar" ? "rtl" : "ltr"} style={{ textAlign: "left" }}>{L("Total Settled", "إجمالي المسدد")}</div>
+                  <div className="cw-settle-v">
+                    <b>{fmtTotal(loanTotals.totalPaid)}</b>
+                    <span>/ {fmtTotal(loanTotals.totalDebt)} ({loanTotals.currency})</span>
+                  </div>
+                  <div className="cw-settle-track"><div className="cw-settle-fill" style={{ width: `${loanTotals.settledPct}%` }} /></div>
+                </div>
+                <div className="cw-ring">
+                  <svg viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="27" fill="none" stroke="#dcf5ea" strokeWidth="7" />
+                    <circle
+                      cx="32" cy="32" r="27" fill="none" stroke="#10b981" strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 27}
+                      strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
+                    />
+                  </svg>
+                  <b>{loanTotals.settledPct}%</b>
+                </div>
+              </div>
+
+                </div>
+              </div>
+
               {/* Status chips */}
               <div className="cw-card cw-chips">
                 {([
@@ -1699,18 +1631,10 @@ export default function CustomerWalletPage() {
                 <button
                   type="button"
                   className="cw-card cw-sort"
-                  onClick={() => setPaymentSort(s => {
-                    if (s === "date_desc") return "date_asc";
-                    if (s === "date_asc") return "amount_desc";
-                    if (s === "amount_desc") return "amount_asc";
-                    return "date_desc";
-                  })}
+                  onClick={() => setPaymentSort(s => (s === "date_desc" ? "date_asc" : "date_desc"))}
                 >
                   <ArrowUpDown />
-                  {paymentSort === "date_desc" && L("Newest first", "الأحدث أولاً")}
-                  {paymentSort === "date_asc" && L("Oldest first", "الأقدم أولاً")}
-                  {paymentSort === "amount_desc" && L("Highest first", "الأعلى أولاً")}
-                  {paymentSort === "amount_asc" && L("Lowest first", "الأقل أولاً")}
+                  {paymentSort === "date_desc" ? L("Newest first", "الأحدث أولاً") : L("Oldest first", "الأقدم أولاً")}
                   <ChevronDown className="chev" />
                 </button>
               </div>
@@ -1731,7 +1655,7 @@ export default function CustomerWalletPage() {
                     const accent = rowAccent.get(r.key) ?? st.accents[0];
                     const pill = r.status === "completed" ? { background: "#dcf7e6", color: "#15803d", dot: "#16a34a" } : { background: `${accent}1f`, color: accent, dot: accent };
                     const p = r.payment;
-                    const seq = p ? paymentSequence.get(p.bucket) : undefined;
+                    const seq = paymentSequence.get(r.key);
                     const myNote = p ? paymentNoteByKey.get(p.key) ?? "" : "";
                     const isEditingNote = !!p && editingNoteKey === p.key;
                     const correction = p ? resolveCorrection(p) : null;
@@ -1740,7 +1664,7 @@ export default function CustomerWalletPage() {
                     const confirmingClaimDelete = !!claim && deleteClaimPromptId === claim.id;
                     const expanded = expandedPaymentKey === r.key;
                     const toggleDetails = () => { setMenuRowKey(null); setExpandedPaymentKey(k => (k === r.key ? null : r.key)); };
-                    const sourceLabel = r.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر");
+                    const sourceLabel = r.addedByCustomer ? L("By me", "أضفتها أنا") : L("Merchant", "أضافها التاجر");
                     const StatusIcon = st.Icon;
 
                     return (
@@ -1757,7 +1681,7 @@ export default function CustomerWalletPage() {
                               </span>
                               <div className="cw-amt">
                                 <div className="cw-amt-v" style={{ color: accent }}><bdi dir="ltr">{r.currency} {fmtTotal(r.amount)}</bdi></div>
-                                {(r.giver || r.note) && <div className="cw-amt-s">{r.giver ? `${r.giver} ${L("payment", "دفعة")}${r.giverNo ? ` ${r.giverNo}` : ""}` : r.note}</div>}
+                                {(r.giver || r.note) && <div className="cw-amt-s">{r.giver ? (lang === "ar" ? `${r.giver} دفعة${r.giverNo ? ` ${r.giverNo}` : ""}` : `${r.giver}${r.giverNo ? ` · ${r.giverNo}` : ""}`) : r.note}</div>}
                               </div>
                               <span className={cn("cw-src", !r.addedByCustomer && "merchant")}>
                                 <Info fill="currentColor" stroke="#fff" strokeWidth={2.5} />
