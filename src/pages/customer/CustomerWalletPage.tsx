@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { giverPaymentNumbers, normalizeGiverText, resolveGiver } from "@/features/customer/cash-givers";
+import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
 import "@/styles/customer-home.css";
@@ -979,17 +979,17 @@ export default function CustomerWalletPage() {
   // counts, so a payment just logged is already number 1; a rejected one gets no number.
   const giverInfo = useMemo(() => {
     const giverByRow = new Map<string, string | null>();
-    const entries: { key: string; date: number; giver: string | null }[] = [];
+    const entries: { key: string; date: number; giver: string | null; typed: number | null }[] = [];
     for (const p of loanPayments) {
       const giver = resolveGiver(assignedGiverByKey.get(p.key), [p.note, paymentNoteByKey.get(p.key)], giverNames);
       giverByRow.set(p.key, giver);
-      entries.push({ key: p.key, date: p.date, giver });
+      entries.push({ key: p.key, date: p.date, giver, typed: typedPaymentNumber([p.note, paymentNoteByKey.get(p.key)], giver) });
     }
     for (const c of unsettledPaymentClaims) {
       const key = `claim:${c.id}`;
       const giver = resolveGiver(assignedGiverByKey.get(claimPaymentKey(c)), [c.note], giverNames);
       giverByRow.set(key, giver);
-      if (c.status === "pending") entries.push({ key, date: new Date(c.paidAt).getTime(), giver });
+      if (c.status === "pending") entries.push({ key, date: new Date(c.paidAt).getTime(), giver, typed: typedPaymentNumber([c.note], giver) });
     }
     return { giverByRow, numbers: giverPaymentNumbers(entries) };
   }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames]);

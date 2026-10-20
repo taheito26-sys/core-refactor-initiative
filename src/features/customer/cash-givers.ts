@@ -48,18 +48,63 @@ export function resolveGiver(
   return findGiverInNotes(notes, givers);
 }
 
-/** Payment number per giver: the giver's first payment by date is 1, the next 2, and so on. */
-export function giverPaymentNumbers(rows: Array<{ key: string; date: number; giver: string | null }>): Map<string, number> {
+const toWesternDigits = (text: string) => text
+  .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+  .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0));
+
+/**
+ * The payment number a buyer wrote into a note next to the giver's name ("حسن دفعة رقم ١٢",
+ * "دفعه حسن 36"), or null. Only a plain whole number from 1 to 999 counts, and only when the
+ * note names the giver: amounts such as "20,000" or "19000" and decimals are not numbers of
+ * a payment. Several different numbers across the notes are ambiguous, so none is taken.
+ */
+export function typedPaymentNumber(notes: Array<string | null | undefined>, giver: string | null): number | null {
+  if (!giver) return null;
+  const found = new Set<number>();
+  for (const note of notes) {
+    if (!note || !mentions(note, giver)) continue;
+    for (const m of toWesternDigits(note).match(/\d+(?:[.,]\d+)*/g) ?? []) {
+      if (!/^\d+$/.test(m)) continue;
+      const n = Number(m);
+      if (n >= 1 && n <= 999) found.add(n);
+    }
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
+
+/**
+ * Payment number per giver. A number written in the payment's note is used as it is. A payment
+ * without one takes the first unused number above the closest earlier numbered payment, so a
+ * forgotten payment fills a gap the buyer left (17, 18) and a new one continues the run (39).
+ * A giver whose notes carry no numbers is simply counted 1, 2, 3 in date order.
+ */
+export function giverPaymentNumbers(
+  rows: Array<{ key: string; date: number; giver: string | null; typed?: number | null }>,
+): Map<string, number> {
   const result = new Map<string, number>();
-  const counts = new Map<string, number>();
-  const ordered = rows
-    .filter((r): r is { key: string; date: number; giver: string } => !!r.giver)
-    .sort((a, b) => a.date - b.date || a.key.localeCompare(b.key));
-  for (const r of ordered) {
+  const byGiver = new Map<string, Array<{ key: string; date: number; typed: number | null }>>();
+  for (const r of rows) {
+    if (!r.giver) continue;
     const id = normalizeGiverText(r.giver);
-    const next = (counts.get(id) ?? 0) + 1;
-    counts.set(id, next);
-    result.set(r.key, next);
+    const list = byGiver.get(id) ?? [];
+    list.push({ key: r.key, date: r.date, typed: r.typed ?? null });
+    byGiver.set(id, list);
+  }
+  for (const list of byGiver.values()) {
+    list.sort((a, b) => a.date - b.date || a.key.localeCompare(b.key));
+    const taken = new Set(list.filter(r => r.typed !== null).map(r => r.typed as number));
+    let lastTyped = 0;
+    for (const r of list) {
+      if (r.typed !== null) {
+        result.set(r.key, r.typed);
+        lastTyped = r.typed;
+        continue;
+      }
+      let n = lastTyped + 1;
+      while (taken.has(n)) n += 1;
+      taken.add(n);
+      result.set(r.key, n);
+    }
   }
   return result;
 }
