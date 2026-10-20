@@ -13,7 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
-import { DayFilterDropdown } from "@/features/orders/components/DayFilterDropdown";
+import { DateRangeFilterDropdown } from "@/features/orders/components/DateRangeFilterDropdown";
 import "@/styles/customer-home.css";
 import "@/styles/customer-orders.css";
 import "@/styles/customer-theme.css";
@@ -906,7 +906,9 @@ export default function CustomerWalletPage() {
   // and/or an amount bracket, for a buyer trying to find one payment they
   // half-remember the size or date of).
   const [showPaymentFilter, setShowPaymentFilter] = useState(false);
+  // The period's first day; with paymentFilterTo empty the period is just this one day.
   const [paymentFilterDay, setPaymentFilterDay] = useState("");
+  const [paymentFilterTo, setPaymentFilterTo] = useState("");
   const [paymentFilterMinAmount, setPaymentFilterMinAmount] = useState("");
   const [paymentFilterMaxAmount, setPaymentFilterMaxAmount] = useState("");
   // Whether the remembered day/amount criteria above are currently being
@@ -917,12 +919,19 @@ export default function CustomerWalletPage() {
   const [paymentFilterOn, setPaymentFilterOn] = useState(false);
   // Who handed over the cash: "" for everyone, NO_GIVER for payments with no giver, else a giver's name.
   const [paymentGiverFilter, setPaymentGiverFilter] = useState("");
-  // The day picker in the toolbar. Choosing a day also moves the month chips to that day's month,
-  // so a day outside the selected month never shows an empty list.
-  const setPaymentDay = (day: string) => {
-    setPaymentFilterDay(day);
-    setPaymentFilterOn(!!day || !!paymentFilterMinAmount || !!paymentFilterMaxAmount);
-    if (day) { userPickedPaymentsMonth.current = true; setPaymentsMonth(day.slice(0, 7)); }
+  const paymentPeriodEnd = paymentFilterTo || paymentFilterDay;
+  const inPaymentPeriod = (dayKey: string) => dayKey >= paymentFilterDay && dayKey <= paymentPeriodEnd;
+  // The date picker in the toolbar, for a day or a period. It also moves the month chips: to the
+  // month the period sits in, or to all months when it crosses a month boundary, so what was
+  // picked never lands outside the selected month and shows an empty list.
+  const setPaymentPeriod = (from: string, to: string) => {
+    setPaymentFilterDay(from);
+    setPaymentFilterTo(to);
+    setPaymentFilterOn(!!from || !!paymentFilterMinAmount || !!paymentFilterMaxAmount);
+    if (from) {
+      userPickedPaymentsMonth.current = true;
+      setPaymentsMonth(to && to.slice(0, 7) !== from.slice(0, 7) ? null : from.slice(0, 7));
+    }
   };
   const hasPaymentFilterCriteria = !!(paymentFilterDay || paymentFilterMinAmount || paymentFilterMaxAmount);
   const activePaymentFilterCount = paymentFilterOn && hasPaymentFilterCriteria ? 1 : 0;
@@ -932,7 +941,7 @@ export default function CustomerWalletPage() {
     const maxAmount = paymentFilterMaxAmount.trim() ? parseFloat(paymentFilterMaxAmount) : null;
     const filtered = groupedLoanPayments.filter(p => {
       if (paymentFilterOn) {
-        if (paymentFilterDay && localDayKey(p.date) !== paymentFilterDay) return false;
+        if (paymentFilterDay && !inPaymentPeriod(localDayKey(p.date))) return false;
         if (minAmount != null && Number.isFinite(minAmount) && p.amount < minAmount) return false;
         if (maxAmount != null && Number.isFinite(maxAmount) && p.amount > maxAmount) return false;
       }
@@ -946,7 +955,7 @@ export default function CustomerWalletPage() {
       }
     });
     return sorted;
-  }, [groupedLoanPayments, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+  }, [groupedLoanPayments, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterTo, paymentFilterMinAmount, paymentFilterMaxAmount]);
   const displayedLoanPaymentsTotal = useMemo(
     () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
     [displayedLoanPayments],
@@ -1019,7 +1028,7 @@ export default function CustomerWalletPage() {
     for (const c of unsettledPaymentClaims) {
       if (paymentsMonth && localMonthKey(c.paidAt) !== paymentsMonth) continue;
       if (paymentFilterOn) {
-        if (paymentFilterDay && localDayKey(c.paidAt) !== paymentFilterDay) continue;
+        if (paymentFilterDay && !inPaymentPeriod(localDayKey(c.paidAt))) continue;
         if (minAmount != null && Number.isFinite(minAmount) && c.amount < minAmount) continue;
         if (maxAmount != null && Number.isFinite(maxAmount) && c.amount > maxAmount) continue;
       }
@@ -1039,7 +1048,7 @@ export default function CustomerWalletPage() {
       }
     });
     return matching;
-  }, [displayedLoanPayments, unsettledPaymentClaims, giverInfo, paymentNoteByKey, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+  }, [displayedLoanPayments, unsettledPaymentClaims, giverInfo, paymentNoteByKey, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterTo, paymentFilterMinAmount, paymentFilterMaxAmount]);
 
   // The giver filter narrows the rows before the status chips count them, so every chip
   // and the list agree on what is on screen. The giver chips themselves count over paymentRows.
@@ -1097,7 +1106,11 @@ export default function CustomerWalletPage() {
     ...(paymentSearch.trim() ? [`${L("Search", "بحث")}: «${paymentSearch.trim()}»`] : []),
     ...(statusFilter !== "all" ? [`${L("Status", "الحالة")}: ${statusFilterLabel(statusFilter)}`] : []),
     ...(paymentGiverFilter ? [`${L("Giver", "من سلّم")}: ${paymentGiverFilter === NO_GIVER ? L("No giver", "بدون") : paymentGiverFilter}`] : []),
-    ...(paymentFilterOn && paymentFilterDay ? [`${L("Day", "اليوم")}: ${new Date(`${paymentFilterDay}T00:00`).toLocaleDateString(numLocale, { day: "numeric", month: "long", year: "numeric" })}`] : []),
+    ...(paymentFilterOn && paymentFilterDay
+      ? [paymentPeriodEnd === paymentFilterDay
+        ? `${L("Day", "اليوم")}: ${new Date(`${paymentFilterDay}T00:00`).toLocaleDateString(numLocale, { day: "numeric", month: "long", year: "numeric" })}`
+        : `${L("Period", "الفترة")}: ${new Date(`${paymentFilterDay}T00:00`).toLocaleDateString(numLocale, { day: "numeric", month: "short" })} – ${new Date(`${paymentPeriodEnd}T00:00`).toLocaleDateString(numLocale, { day: "numeric", month: "short", year: "numeric" })}`]
+      : []),
     ...(paymentFilterOn && (paymentFilterMinAmount.trim() || paymentFilterMaxAmount.trim())
       ? [`${L("Amount", "المبلغ")}: ${paymentFilterMinAmount.trim() || "0"}–${paymentFilterMaxAmount.trim() || "∞"}`] : []),
   ];
@@ -1106,6 +1119,7 @@ export default function CustomerWalletPage() {
     setStatusFilter("all");
     setPaymentFilterOn(false);
     setPaymentFilterDay("");
+    setPaymentFilterTo("");
     setPaymentFilterMinAmount("");
     setPaymentFilterMaxAmount("");
     setPaymentGiverFilter("");
@@ -1621,16 +1635,17 @@ export default function CustomerWalletPage() {
                 </button>
               </div>
 
-              {/* Filters: a day, and who handed over the cash. They combine with the search and the amount filter. */}
+              {/* Filters: a day or period, and who handed over the cash. They combine with the search and the amount filter. */}
               <div className="cw-fltrow">
-                <DayFilterDropdown
-                  value={paymentFilterOn ? paymentFilterDay : ""}
-                  onChange={setPaymentDay}
+                <DateRangeFilterDropdown
+                  from={paymentFilterOn ? paymentFilterDay : ""}
+                  to={paymentFilterOn ? paymentFilterTo : ""}
+                  onChange={setPaymentPeriod}
                   lang={lang === "ar" ? "ar" : "en"}
-                  title={L("Filter by day", "تصفية حسب اليوم")}
+                  title={L("Filter by day or period", "تصفية حسب اليوم أو الفترة")}
                   triggerClassName="cw-card cw-tool cw-dayfilter"
                   triggerActiveClassName="on"
-                  emptyLabel={L("By day", "حسب اليوم")}
+                  emptyLabel={L("By date", "حسب التاريخ")}
                 />
                 <div className="cw-gchips" role="group" aria-label={L("Cash giver", "من سلّم المبلغ")}>
                   {giverChips.map(c => (
@@ -1996,7 +2011,7 @@ export default function CustomerWalletPage() {
                   return (
                     <button
                       key={preset.label}
-                      onClick={() => { setPaymentFilterDay(key); setPaymentFilterOn(true); setShowPaymentFilter(false); }}
+                      onClick={() => { setPaymentFilterDay(key); setPaymentFilterTo(""); setPaymentFilterOn(true); setShowPaymentFilter(false); }}
                       className={cn(
                         "flex-1 h-9 rounded-xl border text-xs font-semibold transition-colors",
                         paymentFilterDay === key ? "border-primary/40 bg-primary/10 text-primary" : "border-border/50 bg-card hover:border-primary/40",
@@ -2013,6 +2028,7 @@ export default function CustomerWalletPage() {
                 quickDays={[]}
                 onChange={day => {
                   setPaymentFilterDay(day);
+                  setPaymentFilterTo("");
                   if (day) { setPaymentFilterOn(true); setShowPaymentFilter(false); }
                 }}
               />
@@ -2040,7 +2056,7 @@ export default function CustomerWalletPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => { setPaymentFilterDay(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); setPaymentFilterOn(false); }}
+                onClick={() => { setPaymentFilterDay(""); setPaymentFilterTo(""); setPaymentFilterMinAmount(""); setPaymentFilterMaxAmount(""); setPaymentFilterOn(false); }}
                 className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
               >
                 {L("Clear", "مسح")}

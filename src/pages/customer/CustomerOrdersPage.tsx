@@ -27,7 +27,7 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ZoomControls } from '@/components/shared/ZoomControls';
-import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
+import { DateRangeFilterDropdown } from '@/features/orders/components/DateRangeFilterDropdown';
 import { statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
@@ -892,7 +892,9 @@ export default function CustomerOrdersPage() {
   // amount bracket, for a buyer trying to find one order they half-remember
   // the size or date of).
   const [showOrderFilter, setShowOrderFilter] = useState(false);
+  // The period's first day; with orderFilterTo empty the period is just this one day.
   const [orderFilterDay, setOrderFilterDay] = useState('');
+  const [orderFilterTo, setOrderFilterTo] = useState('');
   const [orderFilterMinAmount, setOrderFilterMinAmount] = useState('');
   const [orderFilterMaxAmount, setOrderFilterMaxAmount] = useState('');
   // Whether the remembered day/amount criteria above are currently being
@@ -904,12 +906,19 @@ export default function CustomerOrdersPage() {
   const hasOrderFilterCriteria = !!(orderFilterDay || orderFilterMinAmount || orderFilterMaxAmount);
   const activeOrderFilterCount = orderFilterOn && hasOrderFilterCriteria ? 1 : 0;
   const dayActive = orderFilterOn && !!orderFilterDay;
-  // The day picker in the toolbar. Choosing a day also moves the month chips to that day's month,
-  // so a day outside the selected month never shows an empty list.
-  const setOrderDay = (day: string) => {
-    setOrderFilterDay(day);
-    setOrderFilterOn(!!day || !!orderFilterMinAmount || !!orderFilterMaxAmount);
-    if (day) { userPickedMonth.current = true; setSelectedMonth(day.slice(0, 7)); }
+  const orderPeriodEnd = orderFilterTo || orderFilterDay;
+  const inOrderPeriod = (dayKey: string) => dayKey >= orderFilterDay && dayKey <= orderPeriodEnd;
+  // The date picker in the toolbar, for a day or a period. It also moves the month chips: to the
+  // month the period sits in, or to all months when it crosses a month boundary, so what was
+  // picked never lands outside the selected month and shows an empty list.
+  const setOrderPeriod = (from: string, to: string) => {
+    setOrderFilterDay(from);
+    setOrderFilterTo(to);
+    setOrderFilterOn(!!from || !!orderFilterMinAmount || !!orderFilterMaxAmount);
+    if (from) {
+      userPickedMonth.current = true;
+      setSelectedMonth(to && to.slice(0, 7) !== from.slice(0, 7) ? null : from.slice(0, 7));
+    }
   };
 
   const filteredOrders = useMemo(() => {
@@ -918,13 +927,13 @@ export default function CustomerOrdersPage() {
     return orders.filter(o => {
       if (selectedMonth && localMonthKey(o.created_at) !== selectedMonth) return false;
       if (orderFilterOn) {
-        if (orderFilterDay && localDayKey(o.created_at) !== orderFilterDay) return false;
+        if (orderFilterDay && !inOrderPeriod(localDayKey(o.created_at))) return false;
         if (minAmount != null && Number.isFinite(minAmount) && o.amount < minAmount) return false;
         if (maxAmount != null && Number.isFinite(maxAmount) && o.amount > maxAmount) return false;
       }
       return true;
     });
-  }, [orders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
+  }, [orders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterTo, orderFilterMinAmount, orderFilterMaxAmount]);
 
   const filteredHistoryOrders = useMemo(() => {
     const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
@@ -932,13 +941,13 @@ export default function CustomerOrdersPage() {
     return historyOrders.filter(o => {
       if (selectedMonth && localMonthKey(o.date) !== selectedMonth) return false;
       if (orderFilterOn) {
-        if (orderFilterDay && localDayKey(o.date) !== orderFilterDay) return false;
+        if (orderFilterDay && !inOrderPeriod(localDayKey(o.date))) return false;
         if (minAmount != null && Number.isFinite(minAmount) && o.totalAmount < minAmount) return false;
         if (maxAmount != null && Number.isFinite(maxAmount) && o.totalAmount > maxAmount) return false;
       }
       return true;
     });
-  }, [historyOrders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterMinAmount, orderFilterMaxAmount]);
+  }, [historyOrders, selectedMonth, orderFilterOn, orderFilterDay, orderFilterTo, orderFilterMinAmount, orderFilterMaxAmount]);
 
   // KPI bar over the currently filtered history — same idea as the merchant
   // Orders page's own COUNT/VOLUME row, EGP + QAR only (no USDT, no margin).
@@ -1136,10 +1145,12 @@ export default function CustomerOrdersPage() {
     <div className="co-dsum" role="status">
       <CalendarDays className="co-dsum-ic" />
       <div className="co-dsum-t">
-        <b>{new Date(`${orderFilterDay}T00:00`).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</b>
+        <b>{orderPeriodEnd === orderFilterDay
+          ? new Date(`${orderFilterDay}T00:00`).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
+          : `${new Date(`${orderFilterDay}T00:00`).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short' })} – ${new Date(`${orderPeriodEnd}T00:00`).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}</b>
         <span>
           {shownCount === 0
-            ? L('No orders on this day', 'لا توجد طلبات في هذا اليوم')
+            ? (orderPeriodEnd === orderFilterDay ? L('No orders on this day', 'لا توجد طلبات في هذا اليوم') : L('No orders in this period', 'لا توجد طلبات في هذه الفترة'))
             : [
               `${shownCount} ${shownCount === 1 ? L('order', 'طلب') : L('orders', 'طلبات')}`,
               ...(dayTotals.egp > 0 ? [`${Math.round(dayTotals.egp).toLocaleString('en-US')} ${L('EGP', 'جنيه')}`] : []),
@@ -1147,7 +1158,7 @@ export default function CustomerOrdersPage() {
             ].join(' · ')}
         </span>
       </div>
-      <button type="button" className="co-dsum-x" onClick={() => setOrderDay('')}><X />{L('Clear', 'مسح')}</button>
+      <button type="button" className="co-dsum-x" onClick={() => setOrderPeriod('', '')}><X />{L('Clear', 'مسح')}</button>
     </div>
   ) : null;
 
@@ -1248,14 +1259,15 @@ export default function CustomerOrdersPage() {
                   {hasOrderFilterCriteria && (
                     <button type="button" onClick={() => setShowOrderFilter(true)} title={L('Edit filter', 'تعديل التصفية')} className="co-tool icon"><Pencil /></button>
                   )}
-                  <DayFilterDropdown
-                    value={orderFilterOn ? orderFilterDay : ''}
-                    onChange={setOrderDay}
+                  <DateRangeFilterDropdown
+                    from={orderFilterOn ? orderFilterDay : ''}
+                    to={orderFilterOn ? orderFilterTo : ''}
+                    onChange={setOrderPeriod}
                     lang={lang === 'ar' ? 'ar' : 'en'}
-                    title={L('Filter by day', 'تصفية حسب اليوم')}
+                    title={L('Filter by day or period', 'تصفية حسب اليوم أو الفترة')}
                     triggerClassName="co-tool"
                     triggerActiveClassName="active"
-                    emptyLabel={L('By day', 'حسب اليوم')}
+                    emptyLabel={L('By date', 'حسب التاريخ')}
                   />
                   <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')} disabled={exportingFormat !== null} className="co-tool pdf">
                     {exportingFormat === 'pdf' ? <Loader2 className="animate-spin" /> : <FileText />}
@@ -1440,11 +1452,13 @@ export default function CustomerOrdersPage() {
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
               )}
-              <DayFilterDropdown
-                value={orderFilterOn ? orderFilterDay : ''}
-                onChange={setOrderDay}
+              <DateRangeFilterDropdown
+                from={orderFilterOn ? orderFilterDay : ''}
+                to={orderFilterOn ? orderFilterTo : ''}
+                onChange={setOrderPeriod}
                 lang={lang === 'ar' ? 'ar' : 'en'}
-                title={L('Filter by day', 'تصفية حسب اليوم')}
+                title={L('Filter by day or period', 'تصفية حسب اليوم أو الفترة')}
+                emptyLabel={L('By date', 'حسب التاريخ')}
               />
               <button
                 onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
@@ -2400,7 +2414,7 @@ export default function CustomerOrdersPage() {
                   return (
                     <button
                       key={preset.label}
-                      onClick={() => { setOrderFilterDay(key); setOrderFilterOn(true); setShowOrderFilter(false); }}
+                      onClick={() => { setOrderFilterDay(key); setOrderFilterTo(''); setOrderFilterOn(true); setShowOrderFilter(false); }}
                       className={`flex-1 h-9 rounded-xl border text-xs font-semibold transition-colors ${
                         orderFilterDay === key ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40'
                       }`}
@@ -2427,6 +2441,7 @@ export default function CustomerOrdersPage() {
                         const month = String(date.getMonth() + 1).padStart(2, '0');
                         const day = String(date.getDate()).padStart(2, '0');
                         setOrderFilterDay(`${year}-${month}-${day}`);
+                        setOrderFilterTo('');
                       }
                     }}
                     disabled={(date) => date > new Date()}
@@ -2458,7 +2473,7 @@ export default function CustomerOrdersPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => { setOrderFilterDay(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); setOrderFilterOn(false); }}
+                onClick={() => { setOrderFilterDay(''); setOrderFilterTo(''); setOrderFilterMinAmount(''); setOrderFilterMaxAmount(''); setOrderFilterOn(false); }}
                 className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
               >
                 {L('Clear', 'مسح')}
