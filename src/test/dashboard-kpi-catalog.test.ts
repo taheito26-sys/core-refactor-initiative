@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultPinned, merchantKpiOptions, resolvePinned, togglePinned } from '@/features/dashboard/kpi-catalog';
+import { dashboardDefaultPinned, defaultPinned, merchantKpiOptions, resolvePinned, togglePinned } from '@/features/dashboard/kpi-catalog';
 
 const jose = { userNo: 'u1', nick: 'Jose', today: 11, soldToday: 11, total: 171, month: 76 };
 
@@ -20,5 +20,13 @@ describe('dashboard KPI catalog', () => {
   it('toggles', () => {
     expect(togglePinned(['a'], 'b')).toEqual(['a', 'b']);
     expect(togglePinned(['a', 'b'], 'a')).toEqual(['b']);
+  });
+});
+
+describe('dashboardDefaultPinned', () => {
+  it('starts with the four boxes of the dashboard home, using the first followed merchant for last online', () => {
+    const jose = { userNo: 'u1', nick: 'Jose', today: 1, soldToday: 0, total: 1, month: 1 };
+    expect(dashboardDefaultPinned([jose])).toEqual(['tracker:newOrders', 'merchant:u1:seen', 'tracker:conversion', 'tracker:activeClients']);
+    expect(dashboardDefaultPinned([])).toEqual(['tracker:newOrders', 'tracker:conversion', 'tracker:activeClients']);
   });
 });

@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
 import { agoLabel, dailyRegister, displayName, lastOnlineAt, onlineState, qatarDateTime } from '@/features/p2p/merchant-watch/merchant-watch';
 import { MerchantNameEditor } from '@/features/p2p/merchant-watch/MerchantNameEditor';
 import { useMerchantWatch } from '@/features/p2p/merchant-watch/useMerchantWatch';
-import { defaultPinned, merchantKpiOptions, resolvePinned, togglePinned, type KpiOption, type WatchedKpiSource } from '../kpi-catalog';
+import { BarChart3, Clock, Percent, ShoppingCart, Star, type LucideIcon } from 'lucide-react';
+import { DhSelect } from './home/DhSelect';
+import { dashboardDefaultPinned, merchantKpiOptions, resolvePinned, togglePinned, type KpiIcon, type KpiOption, type WatchedKpiSource } from '../kpi-catalog';
+import { Sparkline } from './home/Sparkline';
+
+const ICONS: Record<KpiIcon, LucideIcon> = { orders: ShoppingCart, online: Clock, conversion: Percent, clients: Star };
+export type KpiPeriod = 'today' | '7d' | '30d';
 
 const storageKey = (userId: string | null | undefined) => `dashboard-pinned-kpis:${userId ?? 'anon'}`;
 
@@ -19,7 +25,7 @@ function readPinned(key: string): string[] | null {
  * User-chosen KPI boxes: any tracker figure the dashboard passes in plus the
  * daily order counts of the merchants followed on the P2P page.
  */
-export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption[]; lang: 'en' | 'ar' }) {
+export function CustomKpis({ trackerOptions, lang, period, onPeriod }: { trackerOptions: KpiOption[]; lang: 'en' | 'ar'; period: KpiPeriod; onPeriod: (p: KpiPeriod) => void }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { userId } = useAuth();
   const key = storageKey(userId);
@@ -45,53 +51,61 @@ export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption
 
   const options = useMemo(() => [...trackerOptions, ...merchantKpiOptions(sources, L('Followed P2P merchants', 'تجار P2P المتابَعون'))], [trackerOptions, sources, lang]);
 
-  // Nothing chosen yet: pin the followed merchant's daily count once, as soon as one is identified.
-  useEffect(() => {
-    if (pinned === null && sources.length > 0) setPinned(defaultPinned(sources));
-  }, [pinned, sources]);
-
   const update = (next: string[]) => {
     setPinned(next);
     try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* storage unavailable: the choice lasts for this visit */ }
   };
 
-  const shown = resolvePinned(pinned ?? [], options);
+  // Until the user picks something, the four boxes of the dashboard home are shown.
+  const effectivePinned = pinned ?? dashboardDefaultPinned(sources);
+  const shown = resolvePinned(effectivePinned, options);
   const groups = Array.from(new Set(options.map(o => o.group)));
 
   return (
-    <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 800 }}>📌 {L('My KPIs', 'مؤشراتي')}</div>
-        <button type="button" className="rowBtn" onClick={() => setPicking(p => !p)}>
+    <section className="dh-card dh-kpis">
+      <header className="dh-kpis-head">
+        <h2><BarChart3 />{L('My KPIs', 'مؤشراتي')}</h2>
+        <DhSelect
+          value={period}
+          onChange={onPeriod}
+          ariaLabel={L('Period', 'الفترة')}
+          options={[{ value: 'today', label: L('Today', 'اليوم') }, { value: '7d', label: L('7 Days', '7 أيام') }, { value: '30d', label: L('30 Days', '30 يوماً') }]}
+        />
+        <button type="button" className="dh-kpis-edit" onClick={() => setPicking(p => !p)}>
           {picking ? L('Done', 'تم') : `＋ ${L('Add / remove', 'إضافة / إزالة')}`}
         </button>
-      </div>
+      </header>
       {shown.length === 0 && !picking && (
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>{L('Pick any figure to show here.', 'اختر أي رقم ليظهر هنا.')}</div>
+        <div className="dh-kempty">{L('Pick any figure to show here.', 'اختر أي رقم ليظهر هنا.')}</div>
       )}
       {shown.length > 0 && (
-        <div style={{ display: 'grid', gap: 6, marginTop: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
-          {shown.map(o => (
-            <div key={o.id} className="kpi-card">
-              <div className="kpi-lbl" style={{ overflowWrap: 'anywhere' }}>{o.label}</div>
-              <div className={`kpi-val ${o.strong ? 'good' : ''}`}>{o.value}</div>
-              {o.sub && <div className="kpi-sub">{o.sub}</div>}
-            </div>
-          ))}
+        <div className="dh-kgrid">
+          {shown.map(o => {
+            const Icon = o.icon ? ICONS[o.icon] : BarChart3;
+            const tone = o.tone ?? 'brand';
+            return (
+              <div key={o.id} className="dh-kbox" style={{ ['--tone' as string]: `var(--${tone})` }}>
+                <header><span className="dh-ic"><Icon /></span><h3>{o.label}</h3></header>
+                <div className={`dh-val ${o.strong ? 'strong' : ''}`}><b>{o.value}</b></div>
+                {o.sub && <div className="dh-sub">{o.sub}</div>}
+                {o.spark && o.spark.some(v => v !== 0) && <Sparkline className="dh-kbox-spark" values={o.spark} color={`var(--${tone})`} />}
+              </div>
+            );
+          })}
         </div>
       )}
       {picking && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="dh-kpick">
           {watched.filter(m => m.user_no).length > 0 && (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', marginBottom: 4 }}>{L('Edit merchant names', 'تعديل أسماء التجار')}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="grp">{L('Edit merchant names', 'تعديل أسماء التجار')}</div>
+              <div className="opts">
                 {watched.filter(m => m.user_no).map(m => editingId === m.id ? (
                   <MerchantNameEditor key={m.id} merchant={m} lang={lang} busy={rename.isPending}
                     onCancel={() => setEditingId(null)}
                     onSave={(alias, aka) => rename.mutate({ id: m.id, alias, aka }, { onSuccess: () => setEditingId(null) })} />
                 ) : (
-                  <button key={m.id} type="button" className="rowBtn" style={{ fontSize: 11, textAlign: 'start' }} onClick={() => setEditingId(m.id)}>
+                  <button key={m.id} type="button" onClick={() => setEditingId(m.id)}>
                     ✎ {displayName(m)}{m.alias ? ` (${m.nick})` : ''}
                   </button>
                 ))}
@@ -100,13 +114,13 @@ export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption
           )}
           {groups.map(g => (
             <div key={g}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', marginBottom: 4 }}>{g}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div className="grp">{g}</div>
+              <div className="opts">
                 {options.filter(o => o.group === g).map(o => {
-                  const on = (pinned ?? []).includes(o.id);
+                  const on = effectivePinned.includes(o.id);
                   return (
-                    <button key={o.id} type="button" className={on ? 'btn' : 'rowBtn'} style={{ fontSize: 11 }}
-                      onClick={() => update(togglePinned(pinned ?? [], o.id))}>
+                    <button key={o.id} type="button" className={on ? 'on' : ''}
+                      onClick={() => update(togglePinned(effectivePinned, o.id))}>
                       {on ? '✓ ' : ''}{o.label} · {o.value}
                     </button>
                   );
@@ -116,6 +130,6 @@ export function CustomKpis({ trackerOptions, lang }: { trackerOptions: KpiOption
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

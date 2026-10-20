@@ -1,5 +1,7 @@
 // ─── Dashboard KPI catalog: the boxes a user can pin ───
 
+export type KpiIcon = 'orders' | 'online' | 'conversion' | 'clients';
+
 export interface KpiOption {
   id: string;
   group: string;
@@ -8,6 +10,11 @@ export interface KpiOption {
   sub?: string;
   /** True for figures worth highlighting when above zero. */
   strong?: boolean;
+  /** The icon on the box and the theme colour it is tinted with. */
+  icon?: KpiIcon;
+  tone?: 'good' | 'bad' | 'warn' | 'brand' | 'brand2' | 't5';
+  /** A short trend drawn on the box. */
+  spark?: number[];
 }
 
 export interface WatchedKpiSource {
@@ -32,11 +39,11 @@ export interface WatchedKpiSource {
 export function merchantKpiOptions(sources: WatchedKpiSource[], group: string): KpiOption[] {
   const fmt = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-US'));
   return sources.flatMap(s => [
-    { id: `merchant:${s.userNo}:today`, group, label: `${s.nick} · today`, value: s.today == null ? '—' : `+${s.today}`, sub: 'orders today', strong: (s.today ?? 0) > 0 },
+    { id: `merchant:${s.userNo}:today`, group, label: `${s.nick} · today`, value: s.today == null ? '—' : `+${s.today}`, sub: 'orders today', strong: (s.today ?? 0) > 0, icon: 'orders', tone: 'good' },
     { id: `merchant:${s.userNo}:sold`, group, label: `${s.nick} · sold today`, value: s.soldToday == null ? '—' : `+${s.soldToday}`, sub: 'sell orders today', strong: (s.soldToday ?? 0) > 0 },
     { id: `merchant:${s.userNo}:total`, group, label: `${s.nick} · total`, value: fmt(s.total), sub: 'all-time orders' },
     { id: `merchant:${s.userNo}:month`, group, label: `${s.nick} · 30 days`, value: fmt(s.month), sub: 'orders in 30 days' },
-    { id: `merchant:${s.userNo}:seen`, group, label: `${s.nick} · last online`, value: s.lastOnline ?? '—', sub: s.lastOnlineExact ?? undefined, strong: !!s.online },
+    { id: `merchant:${s.userNo}:seen`, group, label: `${s.nick} · last online`, value: s.lastOnline ?? '—', sub: s.lastOnlineExact ?? undefined, strong: !!s.online, icon: 'online', tone: 'brand' },
     {
       id: `merchant:${s.userNo}:name`, group, label: `${s.nick} · name`, value: s.nick,
       sub: [s.binanceNick && s.binanceNick !== s.nick ? `Binance: ${s.binanceNick}` : '', ...(s.aka ?? [])].filter(Boolean).join(' · ') || undefined,
@@ -58,4 +65,13 @@ export function togglePinned(pinned: string[], id: string): string[] {
 export function defaultPinned(sources: WatchedKpiSource[]): string[] {
   const first = sources[0];
   return first ? [`merchant:${first.userNo}:today`] : [];
+}
+
+/**
+ * What the My KPIs box shows before the user has chosen anything: new orders, the first followed
+ * merchant's last online, conversion and active clients. A choice the user saved replaces it.
+ */
+export function dashboardDefaultPinned(sources: WatchedKpiSource[]): string[] {
+  const first = sources[0];
+  return ['tracker:newOrders', ...(first ? [`merchant:${first.userNo}:seen`] : []), 'tracker:conversion', 'tracker:activeClients'];
 }

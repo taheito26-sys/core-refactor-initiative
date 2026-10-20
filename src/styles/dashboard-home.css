@@ -1,0 +1,219 @@
+/* ─── Merchant dashboard home ─────────────────────────────────────────────
+   Sizes follow the 390px phone layout and grow with --s on wider screens.
+   Every colour is one of the active theme's variables (--card-bg, --brand, --good …), so picking a
+   theme in Settings recolours the whole page; nothing here is a fixed colour. */
+
+.tracker-root .dh {
+  --s: 1;
+  --u: calc(var(--s) * var(--ui-scale, 1) * 1px);
+  --tone: var(--brand);
+  width: 100%; max-width: 1100px; margin: 0 auto;
+  padding: calc(6 * var(--u)) calc(10 * var(--u)) calc(14 * var(--u));
+  display: flex; flex-direction: column; gap: calc(9 * var(--u));
+  color: var(--text);
+}
+@media (min-width: 520px) { .tracker-root .dh { --s: 1.2; } }
+@media (min-width: 900px) { .tracker-root .dh { --s: 1.4; } }
+.tracker-root .dh * { box-sizing: border-box; }
+.tracker-root .dh button { font-family: inherit; cursor: pointer; }
+.tracker-root .dh h1, .tracker-root .dh h2, .tracker-root .dh h3, .tracker-root .dh p { margin: 0; }
+
+.tracker-root .dh-card {
+  background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-lg, 14px);
+  box-shadow: var(--lt-shadow2); padding: calc(8 * var(--u)) calc(9 * var(--u));
+  min-width: 0;
+}
+.tracker-root .dh-ic {
+  flex: none; width: calc(17 * var(--u)); height: calc(17 * var(--u)); border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 16%, transparent);
+}
+.tracker-root .dh-ic svg { width: calc(10 * var(--u)); height: calc(10 * var(--u)); stroke-width: 2.4; }
+.tracker-root .dh-ic.big { width: calc(24 * var(--u)); height: calc(24 * var(--u)); border-radius: calc(7 * var(--u)); }
+.tracker-root .dh-ic.big svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); }
+.tracker-root .dh-val { display: flex; align-items: baseline; gap: calc(3 * var(--u)); font-variant-numeric: tabular-nums; }
+.tracker-root .dh-val b { font-size: calc(14 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: var(--lt-fw-val, 800); letter-spacing: var(--lt-val-tracking, -.3px); white-space: nowrap; }
+.tracker-root .dh-val small { font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; color: var(--tone); }
+.tracker-root .dh-sub { font-size: calc(8 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); line-height: 1.35; }
+
+/* ── hero ── */
+.tracker-root .dh-hero {
+  position: relative; overflow: hidden; min-height: calc(76 * var(--u));
+  border-radius: var(--lt-radius-lg, 14px); border: 1px solid var(--line);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 14%, var(--card-bg)), color-mix(in srgb, var(--good) 20%, var(--card-bg)));
+  padding: calc(11 * var(--u)) calc(11 * var(--u));
+}
+.tracker-root .dh-hero-t { position: relative; z-index: 2; max-width: 56%; }
+.tracker-root .dh-hero-t h1 { font-size: calc(15 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: var(--lt-fw-ui, 800); line-height: 1.15; }
+.tracker-root .dh-hero-t p { margin-top: calc(4 * var(--u)); font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); }
+.tracker-root .dh-hero-art { position: absolute; inset-inline-end: calc(70 * var(--u)); bottom: 0; height: 88%; width: auto; max-width: 62%; z-index: 1; }
+[dir=rtl] .tracker-root .dh-hero-art, .tracker-root .dh[dir=rtl] .dh-hero-art { transform: scaleX(-1); }
+.tracker-root .dh-select { position: relative; display: inline-flex; }
+.tracker-root .dh-select-btn {
+  display: inline-flex; align-items: center; gap: calc(5 * var(--u)); height: calc(18 * var(--u)); padding: 0 calc(8 * var(--u));
+  border-radius: 999px; border: 1px solid var(--line); background: var(--card-bg); color: var(--text);
+  font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; white-space: nowrap;
+}
+.tracker-root .dh-select-btn svg { width: calc(9 * var(--u)); height: calc(9 * var(--u)); color: var(--muted); transition: transform .15s; }
+.tracker-root .dh-select-btn svg.open { transform: rotate(180deg); }
+.tracker-root .dh-menu {
+  position: absolute; z-index: 30; top: calc(100% + calc(4 * var(--u))); inset-inline-end: 0; min-width: 100%; margin: 0; padding: calc(3 * var(--u)); list-style: none;
+  background: var(--card-bg); border: 1px solid var(--line); border-radius: calc(9 * var(--u)); box-shadow: var(--lt-shadow);
+}
+.tracker-root .dh-menu button {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: calc(8 * var(--u)); border: 0; background: transparent; color: var(--text);
+  padding: calc(5 * var(--u)) calc(8 * var(--u)); border-radius: calc(6 * var(--u)); text-align: start; white-space: nowrap;
+  font-size: calc(9 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 600;
+}
+.tracker-root .dh-menu button:hover { background: var(--hover-card); }
+.tracker-root .dh-menu button.on { color: var(--brand); }
+.tracker-root .dh-menu svg { width: calc(9 * var(--u)); height: calc(9 * var(--u)); }
+.tracker-root .dh-hero-scope { position: absolute; z-index: 3; top: calc(9 * var(--u)); inset-inline-end: calc(9 * var(--u)); }
+.tracker-root .dh-hero-range {
+  position: absolute; z-index: 3; inset-inline-end: calc(9 * var(--u)); bottom: calc(9 * var(--u));
+  display: flex; align-items: center; gap: calc(5 * var(--u));
+  padding: calc(4 * var(--u)) calc(7 * var(--u)); border-radius: calc(7 * var(--u));
+  background: color-mix(in srgb, var(--card-bg) 70%, transparent); border: 1px solid var(--line);
+  font-size: calc(7 * var(--ui-scale, 1) * var(--s) * 1px); line-height: 1.35; color: var(--muted); font-weight: 600;
+}
+.tracker-root .dh-hero-range svg { width: calc(10 * var(--u)); height: calc(10 * var(--u)); color: var(--brand); }
+
+/* ── headline cards ── */
+.tracker-root .dh-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(7 * var(--u)); }
+.tracker-root .dh-stat { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: calc(3 * var(--u)); min-height: calc(82 * var(--u)); }
+.tracker-root .dh-stat header { display: flex; align-items: center; gap: calc(5 * var(--u)); }
+.tracker-root .dh-stat h3 { font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; line-height: 1.2; }
+.tracker-root .dh-delta { display: flex; align-items: center; gap: calc(2 * var(--u)); font-size: calc(8 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; flex-wrap: wrap; }
+.tracker-root .dh-delta svg { width: calc(8 * var(--u)); height: calc(8 * var(--u)); stroke-width: 3; }
+.tracker-root .dh-delta span { color: var(--muted); font-weight: 500; font-size: calc(7 * var(--ui-scale, 1) * var(--s) * 1px); flex-basis: 100%; }
+.tracker-root .dh-delta.up { color: var(--good); }
+.tracker-root .dh-delta.down { color: var(--bad); }
+.tracker-root .dh-delta.none { color: var(--muted); }
+.tracker-root .dh-stat-spark { position: absolute; inset-inline-end: calc(5 * var(--u)); bottom: calc(5 * var(--u)); width: 44%; height: calc(24 * var(--u)); }
+
+/* ── profit trend ── */
+.tracker-root .dh-trend-head { display: flex; align-items: center; gap: calc(8 * var(--u)); flex-wrap: wrap; }
+.tracker-root .dh-trend-head h2, .tracker-root .dh-top-head h2 { display: flex; align-items: center; gap: calc(5 * var(--u)); font-size: calc(11 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: var(--lt-fw-ui, 800); }
+.tracker-root .dh-trend-head h2 svg, .tracker-root .dh-top-head h2 svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); color: var(--good); }
+.tracker-root .dh-top-head h2 svg { color: var(--warn); }
+.tracker-root .dh-legend { display: inline-flex; align-items: center; gap: calc(3 * var(--u)); font-size: calc(7.5 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); }
+.tracker-root .dh-legend i, .tracker-root .dh-tip i { width: calc(5 * var(--u)); height: calc(5 * var(--u)); border-radius: 50%; display: inline-block; flex: none; }
+.tracker-root .dh-trend-sel { margin-inline-start: auto; }
+.tracker-root .dh-trend-chart { height: calc(98 * var(--u)); margin-top: calc(4 * var(--u)); }
+.tracker-root .dh-tip { background: var(--card-bg); border: 1px solid var(--line); border-radius: calc(7 * var(--u)); box-shadow: var(--lt-shadow2); padding: calc(5 * var(--u)) calc(8 * var(--u)); font-size: calc(8 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--text); }
+.tracker-root .dh-tip div { display: flex; align-items: center; gap: calc(4 * var(--u)); line-height: 1.5; font-weight: 600; }
+.tracker-root .dh-tip-t { color: var(--muted); font-weight: 700 !important; }
+
+/* ── six figures ── */
+.tracker-root .dh-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(7 * var(--u)); }
+.tracker-root .dh-tile { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: calc(3 * var(--u)); min-height: calc(66 * var(--u)); }
+.tracker-root .dh-tile.link { cursor: pointer; }
+.tracker-root .dh-tile.link:hover { border-color: color-mix(in srgb, var(--tone) 40%, var(--line)); }
+.tracker-root .dh-tile header { display: flex; align-items: center; gap: calc(5 * var(--u)); }
+.tracker-root .dh-tile h3 { flex: 1; min-width: 0; font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; line-height: 1.2; }
+.tracker-root .dh-go { flex: none; width: calc(13 * var(--u)); height: calc(13 * var(--u)); border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.tracker-root .dh-go svg { width: calc(7 * var(--u)); height: calc(7 * var(--u)); stroke-width: 2.6; }
+[dir=rtl] .tracker-root .dh-go svg, .tracker-root .dh[dir=rtl] .dh-go svg { transform: scaleX(-1); }
+.tracker-root .dh-tile .dh-sub .good { color: var(--good); font-weight: 700; }
+.tracker-root .dh-tile .dh-sub .bad { color: var(--bad); font-weight: 700; }
+.tracker-root .dh-tile-spark { position: absolute; inset-inline-end: calc(5 * var(--u)); bottom: calc(5 * var(--u)); width: 38%; height: calc(24 * var(--u)); opacity: .9; }
+
+/* ── cash ── */
+.tracker-root .dh-cash { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "l bar btn" "l legend legend"; align-items: center; column-gap: calc(9 * var(--u)); row-gap: calc(5 * var(--u)); }
+.tracker-root .dh-cash-l { grid-area: l; display: flex; align-items: center; gap: calc(8 * var(--u)); }
+.tracker-root .dh-cash-l h3 { font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; }
+.tracker-root .dh-cash .dh-val b { font-size: calc(16 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--warn); }
+.tracker-root .dh-cash-bar { grid-area: bar; display: flex; gap: calc(1.5 * var(--u)); height: calc(5 * var(--u)); border-radius: 999px; overflow: hidden; }
+.tracker-root .dh-cash-bar i { display: block; min-width: calc(3 * var(--u)); }
+.tracker-root .dh-cash-legend { grid-area: legend; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: calc(3 * var(--u)) calc(9 * var(--u)); font-size: calc(7.5 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); }
+.tracker-root .dh-cash > .dh-btn { grid-area: btn; }
+.tracker-root .dh-cash-legend li { display: inline-flex; align-items: center; gap: calc(3 * var(--u)); white-space: nowrap; }
+.tracker-root .dh-cash-legend i { width: calc(5 * var(--u)); height: calc(5 * var(--u)); border-radius: 50%; display: inline-block; }
+.tracker-root .dh-cash-legend b { color: var(--text); font-weight: 700; }
+.tracker-root .dh-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(4 * var(--u)); height: calc(20 * var(--u)); padding: 0 calc(11 * var(--u));
+  border-radius: 999px; border: 1px solid var(--brand); background: var(--brand); color: var(--card-bg);
+  font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; white-space: nowrap;
+}
+.tracker-root .dh-btn svg { width: calc(9 * var(--u)); height: calc(9 * var(--u)); stroke-width: 2.5; }
+.tracker-root .dh-btn.out { background: transparent; color: var(--brand); }
+.tracker-root .dh-btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+[dir=rtl] .tracker-root .dh-btn svg, .tracker-root .dh[dir=rtl] .dh-btn svg { transform: scaleX(-1); }
+
+/* ── My KPIs ── */
+.tracker-root .dh-kpis-head { display: flex; align-items: center; gap: calc(8 * var(--u)); }
+.tracker-root .dh-kpis-head h2 { display: flex; align-items: center; gap: calc(5 * var(--u)); font-size: calc(11 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: var(--lt-fw-ui, 800); }
+.tracker-root .dh-kpis-head h2 svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); color: var(--good); }
+.tracker-root .dh-kpis-head .dh-select { margin-inline-start: auto; }
+.tracker-root .dh-kpis-edit { margin-inline-start: calc(4 * var(--u)); border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; height: calc(18 * var(--u)); padding: 0 calc(8 * var(--u)); font-size: calc(8 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; }
+.tracker-root .dh-kgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(6 * var(--u)); margin-top: calc(7 * var(--u)); }
+.tracker-root .dh-kbox { position: relative; overflow: hidden; border-radius: calc(9 * var(--u)); border: 1px solid var(--line); background: color-mix(in srgb, var(--tone) 6%, var(--card-bg)); padding: calc(6 * var(--u)); min-height: calc(50 * var(--u)); display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+.tracker-root .dh-kbox > :not(.dh-kbox-spark) { position: relative; z-index: 1; }
+.tracker-root .dh-kbox header { display: flex; align-items: center; gap: calc(4 * var(--u)); }
+.tracker-root .dh-kbox h3 { font-size: calc(7.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 600; color: var(--muted); line-height: 1.2; overflow-wrap: anywhere; }
+.tracker-root .dh-kbox .dh-val b { font-size: calc(12 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-kbox .dh-val.strong b { color: var(--good); }
+.tracker-root .dh-kbox .dh-sub { overflow-wrap: anywhere; }
+.tracker-root .dh-kbox-spark { position: absolute; inset-inline-end: calc(3 * var(--u)); bottom: calc(3 * var(--u)); width: 46%; height: calc(20 * var(--u)); opacity: .45; z-index: 0; }
+.tracker-root .dh-kpick { margin-top: calc(8 * var(--u)); display: flex; flex-direction: column; gap: calc(8 * var(--u)); }
+.tracker-root .dh-kpick .grp { font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 800; color: var(--muted); margin-bottom: calc(4 * var(--u)); }
+.tracker-root .dh-kpick .opts { display: flex; flex-wrap: wrap; gap: calc(5 * var(--u)); }
+.tracker-root .dh-kpick button { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 999px; padding: calc(3 * var(--u)) calc(8 * var(--u)); font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 600; text-align: start; }
+.tracker-root .dh-kpick button.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
+.tracker-root .dh-kempty { margin-top: calc(6 * var(--u)); font-size: calc(9 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); }
+@media (max-width: 380px) { .tracker-root .dh-kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ── top clients ── */
+.tracker-root .dh-top-head { display: flex; align-items: center; gap: calc(8 * var(--u)); }
+.tracker-root .dh-seg { display: inline-flex; padding: calc(2 * var(--u)); border-radius: 999px; border: 1px solid var(--line); background: var(--card-bg); margin-inline-start: auto; }
+.tracker-root .dh-seg button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: calc(3 * var(--u)) calc(10 * var(--u)); font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; }
+.tracker-root .dh-seg button.on { background: var(--brand); color: var(--card-bg); }
+.tracker-root .dh-seg.sm button { padding: calc(3 * var(--u)) calc(9 * var(--u)); }
+.tracker-root .dh-table { width: 100%; margin-top: calc(7 * var(--u)); border-collapse: collapse; font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-table th { text-align: start; font-weight: 600; color: var(--muted); padding: calc(3 * var(--u)) calc(3 * var(--u)); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tracker-root .dh-table td { padding: calc(5 * var(--u)) calc(3 * var(--u)); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; font-variant-numeric: tabular-nums; }
+.tracker-root .dh-table tr:last-child td { border-bottom: 0; }
+.tracker-root .dh-table .r { text-align: end; white-space: nowrap; }
+.tracker-root .dh-good { color: var(--good); font-weight: 700; }
+.tracker-root .dh-bad { color: var(--bad); font-weight: 700; }
+.tracker-root .dh-medal { display: inline-flex; align-items: center; justify-content: center; width: calc(12 * var(--u)); height: calc(12 * var(--u)); border-radius: 50%; font-size: calc(7 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 800; background: var(--tone); color: var(--card-bg); }
+.tracker-root .dh-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: calc(13 * var(--u)); height: calc(13 * var(--u)); border-radius: 50%; font-size: calc(7 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 800; background: var(--tone, var(--brand)); color: var(--card-bg); }
+.tracker-root .dh-client { display: flex; align-items: center; gap: calc(5 * var(--u)); }
+.tracker-root .dh-client span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: calc(78 * var(--u)); font-weight: 600; }
+.tracker-root .dh-ord { min-width: calc(60 * var(--u)); }
+.tracker-root .dh-ord b { display: inline-block; width: calc(14 * var(--u)); font-weight: 700; }
+.tracker-root .dh-ord i { display: inline-block; vertical-align: middle; width: calc(40 * var(--u)); height: calc(4 * var(--u)); border-radius: 999px; background: var(--panel3, var(--line)); overflow: hidden; }
+.tracker-root .dh-ord em { display: block; height: 100%; border-radius: 999px; }
+.tracker-root .dh-empty { padding: calc(14 * var(--u)); text-align: center; color: var(--muted); font-size: calc(9 * var(--ui-scale, 1) * var(--s) * 1px); }
+
+/* ── filter and search sheets ── */
+.tracker-root .dh-sheet-scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(3px); display: flex; align-items: flex-end; justify-content: center; }
+.tracker-root .dh-sheet { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-lg, 16px) var(--lt-radius-lg, 16px) 0 0; padding: calc(12 * var(--u)); display: flex; flex-direction: column; gap: calc(11 * var(--u)); box-shadow: var(--lt-shadow); }
+.tracker-root .dh-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.tracker-root .dh-sheet-head h2 { display: flex; align-items: center; gap: calc(6 * var(--u)); font-size: calc(12 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: var(--lt-fw-ui, 800); }
+.tracker-root .dh-sheet-head svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); color: var(--brand); }
+.tracker-root .dh-sheet-head button { border: 0; background: transparent; color: var(--muted); }
+.tracker-root .dh-sheet-sec { display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
+.tracker-root .dh-sheet-sec > label { font-size: calc(9 * var(--ui-scale, 1) * var(--s) * 1px); font-weight: 700; color: var(--muted); }
+.tracker-root .dh-sheet-sec .dh-seg { margin: 0; align-self: flex-start; flex-wrap: wrap; border-radius: calc(12 * var(--u)); }
+.tracker-root .dh-sheet-zoom { flex-direction: row; align-items: center; justify-content: space-between; }
+.tracker-root .dh-dates { display: flex; align-items: center; gap: calc(6 * var(--u)); color: var(--muted); }
+.tracker-root .dh-dates input { flex: 1; min-width: 0; height: calc(24 * var(--u)); border-radius: calc(8 * var(--u)); border: 1px solid var(--line); background: var(--input-bg, var(--panel2)); color: var(--text); padding: 0 calc(8 * var(--u)); font: inherit; font-size: calc(9.5 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-sheet-hint { font-size: calc(8 * var(--ui-scale, 1) * var(--s) * 1px); color: var(--muted); }
+.tracker-root .dh-sheet-foot { display: flex; gap: calc(8 * var(--u)); justify-content: flex-end; }
+.tracker-root .dh-sheet-foot .dh-btn { height: calc(24 * var(--u)); padding: 0 calc(16 * var(--u)); font-size: calc(10 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-search { display: flex; align-items: center; gap: calc(6 * var(--u)); height: calc(26 * var(--u)); padding: 0 calc(9 * var(--u)); border-radius: calc(9 * var(--u)); border: 1px solid var(--line); background: var(--input-bg, var(--panel2)); }
+.tracker-root .dh-search svg { width: calc(12 * var(--u)); height: calc(12 * var(--u)); color: var(--muted); }
+.tracker-root .dh-search input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(10 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+.tracker-root .dh-results button { width: 100%; display: flex; align-items: center; gap: calc(7 * var(--u)); border: 0; background: transparent; color: var(--text); padding: calc(6 * var(--u)) calc(4 * var(--u)); border-radius: calc(8 * var(--u)); text-align: start; font-size: calc(10 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-results button:hover { background: var(--hover-card); }
+.tracker-root .dh-results-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.tracker-root .dh-results-m { color: var(--muted); font-size: calc(8.5 * var(--ui-scale, 1) * var(--s) * 1px); }
+.tracker-root .dh-results-empty { color: var(--muted); padding: calc(10 * var(--u)); text-align: center; font-size: calc(9 * var(--ui-scale, 1) * var(--s) * 1px); }
+
+/* wider screens: the six figures and the headline cards get more room */
+@media (min-width: 900px) {
+  .tracker-root .dh-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tracker-root .dh-hero { min-height: calc(86 * var(--u)); }
+}

@@ -2,11 +2,11 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
-  fmtU, fmtPct,
+  fmtU,
   fmtTotal, fmtPrice,
   kpiFor, totalStock, stockCostQAR, getWACOP,
-  rangeLabel, num, startOfDay, inRange,
-  deriveCashQAR, getLoanRemaining,
+  num, inRange,
+  deriveCashQAR, getLoanRemaining, getAccountBalance,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
@@ -20,15 +20,19 @@ import { activateTrackerClearBarrier, markTrackerClearInProgress } from '@/lib/t
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { TopClientsKPI } from '@/components/dashboard/TopClientsKPI';
-import { CustomKpis } from '@/features/dashboard/components/CustomKpis';
+import { CustomKpis, type KpiPeriod } from '@/features/dashboard/components/CustomKpis';
 import type { KpiOption } from '@/features/dashboard/kpi-catalog';
-import { BanqueMisrInstaPayKPI } from '@/components/dashboard/BanqueMisrInstaPayKPI';
+import { DashboardHome, type HomeTile } from '@/features/dashboard/components/home/DashboardHome';
+import { useBanqueMisrRate } from '@/features/dashboard/hooks/useBanqueMisrRate';
+import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import {
-  AreaChart, Area, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, CartesianGrid,
-} from 'recharts';
+  activeClients, rangeWindow, scopePoints, sparkline, summarize, summarizeWithPrevious,
+  type DashPoint,
+} from '@/features/dashboard/dashboard-model';
+import { listSharedOrdersForActor } from '@/features/orders/shared-order-workflow';
+import { ArrowLeftRight, BadgeDollarSign, Clock, Coins, Landmark, PieChart } from 'lucide-react';
 import '@/styles/tracker.css';
+import '@/styles/dashboard-home.css';
 
 interface DashboardPageProps {
   adminUserId?: string;
@@ -68,7 +72,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     [state.cashAccounts, state.cashLedger]
   );
   const averageStockPrice = getWACOP(derived);
-  const rLabel = rangeLabel(settings.range);
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const { data: qatarP2PRate } = useP2PRates('qatar');
   const { data: egyptP2PRate } = useP2PRates('egypt');
@@ -430,199 +433,165 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return fullNet;
   }, [derived.tradeCalc]);
 
-  // ── Segmented Net Profit KPI (Own / Incoming / Outgoing) ──────────────
-  const segmentedProfit = useMemo(() => {
-    const computeForRange = (range: string) => {
-      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
-      let ownNet = 0, ownRev = 0, ownQty = 0, ownCount = 0;
-      for (const tr of ownTrades) {
-        ownNet += tradeNet(tr);
-        ownRev += tr.amountUSDT * tr.sellPriceQAR;
-        ownQty += tr.amountUSDT;
-        ownCount++;
-      }
-      let inMyShare = 0, inVol = 0, inCount = 0;
-      let outMyShare = 0, outVol = 0, outCount = 0;
-      if (merchantDealKpis?.dealDetails) {
-        const seen = new Set<string>();
-        for (const d of merchantDealKpis.dealDetails) {
-          if (!inRange(d.ts, range)) continue;
-          if (seen.has(d.id)) continue;
-          seen.add(d.id);
-          if (!Number.isFinite(d.myShare)) continue;
-          if (d.direction === 'incoming') { inMyShare += d.myShare; inVol += d.vol; inCount++; }
-          else if (d.direction === 'outgoing') { outMyShare += d.myShare; outVol += d.vol; outCount++; }
-        }
-      }
-      const totalNet = ownNet + inMyShare + outMyShare;
-      const totalRev = ownRev + inVol + outVol;
-      return { ownNet, ownRev, ownQty, ownCount, inMyShare, inVol, inCount, outMyShare, outVol, outCount, total: totalNet, totalRev };
-    };
-    return {
-      thisMonth: computeForRange('this_month'),
-      lastMonth: computeForRange('last_month'),
-      range: computeForRange(settings.range),
-    };
-  }, [allTrades, merchantDealKpis, settings.range, tradeNet]);
-
-  const trendData = useMemo(() => {
-    const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
-    return sorted.map((tr, i) => {
-      const rev = tr.amountUSDT * tr.sellPriceQAR;
-      return {
-        idx: i + 1,
-        date: new Date(tr.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        revenue: Math.round(rev),
-        profit: Math.round(tradeNet(tr)),
-      };
-    });
-  }, [allTrades, tradeNet]);
-
-  // Calculate top 5 clients with their net profit
-  const top5ClientsByProfit = useMemo(() => {
-    // Build customer name lookup from local state
-    const customerMap = new Map<string, string>();
-    for (const c of state.customers || []) {
-      if (c.id && c.name) customerMap.set(c.id, c.name);
-    }
-
-    // Group net profit by resolved client name
-    const profitByClient = new Map<string, number>();
-
-    for (const tr of allTrades) {
+  // ── Dashboard home ───────────────────────────────────────────────────────
+  // One flat list of points (each own trade and each partner deal) feeds every card, so the cards agree.
+  const { scope, customFrom, customTo } = useDashboardFilters();
+  const customerNames = useMemo(() => new Map((state.customers || []).map(c => [c.id, c.name])), [state.customers]);
+  const allPoints = useMemo<DashPoint[]>(() => {
+    const rows: DashPoint[] = [];
+    // Trades linked to a deal are counted through the deal below, not twice.
+    for (const tr of state.trades) {
+      if (tr.voided || tr.linkedDealId || tr.linkedRelId) continue;
       const net = tradeNet(tr);
-      if (!Number.isFinite(net) || net === 0) continue;
-
-      let clientName: string | null = null;
-
-      // 1. Own trade with a named customer
-      if (tr.customerId) {
-        clientName = customerMap.get(tr.customerId) || null;
-      }
-
-      // 2. Merchant-linked trade — use counterparty name from deal details
-      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
-        const deal = merchantDealKpis?.dealDetails?.find(
-          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
-        );
-        if (deal?.merchantName && deal.merchantName !== 'Unknown') {
-          clientName = deal.merchantName;
-        }
-      }
-
-      // Skip trades with no identifiable client name
-      if (!clientName) continue;
-
-      profitByClient.set(clientName, (profitByClient.get(clientName) || 0) + net);
+      rows.push({
+        ts: tr.ts,
+        client: (tr.customerId && customerNames.get(tr.customerId)) || null,
+        own: true,
+        vol: tr.amountUSDT * tr.sellPriceQAR,
+        net,
+        fullNet: net,
+      });
     }
-
-    const countByClient = new Map<string, number>();
-    for (const [name] of profitByClient) {
-      countByClient.set(name, 0);
+    const seen = new Set<string>();
+    for (const d of merchantDealKpis?.dealDetails ?? []) {
+      if (seen.has(d.id) || !Number.isFinite(d.myShare)) continue;
+      seen.add(d.id);
+      rows.push({
+        ts: d.ts,
+        client: d.merchantName && d.merchantName !== 'Unknown' ? d.merchantName : null,
+        own: false,
+        vol: d.vol,
+        net: d.myShare,
+        fullNet: d.net,
+      });
     }
-    for (const tr of allTrades) {
-      let clientName: string | null = null;
-      if (tr.customerId) clientName = customerMap.get(tr.customerId) || null;
-      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
-        const deal = merchantDealKpis?.dealDetails?.find(
-          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
-        );
-        if (deal?.merchantName && deal.merchantName !== 'Unknown') clientName = deal.merchantName;
-      }
-      if (clientName && profitByClient.has(clientName)) {
-        countByClient.set(clientName, (countByClient.get(clientName) || 0) + 1);
-      }
+    return rows;
+  }, [state.trades, tradeNet, customerNames, merchantDealKpis]);
+  const points = useMemo(() => scopePoints(allPoints, scope), [allPoints, scope]);
+  const firstTs = useMemo(() => (allPoints.length ? Math.min(...allPoints.map(p => p.ts)) : null), [allPoints]);
+
+  const nowMinute = Math.floor(Date.now() / 60000);
+  const nowTs = nowMinute * 60000;
+  const win = useMemo(() => {
+    const custom = customFrom && customTo
+      ? { from: new Date(`${customFrom}T00:00`).getTime(), to: new Date(`${customTo}T00:00`).getTime() }
+      : null;
+    return rangeWindow(settings.range, nowMinute * 60000, firstTs, custom);
+  }, [settings.range, customFrom, customTo, firstTs, nowMinute]);
+  const dateLocale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
+  const rangeText = `${new Date(win.from).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })} – ${new Date(win.to).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+  const fiatParts = useCallback((qarAmount: number) => {
+    const c = convertDashboardFiat(qarAmount);
+    if (!c) return { n: '—', u: '' };
+    return c.currency === 'USDT'
+      ? { n: fmtPrice(c.amount), u: localCur('USDT', t.lang) }
+      : { n: fmtTotal(c.amount), u: localCur(c.currency, t.lang) };
+  }, [convertDashboardFiat, t.lang]);
+  const money = useCallback((qarAmount: number) => {
+    const p = fiatParts(qarAmount);
+    return p.u ? `${p.n} ${p.u}` : p.n;
+  }, [fiatParts]);
+  const priceParts = (priceQarPerUsdt: number) => {
+    const price = num(priceQarPerUsdt, Number.NaN);
+    if (!Number.isFinite(price)) return { n: '—', u: '' };
+    if (settings.currency === 'EGP' && dashboardQarPerUsdt && dashboardQarPerUsdt > 0 && egyptBuyRate && egyptBuyRate > 0) {
+      return { n: fmtPrice((price / dashboardQarPerUsdt) * egyptBuyRate), u: localCur('EGP', t.lang) };
     }
-
-    return [...profitByClient.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, value]) => ({ name, value, trades: countByClient.get(name) || 0 }));
-  }, [allTrades, tradeNet, merchantDealKpis, state.customers]);
-
-  // Calculate top 5 clients by volume (USDT)
-  const top5ClientsByVolume = useMemo(() => {
-    // Build customer name lookup from local state
-    const customerMap = new Map<string, string>();
-    for (const c of state.customers || []) {
-      if (c.id && c.name) customerMap.set(c.id, c.name);
-    }
-
-    // Group volume by resolved client name
-    const volumeByClient = new Map<string, number>();
-    const countByClient = new Map<string, number>();
-
-    for (const tr of allTrades) {
-      const vol = tr.amountUSDT;
-      if (!Number.isFinite(vol) || vol === 0) continue;
-
-      let clientName: string | null = null;
-
-      // 1. Own trade with a named customer
-      if (tr.customerId) {
-        clientName = customerMap.get(tr.customerId) || null;
-      }
-
-      // 2. Merchant-linked trade — use counterparty name from deal details
-      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
-        const deal = merchantDealKpis?.dealDetails?.find(
-          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
-        );
-        if (deal?.merchantName && deal.merchantName !== 'Unknown') {
-          clientName = deal.merchantName;
-        }
-      }
-
-      // Skip trades with no identifiable client name
-      if (!clientName) continue;
-
-      volumeByClient.set(clientName, (volumeByClient.get(clientName) || 0) + vol);
-      countByClient.set(clientName, (countByClient.get(clientName) || 0) + 1);
-    }
-
-    return [...volumeByClient.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, value]) => ({ name, value, trades: countByClient.get(name) || 0 }));
-  }, [allTrades, merchantDealKpis, state.customers]);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ChartTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{
-        background: 'var(--panel2)', border: '1px solid var(--line)',
-        borderRadius: 6, padding: '6px 10px', fontSize: 10,
-      }}>
-        <div style={{ fontWeight: 700, marginBottom: 3 }}>{label}</div>
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {payload.map((p: any, i: number) => (
-          <div key={i} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-            <span>{p.name}</span>
-            <span className="mono" style={{ fontWeight: 700 }}>{fmtDashboardAmount(Number(p.value))}</span>
-          </div>
-        ))}
-      </div>
-    );
+    return { n: fmtPrice(price), u: localCur('QAR', t.lang) };
   };
 
-  const badgeStyle = (condition: string) => {
-    const color = condition === 'good' ? 'var(--good)' : condition === 'bad' ? 'var(--bad)' : 'var(--warn)';
+  const { kpi: misr, loading: misrLoading } = useBanqueMisrRate();
+  const { cur: homeCur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
+  const profitSpark = useMemo(() => sparkline(points, win, p => p.fullNet, 12), [points, win]);
+
+  const cashView = useMemo(() => {
+    const accounts = state.cashAccounts || [];
+    const ledger = state.cashLedger || [];
+    const hasAccounts = accounts.length > 0;
+    const total = hasAccounts ? deriveCashQAR(accounts, ledger) : num(state.cashQAR, 0);
+    const active = accounts.filter(a => a.status === 'active');
+    // deriveCashQAR only sums active, QAR-currency, non-custody accounts; count the same subset so
+    // the breakdown always matches the total shown above it.
+    const counted = active.filter(a => a.currency === 'QAR' && a.type !== 'merchant_custody');
     return {
-      color,
-      borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
-      background: `color-mix(in srgb, ${color} 10%, transparent)`,
+      total,
+      active: active.length,
+      counted: counted.length,
+      accounts: counted.map(a => { const balance = getAccountBalance(a.id, ledger); return { name: a.name, balance, shown: fmtTotal(balance) }; }),
     };
-  };
+  }, [state.cashAccounts, state.cashLedger, state.cashQAR]);
 
-  const now = new Date();
-  const monthKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const curMo = t(monthKeys[now.getMonth()] as any);
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const prevMo = t(monthKeys[prevDate.getMonth()] as any);
+  const tiles: HomeTile[] = (() => {
+    const profit = fiatParts(homeCur.fullNet);
+    const unpaid = !loansUnpaid.lead
+      ? fiatParts(0)
+      : loansUnpaid.lead.currency === 'QAR'
+        ? fiatParts(loansUnpaid.lead.remaining)
+        : { n: fmtTotal(loansUnpaid.lead.remaining), u: localCur(loansUnpaid.lead.currency, t.lang) };
+    const vsP2p = averageStockPrice && p2pAvgs.avgSell ? (p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100 : null;
+    const avg = averageStockPrice ? priceParts(averageStockPrice) : null;
+    return [
+      { key: 'profit', label: t('dhProfit'), Icon: BadgeDollarSign, tone: 'good', value: profit.n, unit: profit.u, sub: `${t('dhFromWord')} ${homeCur.orders} ${t('dhOrdersWord')}`, spark: profitSpark, path: '/trading/orders' },
+      {
+        key: 'rate', label: t('dhQarEgp'), Icon: ArrowLeftRight, tone: 'brand', value: misrLoading ? '…' : misr ? misr.instaPayV1BanqueMisr.toFixed(4) : '—',
+        sub: misr ? `${t('dhBanqueTop')} ${misr.egSellBanqueMisrAvg.toFixed(3)} EGP` : t('noDataAvailable'), path: '/trading/p2p',
+      },
+      {
+        key: 'unpaid', label: t('dhUnpaid'), Icon: Clock, tone: 'bad', valueTone: loansUnpaid.totalRemaining > 0 ? 'bad' : 'good', value: unpaid.n, unit: unpaid.u,
+        sub: !loansUnpaid.hasLoans
+          ? t('kpiNoLoans')
+          : loansUnpaid.totalRemaining === 0
+            ? t('loansUnpaidNone')
+            : `${loansUnpaid.openCount} ${t('loanCustomerOpenCount')} • ${loansUnpaid.debtorCount} ${loansUnpaid.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`,
+        path: '/trading/cash',
+      },
+      { key: 'usdt', label: t('dhUsdtBalance'), Icon: Coins, tone: 'good', valueTone: isLow ? 'bad' : undefined, value: fmtU(stk, 0), unit: 'USDT', sub: `≈ ${money(stCost)}`, path: '/trading/stock' },
+      { key: 'exchange', label: t('dhExchangeBalance'), Icon: Landmark, tone: 'brand', value: fmtU(binanceUsdt, 0), sub: t('dhSpotFunding'), path: '/trading/stock' },
+      {
+        key: 'avg', label: t('dhAvgCost'), Icon: PieChart, tone: 'brand2', value: avg ? avg.n : t('noStock'), unit: avg?.u,
+        sub: vsP2p !== null
+          ? <span className={vsP2p >= 0 ? 'good' : 'bad'}>{vsP2p >= 0 ? '↑' : '↓'} {vsP2p >= 0 ? '+' : ''}{fmtPrice(vsP2p)}% {t('dhVsP2p')}</span>
+          : t('sellAboveAvPrice'),
+        path: '/trading/stock',
+      },
+    ];
+  })();
 
+  // ── My KPIs ──
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('today');
+  const { data: customerOrders } = useQuery({
+    queryKey: ['dashboard-customer-orders', workspaceMerchantId],
+    queryFn: () => listSharedOrdersForActor({ merchantId: workspaceMerchantId }),
+    enabled: !!workspaceMerchantId,
+    staleTime: 30_000,
+  });
+  const homeKpiOptions = useMemo<KpiOption[]>(() => {
+    const L = (en: string, ar: string) => (t.lang === 'ar' ? ar : en);
+    const g = L('Tracker', 'التراكر');
+    const kWin = rangeWindow(kpiPeriod, nowMinute * 60000, firstTs);
+    const { cur, prev } = summarizeWithPrevious(allPoints, kWin);
+    const diff = cur.orders - (prev?.orders ?? 0);
+    const vs = kpiPeriod === 'today' ? L('vs yesterday', 'مقارنة بالأمس') : L('vs previous period', 'مقارنة بالفترة السابقة');
+    const week = { from: nowMinute * 60000 - 7 * 864e5, to: nowMinute * 60000, prevFrom: null, prevTo: null };
+    const periodOrders = (customerOrders || []).filter(o => {
+      const ts = new Date(o.created_at).getTime();
+      return ts >= kWin.from && ts <= kWin.to && o.workflow_status !== 'cancelled';
+    });
+    const approved = periodOrders.filter(o => o.workflow_status === 'approved').length;
+    const clients = activeClients(allPoints, nowMinute * 60000, 30);
+    const fresh: KpiOption[] = [
+      { id: 'tracker:newOrders', group: g, label: L('New Orders', 'طلبات جديدة'), value: `+${cur.orders}`, sub: `${diff >= 0 ? '+' : ''}${diff} ${vs}`, strong: cur.orders > 0, icon: 'orders', tone: 'good', spark: sparkline(allPoints, week, () => 1, 7) },
+      {
+        id: 'tracker:conversion', group: g, label: L('Conversion Rate', 'معدل التحويل'),
+        value: periodOrders.length ? `${Math.round((approved / periodOrders.length) * 100)}%` : '—',
+        sub: periodOrders.length ? `${approved}/${periodOrders.length} ${L('orders', 'طلب')}` : L('no orders yet', 'لا توجد طلبات'),
+        icon: 'conversion', tone: 't5',
+      },
+      { id: 'tracker:activeClients', group: g, label: L('Active Clients', 'العملاء النشطون'), value: String(clients.active), sub: `+${clients.newThisMonth} ${L('this month', 'هذا الشهر')}`, icon: 'clients', tone: 'warn' },
+    ];
+    return [...fresh, ...trackerKpiOptions];
+  }, [t.lang, kpiPeriod, allPoints, firstTs, nowMinute, customerOrders, trackerKpiOptions]);
   if (isAdminWorkspace && (!resolvedUserId || !resolvedMerchantId || adminTrackerState === undefined)) {
     return (
       <div className="tracker-root" style={{ padding: 12 }}>
@@ -636,193 +605,23 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   }
 
   return (
-    <div className={`tracker-root${isMobile ? ' dashboard-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
-      <div className="kpi-band-grid">
-        <div className="kpi-band">
-          <div className="kpi-band-title">{t('tradingVolume')}</div>
-          <div className="kpi-band-cols">
-            <div>
-              <div className="kpi-period">{curMo}</div>
-              {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev },
-              ].map(row => (
-                <div key={row.label} style={{ padding: '2px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
-                  </div>
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtDashboardAmount(segmentedProfit.thisMonth.totalRev)}</span>
-              </div>
-            </div>
-            <div>
-              <div className="kpi-period">{prevMo}</div>
-              {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev },
-              ].map(row => (
-                <div key={row.label} style={{ padding: '2px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
-                  </div>
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtDashboardAmount(segmentedProfit.lastMonth.totalRev)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="kpi-band">
-          <div className="kpi-band-title">{t('myNetProfit')}</div>
-          <div className="kpi-band-cols">
-            {/* Current Month */}
-            <div>
-              <div className="kpi-period">{curMo}</div>
-              {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownNet },
-              ].map(row => (
-                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
-                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
-                  </span>
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className={`mono ${segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.thisMonth.total)}
-                </span>
-              </div>
-            </div>
-            {/* Previous Month */}
-            <div>
-              <div className="kpi-period">{prevMo}</div>
-              {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownNet },
-              ].map(row => (
-                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
-                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
-                  </span>
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className={`mono ${segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.lastMonth.total)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="kpis kpis-dashboard">
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
-          <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
-          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
-        </div>
-        <BanqueMisrInstaPayKPI />
-        <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
-          <div className="kpi-lbl">{t('loansUnpaid')}</div>
-          <div className={`kpi-val ${loansUnpaid.totalRemaining > 0 ? 'bad' : 'good'}`}>
-            {!loansUnpaid.lead
-              ? fmtDashboardAmount(0)
-              : loansUnpaid.lead.currency === 'QAR'
-                ? fmtDashboardAmount(loansUnpaid.lead.remaining)
-                : `${fmtTotal(loansUnpaid.lead.remaining)} ${localCur(loansUnpaid.lead.currency, t.lang)}`}
-          </div>
-          <div className="kpi-sub">
-            {!loansUnpaid.hasLoans
-              ? t('kpiNoLoans')
-              : loansUnpaid.totalRemaining === 0
-                ? t('loansUnpaidNone')
-                : `${loansUnpaid.openCount} ${t('loanCustomerOpenCount')} · ${loansUnpaid.debtorCount} ${loansUnpaid.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`}
-            {loansUnpaid.others.map(r => (
-              <span key={r.currency}> · {fmtTotal(r.remaining)} {localCur(r.currency, t.lang)}</span>
-            ))}
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t('availableUsdt')}</div>
-          <div className={`kpi-val ${isLow ? 'bad' : 'good'}`} style={isLow ? { animation: 'tracker-blink 1.5s infinite' } : undefined}>{fmtU(stk, 0)}</div>
-          <div className="kpi-sub">{t('liquidUsdt')}</div>
-        </div>
-        <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock') : undefined}>
-          <div className="kpi-lbl">{t('binanceBalanceLbl')}</div>
-          <div className="kpi-val">{fmtU(binanceUsdt, 0)}</div>
-          <div className="kpi-sub">{t('binanceBalanceSub')}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t('kpiAvgCostShort')}</div>
-          <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtDashboardPrice(averageStockPrice) : t('noStock')}</div>
-          <div className="kpi-sub">
-            {(() => {
-              const sp = averageStockPrice && p2pAvgs.avgSell ? fmtPrice((p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100) : null;
-              return sp !== null
-                ? <span className={Number(sp) >= 0 ? 'good' : 'bad'} style={{ fontWeight: 700 }}>{Number(sp) >= 0 ? '+' : ''}{sp}% vs P2P</span>
-                : t('sellAboveAvPrice');
-            })()}
-          </div>
-        </div>
-
-        {(() => {
-          const cashAccounts = state.cashAccounts || [];
-          const cashLedger = state.cashLedger || [];
-          const hasAccounts = cashAccounts.length > 0;
-          const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
-          const activeAccounts = cashAccounts.filter(a => a.status === 'active');
-          // deriveCashQAR only sums active, QAR-currency, non-custody accounts — count the same
-          // subset here so the KPI's breakdown always matches the total shown above it.
-          const countedAccounts = activeAccounts.filter(a => a.currency === 'QAR' && a.type !== 'merchant_custody');
-
-          return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined} title={hasAccounts ? `Sum of ${countedAccounts.length} active QAR account(s). Excludes merchant-custody and other-currency accounts.` : undefined}>
-              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')} (QAR)</div>
-              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtDashboardAmount(totalCash)}</div>
-              <div className="kpi-sub">
-                {hasAccounts && (
-                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>
-                    {countedAccounts.length} {t('kpiOf')} {activeAccounts.length} {countedAccounts.length === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}
-                  </span>
-                )}
-                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600, marginLeft: hasAccounts ? 6 : 0 }}>{t('openCashMgmt')}</span>}
-              </div>
-            </div>
-          );
-        })()}
-
-      </div>
-
-      <CustomKpis trackerOptions={trackerKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} />
-
-      <div className="dash-bottom">
-        <TopClientsKPI
-          top5ClientsByProfit={top5ClientsByProfit}
-          top5ClientsByVolume={top5ClientsByVolume}
-          allTrades={allTrades}
-          tradeNet={tradeNet}
-        />
-        <div className="panel">
-          <div className="panel-head"><h2>{t('periodStats')}</h2><span className="pill">{rLabel}</span></div>
-          <div className="panel-body">
-            <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtDashboardAmount(dR.rev)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtDashboardAmount(dR.rev - dR.net - dR.fee)}</strong></div>
-            {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtDashboardAmount(dR.fee)}</strong></div>}
-            <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(dR.net)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{fmtPct(avgM)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
-          </div>
-        </div>
-      </div>
+    <div className="tracker-root dashboard-home-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100%' }}>
+      <DashboardHome
+        points={points}
+        allPoints={allPoints}
+        win={win}
+        rangeText={rangeText}
+        now={nowTs}
+        lang={t.lang === 'ar' ? 'ar' : 'en'}
+        isAdminView={isAdminView}
+        money={money}
+        parts={fiatParts}
+        tiles={tiles}
+        cash={{ ...fiatParts(cashView.total), total: fiatParts(cashView.total).n, unit: fiatParts(cashView.total).u, counted: cashView.counted, active: cashView.active, accounts: cashView.accounts }}
+        onGo={navigate}
+      >
+        <CustomKpis trackerOptions={homeKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} period={kpiPeriod} onPeriod={setKpiPeriod} />
+      </DashboardHome>
 
       {showCashBox && !isAdminView && (
         <CashBoxManager

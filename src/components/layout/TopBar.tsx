@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useMemo, useState } from 'react';
-import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
+import { Menu, Bell, Users, TrendingUp, User, Search, SlidersHorizontal } from 'lucide-react';
+import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -44,10 +45,15 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
   const [profileOpen, setProfileOpen] = useState(false);
+  // On the phone dashboard the bar carries search and filter buttons, and the zoom control moves into the filter sheet.
+  const onPhoneDashboard = isMobile && location.pathname === '/dashboard';
+  const { setSearchOpen, setFilterOpen, scope, customFrom, customTo } = useDashboardFilters();
+  const dashFiltersActive = scope !== 'all' || !!(customFrom && customTo);
+  const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', onPhoneDashboard ? 'px-1 py-1 text-[9px]' : 'px-1.5 py-1 text-[10px]');
 
   return (
     <header
-      className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 max-md:flex-wrap max-md:justify-start border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5"
+      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? 'flex-nowrap' : 'max-md:flex-wrap max-md:justify-start')}
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -68,7 +74,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onClick={() => update({ range: r.id as any })}
             className={cn(
-              'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
+              pillCls,
               settings.range === r.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -86,7 +92,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             key={c}
             onClick={() => update({ currency: c, ...(c !== 'USDT' ? { baseFiatCurrency: c } : {}) })}
             className={cn(
-              'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
+              pillCls,
               settings.currency === c
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -102,7 +108,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         <button
           onClick={() => update({ language: 'ar' })}
           className={cn(
-            'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
+            pillCls,
             settings.language === 'ar'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
@@ -114,7 +120,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         <button
           onClick={() => update({ language: 'en' })}
           className={cn(
-            'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
+            pillCls,
             settings.language === 'en'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
@@ -125,8 +131,21 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         </button>
       </div>
 
+      {/* ── Dashboard search and filter (phone) ── */}
+      {onPhoneDashboard && (
+        <div className="ms-auto flex shrink-0 items-center gap-1">
+          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-1 rounded-full border border-border bg-card text-foreground hover:bg-muted">
+            <Search className="h-4 w-4" />
+          </button>
+          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-1 rounded-full border border-border bg-card text-foreground hover:bg-muted">
+            <SlidersHorizontal className="h-4 w-4" />
+            {dashFiltersActive && <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-primary" />}
+          </button>
+        </div>
+      )}
+
       {/* ── Zoom Controls ── */}
-      <ZoomControls />
+      {!onPhoneDashboard && <ZoomControls />}
 
       {/* ── Activity ── */}
       <div className="max-md:order-[-1] shrink-0">
