@@ -1561,15 +1561,21 @@ export default function CustomerWalletPage() {
               {/* Headline figures */}
               <div className="cw-stats">
                 {[
-                  { label: L("Total", "الإجمالي"), value: loanTotals.totalDebt, icon: <Database />, bg: "#efe9ff", fg: "#7c3aed" },
-                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#e4edff", fg: "#2563eb" },
-                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#dff7ea", fg: "#16a34a" },
+                  { cls: "t1", label: L("Total", "الإجمالي"), value: loanTotals.totalDebt, icon: <Database />, bg: "#e6dcff", fg: "#6d28d9", bar: null as number | null, barFill: "" },
+                  { cls: "t2", label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#d3e3ff", fg: "#1d4ed8", bar: loanTotals.settledPct, barFill: "linear-gradient(90deg,#3b82f6,#60a5fa)" },
+                  { cls: "t3", label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#cdf1de", fg: "#15803d", bar: 100 - loanTotals.settledPct, barFill: "linear-gradient(90deg,#10b981,#34d399)" },
                 ].map(c => (
-                  <div key={c.label} className="cw-card cw-stat">
+                  <div key={c.label} className={`cw-card cw-stat ${c.cls}`}>
                     <div className="cw-stat-t">
                       <div className="cw-stat-l">{c.label}</div>
                       <div className="cw-stat-v">{fmtTotal(c.value)}</div>
                       <div className="cw-stat-u">({loanTotals.currency})</div>
+                      {c.bar !== null && (
+                        <div className="cw-stat-b">
+                          <div className="cw-stat-track"><div style={{ width: `${c.bar}%`, background: c.barFill }} /></div>
+                          <span style={{ color: c.fg }}>{c.bar}%</span>
+                        </div>
+                      )}
                     </div>
                     <span className="cw-stat-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
                   </div>
@@ -1578,7 +1584,7 @@ export default function CustomerWalletPage() {
 
               {/* The one counter: every payment registered or waiting on the merchant. */}
               <div className="cw-card cw-kpi1">
-                <span className="cw-kpi-ic" style={{ background: "#e4edff", color: "#2563eb" }}><Wallet2 /></span>
+                <span className="cw-kpi-ic" style={{ background: "#d3e3ff", color: "#1d4ed8" }}><Wallet2 /></span>
                 <span className="cw-kpi1-l">{L("Total payments", "إجمالي الدفعات")}</span>
                 <b className="cw-kpi1-v">{overallCounts.completed + overallCounts.pending}</b>
               </div>
