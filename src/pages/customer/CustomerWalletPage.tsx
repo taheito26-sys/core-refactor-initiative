@@ -13,6 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
+import { DayFilterDropdown } from "@/features/orders/components/DayFilterDropdown";
 import "@/styles/customer-home.css";
 import "@/styles/customer-orders.css";
 import "@/styles/customer-theme.css";
@@ -561,6 +562,9 @@ function GiverPickerModal({ givers, current, onPick, onAdd, onDelete, onClose, l
 
 // ── Main Page ─────────────────────────────────────────────────────
 
+// Giver-filter value for "payments with no giver" (never a real name).
+const NO_GIVER = "__none__";
+
 // ── Payments card styling ─────────────────────────────────────────
 
 // Card accents alternate within a status, as in the design: completed rows
@@ -911,6 +915,15 @@ export default function CustomerWalletPage() {
   // configured — the buyer re-enables the same filter with one tap instead
   // of re-entering it.
   const [paymentFilterOn, setPaymentFilterOn] = useState(false);
+  // Who handed over the cash: "" for everyone, NO_GIVER for payments with no giver, else a giver's name.
+  const [paymentGiverFilter, setPaymentGiverFilter] = useState("");
+  // The day picker in the toolbar. Choosing a day also moves the month chips to that day's month,
+  // so a day outside the selected month never shows an empty list.
+  const setPaymentDay = (day: string) => {
+    setPaymentFilterDay(day);
+    setPaymentFilterOn(!!day || !!paymentFilterMinAmount || !!paymentFilterMaxAmount);
+    if (day) { userPickedPaymentsMonth.current = true; setPaymentsMonth(day.slice(0, 7)); }
+  };
   const hasPaymentFilterCriteria = !!(paymentFilterDay || paymentFilterMinAmount || paymentFilterMaxAmount);
   const activePaymentFilterCount = paymentFilterOn && hasPaymentFilterCriteria ? 1 : 0;
 
@@ -1028,11 +1041,28 @@ export default function CustomerWalletPage() {
     return matching;
   }, [displayedLoanPayments, unsettledPaymentClaims, giverInfo, paymentNoteByKey, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
 
+  // The giver filter narrows the rows before the status chips count them, so every chip
+  // and the list agree on what is on screen. The giver chips themselves count over paymentRows.
+  const byGiverRows = useMemo(() => {
+    if (!paymentGiverFilter) return paymentRows;
+    if (paymentGiverFilter === NO_GIVER) return paymentRows.filter(r => !r.giver);
+    const want = normalizeGiverText(paymentGiverFilter);
+    return paymentRows.filter(r => !!r.giver && normalizeGiverText(r.giver) === want);
+  }, [paymentRows, paymentGiverFilter]);
+  const giverChips = useMemo(() => {
+    const count = (match: (g: string | null) => boolean) => paymentRows.filter(r => match(r.giver)).length;
+    const none = count(g => !g);
+    return [
+      { key: "", label: "", n: paymentRows.length },
+      ...giverNames.map(name => ({ key: name, label: name, n: count(g => !!g && normalizeGiverText(g) === normalizeGiverText(name)) })),
+      ...(none > 0 && giverNames.length > 0 ? [{ key: NO_GIVER, label: "", n: none }] : []),
+    ];
+  }, [paymentRows, giverNames]);
   const statusCounts = useMemo(() => {
-    const counts = { all: paymentRows.length, completed: 0, pending: 0, rejected: 0 };
-    for (const r of paymentRows) counts[r.status] += 1;
+    const counts = { all: byGiverRows.length, completed: 0, pending: 0, rejected: 0 };
+    for (const r of byGiverRows) counts[r.status] += 1;
     return counts;
-  }, [paymentRows]);
+  }, [byGiverRows]);
   const rowAccent = useMemo(() => {
     const seen = { completed: 0, pending: 0, rejected: 0 };
     const map = new Map<string, string>();
@@ -1044,9 +1074,15 @@ export default function CustomerWalletPage() {
     return map;
   }, [paymentRows]);
   const visibleRows = useMemo(
-    () => (statusFilter === "all" ? paymentRows : paymentRows.filter(r => r.status === statusFilter)),
-    [paymentRows, statusFilter],
+    () => (statusFilter === "all" ? byGiverRows : byGiverRows.filter(r => r.status === statusFilter)),
+    [byGiverRows, statusFilter],
   );
+  // How much the rows on screen add up to, per currency; a payment the merchant rejected is not money paid.
+  const visibleTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const r of visibleRows) if (r.status !== "rejected") totals.set(r.currency, (totals.get(r.currency) ?? 0) + r.amount);
+    return [...totals.entries()];
+  }, [visibleRows]);
 
   // What the month shows before search, status and day/amount filters narrow it, so the
   // filter bar can say "showing 8 of 11".
@@ -1060,7 +1096,10 @@ export default function CustomerWalletPage() {
   const activeFilterTags = [
     ...(paymentSearch.trim() ? [`${L("Search", "بحث")}: «${paymentSearch.trim()}»`] : []),
     ...(statusFilter !== "all" ? [`${L("Status", "الحالة")}: ${statusFilterLabel(statusFilter)}`] : []),
-    ...(activePaymentFilterCount > 0 ? [L("Day / amount filter", "تصفية اليوم / المبلغ")] : []),
+    ...(paymentGiverFilter ? [`${L("Giver", "من سلّم")}: ${paymentGiverFilter === NO_GIVER ? L("No giver", "بدون") : paymentGiverFilter}`] : []),
+    ...(paymentFilterOn && paymentFilterDay ? [`${L("Day", "اليوم")}: ${new Date(`${paymentFilterDay}T00:00`).toLocaleDateString(numLocale, { day: "numeric", month: "long", year: "numeric" })}`] : []),
+    ...(paymentFilterOn && (paymentFilterMinAmount.trim() || paymentFilterMaxAmount.trim())
+      ? [`${L("Amount", "المبلغ")}: ${paymentFilterMinAmount.trim() || "0"}–${paymentFilterMaxAmount.trim() || "∞"}`] : []),
   ];
   const clearAllFilters = () => {
     setPaymentSearch("");
@@ -1069,6 +1108,7 @@ export default function CustomerWalletPage() {
     setPaymentFilterDay("");
     setPaymentFilterMinAmount("");
     setPaymentFilterMaxAmount("");
+    setPaymentGiverFilter("");
   };
 
   // Headline counters cover everything the buyer has ever reported, not the
@@ -1581,6 +1621,32 @@ export default function CustomerWalletPage() {
                 </button>
               </div>
 
+              {/* Filters: a day, and who handed over the cash. They combine with the search and the amount filter. */}
+              <div className="cw-fltrow">
+                <DayFilterDropdown
+                  value={paymentFilterOn ? paymentFilterDay : ""}
+                  onChange={setPaymentDay}
+                  lang={lang === "ar" ? "ar" : "en"}
+                  title={L("Filter by day", "تصفية حسب اليوم")}
+                  triggerClassName="cw-card cw-tool cw-dayfilter"
+                  triggerActiveClassName="on"
+                  emptyLabel={L("By day", "حسب اليوم")}
+                />
+                <div className="cw-gchips" role="group" aria-label={L("Cash giver", "من سلّم المبلغ")}>
+                  {giverChips.map(c => (
+                    <button
+                      key={c.key || "all"}
+                      type="button"
+                      className={cn("cw-gchip", paymentGiverFilter === c.key && "on")}
+                      onClick={() => setPaymentGiverFilter(paymentGiverFilter === c.key ? "" : c.key)}
+                    >
+                      {c.key === "" ? L("All givers", "كل من سلّم") : c.key === NO_GIVER ? L("No giver", "بدون") : c.label}
+                      <span>{c.n}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Headline figures */}
               <div className="cw-stats">
                 {[
@@ -1675,6 +1741,10 @@ export default function CustomerWalletPage() {
                   <div className="cw-fbar-t">
                     <span>{L("Showing", "يعرض")} <b>{visibleRows.length}</b> {L("of", "من")} <b>{monthRowTotal}</b></span>
                     <span className="cw-fbar-tags">{activeFilterTags.map(t => <i key={t}>{t}</i>)}</span>
+                    <span className="cw-fbar-sum">
+                      {L("Total", "الإجمالي")}:{" "}
+                      {visibleTotals.length === 0 ? <b>0</b> : visibleTotals.map(([cur, sum], i) => <span key={cur}>{i > 0 && " · "}<b>{fmtTotal(sum)}</b> {cur}</span>)}
+                    </span>
                   </div>
                   <button type="button" className="cw-fbar-clear" onClick={clearAllFilters}>
                     <X />{L("Clear", "مسح")}

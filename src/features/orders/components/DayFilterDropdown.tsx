@@ -24,12 +24,21 @@ export function DayFilterDropdown({
   onChange,
   lang = 'en',
   title,
+  triggerClassName,
+  triggerActiveClassName,
+  emptyLabel,
 }: {
   /** YYYY-MM-DD, empty for no filter. */
   value: string;
   onChange: (value: string) => void;
   lang?: 'en' | 'ar';
   title?: string;
+  /** Replaces the trigger's default look, so a page can make it match its own toolbar buttons. */
+  triggerClassName?: string;
+  /** Added to a custom trigger while a day is selected. */
+  triggerActiveClassName?: string;
+  /** With a custom trigger: the text shown when no day is selected (the default trigger shows only an icon on a phone). */
+  emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const isAr = lang === 'ar';
@@ -57,14 +66,16 @@ export function DayFilterDropdown({
           type="button"
           title={title}
           aria-label={title}
-          className={cn(
-            'inline-flex h-8 shrink-0 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold transition-colors',
-            selected ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40',
-          )}
+          className={triggerClassName
+            ? cn(triggerClassName, selected && triggerActiveClassName)
+            : cn(
+              'inline-flex h-8 shrink-0 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold transition-colors',
+              selected ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card hover:border-primary/40',
+            )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
           {selected && label}
-          {!selected && <span className="max-sm:hidden">{label}</span>}
+          {!selected && (triggerClassName ? emptyLabel : <span className="max-sm:hidden">{label}</span>)}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2" align="start">

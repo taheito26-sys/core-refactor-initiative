@@ -27,6 +27,7 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ZoomControls } from '@/components/shared/ZoomControls';
+import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
 import { statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
@@ -902,6 +903,14 @@ export default function CustomerOrdersPage() {
   const [orderFilterOn, setOrderFilterOn] = useState(false);
   const hasOrderFilterCriteria = !!(orderFilterDay || orderFilterMinAmount || orderFilterMaxAmount);
   const activeOrderFilterCount = orderFilterOn && hasOrderFilterCriteria ? 1 : 0;
+  const dayActive = orderFilterOn && !!orderFilterDay;
+  // The day picker in the toolbar. Choosing a day also moves the month chips to that day's month,
+  // so a day outside the selected month never shows an empty list.
+  const setOrderDay = (day: string) => {
+    setOrderFilterDay(day);
+    setOrderFilterOn(!!day || !!orderFilterMinAmount || !!orderFilterMaxAmount);
+    if (day) { userPickedMonth.current = true; setSelectedMonth(day.slice(0, 7)); }
+  };
 
   const filteredOrders = useMemo(() => {
     const minAmount = orderFilterMinAmount.trim() ? parseFloat(orderFilterMinAmount) : null;
@@ -1112,6 +1121,36 @@ export default function CustomerOrdersPage() {
   );
   const shownCount = filteredOrders.length + filteredHistoryOrders.length;
 
+  // What was ordered on the picked day: the same figures the tiles show, plus any order still
+  // waiting for approval, which the statement does not know about yet.
+  const dayTotals = (() => {
+    let egp = historyKpi.volumeEgp;
+    let qar = historyKpi.totalQar;
+    for (const o of filteredOrders) {
+      if (o.send_currency === 'EGP') egp += o.amount;
+      else if (o.send_currency === 'QAR') qar += o.amount;
+    }
+    return { egp, qar };
+  })();
+  const daySummary = dayActive ? (
+    <div className="co-dsum" role="status">
+      <CalendarDays className="co-dsum-ic" />
+      <div className="co-dsum-t">
+        <b>{new Date(`${orderFilterDay}T00:00`).toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</b>
+        <span>
+          {shownCount === 0
+            ? L('No orders on this day', 'لا توجد طلبات في هذا اليوم')
+            : [
+              `${shownCount} ${shownCount === 1 ? L('order', 'طلب') : L('orders', 'طلبات')}`,
+              ...(dayTotals.egp > 0 ? [`${Math.round(dayTotals.egp).toLocaleString('en-US')} ${L('EGP', 'جنيه')}`] : []),
+              ...(dayTotals.qar > 0 ? [`${Math.round(dayTotals.qar).toLocaleString('en-US')} ${L('QAR', 'ريال')}`] : []),
+            ].join(' · ')}
+        </span>
+      </div>
+      <button type="button" className="co-dsum-x" onClick={() => setOrderDay('')}><X />{L('Clear', 'مسح')}</button>
+    </div>
+  ) : null;
+
   return (
     <div className={cn(isMobile ? 'ch-root co-root' : 'space-y-6 pb-16')} dir={isMobile ? (lang === 'ar' ? 'rtl' : 'ltr') : undefined}>
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
@@ -1209,6 +1248,15 @@ export default function CustomerOrdersPage() {
                   {hasOrderFilterCriteria && (
                     <button type="button" onClick={() => setShowOrderFilter(true)} title={L('Edit filter', 'تعديل التصفية')} className="co-tool icon"><Pencil /></button>
                   )}
+                  <DayFilterDropdown
+                    value={orderFilterOn ? orderFilterDay : ''}
+                    onChange={setOrderDay}
+                    lang={lang === 'ar' ? 'ar' : 'en'}
+                    title={L('Filter by day', 'تصفية حسب اليوم')}
+                    triggerClassName="co-tool"
+                    triggerActiveClassName="active"
+                    emptyLabel={L('By day', 'حسب اليوم')}
+                  />
                   <button type="button" onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')} disabled={exportingFormat !== null} className="co-tool pdf">
                     {exportingFormat === 'pdf' ? <Loader2 className="animate-spin" /> : <FileText />}
                     PDF
@@ -1220,6 +1268,8 @@ export default function CustomerOrdersPage() {
                 </div>
               )}
 
+              {daySummary}
+
               {filteredHistoryOrders.length > 0 && (
                 <>
                   <div className={cn('co-tiles', !hasLoans && 'three')}>
@@ -1227,23 +1277,23 @@ export default function CustomerOrdersPage() {
                       <div className="co-t t1">
                         <div className="co-t-top"><span className="co-t-l">{L('Total amounts', 'إجمالي المبالغ')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span><span className="co-t-ic"><Wallet /></span></div>
                         <div className="co-t-v">{Math.round(debtKpi.totalDebt).toLocaleString('en-US')}</div>
-                        {gDebt && <GrowthLine g={gDebt} percent />}
+                        {!dayActive && gDebt && <GrowthLine g={gDebt} percent />}
                       </div>
                     )}
                     <div className="co-t t2">
                       <div className="co-t-top"><span className="co-t-l">{L('Orders', 'الطلبات')}</span><span className="co-t-ic"><Package /></span></div>
                       <div className="co-t-v">{historyKpi.count}</div>
-                      {gCount && <GrowthLine g={gCount} />}
+                      {!dayActive && gCount && <GrowthLine g={gCount} />}
                     </div>
                     <div className="co-t t3">
                       <div className="co-t-top"><span className="co-t-l">{L('Total sales', 'إجمالي المبيع')} ({L('EGP', 'جنيه')})</span><span className="co-t-ic"><FileText /></span></div>
                       <div className="co-t-v">{Math.round(historyKpi.volumeEgp).toLocaleString('en-US')}</div>
-                      {gVolume && <GrowthLine g={gVolume} percent />}
+                      {!dayActive && gVolume && <GrowthLine g={gVolume} percent />}
                     </div>
                     <div className="co-t t4">
                       <div className="co-t-top"><span className="co-t-l">{L('Total executed', 'إجمالي المنفذ')} ({L('QAR', 'ريال')})</span><span className="co-t-ic"><Check strokeWidth={3} /></span></div>
                       <div className="co-t-v">{Math.round(historyKpi.totalQar).toLocaleString('en-US')}</div>
-                      {gTotal && <GrowthLine g={gTotal} percent />}
+                      {!dayActive && gTotal && <GrowthLine g={gTotal} percent />}
                     </div>
                     {hasLoans && (
                       <div className={cn('co-t co-t-out', debtKpi.outstanding > 0.5 ? 'owed' : 'clear')}>
@@ -1390,6 +1440,12 @@ export default function CustomerOrdersPage() {
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
               )}
+              <DayFilterDropdown
+                value={orderFilterOn ? orderFilterDay : ''}
+                onChange={setOrderDay}
+                lang={lang === 'ar' ? 'ar' : 'en'}
+                title={L('Filter by day', 'تصفية حسب اليوم')}
+              />
               <button
                 onClick={() => exportStatement(selectedMonth, availableMonths, 'pdf')}
                 disabled={exportingFormat !== null}
@@ -1409,6 +1465,7 @@ export default function CustomerOrdersPage() {
                 XLSX
               </button>
             </div>
+            {daySummary}
           </div>
         )}
       </div>

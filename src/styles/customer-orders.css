@@ -267,3 +267,16 @@ html[dir="rtl"] .co-r-chev svg { transform: scaleX(1); }
 .co-t-out-txt { flex: 1; min-width: 0; display: grid; gap: calc(1 * var(--q)); }
 .co-t-out .co-t-v { margin: 0; font-size: calc(15 * var(--q)); color: var(--th-bad, #e11d48); }
 .co-t-out.clear .co-t-v { color: #10a56e; }
+
+/* ── picked-day summary under the toolbar ── */
+.co-dsum { display: flex; align-items: center; gap: calc(8 * var(--q)); margin-top: calc(8 * var(--q)); padding: calc(7 * var(--q)) calc(8 * var(--q)); border-radius: calc(10 * var(--q)); background: var(--th-all, #ecfaf4); border: 1px solid var(--th-edge, #a7e3c8); color: var(--th-ink, #0f2a24); }
+.co-dsum-ic { flex: none; width: calc(15 * var(--q)); height: calc(15 * var(--q)); color: var(--th-ad, #047857); }
+.co-dsum-t { flex: 1; min-width: 0; display: grid; gap: calc(2 * var(--q)); }
+.co-dsum-t b { font-size: calc(11 * var(--q)); font-weight: 800; }
+.co-dsum-t span { font-size: calc(10.5 * var(--q)); font-weight: 600; font-variant-numeric: tabular-nums; }
+.co-dsum-x { flex: none; display: flex; align-items: center; gap: calc(4 * var(--q)); height: calc(24 * var(--q)); padding: 0 calc(10 * var(--q)); border-radius: 999px; background: #fff; border: 1px solid var(--th-edge, #a7e3c8); font-size: calc(10 * var(--q)); font-weight: 800; color: var(--th-ad, #047857); cursor: pointer; font-family: inherit; }
+.co-dsum-x svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); stroke-width: 3; }
+
+/* the toolbar wraps instead of widening the page, and grid items may shrink to the screen */
+.co-root > * { min-width: 0; }
+.co-main .co-tools { flex-wrap: wrap; }
