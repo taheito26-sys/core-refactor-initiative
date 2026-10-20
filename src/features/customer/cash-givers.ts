@@ -74,9 +74,10 @@ export function typedPaymentNumber(notes: Array<string | null | undefined>, give
 
 /**
  * Payment number per giver. A number written in the payment's note is used as it is. A payment
- * without one takes the first unused number above the closest earlier numbered payment, so a
- * forgotten payment fills a gap the buyer left (17, 18) and a new one continues the run (39).
- * A giver whose notes carry no numbers is simply counted 1, 2, 3 in date order.
+ * without one fills the first gap the buyer left above the closest earlier numbered payment (a
+ * forgotten payment slots into 17), or, when it is newer than every numbered payment, continues
+ * the run (39). An old payment that has no gap to slot into gets no number, so it never takes the
+ * number a newer payment should have. A giver whose notes carry no numbers is counted 1, 2, 3.
  */
 export function giverPaymentNumbers(
   rows: Array<{ key: string; date: number; giver: string | null; typed?: number | null }>,
@@ -92,7 +93,10 @@ export function giverPaymentNumbers(
   }
   for (const list of byGiver.values()) {
     list.sort((a, b) => a.date - b.date || a.key.localeCompare(b.key));
-    const taken = new Set(list.filter(r => r.typed !== null).map(r => r.typed as number));
+    const typedRows = list.filter(r => r.typed !== null);
+    const taken = new Set(typedRows.map(r => r.typed as number));
+    const maxTyped = Math.max(0, ...taken);
+    const lastTypedDate = typedRows.length > 0 ? Math.max(...typedRows.map(r => r.date)) : -Infinity;
     let lastTyped = 0;
     for (const r of list) {
       if (r.typed !== null) {
@@ -101,7 +105,11 @@ export function giverPaymentNumbers(
         continue;
       }
       let n = lastTyped + 1;
-      while (taken.has(n)) n += 1;
+      while (n <= maxTyped && taken.has(n)) n += 1;
+      if (n > maxTyped) {
+        if (r.date < lastTypedDate) continue;
+        n = Math.max(0, ...taken) + 1;
+      }
       taken.add(n);
       result.set(r.key, n);
     }

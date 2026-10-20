@@ -130,6 +130,16 @@ describe('giverPaymentNumbers with numbers typed in notes', () => {
     expect([n.get('a'), n.get('b'), n.get('c')]).toEqual([1, 2, 3]);
   });
 
+  it('does not let an old unnumbered payment take the number a newer one should have', () => {
+    // الدمراوي: notes numbered 1 to 6, an older payment tagged by hand, and a new one logged today.
+    const row2 = (key: string, date: number, typed: number | null) => ({ key, date, giver: 'الدمراوي', typed });
+    const numbered = [1, 2, 3, 4, 5, 6].map(n => row2(`n${n}`, 20 + n, n));
+    const n = giverPaymentNumbers([row2('old', 5, null), ...numbered, row2('new1', 100, null), row2('new2', 101, null)]);
+    expect(n.has('old')).toBe(false);
+    expect(n.get('new1')).toBe(7);
+    expect(n.get('new2')).toBe(8);
+  });
+
   it('keeps each giver separate', () => {
     const n = giverPaymentNumbers([
       { key: 'h', date: 1, giver: 'حسن', typed: 5 },
