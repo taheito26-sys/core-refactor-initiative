@@ -1,13 +1,17 @@
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, Menu, User, Bell, Info, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCustomerNumber } from "@/features/customer/customer-portal";
+import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNotifications } from "@/hooks/useNotifications";
+import "@/styles/customer-wallet.css";
 import { fmtTotal } from "@/lib/tracker-helpers";
 import { QuickDateField } from "@/components/shared/QuickDateField";
 import type { PublicStatement } from "@/features/stock/components/PublicStatementReport";
@@ -445,77 +449,101 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
 
 // ── Payments card styling ─────────────────────────────────────────
 
+// Card accents alternate within a status, as in the design: completed rows
+// green/purple, processing rows blue/orange.
 const PAYMENT_STATUS_STYLES = {
-  completed: { bar: "bg-emerald-500", pill: "bg-emerald-500/15 text-emerald-600", amount: "text-emerald-600", Icon: CheckCircle2, label: (L: (en: string, ar: string) => string) => L("Completed", "مكتمل") },
-  pending: { bar: "bg-amber-500", pill: "bg-blue-500/15 text-blue-600", amount: "text-amber-600", Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
-  rejected: { bar: "bg-rose-500", pill: "bg-rose-500/15 text-rose-600", amount: "text-rose-600", Icon: XCircle, label: (L: (en: string, ar: string) => string) => L("Not confirmed", "غير مؤكدة") },
+  completed: { accents: ["#16a34a", "#7c3aed"], Icon: Check, label: (L: (en: string, ar: string) => string) => L("Completed", "مكتمل") },
+  pending: { accents: ["#1f63f0", "#f97316"], Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
+  rejected: { accents: ["#e11d48"], Icon: X, label: (L: (en: string, ar: string) => string) => L("Cancelled", "ملغي") },
 } as const;
 
-// Illustration for the banner: a checklist clipboard, a parcel and a rising arrow.
-function PaymentsBannerArt({ className }: { className?: string }) {
+function MoneyBagIcon() {
   return (
-    <svg viewBox="0 0 240 170" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="bannerBoard" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="1" stopColor="#c7d2fe" />
-        </linearGradient>
-        <linearGradient id="bannerClip" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#4338ca" />
-        </linearGradient>
-        <linearGradient id="bannerArrow" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#10b981" />
-          <stop offset="1" stopColor="#6ee7b7" />
-        </linearGradient>
-      </defs>
-      <ellipse cx="120" cy="150" rx="105" ry="16" fill="#38bdf8" opacity="0.45" />
-      <ellipse cx="120" cy="146" rx="80" ry="10" fill="#0ea5e9" opacity="0.5" />
-      {/* parcel */}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h6l-1.6 3.2h-2.8L9 3Z" />
+      <path d="M10.4 6.2C6.6 8 4.5 11.4 4.5 15c0 3.6 2.8 6 7.5 6s7.5-2.4 7.5-6c0-3.6-2.1-7-5.9-8.8" />
+      <path d="M14 11.4c-.4-.7-1.2-1.1-2.1-1.1-1.2 0-2.1.6-2.1 1.5 0 2.1 4.4 1 4.4 3.2 0 .9-1 1.6-2.3 1.6-1 0-1.9-.4-2.3-1.1M12 9.3v1M12 16.6v1" />
+    </svg>
+  );
+}
+
+// Banner illustration, drawn in the design's own coordinates: a platform,
+// two parcels, a tilted checklist clipboard, a rising arrow and a check badge.
+function PaymentsBannerArt({ className }: { className?: string }) {
+  const cube = (x: number, y: number, w: number, h: number) => {
+    const mx = x + w / 2, top = y, mid = y + w * 0.22, low = y + w * 0.44;
+    return (
       <g>
-        <polygon points="12,96 44,84 76,96 44,110" fill="#fde68a" />
-        <polygon points="12,96 44,110 44,142 12,128" fill="#f59e0b" />
-        <polygon points="76,96 44,110 44,142 76,128" fill="#fbbf24" />
-        <polygon points="38,88 50,84 82,97 70,101" fill="#fff7ed" opacity="0.8" />
+        <polygon points={`${x},${mid} ${mx},${top} ${x + w},${mid} ${mx},${low}`} fill="#ffd98a" />
+        <polygon points={`${x},${mid} ${mx},${low} ${mx},${low + h} ${x},${mid + h}`} fill="#f59e0b" />
+        <polygon points={`${x + w},${mid} ${mx},${low} ${mx},${low + h} ${x + w},${mid + h}`} fill="#fbbf24" />
+        <polygon points={`${x + w * 0.3},${mid - w * 0.12} ${x + w * 0.42},${mid - w * 0.17} ${x + w * 0.74},${mid + w * 0.0} ${x + w * 0.62},${mid + w * 0.05}`} fill="#fff4d6" opacity="0.85" />
       </g>
-      {/* clipboard */}
-      <g transform="rotate(9 130 78)">
-        <rect x="82" y="22" width="102" height="124" rx="14" fill="url(#bannerClip)" />
-        <rect x="90" y="32" width="86" height="106" rx="9" fill="url(#bannerBoard)" />
-        <rect x="114" y="14" width="38" height="20" rx="8" fill="#4338ca" />
-        <circle cx="133" cy="21" r="4" fill="#c7d2fe" />
-        {[50, 77, 104].map(y => (
+    );
+  };
+  return (
+    <svg viewBox="0 0 360 210" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="cwFrame" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#7d8cff" />
+          <stop offset="1" stopColor="#4f46e5" />
+        </linearGradient>
+        <linearGradient id="cwBoard" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#e6eaff" />
+        </linearGradient>
+        <linearGradient id="cwArrow" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#0fb57e" />
+          <stop offset="1" stopColor="#5ee8b5" />
+        </linearGradient>
+        <linearGradient id="cwBadge" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#34d399" />
+          <stop offset="1" stopColor="#059669" />
+        </linearGradient>
+        <radialGradient id="cwPlatform" cx="0.5" cy="0.4" r="0.6">
+          <stop offset="0" stopColor="#8fc2ff" />
+          <stop offset="1" stopColor="#3f73f2" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="170" cy="176" rx="168" ry="34" fill="url(#cwPlatform)" opacity="0.8" />
+      <ellipse cx="170" cy="170" rx="122" ry="20" fill="#9fd0ff" opacity="0.55" />
+      <path d="M236 122 L280 88 L294 100 L326 70" fill="none" stroke="url(#cwArrow)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points="312,54 348,44 340,80" fill="#22c58b" />
+      {cube(18, 98, 82, 36)}
+      <g transform="rotate(12 195 95)">
+        <rect x="108" y="16" width="172" height="160" rx="18" fill="url(#cwFrame)" />
+        <rect x="119" y="30" width="150" height="136" rx="12" fill="url(#cwBoard)" />
+        <rect x="166" y="4" width="56" height="28" rx="10" fill="#3730a3" />
+        <circle cx="194" cy="14" r="5" fill="#c7d2fe" />
+        {[52, 90, 128].map(y => (
           <g key={y}>
-            <rect x="99" y={y} width="17" height="17" rx="5" fill="#3b82f6" />
-            <path d={`M103 ${y + 8.5} l4 4 l6 -8`} fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="124" y={y + 3} width="44" height="5" rx="2.5" fill="#818cf8" />
-            <rect x="124" y={y + 11} width="30" height="4" rx="2" fill="#c7d2fe" />
+            <rect x="133" y={y} width="24" height="24" rx="6" fill="#3b6cf6" />
+            <path d={`M139 ${y + 12} l4.5 4.5 l8 -9`} fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="168" y={y + 4} width="78" height="8" rx="4" fill="#8e98f6" />
+            <rect x="168" y={y + 15} width="52" height="6" rx="3" fill="#c9cffc" />
           </g>
         ))}
       </g>
-      {/* parcel behind-right */}
-      <g>
-        <polygon points="178,104 204,94 230,104 204,116" fill="#fde68a" />
-        <polygon points="178,104 204,116 204,142 178,130" fill="#f59e0b" />
-        <polygon points="230,104 204,116 204,142 230,130" fill="#fbbf24" />
-      </g>
-      {/* rising arrow */}
-      <path d="M172 62 L196 40 L206 50" fill="none" stroke="url(#bannerArrow)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-      <polygon points="190,30 224,22 214,56" fill="#10b981" />
-      {/* confirm badge */}
-      <circle cx="90" cy="138" r="19" fill="#10b981" stroke="#d1fae5" strokeWidth="4" />
-      <path d="M81 138 l7 7 l12 -14" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+      {cube(276, 118, 76, 30)}
+      <circle cx="104" cy="176" r="26" fill="url(#cwBadge)" stroke="#c9f5e2" strokeWidth="5" />
+      <path d="M92 176 l8.5 8.5 l15 -16" fill="none" stroke="#fff" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 export default function CustomerWalletPage() {
-  const { userId } = useAuth();
-  const { settings } = useTheme();
+  const { userId, customerProfile } = useAuth();
+  const { settings, update } = useTheme();
+  const isPhone = useIsMobile();
+  const navigate = useNavigate();
+  const shell = useOutletContext<{ openMenu?: () => void } | null>();
+  const { unreadCount } = useNotifications();
+  const paymentSearchRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const lang = settings.language;
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
+  const displayName = resolveCustomerDisplayName(customerProfile, lang === "ar" ? "ar" : "en") ?? "—";
 
   const [tab, setTab] = useState<"payments" | "accounts">("payments");
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -804,11 +832,11 @@ export default function CustomerWalletPage() {
   const [menuRowKey, setMenuRowKey] = useState<string | null>(null);
 
   const numLocale = lang === "ar" ? "ar-u-nu-latn" : "en-GB";
-  const cardDateLabel = (ts: number) => new Date(ts).toLocaleDateString(numLocale, { day: "numeric", month: "long", year: "numeric" });
+  const cardDateLabel = (ts: number) => new Date(ts).toLocaleDateString(numLocale, { day: "numeric", month: lang === "ar" ? "long" : "short", year: "numeric" });
   const cardTimeLabel = (ts: number) => new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
   const monthPillLabel = (key: string) => {
     const [y, mo] = key.split("-");
-    return `${new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(numLocale, { month: "long" })} ${y.slice(2)}`;
+    return `${new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(numLocale, { month: lang === "ar" ? "long" : "short" })} ${y.slice(2)}`;
   };
 
   type PaymentRow = {
@@ -860,6 +888,16 @@ export default function CustomerWalletPage() {
     const counts = { all: paymentRows.length, completed: 0, pending: 0, rejected: 0 };
     for (const r of paymentRows) counts[r.status] += 1;
     return counts;
+  }, [paymentRows]);
+  const rowAccent = useMemo(() => {
+    const seen = { completed: 0, pending: 0, rejected: 0 };
+    const map = new Map<string, string>();
+    for (const r of paymentRows) {
+      const accents = PAYMENT_STATUS_STYLES[r.status].accents;
+      map.set(r.key, accents[seen[r.status] % accents.length]);
+      seen[r.status] += 1;
+    }
+    return map;
   }, [paymentRows]);
   const visibleRows = useMemo(
     () => (statusFilter === "all" ? paymentRows : paymentRows.filter(r => r.status === statusFilter)),
@@ -1079,14 +1117,40 @@ export default function CustomerWalletPage() {
   const isLoading = accLoading || ledgerLoading || !userId;
 
   return (
-    <div className="space-y-0 pb-16">
-      {/* ── Top summary card ── */}
+    <div className="cw-root" dir={lang === "ar" ? "rtl" : "ltr"}>
       {/* The Accounts tab is hidden; with Payments the only tab left there is nothing to switch between. */}
+      {isPhone && (
+        <div className="cw-head">
+          <div className="cw-who">
+            <button type="button" className="cw-hbtn menu" onClick={() => shell?.openMenu?.()} aria-label={L("Menu", "القائمة")}>
+              <Menu />
+            </button>
+            <div className="cw-avatar"><User fill="#fff" stroke="#fff" /></div>
+            <div className="cw-who-t">
+              <div className="cw-name">{displayName}</div>
+              <div className="cw-greet">{L("Welcome to your dashboard", "مرحباً بك في لوحة التحكم")}</div>
+            </div>
+          </div>
+          <div className="cw-ctl">
+            <button type="button" className="cw-hbtn" onClick={() => { paymentSearchRef.current?.focus(); paymentSearchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }} aria-label={L("Search", "بحث")}>
+              <Search />
+            </button>
+            <button type="button" className="cw-hbtn" onClick={() => navigate("/c/notifications")} aria-label={L("Notifications", "التنبيهات")}>
+              <Bell />
+              {unreadCount > 0 && <span className="cw-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
+            <div className="cw-lang" role="group" aria-label={L("Language", "اللغة")}>
+              <button type="button" className={lang === "ar" ? "on" : ""} onClick={() => update({ language: "ar" })}>AR</button>
+              <button type="button" className={lang === "en" ? "on" : ""} onClick={() => update({ language: "en" })}>EN</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
-        <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <div className="cw-loading"><Loader2 className="h-6 w-6 animate-spin" /></div>
       ) : (
-        <div className="px-4 pt-4">
+        <div>
           {/* ── ACCOUNTS TAB ── */}
           {tab === "accounts" && (
             <div className="space-y-3">
@@ -1245,77 +1309,69 @@ export default function CustomerWalletPage() {
               same data the merchant's own Payments Received table shows,
               minus the account/edit/delete/merge actions (merchant-only). ── */}
           {tab === "payments" && (
-            <div className="space-y-3">
-              {/* Banner — primary action plus a one-line pitch, with the
-                  illustration pinned to the right edge in both languages. */}
-              <div dir="ltr" className="relative min-h-[140px] overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-500 p-4 text-white shadow-lg shadow-indigo-500/20">
-                <PaymentsBannerArt className="pointer-events-none absolute -bottom-1 right-2 h-[150px] w-auto" />
-                <div className="relative z-10 flex min-h-[108px] max-w-[62%] flex-col items-start justify-between gap-5">
-                  {statementLinks.length > 0 ? (
-                    <button
-                      onClick={() => setShowLogPayment(true)}
-                      dir={lang === "ar" ? "rtl" : "ltr"}
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-lg font-extrabold text-emerald-600 shadow-md transition-transform active:scale-95"
-                    >
-                      <Plus className="h-5 w-5" strokeWidth={3} />
-                      {L("Log a Payment", "تسجيل دفعة")}
-                    </button>
-                  ) : <span className="h-12" />}
-                  <p dir={lang === "ar" ? "rtl" : "ltr"} className="text-[13px] font-medium text-white/85">
-                    {L("Track all your payments and statistics with ease", "تابع جميع دفعاتك وإحصائياتك بسهولة")}
-                  </p>
-                </div>
-              </div>
+            <>
+              {/* Banner */}
+              <section className="cw-banner">
+                <PaymentsBannerArt className="cw-banner-art" />
+                <button
+                  type="button"
+                  className="cw-banner-cta"
+                  dir={lang === "ar" ? "rtl" : "ltr"}
+                  onClick={() => setShowLogPayment(true)}
+                  disabled={statementLinks.length === 0}
+                >
+                  <Plus />
+                  {L("Log a Payment", "تسجيل دفعة")}
+                </button>
+                <p className="cw-banner-sub" dir={lang === "ar" ? "rtl" : "ltr"}>
+                  {L("Track your payments and stats easily", "تابع جميع دفعاتك وإحصائياتها بسهولة")}
+                </p>
+              </section>
 
               {/* Headline figures */}
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="cw-stats">
                 {[
-                  { label: L("Total Orders", "إجمالي الطلبات"), value: loanTotals.totalDebt, Icon: Database, tone: "bg-violet-500/15 text-violet-600" },
-                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, Icon: ArrowLeftRight, tone: "bg-blue-500/15 text-blue-600" },
-                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, Icon: HandCoins, tone: "bg-emerald-500/15 text-emerald-600" },
+                  { label: L("Total Orders", "إجمالي الطلبات"), value: loanTotals.totalDebt, icon: <Database />, bg: "#efe9ff", fg: "#7c3aed" },
+                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#e4edff", fg: "#2563eb" },
+                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#dff7ea", fg: "#16a34a" },
                 ].map(c => (
-                  <div key={c.label} className="flex min-w-0 items-center justify-between gap-1.5 rounded-2xl border border-border/50 bg-card p-3 shadow-sm">
-                    <div className="min-w-0">
-                      <p className="truncate text-[11px] font-semibold text-muted-foreground">{c.label}</p>
-                      <p className="mt-0.5 truncate text-[15px] font-black tabular-nums">{fmtTotal(c.value)}</p>
-                      <p className="text-[10px] text-muted-foreground">({loanTotals.currency})</p>
+                  <div key={c.label} className="cw-card cw-stat">
+                    <div className="cw-stat-t">
+                      <div className="cw-stat-l">{c.label}</div>
+                      <div className="cw-stat-v">{fmtTotal(c.value)}</div>
+                      <div className="cw-stat-u">({loanTotals.currency})</div>
                     </div>
-                    <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", c.tone)}>
-                      <c.Icon className="h-5 w-5" />
-                    </div>
+                    <span className="cw-stat-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Count + status breakdown. Listed cancelled-first for the
-                  Arabic layout; the English layout gets the reverse so the
-                  count card always sits on the left. */}
-              <div className="grid grid-cols-4 gap-2">
+              {/* Counters — cancelled sits rightmost in Arabic and the count
+                  card leftmost in both languages, as in the design. */}
+              <div className="cw-kpis">
                 {(() => {
                   const pctOf = (n: number) => (overallCounts.total > 0 ? Math.round((n / overallCounts.total) * 100) : 0);
                   const cards = [
-                    { key: "rejected", label: L("Not confirmed", "غير مؤكدة"), value: overallCounts.rejected, Icon: X, tone: "bg-rose-500/15 text-rose-500", bar: "from-rose-400 to-rose-300", pct: pctOf(overallCounts.rejected), text: "text-rose-500" },
-                    { key: "pending", label: L("Processing", "قيد المعالجة"), value: overallCounts.pending, Icon: Clock, tone: "bg-amber-500/15 text-amber-500", bar: "from-amber-500 to-amber-300", pct: pctOf(overallCounts.pending), text: "text-amber-500" },
-                    { key: "completed", label: L("Completed", "مكتمل"), value: overallCounts.completed, Icon: Check, tone: "bg-emerald-500/15 text-emerald-600", bar: "from-emerald-500 to-emerald-300", pct: pctOf(overallCounts.completed), text: "text-emerald-600" },
-                    { key: "count", label: L("Payments", "عدد الدفعات"), value: overallCounts.total, Icon: Wallet2, tone: "bg-blue-500/15 text-blue-600", bar: "", pct: 0, text: "" },
+                    { key: "rejected", label: L("Cancelled", "ملغي"), value: overallCounts.rejected, icon: <X />, bg: "#fde4e8", fg: "#ef4444", track: "#fbd0d7", fill: "linear-gradient(90deg,#f87171,#fb7185)", pct: pctOf(overallCounts.rejected) },
+                    { key: "pending", label: L("Processing", "قيد المعالجة"), value: overallCounts.pending, icon: <Clock />, bg: "#ffefd6", fg: "#f59e0b", track: "#ffe9c7", fill: "linear-gradient(90deg,#f59e0b,#fbbf24)", pct: pctOf(overallCounts.pending) },
+                    { key: "completed", label: L("Completed", "مكتمل"), value: overallCounts.completed, icon: <Check />, bg: "#dff7ea", fg: "#16a34a", track: "#d4f3e2", fill: "linear-gradient(90deg,#10b981,#34d399)", pct: pctOf(overallCounts.completed) },
+                    { key: "count", label: L("Payments", "عدد الدفعات"), value: overallCounts.total, icon: <Wallet2 />, bg: "#e4edff", fg: "#2563eb", track: "", fill: "", pct: 0 },
                   ];
                   return (lang === "ar" ? cards : [...cards].reverse()).map(c => (
-                    <div key={c.key} className="min-w-0 rounded-2xl border border-border/50 bg-card p-2.5 shadow-sm">
-                      <div className="flex items-start justify-between gap-1">
-                        <div className="min-w-0">
-                          <p className="truncate text-[10px] font-semibold text-muted-foreground">{c.label}</p>
-                          <p className="mt-0.5 text-lg font-black leading-tight tabular-nums">{c.value}</p>
+                    <div key={c.key} className="cw-card cw-kpi">
+                      <div className="cw-kpi-top">
+                        <div className="cw-kpi-t">
+                          <div className="cw-kpi-l">{c.label}</div>
+                          <div className="cw-kpi-v">{c.value}</div>
                         </div>
-                        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", c.tone)}>
-                          <c.Icon className="h-4 w-4" strokeWidth={2.5} />
-                        </div>
+                        <span className="cw-kpi-ic" style={{ background: c.bg, color: c.fg }}>{c.icon}</span>
                       </div>
-                      {c.bar && (
-                        <div className="mt-1.5 flex items-center gap-1" dir="ltr">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                            <div className={cn("h-full rounded-full bg-gradient-to-r", c.bar)} style={{ width: `${c.pct}%` }} />
+                      {c.track && (
+                        <div className="cw-kpi-bar">
+                          <div className="cw-kpi-track" style={{ background: c.track }}>
+                            <div className="cw-kpi-fill" style={{ width: `${c.pct}%`, background: c.fill }} />
                           </div>
-                          <span className={cn("text-[10px] font-bold tabular-nums", c.text)}>{c.pct}%</span>
+                          <span className="cw-kpi-pct" style={{ color: c.fg }}>{c.pct}%</span>
                         </div>
                       )}
                     </div>
@@ -1323,452 +1379,314 @@ export default function CustomerWalletPage() {
                 })()}
               </div>
 
-              {/* Settlement progress */}
-              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-muted-foreground">{L("Total Settled", "إجمالي المسدد")}</p>
-                  <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 tabular-nums" dir="ltr">
-                    <span className="text-2xl font-black">{fmtTotal(loanTotals.totalPaid)}</span>
-                    <span className="text-sm font-medium text-muted-foreground">/ {fmtTotal(loanTotals.totalDebt)} ({loanTotals.currency})</span>
-                  </p>
-                  <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-muted" dir="ltr">
-                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all" style={{ width: `${loanTotals.settledPct}%` }} />
+              {/* Settlement */}
+              <div className="cw-card cw-settle">
+                <div className="cw-settle-t">
+                  <div className="cw-settle-ttl" dir={lang === "ar" ? "rtl" : "ltr"} style={{ textAlign: "left" }}>{L("Total Settled", "إجمالي المسدد")}</div>
+                  <div className="cw-settle-v">
+                    <b>{fmtTotal(loanTotals.totalPaid)}</b>
+                    <span>/ {fmtTotal(loanTotals.totalDebt)} ({loanTotals.currency})</span>
                   </div>
+                  <div className="cw-settle-track"><div className="cw-settle-fill" style={{ width: `${loanTotals.settledPct}%` }} /></div>
                 </div>
-                <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
-                  <svg viewBox="0 0 80 80" className="h-[76px] w-[76px] -rotate-90">
-                    <defs>
-                      <linearGradient id="paymentRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#34d399" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="40" cy="40" r="33" fill="none" stroke="currentColor" className="text-emerald-500/15" strokeWidth="8" />
+                <div className="cw-ring">
+                  <svg viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="27" fill="none" stroke="#dcf5ea" strokeWidth="7" />
                     <circle
-                      cx="40" cy="40" r="33" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="8" strokeLinecap="round"
-                      strokeDasharray={2 * Math.PI * 33}
-                      strokeDashoffset={2 * Math.PI * 33 * (1 - loanTotals.settledPct / 100)}
-                      className="transition-all"
+                      cx="32" cy="32" r="27" fill="none" stroke="#10b981" strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 27}
+                      strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
                     />
                   </svg>
-                  <span className="absolute text-lg font-black tabular-nums">{loanTotals.settledPct}%</span>
+                  <b>{loanTotals.settledPct}%</b>
                 </div>
               </div>
 
-              {/* Month pills + day/amount filter shortcut */}
-              {paymentsMonths.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {[{ key: null as string | null, label: L("All Months", "كل الأشهر") }, ...paymentsMonths.map(m => ({ key: m as string | null, label: monthPillLabel(m) }))].map(m => (
-                      <button
-                        key={m.key ?? "all"}
-                        onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
-                        className={cn(
-                          "h-11 shrink-0 rounded-full px-5 text-sm font-bold whitespace-nowrap transition-colors",
-                          paymentsMonth === m.key
-                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/30"
-                            : "bg-blue-500/10 text-blue-700 hover:bg-blue-500/15 dark:text-blue-300",
-                        )}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setShowPaymentFilter(true)}
-                    title={L("Filter by day or amount", "تصفية حسب اليوم أو المبلغ")}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-card text-blue-600 shadow-sm"
-                  >
-                    <CalendarDays className="h-5 w-5" />
-                  </button>
+              {/* Months */}
+              <div className="cw-months">
+                <div className="cw-months-in">
+                  {[{ key: null as string | null, label: L("All Months", "كل الأشهر") }, ...paymentsMonths.map(m => ({ key: m as string | null, label: monthPillLabel(m) }))].map(m => (
+                    <button
+                      key={m.key ?? "all"}
+                      type="button"
+                      className={cn("cw-month", m.key === null && "all", paymentsMonth === m.key && "on")}
+                      onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+                <button type="button" className="cw-card cw-cal" onClick={() => setShowPaymentFilter(true)} aria-label={L("Filter by day or amount", "تصفية حسب اليوم أو المبلغ")}>
+                  <CalendarDays />
+                </button>
+              </div>
 
               {/* Search, exports, filter */}
-              <div className="flex items-center gap-1.5">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="cw-tools">
+                <label className="cw-search">
+                  <Search />
                   <input
+                    ref={paymentSearchRef}
                     value={paymentSearch}
                     onChange={e => setPaymentSearch(e.target.value)}
-                    placeholder={L("Search payments...", "بحث في الدفعات...")}
-                    className="h-11 w-full rounded-xl border border-border/50 bg-card ps-9 pe-2 text-xs shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
+                    placeholder={L("Search...", "بحث في الدفعات...")}
                   />
-                </div>
-                <button
-                  onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}
-                  disabled={exportingFormat !== null}
-                  title={L("Export XLSX", "تصدير XLSX")}
-                  className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-extrabold text-emerald-600 shadow-sm disabled:opacity-60"
-                >
-                  {exportingFormat === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                </label>
+                <button type="button" className="cw-card cw-tool xlsx" disabled={exportingFormat !== null} onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}>
                   XLSX
+                  {exportingFormat === "xlsx" ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
                 </button>
-                <button
-                  onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
-                  disabled={exportingFormat !== null}
-                  title={L("Export PDF", "تصدير PDF")}
-                  className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-extrabold text-blue-700 shadow-sm disabled:opacity-60 dark:text-blue-300"
-                >
-                  {exportingFormat === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                <button type="button" className="cw-card cw-tool pdf" disabled={exportingFormat !== null} onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}>
                   PDF
+                  {exportingFormat === "pdf" ? <Loader2 className="animate-spin" /> : <FilePlus />}
                 </button>
-                <div className="relative shrink-0">
-                  <button
-                    onClick={() => setShowExportMenu(o => !o)}
-                    className="flex h-11 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-bold text-foreground shadow-sm"
-                  >
+                <div style={{ position: "relative", minWidth: 0 }}>
+                  <button type="button" className="cw-card cw-tool" style={{ width: "100%" }} onClick={() => setShowExportMenu(o => !o)}>
                     {L("Export", "تصدير")}
-                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showExportMenu && "rotate-180")} />
+                    <ChevronDown />
                   </button>
                   {showExportMenu && (
                     <>
-                      <div className="fixed inset-0 z-20" onClick={() => setShowExportMenu(false)} />
-                      <div className="absolute end-0 top-12 z-30 w-36 overflow-hidden rounded-xl border border-border/60 bg-card shadow-lg">
-                        <button
-                          onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "pdf"); }}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-muted"
-                        >
-                          <FileDown className="h-4 w-4 text-blue-600" /> {L("PDF statement", "كشف PDF")}
+                      <div className="cw-scrim" onClick={() => setShowExportMenu(false)} />
+                      <div className="cw-pop">
+                        <button type="button" onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "pdf"); }}>
+                          <FilePlus style={{ color: "#1f63f0" }} /> {L("PDF statement", "كشف PDF")}
                         </button>
-                        <button
-                          onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "xlsx"); }}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-muted"
-                        >
-                          <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> {L("Excel statement", "كشف Excel")}
+                        <button type="button" onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "xlsx"); }}>
+                          <FileSpreadsheet style={{ color: "#16a34a" }} /> {L("Excel statement", "كشف Excel")}
                         </button>
                       </div>
                     </>
                   )}
                 </div>
                 <button
+                  type="button"
+                  className={cn("cw-card cw-tool", activePaymentFilterCount > 0 && "on")}
                   onClick={() => {
                     if (!hasPaymentFilterCriteria) { setShowPaymentFilter(true); return; }
                     setPaymentFilterOn(on => !on);
                   }}
-                  className={cn(
-                    "flex h-11 shrink-0 items-center gap-1 rounded-xl border px-2 text-[11px] font-bold shadow-sm transition-colors",
-                    activePaymentFilterCount > 0 ? "border-blue-500/50 bg-blue-500/10 text-blue-600" : "border-border/50 bg-card text-foreground",
-                  )}
                 >
-                  <Filter className="h-4 w-4" />
                   {L("Filter", "تصفية")}
-                  {activePaymentFilterCount > 0 && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white">{activePaymentFilterCount}</span>
-                  )}
+                  {activePaymentFilterCount > 0 ? <span className="cw-tool-n">{activePaymentFilterCount}</span> : <Filter />}
                 </button>
               </div>
 
               {/* Status chips */}
-              <div className="flex items-center gap-2 rounded-2xl border border-border/50 bg-card p-2 shadow-sm">
+              <div className="cw-card cw-chips">
                 {([
-                  { key: "all", label: L("All", "الكل"), Icon: ListIcon, count: statusCounts.all, idle: "bg-muted/60 text-foreground", dot: "text-blue-600" },
-                  { key: "completed", label: L("Completed", "مكتمل"), Icon: Check, count: statusCounts.completed, idle: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500 text-white" },
-                  { key: "pending", label: L("Processing", "قيد المعالجة"), Icon: Clock, count: statusCounts.pending, idle: "bg-blue-500/10 text-blue-700 dark:text-blue-300", dot: "text-blue-600" },
-                  { key: "rejected", label: L("Not confirmed", "غير مؤكدة"), Icon: X, count: statusCounts.rejected, idle: "bg-card text-foreground", dot: "bg-rose-500 text-white" },
-                ] as const).map(s => {
-                  const active = statusFilter === s.key;
-                  return (
-                    <button
-                      key={s.key}
-                      onClick={() => setStatusFilter(s.key)}
-                      className={cn(
-                        "flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-2xl px-2.5 text-xs font-bold transition-colors",
-                        s.key === "all" ? "shrink-0" : "flex-1",
-                        active ? "bg-blue-600 text-white shadow-md shadow-blue-500/30" : s.idle,
-                      )}
-                    >
-                      <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full", active ? "text-white" : s.dot)}>
-                        <s.Icon className="h-3.5 w-3.5" strokeWidth={3} />
-                      </span>
-                      <span className="truncate">{s.label}</span>
-                      <span className={cn("rounded-lg px-1.5 text-xs font-black tabular-nums", active ? "bg-white/25" : "")}>{s.count}</span>
-                    </button>
-                  );
-                })}
+                  { key: "all", cls: "all", label: L("All", "الكل"), icon: <ListIcon />, count: statusCounts.all },
+                  { key: "completed", cls: "done", label: L("Done", "مكتمل"), icon: <Check />, count: statusCounts.completed },
+                  { key: "pending", cls: "wait", label: L("Pending", "قيد المعالجة"), icon: <Clock />, count: statusCounts.pending },
+                  { key: "rejected", cls: "void", label: L("Cancelled", "ملغي"), icon: <X />, count: statusCounts.rejected },
+                ] as const).map(s => (
+                  <button key={s.key} type="button" className={cn("cw-chip", s.cls, statusFilter === s.key && "on")} onClick={() => setStatusFilter(s.key)}>
+                    <span className="cw-chip-ic">{s.icon}</span>
+                    <span className="cw-chip-l">{s.label}</span>
+                    <span className="cw-chip-n">{s.count}</span>
+                  </button>
+                ))}
               </div>
 
               {/* Count + sort */}
-              <div className="flex items-center justify-between gap-2 px-1">
-                <p className="text-sm font-bold text-muted-foreground">
-                  {visibleRows.length} {L("payments", "دفعة")}
-                </p>
+              <div className="cw-sortrow">
+                <span className="cw-count">{visibleRows.length} {L("payments", "دفعة")}</span>
                 <button
+                  type="button"
+                  className="cw-card cw-sort"
                   onClick={() => setPaymentSort(s => {
                     if (s === "date_desc") return "date_asc";
                     if (s === "date_asc") return "amount_desc";
                     if (s === "amount_desc") return "amount_asc";
                     return "date_desc";
                   })}
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-border/50 bg-card px-3 text-xs font-bold shadow-sm"
                 >
-                  <ArrowUpDown className="h-4 w-4 text-blue-600" />
+                  <ArrowUpDown />
                   {paymentSort === "date_desc" && L("Newest first", "الأحدث أولاً")}
                   {paymentSort === "date_asc" && L("Oldest first", "الأقدم أولاً")}
                   {paymentSort === "amount_desc" && L("Highest first", "الأعلى أولاً")}
                   {paymentSort === "amount_asc" && L("Lowest first", "الأقل أولاً")}
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  <ChevronDown className="chev" />
                 </button>
               </div>
 
               {/* Cards */}
               {visibleRows.length === 0 ? (
-                <div className="rounded-2xl border border-border/50 bg-card px-6 py-10 text-center shadow-sm">
-                  <p className="text-sm text-muted-foreground">
-                    {loanPayments.length === 0 && unsettledPaymentClaims.length === 0
-                      ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد")
-                      : groupedLoanPayments.length === 0 && paymentRows.length === 0
-                      ? L("No payments this month", "لا توجد دفعات هذا الشهر")
-                      : L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}
-                  </p>
+                <div className="cw-card cw-empty" style={{ marginTop: "calc(5 * var(--q))" }}>
+                  {loanPayments.length === 0 && unsettledPaymentClaims.length === 0
+                    ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد")
+                    : paymentRows.length === 0 && !paymentSearch.trim() && !paymentFilterOn
+                    ? L("No payments this month", "لا توجد دفعات هذا الشهر")
+                    : L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="cw-list">
                   {visibleRows.map(r => {
                     const st = PAYMENT_STATUS_STYLES[r.status];
-                    const StatusIcon = st.Icon;
+                    const accent = rowAccent.get(r.key) ?? st.accents[0];
+                    const pill = r.status === "completed" ? { background: "#dcf7e6", color: "#15803d", dot: "#16a34a" } : { background: `${accent}1f`, color: accent, dot: accent };
                     const p = r.payment;
                     const seq = p ? paymentSequence.get(p.bucket) : undefined;
                     const myNote = p ? paymentNoteByKey.get(p.key) ?? "" : "";
                     const isEditingNote = !!p && editingNoteKey === p.key;
                     const correction = p ? resolveCorrection(p) : null;
-                    const confirmingClaimDelete = !!r.claim && deleteClaimPromptId === r.claim.id;
+                    const claim = r.claim;
+                    const claimEditable = !!claim && r.status === "pending";
+                    const confirmingClaimDelete = !!claim && deleteClaimPromptId === claim.id;
                     const expanded = expandedPaymentKey === r.key;
                     const toggleDetails = () => { setMenuRowKey(null); setExpandedPaymentKey(k => (k === r.key ? null : r.key)); };
                     const sourceLabel = r.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر");
-                    const actionBtn = "flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground transition-colors";
+                    const StatusIcon = st.Icon;
 
                     return (
-                      <div key={r.key} className="relative overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm">
-                        <span className={cn("absolute inset-y-0 left-0 w-1.5", st.bar)} />
-                        <div className="py-3 pl-5 pr-3">
-                          <div className="flex items-center gap-2.5">
-                            <button
-                              onClick={toggleDetails}
-                              aria-label={L("Details", "تفاصيل")}
-                              className={cn("shrink-0 text-muted-foreground", lang !== "ar" && "order-last")}
-                            >
-                              <ChevronRight className={cn("h-5 w-5 transition-transform", expanded && "rotate-90")} />
-                            </button>
-
-                            <div className="shrink-0">
-                              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold", st.pill)}>
-                                <StatusIcon className="h-3.5 w-3.5" />
+                      <div key={r.key} className="cw-card cw-row" style={{ ["--acc" as string]: accent }}>
+                        <div className="cw-row-in">
+                          <div className="cw-main">
+                            <div className="cw-r1">
+                              <button type="button" className={cn("cw-chev", expanded && "open")} onClick={toggleDetails} aria-label={L("Details", "تفاصيل")}>
+                                <ChevronRight />
+                              </button>
+                              <span className="cw-status" style={{ background: pill.background, color: pill.color }}>
+                                <span className="cw-status-ic" style={{ background: pill.dot }}><StatusIcon /></span>
                                 {st.label(L)}
                               </span>
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className={cn("whitespace-nowrap text-lg font-black leading-tight tabular-nums", st.amount)} dir="ltr">
-                                {r.currency} {fmtTotal(r.amount)}
-                              </p>
-                              {r.note && <p className="truncate text-xs text-muted-foreground">{r.note}</p>}
-                            </div>
-
-                            <div className="shrink-0 space-y-1">
-                              <span className={cn(
-                                "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold",
-                                r.addedByCustomer ? "bg-violet-500/15 text-violet-600" : "bg-blue-500/15 text-blue-600",
-                              )}>
-                                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                                {sourceLabel}
+                              <div className="cw-amt">
+                                <div className="cw-amt-v" style={{ color: accent }}><bdi dir="ltr">{r.currency} {fmtTotal(r.amount)}</bdi></div>
+                                {r.note && <div className="cw-amt-s">{r.note}</div>}
+                              </div>
+                              <span className={cn("cw-src", !r.addedByCustomer && "merchant")}>
+                                <Info fill="currentColor" stroke="#fff" strokeWidth={2.5} />
+                                <span>{sourceLabel}</span>
                               </span>
-                              <p className="flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
-                                <CalendarDays className="h-3 w-3" /> {cardDateLabel(r.date)}
-                              </p>
-                              <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Clock className="h-3 w-3" /> {cardTimeLabel(r.date)}
-                              </p>
+                              <div className="cw-when">
+                                <span><CalendarDays />{cardDateLabel(r.date)}</span>
+                                <span className="t"><Clock />{cardTimeLabel(r.date)}</span>
+                              </div>
                             </div>
 
-                            <div className="relative flex shrink-0 flex-col items-center gap-2">
-                              {seq != null && (
-                                <span className="rounded-lg border border-border/60 bg-muted/40 px-2 py-1 text-[11px] font-bold tabular-nums text-muted-foreground">
-                                  #{seq}
-                                </span>
+                            {isEditingNote && p && (
+                              <div className="cw-note-ed">
+                                <input
+                                  autoFocus
+                                  value={noteDraft}
+                                  onChange={e => setNoteDraft(e.target.value)}
+                                  placeholder={L("Add a note...", "أضف ملاحظة...")}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
+                                    if (e.key === "Escape") setEditingNoteKey(null);
+                                  }}
+                                />
+                                <button type="button" onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}>
+                                  <Check />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Edit/delete only appear when the row can be tied to a
+                                correction (own claim, or a single merchant-entered
+                                payment); either way it is a request the merchant
+                                applies, since the repayment sits in their books. */}
+                            <div className="cw-acts">
+                              {p && !isEditingNote && (
+                                myNote ? (
+                                  <button type="button" className="cw-act note" onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}>
+                                    <MessageSquare /><span>{myNote}</span>
+                                  </button>
+                                ) : (
+                                  <button type="button" className="cw-act" onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}>
+                                    <MessageSquare />{L("Add note", "إضافة ملاحظة")}
+                                  </button>
+                                )
                               )}
-                              <button
-                                onClick={() => setMenuRowKey(k => (k === r.key ? null : r.key))}
-                                aria-label={L("More", "المزيد")}
-                                className="rounded-full p-1 text-foreground hover:bg-muted"
-                              >
-                                <MoreHorizontal className="h-5 w-5" />
-                              </button>
-                              {menuRowKey === r.key && (
-                                <>
-                                  <div className="fixed inset-0 z-20" onClick={() => setMenuRowKey(null)} />
-                                  <div className="absolute start-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-xl border border-border/60 bg-card shadow-lg">
-                                    <button onClick={toggleDetails} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
-                                      <FileText className="h-3.5 w-3.5" /> {L("Details", "تفاصيل")}
-                                    </button>
-                                    {p && (
-                                      <button
-                                        onClick={() => { setMenuRowKey(null); setEditingNoteKey(p.key); setNoteDraft(myNote); }}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted"
-                                      >
-                                        <MessageSquare className="h-3.5 w-3.5" /> {myNote ? L("Edit note", "تعديل الملاحظة") : L("Add note", "إضافة ملاحظة")}
-                                      </button>
-                                    )}
-                                    {correction && !correction.changeRequest && (
-                                      <>
-                                        <button onClick={() => { setMenuRowKey(null); correction.onEdit(); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
-                                          <Edit2 className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
-                                        </button>
-                                        <button onClick={() => { setMenuRowKey(null); setDeletePaymentPromptKey(r.key); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-muted">
-                                          <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
-                                        </button>
-                                      </>
-                                    )}
-                                    {r.claim && r.status === "pending" && !confirmingClaimDelete && (
-                                      <>
-                                        <button onClick={() => { setMenuRowKey(null); setEditingClaimId(r.claim!.id); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
-                                          <Edit2 className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
-                                        </button>
-                                        <button onClick={() => { setMenuRowKey(null); setDeleteClaimPromptId(r.claim!.id); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-muted">
-                                          <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </>
+
+                              {correction && (
+                                correction.changeRequest ? (
+                                  <>
+                                    <span className="cw-act req">
+                                      {correction.changeRequest === "delete" ? L("Removal requested", "طُلب الحذف") : L("Change requested", "طُلب التعديل")}
+                                    </span>
+                                    <button type="button" className="cw-act" onClick={correction.onCancelRequest}>{L("Cancel request", "إلغاء الطلب")}</button>
+                                  </>
+                                ) : deletePaymentPromptKey === r.key ? (
+                                  <>
+                                    <span className="cw-act ask">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</span>
+                                    <button type="button" className="cw-mini danger" onClick={() => { correction.onRequestDelete(); setDeletePaymentPromptKey(null); }}>{L("Request", "إرسال")}</button>
+                                    <button type="button" className="cw-mini" onClick={() => setDeletePaymentPromptKey(null)}>{L("Cancel", "إلغاء")}</button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button type="button" className="cw-act" onClick={correction.onEdit}><Pencil />{L("Edit", "تعديل")}</button>
+                                    <button type="button" className="cw-act" onClick={() => setDeletePaymentPromptKey(r.key)}><Trash2 />{L("Delete", "حذف")}</button>
+                                  </>
+                                )
                               )}
+
+                              {claimEditable && (
+                                confirmingClaimDelete ? (
+                                  <>
+                                    <span className="cw-act ask">{L("Delete this reported payment?", "حذف هذه الدفعة المُبلغ عنها؟")}</span>
+                                    <button type="button" className="cw-mini danger" onClick={() => { deleteClaim.mutate(claim.id); setDeleteClaimPromptId(null); }}>{L("Delete", "حذف")}</button>
+                                    <button type="button" className="cw-mini" onClick={() => setDeleteClaimPromptId(null)}>{L("Cancel", "إلغاء")}</button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button type="button" className="cw-act" onClick={() => setEditingClaimId(claim.id)}><Pencil />{L("Edit", "تعديل")}</button>
+                                    <button type="button" className="cw-act" onClick={() => setDeleteClaimPromptId(claim.id)}><Trash2 />{L("Delete", "حذف")}</button>
+                                  </>
+                                )
+                              )}
+
+                              <button type="button" className="cw-act" onClick={toggleDetails}>{L("View details", "عرض التفاصيل")}<ListIcon /></button>
                             </div>
+
+                            {expanded && (
+                              <div className="cw-det">
+                                <div><span>{L("Time", "الوقت")}</span><b>{cardTimeLabel(r.date)}</b></div>
+                                <div><span>{L("Currency", "العملة")}</span><b>{r.currency}</b></div>
+                                <div><span>{L("Source", "المصدر")}</span><b>{sourceLabel}</b></div>
+                                <div><span>{L("Status", "الحالة")}</span><b>{st.label(L)}</b></div>
+                              </div>
+                            )}
                           </div>
 
-                          {/* Note editor */}
-                          {isEditingNote && p && (
-                            <div className="mt-2 flex items-center gap-1.5">
-                              <input
-                                autoFocus
-                                value={noteDraft}
-                                onChange={e => setNoteDraft(e.target.value)}
-                                placeholder={L("Add a note...", "أضف ملاحظة...")}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
-                                  if (e.key === "Escape") setEditingNoteKey(null);
-                                }}
-                                className="h-9 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                              />
-                              <button
-                                onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
-                                className="rounded-lg bg-primary p-2 text-primary-foreground"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Actions — edit/delete only appear when the row can be
-                              tied to a correction (own claim, or a single
-                              unambiguous merchant-entered payment); either way
-                              it is a request the merchant applies, since the
-                              repayment itself sits in their books. */}
-                          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
-                            {p && !isEditingNote && (
-                              myNote ? (
-                                <button onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }} className={cn(actionBtn, "min-w-0 max-w-[40%] text-primary")}>
-                                  <MessageSquare className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{myNote}</span>
-                                </button>
-                              ) : (
-                                <button onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }} className={cn(actionBtn, "hover:text-primary")}>
-                                  <MessageSquare className="h-3.5 w-3.5" /> {L("Add note", "إضافة ملاحظة")}
-                                </button>
-                              )
-                            )}
-
-                            {correction && (
-                              correction.changeRequest ? (
-                                <>
-                                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">
-                                    {correction.changeRequest === "delete" ? L("Removal requested", "طُلب الحذف") : L("Change requested", "طُلب التعديل")}
-                                  </span>
-                                  <button onClick={correction.onCancelRequest} className={cn(actionBtn, "hover:text-foreground")}>
-                                    {L("Cancel request", "إلغاء الطلب")}
-                                  </button>
-                                </>
-                              ) : deletePaymentPromptKey === r.key ? (
-                                <>
-                                  <span className="text-[11px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</span>
-                                  <button
-                                    onClick={() => { correction.onRequestDelete(); setDeletePaymentPromptKey(null); }}
-                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white"
-                                  >
-                                    {L("Request", "إرسال")}
-                                  </button>
-                                  <button onClick={() => setDeletePaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[11px] font-semibold hover:bg-muted">
-                                    {L("Cancel", "إلغاء")}
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button onClick={correction.onEdit} className={cn(actionBtn, "hover:text-primary")}>
-                                    <Pencil className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
-                                  </button>
-                                  <button onClick={() => setDeletePaymentPromptKey(r.key)} className={cn(actionBtn, "hover:text-rose-600")}>
-                                    <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
-                                  </button>
-                                </>
-                              )
-                            )}
-
-                            {r.claim && r.status === "pending" && (
-                              confirmingClaimDelete ? (
-                                <>
-                                  <span className="text-[11px] text-rose-600">{L("Delete this reported payment?", "حذف هذه الدفعة المُبلغ عنها؟")}</span>
-                                  <button
-                                    onClick={() => { deleteClaim.mutate(r.claim!.id); setDeleteClaimPromptId(null); }}
-                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white"
-                                  >
-                                    {L("Delete", "حذف")}
-                                  </button>
-                                  <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[11px] font-semibold hover:bg-muted">
-                                    {L("Cancel", "إلغاء")}
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button onClick={() => setEditingClaimId(r.claim!.id)} className={cn(actionBtn, "hover:text-primary")}>
-                                    <Pencil className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
-                                  </button>
-                                  <button onClick={() => setDeleteClaimPromptId(r.claim!.id)} className={cn(actionBtn, "hover:text-rose-600")}>
-                                    <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
-                                  </button>
-                                </>
-                              )
-                            )}
-
-                            <button onClick={toggleDetails} className={cn(actionBtn, "hover:text-primary")}>
-                              <ListIcon className="h-3.5 w-3.5" /> {L("View details", "عرض التفاصيل")}
+                          <div className="cw-side">
+                            {seq != null ? <span className="cw-num">#{seq}</span> : <span />}
+                            <button type="button" className="cw-dots" onClick={() => setMenuRowKey(k => (k === r.key ? null : r.key))} aria-label={L("More", "المزيد")}>
+                              <MoreHorizontal />
                             </button>
+                            {menuRowKey === r.key && (
+                              <>
+                                <div className="cw-scrim" onClick={() => setMenuRowKey(null)} />
+                                <div className="cw-pop">
+                                  <button type="button" onClick={toggleDetails}><ListIcon /> {L("View details", "عرض التفاصيل")}</button>
+                                  {p && (
+                                    <button type="button" onClick={() => { setMenuRowKey(null); setEditingNoteKey(p.key); setNoteDraft(myNote); }}>
+                                      <MessageSquare /> {myNote ? L("Edit note", "تعديل الملاحظة") : L("Add note", "إضافة ملاحظة")}
+                                    </button>
+                                  )}
+                                  {correction && !correction.changeRequest && (
+                                    <>
+                                      <button type="button" onClick={() => { setMenuRowKey(null); correction.onEdit(); }}><Pencil /> {L("Edit", "تعديل")}</button>
+                                      <button type="button" className="danger" onClick={() => { setMenuRowKey(null); setDeletePaymentPromptKey(r.key); }}><Trash2 /> {L("Delete", "حذف")}</button>
+                                    </>
+                                  )}
+                                  {claimEditable && (
+                                    <>
+                                      <button type="button" onClick={() => { setMenuRowKey(null); setEditingClaimId(claim.id); }}><Pencil /> {L("Edit", "تعديل")}</button>
+                                      <button type="button" className="danger" onClick={() => { setMenuRowKey(null); setDeleteClaimPromptId(claim.id); }}><Trash2 /> {L("Delete", "حذف")}</button>
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
-
-                          {expanded && (
-                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-                              <div className="flex justify-between gap-2">
-                                <span>{L("Time", "الوقت")}</span>
-                                <span className="font-semibold text-foreground">{cardTimeLabel(r.date)}</span>
-                              </div>
-                              <div className="flex justify-between gap-2">
-                                <span>{L("Currency", "العملة")}</span>
-                                <span className="font-semibold text-foreground">{r.currency}</span>
-                              </div>
-                              <div className="flex justify-between gap-2">
-                                <span>{L("Source", "المصدر")}</span>
-                                <span className="font-semibold text-foreground">{sourceLabel}</span>
-                              </div>
-                              <div className="flex justify-between gap-2">
-                                <span>{L("Status", "الحالة")}</span>
-                                <span className="font-semibold text-foreground">{st.label(L)}</span>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </>
           )}
 
         </div>

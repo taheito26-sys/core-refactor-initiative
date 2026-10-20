@@ -69,7 +69,9 @@ export function CustomerLayout() {
   const isHomeRoute = location.pathname === '/c/home' || location.pathname === '/c/home/';
   // On a phone the orders page draws its own header and uses the same bottom bar as home.
   const isOrdersPhone = isMobile && (location.pathname === '/c/orders' || location.pathname === '/c/orders/');
-  const ownsShell = isHomeRoute || isOrdersPhone;
+  // The Cash page draws its own header on a phone too, with the Cash tab lit in the shared bottom bar.
+  const isWalletPhone = isMobile && (location.pathname === '/c/wallet' || location.pathname === '/c/wallet/');
+  const ownsShell = isHomeRoute || isOrdersPhone || isWalletPhone;
   const chatUnread = useChatStore(s => Object.values(s.unreadCounts).reduce((sum, n) => sum + (n || 0), 0));
   const displayName = resolveCustomerDisplayName(customerProfile, lang);
 
@@ -170,7 +172,7 @@ export function CustomerLayout() {
             to reach it instead of it always being visible. `main`'s
             bottom padding above keeps content from sitting underneath it. */}
         {isMobile && ownsShell && (
-          <CustomerHomeNav lang={lang} chatUnread={chatUnread} notificationsUnread={unreadCount} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : 'orders'} />
+          <CustomerHomeNav lang={lang} chatUnread={chatUnread} notificationsUnread={unreadCount} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : isWalletPhone ? 'cash' : 'orders'} className={isWalletPhone ? 'cw-nav' : undefined} />
         )}
         {isMobile && !ownsShell && (
           <nav
