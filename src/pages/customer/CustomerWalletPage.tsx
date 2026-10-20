@@ -1,7 +1,7 @@
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -443,6 +443,72 @@ function LogPaymentModal({ links, existing, needsApproval, onSave, onClose, lang
 
 // ── Main Page ─────────────────────────────────────────────────────
 
+// ── Payments card styling ─────────────────────────────────────────
+
+const PAYMENT_STATUS_STYLES = {
+  completed: { bar: "bg-emerald-500", pill: "bg-emerald-500/15 text-emerald-600", amount: "text-emerald-600", Icon: CheckCircle2, label: (L: (en: string, ar: string) => string) => L("Completed", "مكتمل") },
+  pending: { bar: "bg-amber-500", pill: "bg-blue-500/15 text-blue-600", amount: "text-amber-600", Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
+  rejected: { bar: "bg-rose-500", pill: "bg-rose-500/15 text-rose-600", amount: "text-rose-600", Icon: XCircle, label: (L: (en: string, ar: string) => string) => L("Not confirmed", "غير مؤكدة") },
+} as const;
+
+// Illustration for the banner: a checklist clipboard, a parcel and a rising arrow.
+function PaymentsBannerArt({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 240 170" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="bannerBoard" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#c7d2fe" />
+        </linearGradient>
+        <linearGradient id="bannerClip" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#6366f1" />
+          <stop offset="1" stopColor="#4338ca" />
+        </linearGradient>
+        <linearGradient id="bannerArrow" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#10b981" />
+          <stop offset="1" stopColor="#6ee7b7" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="120" cy="150" rx="105" ry="16" fill="#38bdf8" opacity="0.45" />
+      <ellipse cx="120" cy="146" rx="80" ry="10" fill="#0ea5e9" opacity="0.5" />
+      {/* parcel */}
+      <g>
+        <polygon points="12,96 44,84 76,96 44,110" fill="#fde68a" />
+        <polygon points="12,96 44,110 44,142 12,128" fill="#f59e0b" />
+        <polygon points="76,96 44,110 44,142 76,128" fill="#fbbf24" />
+        <polygon points="38,88 50,84 82,97 70,101" fill="#fff7ed" opacity="0.8" />
+      </g>
+      {/* clipboard */}
+      <g transform="rotate(9 130 78)">
+        <rect x="82" y="22" width="102" height="124" rx="14" fill="url(#bannerClip)" />
+        <rect x="90" y="32" width="86" height="106" rx="9" fill="url(#bannerBoard)" />
+        <rect x="114" y="14" width="38" height="20" rx="8" fill="#4338ca" />
+        <circle cx="133" cy="21" r="4" fill="#c7d2fe" />
+        {[50, 77, 104].map(y => (
+          <g key={y}>
+            <rect x="99" y={y} width="17" height="17" rx="5" fill="#3b82f6" />
+            <path d={`M103 ${y + 8.5} l4 4 l6 -8`} fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="124" y={y + 3} width="44" height="5" rx="2.5" fill="#818cf8" />
+            <rect x="124" y={y + 11} width="30" height="4" rx="2" fill="#c7d2fe" />
+          </g>
+        ))}
+      </g>
+      {/* parcel behind-right */}
+      <g>
+        <polygon points="178,104 204,94 230,104 204,116" fill="#fde68a" />
+        <polygon points="178,104 204,116 204,142 178,130" fill="#f59e0b" />
+        <polygon points="230,104 204,116 204,142 230,130" fill="#fbbf24" />
+      </g>
+      {/* rising arrow */}
+      <path d="M172 62 L196 40 L206 50" fill="none" stroke="url(#bannerArrow)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points="190,30 224,22 214,56" fill="#10b981" />
+      {/* confirm badge */}
+      <circle cx="90" cy="138" r="19" fill="#10b981" stroke="#d1fae5" strokeWidth="4" />
+      <path d="M81 138 l7 7 l12 -14" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function CustomerWalletPage() {
   const { userId } = useAuth();
   const { settings } = useTheme();
@@ -727,6 +793,138 @@ export default function CustomerWalletPage() {
     () => displayedLoanPayments.reduce((sum, p) => sum + p.amount, 0),
     [displayedLoanPayments],
   );
+
+  // ── Card-list view model ──────────────────────────────────────
+  // Registered payments and the buyer's still-unsettled reports share one
+  // list so every card can carry a status: registered = completed, a report
+  // awaiting the merchant = pending, a report the merchant did not confirm =
+  // rejected.
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending" | "rejected">("all");
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [menuRowKey, setMenuRowKey] = useState<string | null>(null);
+
+  const numLocale = lang === "ar" ? "ar-u-nu-latn" : "en-GB";
+  const cardDateLabel = (ts: number) => new Date(ts).toLocaleDateString(numLocale, { day: "numeric", month: "long", year: "numeric" });
+  const cardTimeLabel = (ts: number) => new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const monthPillLabel = (key: string) => {
+    const [y, mo] = key.split("-");
+    return `${new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(numLocale, { month: "long" })} ${y.slice(2)}`;
+  };
+
+  type PaymentRow = {
+    kind: "payment" | "claim";
+    key: string;
+    status: "completed" | "pending" | "rejected";
+    date: number;
+    amount: number;
+    currency: string;
+    note: string | null;
+    addedByCustomer: boolean;
+    payment: (typeof groupedLoanPayments)[number] | null;
+    claim: (typeof myPaymentClaims)[number] | null;
+  };
+
+  const paymentRows = useMemo<PaymentRow[]>(() => {
+    const q = paymentSearch.trim().toLowerCase();
+    const minAmount = paymentFilterMinAmount.trim() ? parseFloat(paymentFilterMinAmount) : null;
+    const maxAmount = paymentFilterMaxAmount.trim() ? parseFloat(paymentFilterMaxAmount) : null;
+    const rows: PaymentRow[] = displayedLoanPayments.map(p => ({
+      kind: "payment", key: p.key, status: "completed", date: p.date, amount: p.amount, currency: p.currency,
+      note: p.note, addedByCustomer: p.addedByCustomer, payment: p, claim: null,
+    }));
+    for (const c of unsettledPaymentClaims) {
+      if (paymentsMonth && localMonthKey(c.paidAt) !== paymentsMonth) continue;
+      if (q && !(c.note ?? "").toLowerCase().includes(q)) continue;
+      if (paymentFilterOn) {
+        if (paymentFilterDay && localDayKey(c.paidAt) !== paymentFilterDay) continue;
+        if (minAmount != null && Number.isFinite(minAmount) && c.amount < minAmount) continue;
+        if (maxAmount != null && Number.isFinite(maxAmount) && c.amount > maxAmount) continue;
+      }
+      rows.push({
+        kind: "claim", key: `claim:${c.id}`, status: c.status === "pending" ? "pending" : "rejected",
+        date: new Date(c.paidAt).getTime(), amount: c.amount, currency: c.currency, note: c.note, addedByCustomer: true, payment: null, claim: c,
+      });
+    }
+    rows.sort((a, b) => {
+      switch (paymentSort) {
+        case "date_asc": return a.date - b.date;
+        case "amount_desc": return b.amount - a.amount;
+        case "amount_asc": return a.amount - b.amount;
+        default: return b.date - a.date;
+      }
+    });
+    return rows;
+  }, [displayedLoanPayments, unsettledPaymentClaims, paymentsMonth, paymentSearch, paymentSort, paymentFilterOn, paymentFilterDay, paymentFilterMinAmount, paymentFilterMaxAmount]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: paymentRows.length, completed: 0, pending: 0, rejected: 0 };
+    for (const r of paymentRows) counts[r.status] += 1;
+    return counts;
+  }, [paymentRows]);
+  const visibleRows = useMemo(
+    () => (statusFilter === "all" ? paymentRows : paymentRows.filter(r => r.status === statusFilter)),
+    [paymentRows, statusFilter],
+  );
+
+  // Headline counters cover everything the buyer has ever reported, not the
+  // month/search narrowing the list below applies.
+  const overallCounts = useMemo(() => {
+    const pending = unsettledPaymentClaims.filter(c => c.status === "pending").length;
+    const rejected = unsettledPaymentClaims.length - pending;
+    const completed = loanPayments.length;
+    return { total: completed + pending + rejected, completed, pending, rejected };
+  }, [loanPayments, unsettledPaymentClaims]);
+
+
+  // Resolves how a registered payment can be corrected: through the claim the
+  // buyer submitted, or through a request staged against the merchant's entry.
+  const resolveCorrection = (p: (typeof groupedLoanPayments)[number]) => {
+                      // A payment this customer submitted through the claim
+                      // flow can be changed via that claim, through the
+                      // merchant: it's their tracker that holds the repayment.
+                      const ownClaim = p.addedByCustomer ? claimByPaymentBucket.get(p.bucket) : undefined;
+                      // Fallback for everything else -- a payment the
+                      // merchant entered directly, but *also* a "Added by
+                      // me" row whose note carries the "Customer-reported"
+                      // prefix without a resolvable claim behind it (e.g.
+                      // one entered before the claims table existed, or
+                      // whose claim was otherwise deleted): either way
+                      // there's no claim id to hang a request on, so it
+                      // goes through the same generic single-payment
+                      // correction path merchant-entered rows use. Rows are
+                      // never merged (see groupedLoanPayments above), so `p`
+                      // already *is* the one exact payment this row
+                      // represents -- no separate lookup needed.
+                      const merchantSingle = !ownClaim ? p : undefined;
+                      const merchantRequest = !ownClaim ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
+                      const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
+
+                      // Unifies the two correction flows (a claim the
+                      // customer submitted vs. a request staged fresh
+                      // against a merchant-entered payment) into one shape,
+                      // so the action row below doesn't have to branch on
+                      // which one it's rendering.
+                      const correction = ownClaim
+                        ? {
+                            changeRequest: ownClaim.changeRequest,
+                            onEdit: () => setEditingClaimId(ownClaim.id),
+                            onRequestDelete: () => requestChange.mutate({ id: ownClaim.id, kind: "delete" }),
+                            onCancelRequest: () => requestChange.mutate({ id: ownClaim.id, kind: null }),
+                          }
+                        : merchantSingle && merchantLink
+                        ? {
+                            changeRequest: merchantRequest?.changeRequest ?? null,
+                            onEdit: () => setEditingMerchantPayment({ bucket: p.bucket, currency: p.currency, amount: merchantSingle.amount, date: merchantSingle.date, note: merchantSingle.note }),
+                            onRequestDelete: () => requestMerchantPaymentChange.mutate({
+                              merchantUserId: merchantLink.merchantUserId, customerId: merchantLink.customerId,
+                              currency: p.currency, amount: merchantSingle.amount, paidAt: merchantSingle.date,
+                              kind: "delete",
+                            }),
+                            onCancelRequest: () => merchantRequest && cancelMerchantPaymentChange.mutate(merchantRequest.id),
+                          }
+                        : null;
+    return correction;
+  };
 
   const loanTotals = useMemo(() => {
     let totalDebt = 0, totalPaid = 0, outstanding = 0;
@@ -1048,501 +1246,528 @@ export default function CustomerWalletPage() {
               minus the account/edit/delete/merge actions (merchant-only). ── */}
           {tab === "payments" && (
             <div className="space-y-3">
-              {/* Hero — gradient summary + settlement ring, same figures the
-                  flat cards used to show, now the page's visual anchor. */}
-              <div className="rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-600 p-3 text-white">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center">
-                    <svg viewBox="0 0 64 64" className="h-11 w-11 -rotate-90">
-                      <defs>
-                        <linearGradient id="paymentRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#60a5fa" />
-                          <stop offset="100%" stopColor="#22d3ee" />
-                        </linearGradient>
-                      </defs>
-                      <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="7" />
-                      <circle
-                        cx="32" cy="32" r="27" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="7" strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 27}
-                        strokeDashoffset={2 * Math.PI * 27 * (1 - loanTotals.settledPct / 100)}
-                        className="transition-all"
-                      />
-                    </svg>
-                    <span className="absolute text-[10px] font-black tabular-nums">{loanTotals.settledPct}%</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/15"><Wallet2 className="h-3.5 w-3.5" /></div>
-                    <p className="text-xs font-bold">{L("Payments Overview", "نظرة عامة على الدفعات")}</p>
-                  </div>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      <Coins className="h-3 w-3 opacity-75" />
-                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Total Payments", "إجمالي المدفوعات")}</p>
-                    </div>
-                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalDebt)}</p>
-                  </div>
-                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      <ArrowLeftRight className="h-3 w-3 opacity-75" />
-                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Paid", "المدفوع")}</p>
-                    </div>
-                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.totalPaid)}</p>
-                  </div>
-                  <div className="rounded-lg bg-white/10 px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      <CreditCard className="h-3 w-3 opacity-75" />
-                      <p className="text-[8px] opacity-75 uppercase tracking-wide truncate">{L("Outstanding", "المتبقي")}</p>
-                    </div>
-                    <p className="text-xs font-black tabular-nums mt-0.5">{fmtTotal(loanTotals.outstanding)}</p>
-                  </div>
+              {/* Banner — primary action plus a one-line pitch, with the
+                  illustration pinned to the right edge in both languages. */}
+              <div dir="ltr" className="relative min-h-[140px] overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-500 p-4 text-white shadow-lg shadow-indigo-500/20">
+                <PaymentsBannerArt className="pointer-events-none absolute -bottom-1 right-2 h-[150px] w-auto" />
+                <div className="relative z-10 flex min-h-[108px] max-w-[62%] flex-col items-start justify-between gap-5">
+                  {statementLinks.length > 0 ? (
+                    <button
+                      onClick={() => setShowLogPayment(true)}
+                      dir={lang === "ar" ? "rtl" : "ltr"}
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-lg font-extrabold text-emerald-600 shadow-md transition-transform active:scale-95"
+                    >
+                      <Plus className="h-5 w-5" strokeWidth={3} />
+                      {L("Log a Payment", "تسجيل دفعة")}
+                    </button>
+                  ) : <span className="h-12" />}
+                  <p dir={lang === "ar" ? "rtl" : "ltr"} className="text-[13px] font-medium text-white/85">
+                    {L("Track all your payments and statistics with ease", "تابع جميع دفعاتك وإحصائياتك بسهولة")}
+                  </p>
                 </div>
               </div>
 
-              {/* Log a payment — reports a payment made outside the app
-                  (bank transfer, cash, etc.) for the merchant to confirm. */}
-              {statementLinks.length > 0 && (
-                <button
-                  onClick={() => setShowLogPayment(true)}
-                  className="relative flex w-full items-center justify-center gap-2 rounded-full bg-primary/10 py-3 text-sm font-bold text-primary hover:bg-primary/15 transition-colors"
-                >
-                  <ChevronLeft className="absolute left-4 h-4 w-4" />
-                  {L("Log a Payment", "تسجيل دفعة")} 💸
-                </button>
-              )}
-
-              {/* My submitted payment claims still awaiting the merchant's
-                  review — accepted ones already show below, unified into
-                  Payments Received. */}
-              {unsettledPaymentClaims.length > 0 && (
-                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border/40">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("My Reported Payments", "دفعاتي المُبلغ عنها")}</p>
+              {/* Headline figures */}
+              <div className="grid grid-cols-3 gap-2.5">
+                {[
+                  { label: L("Total Orders", "إجمالي الطلبات"), value: loanTotals.totalDebt, Icon: Database, tone: "bg-violet-500/15 text-violet-600" },
+                  { label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, Icon: ArrowLeftRight, tone: "bg-blue-500/15 text-blue-600" },
+                  { label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, Icon: HandCoins, tone: "bg-emerald-500/15 text-emerald-600" },
+                ].map(c => (
+                  <div key={c.label} className="flex min-w-0 items-center justify-between gap-1.5 rounded-2xl border border-border/50 bg-card p-3 shadow-sm">
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-semibold text-muted-foreground">{c.label}</p>
+                      <p className="mt-0.5 truncate text-[15px] font-black tabular-nums">{fmtTotal(c.value)}</p>
+                      <p className="text-[10px] text-muted-foreground">({loanTotals.currency})</p>
+                    </div>
+                    <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", c.tone)}>
+                      <c.Icon className="h-5 w-5" />
+                    </div>
                   </div>
-                  <div className="divide-y divide-border/40">
-                    {unsettledPaymentClaims.map(c => (
-                      deleteClaimPromptId === c.id ? (
-                        <div key={c.id} className="flex items-center gap-2 px-4 py-2.5">
-                          <p className="flex-1 text-xs text-rose-600">{L("Delete this reported payment?", "حذف هذه الدفعة المُبلغ عنها؟")}</p>
-                          <button
-                            onClick={() => { deleteClaim.mutate(c.id); setDeleteClaimPromptId(null); }}
-                            className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white"
-                          >
-                            {L("Delete", "حذف")}
-                          </button>
-                          <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-3 py-1 text-xs font-semibold hover:bg-muted">
-                            {L("Cancel", "إلغاء")}
-                          </button>
+                ))}
+              </div>
+
+              {/* Count + status breakdown. Listed cancelled-first for the
+                  Arabic layout; the English layout gets the reverse so the
+                  count card always sits on the left. */}
+              <div className="grid grid-cols-4 gap-2">
+                {(() => {
+                  const pctOf = (n: number) => (overallCounts.total > 0 ? Math.round((n / overallCounts.total) * 100) : 0);
+                  const cards = [
+                    { key: "rejected", label: L("Not confirmed", "غير مؤكدة"), value: overallCounts.rejected, Icon: X, tone: "bg-rose-500/15 text-rose-500", bar: "from-rose-400 to-rose-300", pct: pctOf(overallCounts.rejected), text: "text-rose-500" },
+                    { key: "pending", label: L("Processing", "قيد المعالجة"), value: overallCounts.pending, Icon: Clock, tone: "bg-amber-500/15 text-amber-500", bar: "from-amber-500 to-amber-300", pct: pctOf(overallCounts.pending), text: "text-amber-500" },
+                    { key: "completed", label: L("Completed", "مكتمل"), value: overallCounts.completed, Icon: Check, tone: "bg-emerald-500/15 text-emerald-600", bar: "from-emerald-500 to-emerald-300", pct: pctOf(overallCounts.completed), text: "text-emerald-600" },
+                    { key: "count", label: L("Payments", "عدد الدفعات"), value: overallCounts.total, Icon: Wallet2, tone: "bg-blue-500/15 text-blue-600", bar: "", pct: 0, text: "" },
+                  ];
+                  return (lang === "ar" ? cards : [...cards].reverse()).map(c => (
+                    <div key={c.key} className="min-w-0 rounded-2xl border border-border/50 bg-card p-2.5 shadow-sm">
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0">
+                          <p className="truncate text-[10px] font-semibold text-muted-foreground">{c.label}</p>
+                          <p className="mt-0.5 text-lg font-black leading-tight tabular-nums">{c.value}</p>
                         </div>
-                      ) : (
-                        <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold tabular-nums">{fmtTotal(c.amount)} {c.currency}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {new Date(c.paidAt).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}
-                              {c.note ? ` · ${c.note}` : ""}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            {c.status === "pending" && (
-                              <>
-                                <button onClick={() => setEditingClaimId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </button>
-                                <button onClick={() => setDeleteClaimPromptId(c.id)} className="rounded-full p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </>
-                            )}
-                            <span className={cn(
-                              "rounded-full px-2.5 py-1 text-[10px] font-bold",
-                              c.status === "pending" && "bg-amber-500/15 text-amber-600",
-                              c.status === "accepted" && "bg-emerald-500/15 text-emerald-600",
-                              c.status === "rejected" && "bg-rose-500/15 text-rose-600",
-                            )}>
-                              {c.status === "pending" ? L("Pending", "قيد الانتظار") : c.status === "accepted" ? L("Confirmed", "مؤكدة") : L("Not confirmed", "غير مؤكدة")}
-                            </span>
-                          </div>
+                        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", c.tone)}>
+                          <c.Icon className="h-4 w-4" strokeWidth={2.5} />
                         </div>
-                      )
+                      </div>
+                      {c.bar && (
+                        <div className="mt-1.5 flex items-center gap-1" dir="ltr">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div className={cn("h-full rounded-full bg-gradient-to-r", c.bar)} style={{ width: `${c.pct}%` }} />
+                          </div>
+                          <span className={cn("text-[10px] font-bold tabular-nums", c.text)}>{c.pct}%</span>
+                        </div>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Settlement progress */}
+              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-muted-foreground">{L("Total Settled", "إجمالي المسدد")}</p>
+                  <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 tabular-nums" dir="ltr">
+                    <span className="text-2xl font-black">{fmtTotal(loanTotals.totalPaid)}</span>
+                    <span className="text-sm font-medium text-muted-foreground">/ {fmtTotal(loanTotals.totalDebt)} ({loanTotals.currency})</span>
+                  </p>
+                  <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-muted" dir="ltr">
+                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all" style={{ width: `${loanTotals.settledPct}%` }} />
+                  </div>
+                </div>
+                <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
+                  <svg viewBox="0 0 80 80" className="h-[76px] w-[76px] -rotate-90">
+                    <defs>
+                      <linearGradient id="paymentRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#10b981" />
+                        <stop offset="100%" stopColor="#34d399" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="40" cy="40" r="33" fill="none" stroke="currentColor" className="text-emerald-500/15" strokeWidth="8" />
+                    <circle
+                      cx="40" cy="40" r="33" fill="none" stroke="url(#paymentRingGradient)" strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 33}
+                      strokeDashoffset={2 * Math.PI * 33 * (1 - loanTotals.settledPct / 100)}
+                      className="transition-all"
+                    />
+                  </svg>
+                  <span className="absolute text-lg font-black tabular-nums">{loanTotals.settledPct}%</span>
+                </div>
+              </div>
+
+              {/* Month pills + day/amount filter shortcut */}
+              {paymentsMonths.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {[{ key: null as string | null, label: L("All Months", "كل الأشهر") }, ...paymentsMonths.map(m => ({ key: m as string | null, label: monthPillLabel(m) }))].map(m => (
+                      <button
+                        key={m.key ?? "all"}
+                        onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
+                        className={cn(
+                          "h-11 shrink-0 rounded-full px-5 text-sm font-bold whitespace-nowrap transition-colors",
+                          paymentsMonth === m.key
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/30"
+                            : "bg-blue-500/10 text-blue-700 hover:bg-blue-500/15 dark:text-blue-300",
+                        )}
+                      >
+                        {m.label}
+                      </button>
                     ))}
                   </div>
+                  <button
+                    onClick={() => setShowPaymentFilter(true)}
+                    title={L("Filter by day or amount", "تصفية حسب اليوم أو المبلغ")}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-card text-blue-600 shadow-sm"
+                  >
+                    <CalendarDays className="h-5 w-5" />
+                  </button>
                 </div>
               )}
 
-              {/* Monthly breakdown — every month with a payment, newest
-                  first, each bar scaled against that month's own peak. */}
-              {monthlyPaymentBreakdown.length > 1 && (
-                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border/40 flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L("Monthly Breakdown", "التوزيع الشهري")}</p>
-                  </div>
-                  <div className="divide-y divide-border/40">
-                    {monthlyPaymentBreakdown.slice(0, 6).map(m => {
-                      const [y, mo] = m.key.split("-");
-                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
-                      const pct = Math.max(4, Math.round((m.total / maxMonthlyTotal) * 100));
-                      return (
+              {/* Search, exports, filter */}
+              <div className="flex items-center gap-1.5">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={paymentSearch}
+                    onChange={e => setPaymentSearch(e.target.value)}
+                    placeholder={L("Search payments...", "بحث في الدفعات...")}
+                    className="h-11 w-full rounded-xl border border-border/50 bg-card ps-9 pe-2 text-xs shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <button
+                  onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}
+                  disabled={exportingFormat !== null}
+                  title={L("Export XLSX", "تصدير XLSX")}
+                  className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-extrabold text-emerald-600 shadow-sm disabled:opacity-60"
+                >
+                  {exportingFormat === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                  XLSX
+                </button>
+                <button
+                  onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
+                  disabled={exportingFormat !== null}
+                  title={L("Export PDF", "تصدير PDF")}
+                  className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-extrabold text-blue-700 shadow-sm disabled:opacity-60 dark:text-blue-300"
+                >
+                  {exportingFormat === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  PDF
+                </button>
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setShowExportMenu(o => !o)}
+                    className="flex h-11 items-center gap-1 rounded-xl border border-border/50 bg-card px-2 text-[11px] font-bold text-foreground shadow-sm"
+                  >
+                    {L("Export", "تصدير")}
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showExportMenu && "rotate-180")} />
+                  </button>
+                  {showExportMenu && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setShowExportMenu(false)} />
+                      <div className="absolute end-0 top-12 z-30 w-36 overflow-hidden rounded-xl border border-border/60 bg-card shadow-lg">
                         <button
-                          key={m.key}
-                          onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m.key); }}
-                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                          onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "pdf"); }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-muted"
                         >
-                          <div className="w-20 shrink-0">
-                            <p className="text-xs font-semibold truncate">{label}</p>
-                            <p className="text-[10px] text-muted-foreground">{m.count} {m.count === 1 ? L("payment", "دفعة") : L("payments", "دفعات")}</p>
-                          </div>
-                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500" style={{ width: `${pct}%` }} />
-                          </div>
-                          <p className="w-20 shrink-0 text-right text-xs font-black tabular-nums">{fmtTotal(m.total)}</p>
+                          <FileDown className="h-4 w-4 text-blue-600" /> {L("PDF statement", "كشف PDF")}
                         </button>
-                      );
-                    })}
-                  </div>
+                        <button
+                          onClick={() => { setShowExportMenu(false); exportStatement(paymentsMonth, paymentsMonths, "xlsx"); }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-muted"
+                        >
+                          <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> {L("Excel statement", "كشف Excel")}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              )}
+                <button
+                  onClick={() => {
+                    if (!hasPaymentFilterCriteria) { setShowPaymentFilter(true); return; }
+                    setPaymentFilterOn(on => !on);
+                  }}
+                  className={cn(
+                    "flex h-11 shrink-0 items-center gap-1 rounded-xl border px-2 text-[11px] font-bold shadow-sm transition-colors",
+                    activePaymentFilterCount > 0 ? "border-blue-500/50 bg-blue-500/10 text-blue-600" : "border-border/50 bg-card text-foreground",
+                  )}
+                >
+                  <Filter className="h-4 w-4" />
+                  {L("Filter", "تصفية")}
+                  {activePaymentFilterCount > 0 && (
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white">{activePaymentFilterCount}</span>
+                  )}
+                </button>
+              </div>
 
-              {/* Month filter — same convention as the Orders page */}
-              {paymentsMonths.length > 0 && (
-                <div className="space-y-2">
-                  <div className="month-filter-row">
-                    <button onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(null); }} className={`month-pill ${paymentsMonth === null ? "active" : ""}`}>
-                      {L("All Months", "كل الأشهر")}
-                    </button>
-                    {paymentsMonths.map(m => {
-                      const [y, mo] = m.split("-");
-                      const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "short", year: "2-digit" });
-                      return (
-                        <button key={m} onClick={() => { userPickedPaymentsMonth.current = true; setPaymentsMonth(m); }} className={`month-pill ${paymentsMonth === m ? "active" : ""}`}>
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="month-filter-row !mb-0 items-center gap-1.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{L("Export", "تصدير")}</span>
+              {/* Status chips */}
+              <div className="flex items-center gap-2 rounded-2xl border border-border/50 bg-card p-2 shadow-sm">
+                {([
+                  { key: "all", label: L("All", "الكل"), Icon: ListIcon, count: statusCounts.all, idle: "bg-muted/60 text-foreground", dot: "text-blue-600" },
+                  { key: "completed", label: L("Completed", "مكتمل"), Icon: Check, count: statusCounts.completed, idle: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500 text-white" },
+                  { key: "pending", label: L("Processing", "قيد المعالجة"), Icon: Clock, count: statusCounts.pending, idle: "bg-blue-500/10 text-blue-700 dark:text-blue-300", dot: "text-blue-600" },
+                  { key: "rejected", label: L("Not confirmed", "غير مؤكدة"), Icon: X, count: statusCounts.rejected, idle: "bg-card text-foreground", dot: "bg-rose-500 text-white" },
+                ] as const).map(s => {
+                  const active = statusFilter === s.key;
+                  return (
                     <button
-                      onClick={() => {
-                        if (!hasPaymentFilterCriteria) { setShowPaymentFilter(true); return; }
-                        setPaymentFilterOn(on => !on);
-                      }}
+                      key={s.key}
+                      onClick={() => setStatusFilter(s.key)}
                       className={cn(
-                        "h-8 shrink-0 flex items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-colors",
-                        activePaymentFilterCount > 0
-                          ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40",
+                        "flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-2xl px-2.5 text-xs font-bold transition-colors",
+                        s.key === "all" ? "shrink-0" : "flex-1",
+                        active ? "bg-blue-600 text-white shadow-md shadow-blue-500/30" : s.idle,
                       )}
                     >
-                      <Filter className="h-3.5 w-3.5" />
-                      {L("Filter", "تصفية")}
-                      {activePaymentFilterCount > 0 && (
-                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                          {activePaymentFilterCount}
-                        </span>
-                      )}
+                      <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full", active ? "text-white" : s.dot)}>
+                        <s.Icon className="h-3.5 w-3.5" strokeWidth={3} />
+                      </span>
+                      <span className="truncate">{s.label}</span>
+                      <span className={cn("rounded-lg px-1.5 text-xs font-black tabular-nums", active ? "bg-white/25" : "")}>{s.count}</span>
                     </button>
-                    {/* Edit the remembered criteria without toggling the
-                        filter on/off — the chip itself is now the on/off
-                        switch. */}
-                    {hasPaymentFilterCriteria && (
-                      <button
-                        onClick={() => setShowPaymentFilter(true)}
-                        title={L("Edit filter", "تعديل التصفية")}
-                        className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => exportStatement(paymentsMonth, paymentsMonths, "pdf")}
-                      disabled={exportingFormat !== null}
-                      title={L("Export PDF", "تصدير PDF")}
-                      className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
-                    >
-                      {exportingFormat === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                      PDF
-                    </button>
-                    <button
-                      onClick={() => exportStatement(paymentsMonth, paymentsMonths, "xlsx")}
-                      disabled={exportingFormat !== null}
-                      title={L("Export XLSX", "تصدير XLSX")}
-                      className="h-8 shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/5 px-3 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-60"
-                    >
-                      {exportingFormat === "xlsx" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
-                      XLSX
-                    </button>
-                  </div>
-                </div>
-              )}
+                  );
+                })}
+              </div>
 
-              {/* Payments list — full-width card with search + sort so the
-                  buyer can locate or re-order payments instead of only
-                  scrolling the month's list top to bottom. */}
-              <div className="-mx-4 sm:mx-0 rounded-none sm:rounded-2xl border-y sm:border border-border/60 bg-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {L("Registered Payments", "الدفعات المسجلة")}
-                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+              {/* Count + sort */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-sm font-bold text-muted-foreground">
+                  {visibleRows.length} {L("payments", "دفعة")}
+                </p>
+                <button
+                  onClick={() => setPaymentSort(s => {
+                    if (s === "date_desc") return "date_asc";
+                    if (s === "date_asc") return "amount_desc";
+                    if (s === "amount_desc") return "amount_asc";
+                    return "date_desc";
+                  })}
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-border/50 bg-card px-3 text-xs font-bold shadow-sm"
+                >
+                  <ArrowUpDown className="h-4 w-4 text-blue-600" />
+                  {paymentSort === "date_desc" && L("Newest first", "الأحدث أولاً")}
+                  {paymentSort === "date_asc" && L("Oldest first", "الأقدم أولاً")}
+                  {paymentSort === "amount_desc" && L("Highest first", "الأعلى أولاً")}
+                  {paymentSort === "amount_asc" && L("Lowest first", "الأقل أولاً")}
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* Cards */}
+              {visibleRows.length === 0 ? (
+                <div className="rounded-2xl border border-border/50 bg-card px-6 py-10 text-center shadow-sm">
+                  <p className="text-sm text-muted-foreground">
+                    {loanPayments.length === 0 && unsettledPaymentClaims.length === 0
+                      ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد")
+                      : groupedLoanPayments.length === 0 && paymentRows.length === 0
+                      ? L("No payments this month", "لا توجد دفعات هذا الشهر")
+                      : L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}
                   </p>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
-                    <ListIcon className="h-3 w-3" />
-                    {displayedLoanPayments.length} {L("payments", "دفعة")}
-                  </span>
                 </div>
+              ) : (
+                <div className="space-y-3">
+                  {visibleRows.map(r => {
+                    const st = PAYMENT_STATUS_STYLES[r.status];
+                    const StatusIcon = st.Icon;
+                    const p = r.payment;
+                    const seq = p ? paymentSequence.get(p.bucket) : undefined;
+                    const myNote = p ? paymentNoteByKey.get(p.key) ?? "" : "";
+                    const isEditingNote = !!p && editingNoteKey === p.key;
+                    const correction = p ? resolveCorrection(p) : null;
+                    const confirmingClaimDelete = !!r.claim && deleteClaimPromptId === r.claim.id;
+                    const expanded = expandedPaymentKey === r.key;
+                    const toggleDetails = () => { setMenuRowKey(null); setExpandedPaymentKey(k => (k === r.key ? null : r.key)); };
+                    const sourceLabel = r.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر");
+                    const actionBtn = "flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground transition-colors";
 
-                {groupedLoanPayments.length > 0 && (
-                  <div className="px-4 py-2.5 border-b border-border/40 flex items-center gap-2">
-                    <div className="relative flex-1 min-w-0">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <input
-                        value={paymentSearch}
-                        onChange={e => setPaymentSearch(e.target.value)}
-                        placeholder={L("Search notes...", "بحث في الملاحظات...")}
-                        className="h-8 w-full rounded-lg border border-border/50 bg-background pl-8 pr-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                    </div>
-                    <button
-                      onClick={() => setPaymentSort(s => {
-                        if (s === "date_desc") return "date_asc";
-                        if (s === "date_asc") return "amount_desc";
-                        if (s === "amount_desc") return "amount_asc";
-                        return "date_desc";
-                      })}
-                      className="h-8 shrink-0 flex items-center gap-1 rounded-lg border border-border/50 bg-background px-2.5 text-[10px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
-                    >
-                      <ArrowUpDown className="h-3 w-3" />
-                      {paymentSort === "date_desc" && L("Newest", "الأحدث")}
-                      {paymentSort === "date_asc" && L("Oldest", "الأقدم")}
-                      {paymentSort === "amount_desc" && L("Highest", "الأعلى")}
-                      {paymentSort === "amount_asc" && L("Lowest", "الأقل")}
-                    </button>
-                  </div>
-                )}
+                    return (
+                      <div key={r.key} className="relative overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm">
+                        <span className={cn("absolute inset-y-0 left-0 w-1.5", st.bar)} />
+                        <div className="py-3 pl-5 pr-3">
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              onClick={toggleDetails}
+                              aria-label={L("Details", "تفاصيل")}
+                              className={cn("shrink-0 text-muted-foreground", lang !== "ar" && "order-last")}
+                            >
+                              <ChevronRight className={cn("h-5 w-5 transition-transform", expanded && "rotate-90")} />
+                            </button>
 
-                {groupedLoanPayments.length === 0 ? (
-                  <div className="px-6 py-10 text-center">
-                    <p className="text-sm text-muted-foreground">{loanPayments.length === 0 ? L("No payments recorded yet", "لا توجد دفعات مسجلة بعد") : L("No payments this month", "لا توجد دفعات هذا الشهر")}</p>
-                  </div>
-                ) : displayedLoanPayments.length === 0 ? (
-                  <div className="px-6 py-10 text-center">
-                    <p className="text-sm text-muted-foreground">{L("No payments match your search", "لا توجد دفعات مطابقة لبحثك")}</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border/40">
-                    {displayedLoanPayments.map(p => {
-                      const myNote = paymentNoteByKey.get(p.key) ?? "";
-                      const isEditingNote = editingNoteKey === p.key;
-                      // A payment this customer submitted through the claim
-                      // flow can be changed via that claim, through the
-                      // merchant: it's their tracker that holds the repayment.
-                      const ownClaim = p.addedByCustomer ? claimByPaymentBucket.get(p.bucket) : undefined;
-                      // Fallback for everything else -- a payment the
-                      // merchant entered directly, but *also* a "Added by
-                      // me" row whose note carries the "Customer-reported"
-                      // prefix without a resolvable claim behind it (e.g.
-                      // one entered before the claims table existed, or
-                      // whose claim was otherwise deleted): either way
-                      // there's no claim id to hang a request on, so it
-                      // goes through the same generic single-payment
-                      // correction path merchant-entered rows use. Rows are
-                      // never merged (see groupedLoanPayments above), so `p`
-                      // already *is* the one exact payment this row
-                      // represents -- no separate lookup needed.
-                      const merchantSingle = !ownClaim ? p : undefined;
-                      const merchantRequest = !ownClaim ? merchantPaymentClaimByBucket.get(p.bucket) : undefined;
-                      const merchantLink = merchantSingle ? statementLinks.find(l => l.currency === p.currency) : undefined;
-
-                      // Unifies the two correction flows (a claim the
-                      // customer submitted vs. a request staged fresh
-                      // against a merchant-entered payment) into one shape,
-                      // so the action row below doesn't have to branch on
-                      // which one it's rendering.
-                      const correction = ownClaim
-                        ? {
-                            changeRequest: ownClaim.changeRequest,
-                            onEdit: () => setEditingClaimId(ownClaim.id),
-                            onRequestDelete: () => requestChange.mutate({ id: ownClaim.id, kind: "delete" }),
-                            onCancelRequest: () => requestChange.mutate({ id: ownClaim.id, kind: null }),
-                          }
-                        : merchantSingle && merchantLink
-                        ? {
-                            changeRequest: merchantRequest?.changeRequest ?? null,
-                            onEdit: () => setEditingMerchantPayment({ bucket: p.bucket, currency: p.currency, amount: merchantSingle.amount, date: merchantSingle.date, note: merchantSingle.note }),
-                            onRequestDelete: () => requestMerchantPaymentChange.mutate({
-                              merchantUserId: merchantLink.merchantUserId, customerId: merchantLink.customerId,
-                              currency: p.currency, amount: merchantSingle.amount, paidAt: merchantSingle.date,
-                              kind: "delete",
-                            }),
-                            onCancelRequest: () => merchantRequest && cancelMerchantPaymentChange.mutate(merchantRequest.id),
-                          }
-                        : null;
-
-                      return (
-                        <div key={p.key} className="px-4 py-2.5">
-                          <div className="flex items-center gap-3">
-                            <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">+</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate flex items-center gap-1.5">
-                                {paymentSequence.get(p.bucket) != null && (
-                                  <span className="shrink-0 rounded-md border border-border/50 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
-                                    #{paymentSequence.get(p.bucket)}
-                                  </span>
-                                )}
-                                {new Date(p.date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "short", day: "numeric" })}
-                                <span className={cn(
-                                  "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold",
-                                  p.addedByCustomer ? "bg-violet-500/15 text-violet-600" : "bg-blue-500/15 text-blue-600",
-                                )}>
-                                  {p.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر")}
-                                </span>
-                              </p>
-                              {p.note && <p className="text-[10px] text-muted-foreground truncate">{p.note}</p>}
+                            <div className="shrink-0">
+                              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold", st.pill)}>
+                                <StatusIcon className="h-3.5 w-3.5" />
+                                {st.label(L)}
+                              </span>
                             </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-sm font-black tabular-nums text-emerald-600">+{fmtTotal(p.amount)} {p.currency}</p>
+
+                            <div className="min-w-0 flex-1">
+                              <p className={cn("whitespace-nowrap text-lg font-black leading-tight tabular-nums", st.amount)} dir="ltr">
+                                {r.currency} {fmtTotal(r.amount)}
+                              </p>
+                              {r.note && <p className="truncate text-xs text-muted-foreground">{r.note}</p>}
+                            </div>
+
+                            <div className="shrink-0 space-y-1">
+                              <span className={cn(
+                                "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold",
+                                r.addedByCustomer ? "bg-violet-500/15 text-violet-600" : "bg-blue-500/15 text-blue-600",
+                              )}>
+                                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                {sourceLabel}
+                              </span>
+                              <p className="flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
+                                <CalendarDays className="h-3 w-3" /> {cardDateLabel(r.date)}
+                              </p>
+                              <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Clock className="h-3 w-3" /> {cardTimeLabel(r.date)}
+                              </p>
+                            </div>
+
+                            <div className="relative flex shrink-0 flex-col items-center gap-2">
+                              {seq != null && (
+                                <span className="rounded-lg border border-border/60 bg-muted/40 px-2 py-1 text-[11px] font-bold tabular-nums text-muted-foreground">
+                                  #{seq}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => setMenuRowKey(k => (k === r.key ? null : r.key))}
+                                aria-label={L("More", "المزيد")}
+                                className="rounded-full p-1 text-foreground hover:bg-muted"
+                              >
+                                <MoreHorizontal className="h-5 w-5" />
+                              </button>
+                              {menuRowKey === r.key && (
+                                <>
+                                  <div className="fixed inset-0 z-20" onClick={() => setMenuRowKey(null)} />
+                                  <div className="absolute start-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-xl border border-border/60 bg-card shadow-lg">
+                                    <button onClick={toggleDetails} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
+                                      <FileText className="h-3.5 w-3.5" /> {L("Details", "تفاصيل")}
+                                    </button>
+                                    {p && (
+                                      <button
+                                        onClick={() => { setMenuRowKey(null); setEditingNoteKey(p.key); setNoteDraft(myNote); }}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted"
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" /> {myNote ? L("Edit note", "تعديل الملاحظة") : L("Add note", "إضافة ملاحظة")}
+                                      </button>
+                                    )}
+                                    {correction && !correction.changeRequest && (
+                                      <>
+                                        <button onClick={() => { setMenuRowKey(null); correction.onEdit(); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
+                                          <Edit2 className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
+                                        </button>
+                                        <button onClick={() => { setMenuRowKey(null); setDeletePaymentPromptKey(r.key); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-muted">
+                                          <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
+                                        </button>
+                                      </>
+                                    )}
+                                    {r.claim && r.status === "pending" && !confirmingClaimDelete && (
+                                      <>
+                                        <button onClick={() => { setMenuRowKey(null); setEditingClaimId(r.claim!.id); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted">
+                                          <Edit2 className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
+                                        </button>
+                                        <button onClick={() => { setMenuRowKey(null); setDeleteClaimPromptId(r.claim!.id); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-muted">
+                                          <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
 
-                          {/* Edit, delete and note — one line. Edit/Delete
-                              only appear when this row can be tied to a
-                              correction request (own claim, or a single
-                              unambiguous merchant-entered payment); either
-                              way it's a request the merchant applies, since
-                              the repayment itself sits in their books. */}
-                          <div className="mt-1.5 flex flex-wrap items-center gap-3 ps-10">
-                            {/* Customer's own note — separate from the merchant's note above */}
-                            {isEditingNote ? (
-                              <div className="flex flex-1 min-w-[140px] items-center gap-1.5">
-                                <input
-                                  autoFocus
-                                  value={noteDraft}
-                                  onChange={e => setNoteDraft(e.target.value)}
-                                  placeholder={L("Add a note...", "أضف ملاحظة...")}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
-                                    if (e.key === "Escape") setEditingNoteKey(null);
-                                  }}
-                                  className="h-8 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                                />
-                                <button
-                                  onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
-                                  className="rounded-lg bg-primary p-1.5 text-primary-foreground"
-                                >
-                                  <Check className="h-3.5 w-3.5" />
+                          {/* Note editor */}
+                          {isEditingNote && p && (
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <input
+                                autoFocus
+                                value={noteDraft}
+                                onChange={e => setNoteDraft(e.target.value)}
+                                placeholder={L("Add a note...", "أضف ملاحظة...")}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }
+                                  if (e.key === "Escape") setEditingNoteKey(null);
+                                }}
+                                className="h-9 flex-1 rounded-lg border border-border/50 bg-background px-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                              <button
+                                onClick={() => { savePaymentNote.mutate({ key: p.key, note: noteDraft.trim() }); setEditingNoteKey(null); }}
+                                className="rounded-lg bg-primary p-2 text-primary-foreground"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Actions — edit/delete only appear when the row can be
+                              tied to a correction (own claim, or a single
+                              unambiguous merchant-entered payment); either way
+                              it is a request the merchant applies, since the
+                              repayment itself sits in their books. */}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                            {p && !isEditingNote && (
+                              myNote ? (
+                                <button onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }} className={cn(actionBtn, "min-w-0 max-w-[40%] text-primary")}>
+                                  <MessageSquare className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{myNote}</span>
                                 </button>
-                              </div>
-                            ) : myNote ? (
-                              <button
-                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(myNote); }}
-                                className="flex min-w-0 items-center gap-1.5 text-[10px] text-primary hover:underline"
-                              >
-                                <Pencil className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{myNote}</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }}
-                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
-                              >
-                                <Plus className="h-2.5 w-2.5" /> {L("Add note", "أضف ملاحظة")}
-                              </button>
+                              ) : (
+                                <button onClick={() => { setEditingNoteKey(p.key); setNoteDraft(""); }} className={cn(actionBtn, "hover:text-primary")}>
+                                  <MessageSquare className="h-3.5 w-3.5" /> {L("Add note", "إضافة ملاحظة")}
+                                </button>
+                              )
                             )}
 
                             {correction && (
                               correction.changeRequest ? (
                                 <>
-                                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-600">
-                                    {correction.changeRequest === "delete"
-                                      ? L("Removal requested", "طُلب الحذف")
-                                      : L("Change requested", "طُلب التعديل")}
+                                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                                    {correction.changeRequest === "delete" ? L("Removal requested", "طُلب الحذف") : L("Change requested", "طُلب التعديل")}
                                   </span>
-                                  <button
-                                    onClick={correction.onCancelRequest}
-                                    className="text-[10px] font-semibold text-muted-foreground hover:text-foreground"
-                                  >
+                                  <button onClick={correction.onCancelRequest} className={cn(actionBtn, "hover:text-foreground")}>
                                     {L("Cancel request", "إلغاء الطلب")}
                                   </button>
                                 </>
-                              ) : deletePaymentPromptKey === p.key ? (
+                              ) : deletePaymentPromptKey === r.key ? (
                                 <>
-                                  <span className="text-[10px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</span>
+                                  <span className="text-[11px] text-rose-600">{L("Ask the merchant to remove this payment?", "طلب حذف هذه الدفعة من التاجر؟")}</span>
                                   <button
                                     onClick={() => { correction.onRequestDelete(); setDeletePaymentPromptKey(null); }}
-                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white"
+                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white"
                                   >
                                     {L("Request", "إرسال")}
                                   </button>
-                                  <button onClick={() => setDeletePaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[10px] font-semibold hover:bg-muted">
+                                  <button onClick={() => setDeletePaymentPromptKey(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[11px] font-semibold hover:bg-muted">
                                     {L("Cancel", "إلغاء")}
                                   </button>
                                 </>
                               ) : (
                                 <>
-                                  <button
-                                    onClick={correction.onEdit}
-                                    className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
-                                  >
-                                    <Edit2 className="h-2.5 w-2.5" /> {L("Edit", "تعديل")}
+                                  <button onClick={correction.onEdit} className={cn(actionBtn, "hover:text-primary")}>
+                                    <Pencil className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
                                   </button>
-                                  <button
-                                    onClick={() => setDeletePaymentPromptKey(p.key)}
-                                    className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-rose-600"
-                                  >
-                                    <Trash2 className="h-2.5 w-2.5" /> {L("Delete", "حذف")}
+                                  <button onClick={() => setDeletePaymentPromptKey(r.key)} className={cn(actionBtn, "hover:text-rose-600")}>
+                                    <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
                                   </button>
                                 </>
                               )
                             )}
 
-                            {/* Details toggle — separated with a divider, matching the
-                                reference design. Shows fields already on this row (exact
-                                time, currency, how many payments folded into the day's
-                                group) that don't fit the collapsed line. */}
-                            <span className="h-3 w-px bg-border/60" />
-                            <button
-                              onClick={() => setExpandedPaymentKey(k => (k === p.key ? null : p.key))}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"
-                            >
-                              <FileText className="h-2.5 w-2.5" /> {L("Details", "تفاصيل")}
-                              <ChevronDown className={cn("h-2.5 w-2.5 transition-transform", expandedPaymentKey === p.key && "rotate-180")} />
+                            {r.claim && r.status === "pending" && (
+                              confirmingClaimDelete ? (
+                                <>
+                                  <span className="text-[11px] text-rose-600">{L("Delete this reported payment?", "حذف هذه الدفعة المُبلغ عنها؟")}</span>
+                                  <button
+                                    onClick={() => { deleteClaim.mutate(r.claim!.id); setDeleteClaimPromptId(null); }}
+                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white"
+                                  >
+                                    {L("Delete", "حذف")}
+                                  </button>
+                                  <button onClick={() => setDeleteClaimPromptId(null)} className="rounded-lg border border-border/50 px-2.5 py-1 text-[11px] font-semibold hover:bg-muted">
+                                    {L("Cancel", "إلغاء")}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => setEditingClaimId(r.claim!.id)} className={cn(actionBtn, "hover:text-primary")}>
+                                    <Pencil className="h-3.5 w-3.5" /> {L("Edit", "تعديل")}
+                                  </button>
+                                  <button onClick={() => setDeleteClaimPromptId(r.claim!.id)} className={cn(actionBtn, "hover:text-rose-600")}>
+                                    <Trash2 className="h-3.5 w-3.5" /> {L("Delete", "حذف")}
+                                  </button>
+                                </>
+                              )
+                            )}
+
+                            <button onClick={toggleDetails} className={cn(actionBtn, "hover:text-primary")}>
+                              <ListIcon className="h-3.5 w-3.5" /> {L("View details", "عرض التفاصيل")}
                             </button>
                           </div>
 
-                          {expandedPaymentKey === p.key && (
-                            <div className="mt-1.5 ms-10 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[10px] text-muted-foreground">
+                          {expanded && (
+                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
                               <div className="flex justify-between gap-2">
                                 <span>{L("Time", "الوقت")}</span>
-                                <span className="font-semibold text-foreground">
-                                  {new Date(p.date).toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-                                </span>
+                                <span className="font-semibold text-foreground">{cardTimeLabel(r.date)}</span>
                               </div>
                               <div className="flex justify-between gap-2">
                                 <span>{L("Currency", "العملة")}</span>
-                                <span className="font-semibold text-foreground">{p.currency}</span>
+                                <span className="font-semibold text-foreground">{r.currency}</span>
                               </div>
                               <div className="flex justify-between gap-2">
                                 <span>{L("Source", "المصدر")}</span>
-                                <span className="font-semibold text-foreground">
-                                  {p.addedByCustomer ? L("Added by me", "أضفتها أنا") : L("Added by merchant", "أضافها التاجر")}
-                                </span>
+                                <span className="font-semibold text-foreground">{sourceLabel}</span>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <span>{L("Status", "الحالة")}</span>
+                                <span className="font-semibold text-foreground">{st.label(L)}</span>
                               </div>
                             </div>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {displayedLoanPayments.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-border/40 flex items-center justify-between bg-muted/20">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{L("Total shown", "الإجمالي المعروض")}</span>
-                    <span className="text-xs font-black tabular-nums text-emerald-600">+{fmtTotal(displayedLoanPaymentsTotal)} {loanTotals.currency}</span>
-                  </div>
-                )}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
