@@ -118,6 +118,16 @@
 .cw-sort svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); stroke-width: 2.4; }
 .cw-sort svg.chev { width: calc(10 * var(--q)); height: calc(10 * var(--q)); }
 
+/* ── active-filter bar ── */
+.cw-fbar { display: flex; align-items: center; gap: calc(8 * var(--q)); margin-top: calc(6 * var(--q)); padding: calc(7 * var(--q)) calc(8 * var(--q)); border-radius: calc(10 * var(--q)); background: #fff6e2; border: 1px solid #f8dda0; color: #7c4a03; }
+.cw-fbar-ic { flex: none; width: calc(14 * var(--q)); height: calc(14 * var(--q)); stroke-width: 2.2; color: #c27a06; }
+.cw-fbar-t { flex: 1; min-width: 0; display: grid; gap: calc(2 * var(--q)); font-size: calc(11 * var(--q)); font-weight: 600; }
+.cw-fbar-t b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.cw-fbar-tags { display: flex; flex-wrap: wrap; gap: calc(4 * var(--q)); }
+.cw-fbar-tags i { font-style: normal; font-size: calc(9.5 * var(--q)); font-weight: 600; padding: calc(1.5 * var(--q)) calc(7 * var(--q)); border-radius: 999px; background: #fdeab8; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-fbar-clear { flex: none; display: flex; align-items: center; gap: calc(4 * var(--q)); height: calc(26 * var(--q)); padding: 0 calc(11 * var(--q)); border-radius: 999px; background: #fff; border: 1px solid #f0c978; font-size: calc(10.5 * var(--q)); font-weight: 800; color: #92580a; }
+.cw-fbar-clear svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); stroke-width: 3; }
+
 /* ── payment cards ── */
 .cw-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(7 * var(--q)); margin-top: calc(5 * var(--q)); }
 .cw-row { position: relative; overflow: visible; padding: calc(8 * var(--q)) calc(7 * var(--q)) calc(7 * var(--q)) calc(13 * var(--q)); border-radius: calc(9 * var(--q)); }

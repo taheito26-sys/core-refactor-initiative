@@ -1048,6 +1048,29 @@ export default function CustomerWalletPage() {
     [paymentRows, statusFilter],
   );
 
+  // What the month shows before search, status and day/amount filters narrow it, so the
+  // filter bar can say "showing 8 of 11".
+  const monthRowTotal = useMemo(
+    () => filteredLoanPayments.length + unsettledPaymentClaims.filter(c => !paymentsMonth || localMonthKey(c.paidAt) === paymentsMonth).length,
+    [filteredLoanPayments, unsettledPaymentClaims, paymentsMonth],
+  );
+  const statusFilterLabel = (f: typeof statusFilter) => (
+    f === "completed" ? L("Completed", "مكتمل") : f === "pending" ? L("Processing", "قيد المعالجة") : L("Cancelled", "ملغي")
+  );
+  const activeFilterTags = [
+    ...(paymentSearch.trim() ? [`${L("Search", "بحث")}: «${paymentSearch.trim()}»`] : []),
+    ...(statusFilter !== "all" ? [`${L("Status", "الحالة")}: ${statusFilterLabel(statusFilter)}`] : []),
+    ...(activePaymentFilterCount > 0 ? [L("Day / amount filter", "تصفية اليوم / المبلغ")] : []),
+  ];
+  const clearAllFilters = () => {
+    setPaymentSearch("");
+    setStatusFilter("all");
+    setPaymentFilterOn(false);
+    setPaymentFilterDay("");
+    setPaymentFilterMinAmount("");
+    setPaymentFilterMaxAmount("");
+  };
+
   // Headline counters cover everything the buyer has ever reported, not the
   // month/search narrowing the list below applies.
   const overallCounts = useMemo(() => {
@@ -1644,6 +1667,20 @@ export default function CustomerWalletPage() {
                   <ChevronDown className="chev" />
                 </button>
               </div>
+
+              {/* Shown whenever something is narrowing the list, so a short list is never mistaken for missing payments. */}
+              {activeFilterTags.length > 0 && (
+                <div className="cw-fbar" role="status">
+                  <Filter className="cw-fbar-ic" />
+                  <div className="cw-fbar-t">
+                    <span>{L("Showing", "يعرض")} <b>{visibleRows.length}</b> {L("of", "من")} <b>{monthRowTotal}</b></span>
+                    <span className="cw-fbar-tags">{activeFilterTags.map(t => <i key={t}>{t}</i>)}</span>
+                  </div>
+                  <button type="button" className="cw-fbar-clear" onClick={clearAllFilters}>
+                    <X />{L("Clear", "مسح")}
+                  </button>
+                </div>
+              )}
 
               {/* Cards */}
               {visibleRows.length === 0 ? (
