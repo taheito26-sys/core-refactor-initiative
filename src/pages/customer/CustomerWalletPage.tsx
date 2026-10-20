@@ -567,12 +567,12 @@ const NO_GIVER = "__none__";
 
 // ── Payments card styling ─────────────────────────────────────────
 
-// Card accents alternate within a status, as in the design: completed rows
-// green/purple, processing rows blue/orange.
+// Card accents alternate within a status for completed rows (green/purple). A payment still waiting
+// on the merchant is always red, and a rejected one grey, so red only ever means "not confirmed yet".
 const PAYMENT_STATUS_STYLES = {
   completed: { accents: ["#16a34a", "#7c3aed"], Icon: Check, label: (L: (en: string, ar: string) => string) => L("Completed", "مكتمل") },
-  pending: { accents: ["#1f63f0", "#f97316"], Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
-  rejected: { accents: ["#e11d48"], Icon: X, label: (L: (en: string, ar: string) => string) => L("Cancelled", "ملغي") },
+  pending: { accents: ["#e11d48"], Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
+  rejected: { accents: ["#64748b"], Icon: X, label: (L: (en: string, ar: string) => string) => L("Cancelled", "ملغي") },
 } as const;
 
 function MoneyBagIcon() {
@@ -1781,7 +1781,7 @@ export default function CustomerWalletPage() {
                     const StatusIcon = st.Icon;
 
                     return (
-                      <div key={r.key} className="cw-card cw-row" style={{ ["--acc" as string]: accent }}>
+                      <div key={r.key} className={cn("cw-card cw-row", r.status === "pending" && "pending")} style={{ ["--acc" as string]: accent }}>
                         <div className="cw-row-in">
                           <div className="cw-main">
                             <div className="cw-r1">
@@ -1805,6 +1805,13 @@ export default function CustomerWalletPage() {
                                 <span className="t"><Clock />{cardTimeLabel(r.date)}</span>
                               </div>
                             </div>
+
+                            {r.status === "pending" && (
+                              <div className="cw-pend">
+                                <span className="cw-pend-dot" />
+                                {L("Waiting for the merchant to confirm — not counted yet", "بانتظار تأكيد التاجر — لم تُحتسب بعد")}
+                              </div>
+                            )}
 
                             {isEditingNote && p && (
                               <div className="cw-note-ed">
@@ -2053,7 +2060,15 @@ export default function CustomerWalletPage() {
           givers={giverNames} onAddGiver={name => addGiver.mutateAsync(name)}
           onClose={() => setShowLogPayment(false)}
           onSave={input => {
-            submitClaim.mutate(input, { onSuccess: () => setShowLogPayment(false) });
+            submitClaim.mutate(input, {
+              onSuccess: () => {
+                setShowLogPayment(false);
+                // Show the new payment straight away: drop any filter that could hide it and open its month.
+                clearAllFilters();
+                userPickedPaymentsMonth.current = true;
+                setPaymentsMonth(localMonthKey(input.paidAt));
+              },
+            });
           }} />
       )}
       {editingClaim && (

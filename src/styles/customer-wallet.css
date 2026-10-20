@@ -103,11 +103,11 @@
 .cw-chip.done { background: #e6f7ed; }
 .cw-chip.done .cw-chip-ic { background: #16a34a; color: #fff; }
 .cw-chip.done .cw-chip-n { color: #15803d; }
-.cw-chip.wait { background: #eaf0fb; }
+.cw-chip.wait { background: #ffe8ec; }
 .cw-chip.wait .cw-chip-ic svg { width: calc(13 * var(--q)); height: calc(13 * var(--q)); stroke-width: 2.4; }
-.cw-chip.wait .cw-chip-ic { color: var(--cw-blue); }
+.cw-chip.wait .cw-chip-ic { color: #e11d48; }
 .cw-chip.void { background: #fff; box-shadow: inset 0 0 0 1px var(--cw-line); }
-.cw-chip.void .cw-chip-ic { background: #ef4444; color: #fff; }
+.cw-chip.void .cw-chip-ic { background: #64748b; color: #fff; }
 .cw-chip.on { color: #fff; background: linear-gradient(180deg, var(--th-a2, #3b7cf6), var(--th-a, #1f63f0)); box-shadow: 0 calc(3 * var(--q)) calc(8 * var(--q)) rgba(var(--th-rgb, 31, 99, 240), .32); }
 .cw-chip.on .cw-chip-ic { color: #fff; }
 .cw-chip.on .cw-chip-n { color: #fff; }
@@ -190,3 +190,11 @@
 .cw-det b { color: var(--cw-ink); font-weight: 700; }
 .cw-empty { padding: calc(28 * var(--q)) calc(16 * var(--q)); text-align: center !important; font-size: calc(11.5 * var(--q)); color: var(--cw-muted); }
 .cw-loading { display: flex; height: calc(160 * var(--q)); align-items: center; justify-content: center; color: var(--cw-muted); }
+
+/* a payment still waiting on the merchant: red all over, with a plain line saying so */
+.cw-row.pending { background: #fff4f6; border-color: #f7c6d0; }
+.cw-row.pending .cw-status { box-shadow: inset 0 0 0 1px #f4a9b8; }
+.cw-row.pending .cw-status-ic { animation: cwPulse 1.4s ease-in-out infinite; }
+.cw-pend { display: flex; align-items: center; gap: calc(6 * var(--q)); margin-top: calc(7 * var(--q)); padding: calc(5 * var(--q)) calc(9 * var(--q)); border-radius: calc(8 * var(--q)); background: #ffe3e8; color: #be123c; font-size: calc(10 * var(--q)); font-weight: 800; }
+.cw-pend-dot { flex: none; width: calc(7 * var(--q)); height: calc(7 * var(--q)); border-radius: 50%; background: #e11d48; animation: cwPulse 1.4s ease-in-out infinite; }
+@keyframes cwPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.82); } }

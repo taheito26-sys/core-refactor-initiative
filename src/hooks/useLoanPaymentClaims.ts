@@ -119,7 +119,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
   const submitClaim = useMutation({
     mutationFn: async (input: { merchantUserId: string; customerId: string; currency: string; amount: number; note?: string; paidAt?: number }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('loan_payment_claims' as any)
         .insert({
           merchant_user_id: input.merchantUserId,
@@ -129,10 +129,16 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
           amount: input.amount,
           note: input.note ?? null,
           ...(input.paidAt ? { paid_at: new Date(input.paidAt).toISOString() } : {}),
-        });
+        })
+        .select('*')
+        .single();
       if (error) throw error;
+      return rowToClaim(data);
     },
-    onSuccess: () => {
+    onSuccess: (claim) => {
+      // Put the new claim in the list right away instead of waiting for the refetch below, so the
+      // buyer sees their payment, marked as waiting for the merchant, the moment they send it.
+      qc.setQueryData<LoanPaymentClaim[]>(['loan-payment-claims', 'customer', user?.id], old => [claim, ...(old ?? []).filter(c => c.id !== claim.id)]);
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment reported to your merchant');
     },
@@ -152,7 +158,10 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
         .eq('id', input.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      qc.setQueryData<LoanPaymentClaim[]>(['loan-payment-claims', 'customer', user?.id], old => (old ?? []).map(c => (
+        c.id === input.id ? { ...c, amount: input.amount, note: input.note ?? null, paidAt: new Date(input.paidAt).toISOString() } : c
+      )));
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment updated');
     },
@@ -168,7 +177,8 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      qc.setQueryData<LoanPaymentClaim[]>(['loan-payment-claims', 'customer', user?.id], old => (old ?? []).filter(c => c.id !== id));
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'customer', user?.id] });
       toast.success('Payment report deleted');
     },
