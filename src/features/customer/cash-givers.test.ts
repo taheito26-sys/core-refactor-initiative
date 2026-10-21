@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findGiverInNotes, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber } from './cash-givers';
+import { findGiverInNotes, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from './cash-givers';
 
 describe('findGiverInNotes', () => {
   const givers = ['Hassan', 'Damrawi', 'حسن'];
@@ -147,5 +147,18 @@ describe('giverPaymentNumbers with numbers typed in notes', () => {
     ]);
     expect(n.get('h')).toBe(5);
     expect(n.get('d')).toBe(1);
+  });
+});
+
+describe('uniquePaymentKeys', () => {
+  it('keeps two same-amount same-day payments apart', () => {
+    const rows = uniquePaymentKeys([
+      { currency: 'QAR', date: 1, amount: 17500 },
+      { currency: 'QAR', date: 1, amount: 40000 },
+      { currency: 'QAR', date: 1, amount: 17500 },
+    ]);
+    expect(rows.map(r => r.key)).toEqual(['QAR:1:17500', 'QAR:1:40000', 'QAR:1:17500#2']);
+    expect(rows.map(r => r.base)).toEqual(['QAR:1:17500', 'QAR:1:40000', 'QAR:1:17500']);
+    expect(new Set(rows.map(r => r.key)).size).toBe(3);
   });
 });

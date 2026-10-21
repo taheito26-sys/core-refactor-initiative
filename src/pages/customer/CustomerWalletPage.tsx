@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber } from "@/features/customer/cash-givers";
+import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
 import { DateRangeFilterDropdown } from "@/features/orders/components/DateRangeFilterDropdown";
@@ -713,13 +713,13 @@ export default function CustomerWalletPage() {
   // Stable per-payment key (content-based, not array position) so a
   // customer's own note keeps attaching to the same payment across refetches.
   const loanPayments = useMemo(() => {
-    const rows: { key: string; date: number; amount: number; currency: string; note: string | null; ref: string | null; addedByCustomer: boolean }[] = [];
+    const rows: { date: number; amount: number; currency: string; note: string | null; ref: string | null; addedByCustomer: boolean }[] = [];
     for (const s of loanStatements) {
       for (const p of s.payments) {
-        rows.push({ key: `${s.currency}:${p.date}:${p.amount}`, date: p.date, amount: p.amount, currency: s.currency, note: stripSystemNotePrefix(p.note), ref: p.ref, addedByCustomer: isCustomerReportedNote(p.note) });
+        rows.push({ date: p.date, amount: p.amount, currency: s.currency, note: stripSystemNotePrefix(p.note), ref: p.ref, addedByCustomer: isCustomerReportedNote(p.note) });
       }
     }
-    return rows.sort((a, b) => b.date - a.date);
+    return uniquePaymentKeys(rows).sort((a, b) => b.date - a.date);
   }, [loanStatements]);
 
   // The customer's own note on a payment — independent of the merchant's
@@ -861,7 +861,8 @@ export default function CustomerWalletPage() {
   const groupedLoanPayments = useMemo(() =>
     filteredLoanPayments.map(p => ({
       key: p.key,
-      bucket: p.key,
+      base: p.base,
+      bucket: p.base,
       date: p.date,
       amount: p.amount,
       currency: p.currency,
@@ -1003,9 +1004,9 @@ export default function CustomerWalletPage() {
     const giverByRow = new Map<string, string | null>();
     const entries: { key: string; date: number; giver: string | null; typed: number | null }[] = [];
     for (const p of loanPayments) {
-      const giver = resolveGiver(assignedGiverByKey.get(p.key), [p.note, paymentNoteByKey.get(p.key)], giverNames);
+      const giver = resolveGiver(assignedGiverByKey.get(p.key) ?? assignedGiverByKey.get(p.base), [p.note, paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base)], giverNames);
       giverByRow.set(p.key, giver);
-      entries.push({ key: p.key, date: p.date, giver, typed: typedPaymentNumber([p.note, paymentNoteByKey.get(p.key)], giver) });
+      entries.push({ key: p.key, date: p.date, giver, typed: typedPaymentNumber([p.note, paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base)], giver) });
     }
     for (const c of unsettledPaymentClaims) {
       const key = `claim:${c.id}`;
@@ -1039,7 +1040,7 @@ export default function CustomerWalletPage() {
       });
     }
     const matching = q
-      ? rows.filter(r => [r.note, r.giver, r.payment ? paymentNoteByKey.get(r.payment.key) : null].some(t => t && t.toLowerCase().includes(q)))
+      ? rows.filter(r => [r.note, r.giver, r.payment ? paymentNoteByKey.get(r.payment.key) ?? paymentNoteByKey.get(r.payment.base) : null].some(t => t && t.toLowerCase().includes(q)))
       : rows;
     matching.sort((a, b) => {
       switch (paymentSort) {
@@ -1784,7 +1785,7 @@ export default function CustomerWalletPage() {
                     const pill = r.status === "completed" ? { background: "#dcf7e6", color: "#15803d", dot: "#16a34a" } : { background: `${accent}1f`, color: accent, dot: accent };
                     const p = r.payment;
                     const seq = paymentSequence.get(r.key);
-                    const myNote = p ? paymentNoteByKey.get(p.key) ?? "" : "";
+                    const myNote = p ? paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base) ?? "" : "";
                     const isEditingNote = !!p && editingNoteKey === p.key;
                     const correction = p ? resolveCorrection(p) : null;
                     const claim = r.claim;

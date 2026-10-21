@@ -116,3 +116,18 @@ export function giverPaymentNumbers(
   }
   return result;
 }
+
+/**
+ * Gives every payment its own identity. A payment's key is its currency, day and amount, so two
+ * real payments of the same amount on the same day collide: the list drew them twice and numbered
+ * them alike. The second and later ones get an occurrence suffix; `base` stays the shared key.
+ */
+export function uniquePaymentKeys<T extends { currency: string; date: number; amount: number }>(rows: T[]): Array<T & { key: string; base: string }> {
+  const seen = new Map<string, number>();
+  return rows.map(r => {
+    const base = `${r.currency}:${r.date}:${r.amount}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return { ...r, key: n === 1 ? base : `${base}#${n}`, base };
+  });
+}
