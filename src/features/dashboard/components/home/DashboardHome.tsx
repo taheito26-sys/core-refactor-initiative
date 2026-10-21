@@ -169,6 +169,7 @@ export function DashboardHome({
       const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-zoom')) || 1;
       const width = el.clientWidth * zoom;
       el.style.setProperty('--s', Math.max(0.85, Math.min(1.45, width / 430)).toFixed(3));
+      if (width < 430) el.setAttribute('data-narrow', ''); else el.removeAttribute('data-narrow');
     };
     fit();
     const ro = new ResizeObserver(fit);

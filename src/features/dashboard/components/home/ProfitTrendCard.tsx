@@ -42,7 +42,7 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
     };
   }), [points, granularity, now, locale]);
 
-  const tick = { fontSize: 8, fill: 'var(--muted)' };
+  const tick = { fontSize: 10, fill: 'var(--muted)' };
   const gradId = useId();
 
   return (
@@ -69,9 +69,9 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
                 <stop offset="1" style={{ stopColor: 'var(--good)', stopOpacity: 0.45 }} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval={0} height={16} />
-            <YAxis yAxisId="net" tick={tick} tickLine={false} axisLine={false} width={30} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
-            <YAxis yAxisId="vol" orientation="right" tick={tick} tickLine={false} axisLine={false} width={28} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
+            <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval={0} height={20} />
+            <YAxis yAxisId="net" tick={tick} tickLine={false} axisLine={false} width={36} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
+            <YAxis yAxisId="vol" orientation="right" tick={tick} tickLine={false} axisLine={false} width={34} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
             <Tooltip
               cursor={{ fill: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}
               content={({ active, payload }) => {
