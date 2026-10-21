@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, Crown, Layers, Target, Wallet,
   type LucideIcon,
@@ -96,62 +96,6 @@ function Delta({ pct, label }: { pct: number | null; label: string }) {
   );
 }
 
-/** Real flag artwork for the two currencies of the corridor; these are country flags, not theme colours. */
-function QatarFlag({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const id = useId();
-  const zig = Array.from({ length: 9 }, (_, i) => `${cx - r * 0.35 + (i % 2 ? 0 : r * 0.28)},${cy - r + (i * 2 * r) / 8}`).join(' ');
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={r + 2} style={{ fill: 'var(--card-bg)', filter: 'drop-shadow(0 1px 2px color-mix(in srgb, var(--text) 25%, transparent))' }} />
-      <clipPath id={id}><circle cx={cx} cy={cy} r={r} /></clipPath>
-      <g clipPath={`url(#${id})`}>
-        <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} fill="#fff" />
-        <polygon points={`${zig} ${cx + r},${cy + r} ${cx + r},${cy - r}`} fill="#8a1538" />
-      </g>
-    </g>
-  );
-}
-
-function EgyptFlag({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const id = useId();
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={r + 2.4} style={{ fill: 'var(--warn)' }} />
-      <circle cx={cx} cy={cy} r={r + 0.6} style={{ fill: 'var(--card-bg)' }} />
-      <clipPath id={id}><circle cx={cx} cy={cy} r={r} /></clipPath>
-      <g clipPath={`url(#${id})`}>
-        <rect x={cx - r} y={cy - r} width={r * 2} height={r * 0.67} fill="#ce1126" />
-        <rect x={cx - r} y={cy - r * 0.33} width={r * 2} height={r * 0.67} fill="#fff" />
-        <rect x={cx - r} y={cy + r * 0.33} width={r * 2} height={r * 0.67} fill="#000" />
-        <circle cx={cx} cy={cy} r={r * 0.2} fill="#c09300" />
-      </g>
-    </g>
-  );
-}
-
-function HeroArt() {
-  return (
-    <svg className="dh-hero-art" viewBox="0 0 165 75" aria-hidden="true" preserveAspectRatio="xMaxYMax meet">
-      <defs>
-        <linearGradient id="dhBars" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--good)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--brand)' }} />
-        </linearGradient>
-      </defs>
-      <path d="M0 75 C14 52 30 60 48 48 C70 34 84 44 104 30 C122 18 140 26 165 6 L165 75 Z" style={{ fill: 'var(--card-bg)', opacity: 0.4 }} />
-      {[22, 30, 26, 36, 40, 50].map((h, i) => (
-        <rect key={i} x={90 + i * 12} y={74 - h} width="8.5" height={h} rx="2.2" fill="url(#dhBars)" />
-      ))}
-      <path d="M55 74 C75 62 92 52 108 38 S130 14 142 7" fill="none" strokeWidth="2.8" strokeLinecap="round" style={{ stroke: 'var(--good)' }} />
-      <path d="M133 3.5 L148 4 L142.5 17.5 Z" style={{ fill: 'var(--good)' }} />
-      <circle cx="25" cy="58" r="13" style={{ fill: 'var(--good)', stroke: 'var(--card-bg)', strokeWidth: 2 }} />
-      <text x="25" y="64" textAnchor="middle" fontSize="16" fontWeight="800" style={{ fill: 'var(--card-bg)' }}>₮</text>
-      <QatarFlag cx={86} cy={36} r={11.5} />
-      <EgyptFlag cx={146} cy={46} r={12.5} />
-    </svg>
-  );
-}
-
 /** The merchant dashboard home: every colour comes from the active theme's variables. */
 export function DashboardHome({
   points, allPoints, win, rangeText, now, lang, isAdminView, money, parts, tiles, moreTiles, fees, cash, onGo, children,
@@ -236,7 +180,6 @@ export function DashboardHome({
           <p>{t('dhSubtitle')}</p>
           <ZoomControls className="dh-zoom" showPercent="always" />
         </div>
-        <HeroArt />
         <DhSelect
           className="dh-hero-scope"
           value={scope}
