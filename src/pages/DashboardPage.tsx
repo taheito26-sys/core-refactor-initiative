@@ -26,12 +26,12 @@ import { DashboardHome, type HomeTile } from '@/features/dashboard/components/ho
 import { useBanqueMisrRate } from '@/features/dashboard/hooks/useBanqueMisrRate';
 import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import {
-  activeClients, rangeWindow, scopePoints, sparkline, summarize, summarizeWithPrevious,
+  activeClients, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, summarizeWithPrevious,
   resample, runningAverage, runningTotal, type DashPoint,
 } from '@/features/dashboard/dashboard-model';
 import { agoLabel } from '@/features/p2p/merchant-watch/merchant-watch';
 import { listSharedOrdersForActor } from '@/features/orders/shared-order-workflow';
-import { ArrowLeftRight, BadgeDollarSign, Clock, Landmark, PieChart } from 'lucide-react';
+import { ArrowLeftRight, BadgeDollarSign, Boxes, Clock, Hourglass, Landmark, PieChart, Percent, Receipt, Ruler, ShoppingCart } from 'lucide-react';
 
 const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
 import '@/styles/tracker.css';
@@ -552,6 +552,36 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return { usdt, unpaid, avg, rate };
   }, [state.trades, state.batches, state.customerLoans, state.deletedLoanIds, customerOrders]);
 
+  // Extra figures under the main ones, all drawn from the same points as the cards above.
+  const { cur: moreCur, prev: morePrev } = useMemo(() => summarizeWithPrevious(points, deltaWindow(win, nowTs)), [points, win, nowTs]);
+  const fees = useMemo(
+    () => state.trades.filter(tr => !tr.voided && tr.ts >= win.from && tr.ts <= win.to).reduce((sum, tr) => sum + (Number(tr.feeQAR) || 0), 0),
+    [state.trades, win],
+  );
+  const pendingApprovals = (customerOrders || []).filter(o => o.workflow_status === 'pending_customer_approval' || o.workflow_status === 'pending_merchant_approval').length;
+  const stockCoverDays = useMemo(() => {
+    const since = nowTs - 30 * 864e5;
+    const sold = state.trades.filter(tr => !tr.voided && tr.usesStock && tr.ts >= since).reduce((sum, tr) => sum + tr.amountUSDT, 0);
+    return sold > 0 && stk > 0 ? Math.round(stk / (sold / 30)) : null;
+  }, [state.trades, stk, nowTs]);
+  const pctLine = (cur: number, prev: number | null | undefined) => {
+    const p = pctChange(cur, prev);
+    return p == null ? undefined : <span className={p >= 0 ? 'good' : 'bad'}>{p >= 0 ? '↑ +' : '↓ '}{p.toFixed(1)}% {t('dhVsPrev')}</span>;
+  };
+  const moreTiles: HomeTile[] = (() => {
+    const avgOrder = fiatParts(moreCur.orders ? moreCur.vol / moreCur.orders : 0);
+    const margin = moreCur.vol > 0 ? (moreCur.net / moreCur.vol) * 100 : 0;
+    const feeParts = fiatParts(fees);
+    return [
+      { key: 'orders', label: t('dhOrdersCount'), Icon: ShoppingCart, tone: 'good', unitTone: 'brand', value: String(moreCur.orders), unit: t('dhOrdersWord'), sub: pctLine(moreCur.orders, morePrev?.orders), spark: sparkline(points, win, () => 1, 10), path: '/trading/orders' },
+      { key: 'avgorder', label: t('dhAvgOrder'), Icon: Ruler, tone: 'brand', unitTone: 'brand', square: true, value: avgOrder.n, unit: avgOrder.u, sub: pctLine(moreCur.orders ? moreCur.vol / moreCur.orders : 0, morePrev?.orders ? morePrev.vol / morePrev.orders : null) },
+      { key: 'margin', label: t('dhAvgMargin'), Icon: Percent, tone: 't5', unitTone: 'brand', value: margin.toFixed(2), unit: '%', valueTone: margin >= 0 ? undefined : 'bad', sub: t('dhNetOfFees') },
+      { key: 'fees', label: t('dhFees'), Icon: Receipt, tone: 'warn', unitTone: 'warn', square: true, value: feeParts.n, unit: feeParts.u },
+      { key: 'pending', label: t('dhPending'), Icon: Hourglass, tone: pendingApprovals > 0 ? 'bad' : 'good', valueTone: pendingApprovals > 0 ? 'bad' : undefined, value: String(pendingApprovals), sub: pendingApprovals > 0 ? t('dhWaitingOn') : undefined, path: '/trading/orders' },
+      { key: 'cover', label: t('dhStockCover'), Icon: Boxes, tone: 'brand2', square: true, unitTone: 'brand', value: stockCoverDays == null ? '—' : String(stockCoverDays), unit: stockCoverDays == null ? '' : t('dhDaysWord'), sub: stockCoverDays == null ? t('dhNoSales') : t('dhAtPace'), path: '/trading/stock' },
+    ];
+  })();
+
   const tiles: HomeTile[] = (() => {
     const profit = fiatParts(homeCur.fullNet);
     const unpaid = !loansUnpaid.lead
@@ -656,6 +686,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         money={money}
         parts={fiatParts}
         tiles={tiles}
+        moreTiles={moreTiles}
+        fees={fees}
         cash={{ ...fiatParts(cashView.total), total: fiatParts(cashView.total).n, unit: fiatParts(cashView.total).u, counted: cashView.counted, active: cashView.active, accounts: cashView.accounts }}
         onGo={navigate}
       >
