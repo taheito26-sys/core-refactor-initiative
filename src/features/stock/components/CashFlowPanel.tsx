@@ -3,6 +3,9 @@ import { ModernSelect } from '@/components/shared/ModernSelect';
 import type { TranslationKey } from '@/lib/i18n';
 import type { CashAccount, CashLedgerEntry } from '@/lib/tracker-helpers';
 import { flowRows, flowToCsv, groupByDay, periodStart, totalsOf, type FlowDirection, type FlowPeriod } from '@/lib/trading/cash-flow';
+import { ArrowDownLeft, ArrowUpRight, Scale } from 'lucide-react';
+import { OrdersV2Kpis, OrdersV2SearchBar } from '@/features/orders/v2/OrdersV2';
+import { cn } from '@/lib/utils';
 
 interface Props {
   ledger: CashLedgerEntry[];
@@ -11,6 +14,8 @@ interface Props {
   t: (key: TranslationKey) => string;
   isMobile?: boolean;
   onOpenAccount?: (accountId: string) => void;
+  /** The redesigned phone layout: the same filters and rows, drawn like the Orders page. */
+  v2?: boolean;
 }
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -25,7 +30,7 @@ function dayTitle(day: string, t: Props['t']): string {
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false, onOpenAccount }: Props) {
+export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false, onOpenAccount, v2 = false }: Props) {
   const [period, setPeriod] = useState<FlowPeriod>('month');
   const [direction, setDirection] = useState<FlowDirection>('all');
   const [accountId, setAccountId] = useState('');
@@ -56,8 +61,48 @@ export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const periods: FlowPeriod[] = ['today', '7d', 'month', 'all'];
+  const periodLabel = (p: FlowPeriod) => t(p === 'today' ? 'cfToday' : p === '7d' ? 'cfWeek' : p === 'month' ? 'cfMonth' : 'cfAll');
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className={v2 ? 'cf-v2' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {v2 && (
+        <>
+          <div className="cf-chiprow">
+            {periods.map(p => (
+              <button key={p} type="button" className={cn('ov2-chip', period === p && 'on')} onClick={() => { setPeriod(p); setLimit(60); }}>{periodLabel(p)}</button>
+            ))}
+            <span className="cf-sep" />
+            <button type="button" className={cn('ov2-chip', direction === 'all' && 'on')} onClick={() => setDirection('all')}>{t('cfBoth')}</button>
+            <button type="button" className={cn('ov2-chip good', direction === 'in' && 'on')} onClick={() => setDirection('in')}>▲ {t('cfIn')}</button>
+            <button type="button" className={cn('ov2-chip bad', direction === 'out' && 'on')} onClick={() => setDirection('out')}>▼ {t('cfOut')}</button>
+          </div>
+          <OrdersV2SearchBar value={query} onChange={setQuery} placeholder={t('cfSearch')} />
+          <div className="orders-filter-row" style={{ display: 'flex', alignItems: 'center' }}>
+            <ModernSelect compact value={accountId} onChange={e => setAccountId(e.target.value)}>
+              <option value="">{t('cfAllAccounts')}</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+            </ModernSelect>
+            <label className="cf-internal">
+              <input type="checkbox" checked={includeInternal} onChange={e => setIncludeInternal(e.target.checked)} />
+              {t('cfShowInternal')}
+            </label>
+          </div>
+          {totals.map(tot => (
+            <OrdersV2Kpis
+              key={`cf-${tot.currency}`}
+              cards={[
+                { key: 'in', label: `${t('cfIn')} · ${tot.currency}`, Icon: ArrowDownLeft, tone: 'good', valueTone: 'good', value: money(tot.inAmount), unit: tot.currency },
+                { key: 'out', label: `${t('cfOut')} · ${tot.currency}`, Icon: ArrowUpRight, tone: 'bad', valueTone: 'bad', value: money(tot.outAmount), unit: tot.currency },
+                { key: 'net', label: `${t('cfNet')} · ${tot.currency}`, Icon: Scale, tone: 'brand', valueTone: tot.net < 0 ? 'bad' : undefined, value: `${tot.net > 0 ? '+' : ''}${money(tot.net)}`, unit: tot.currency },
+              ]}
+            />
+          ))}
+          {totals.length === 0 && <div className="panel cf-empty">{t('cfNothing')}</div>}
+        </>
+      )}
+      {!v2 && (
+      <>
       <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {(['today', '7d', 'month', 'all'] as FlowPeriod[]).map(p => (
@@ -98,13 +143,15 @@ export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false
           </div>
         )) : <div className="panel" style={{ padding: 14, fontSize: 12, color: 'var(--muted)' }}>{t('cfNothing')}</div>}
       </div>
+      </>
+      )}
 
       {/* Day by day */}
       {days.map(day => (
-        <div key={day.day} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--panel2)', borderBottom: '1px solid var(--line)' }}>
-            <div style={{ fontSize: 12, fontWeight: 800 }}>{dayTitle(day.day, t)}</div>
-            <div className="mono" style={{ fontSize: 10, display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div key={day.day} className="panel cf-day" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="cf-dayhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--panel2)', borderBottom: '1px solid var(--line)' }}>
+            <div className="cf-daytitle" style={{ fontSize: 12, fontWeight: 800 }}>{dayTitle(day.day, t)}</div>
+            <div className="mono cf-daynet" style={{ fontSize: 10, display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {day.totals.map(tot => (
                 <span key={tot.currency} style={{ color: tot.net < 0 ? 'var(--bad)' : 'var(--good)', fontWeight: 700 }}>
                   {tot.net > 0 ? '+' : ''}{money(tot.net)} {tot.currency}
@@ -113,21 +160,21 @@ export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false
             </div>
           </div>
           {day.rows.map(({ entry, kind, signed }) => (
-            <div key={entry.id} onClick={() => onOpenAccount?.(entry.accountId)}
+            <div key={entry.id} className="cf-row" onClick={() => onOpenAccount?.(entry.accountId)}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: '1px solid var(--line2)', cursor: onOpenAccount ? 'pointer' : undefined }}>
-              <div style={{
+              <div className="cf-ic" style={{
                 width: 28, height: 28, borderRadius: 999, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900,
                 background: kind === 'in' ? 'color-mix(in srgb, var(--good) 16%, transparent)' : kind === 'out' ? 'color-mix(in srgb, var(--bad) 16%, transparent)' : 'color-mix(in srgb, var(--muted) 16%, transparent)',
                 color: kind === 'in' ? 'var(--good)' : kind === 'out' ? 'var(--bad)' : 'var(--muted)',
               }}>{kind === 'transfer' ? '⇄' : kind === 'adjustment' ? '±' : signed > 0 ? '▲' : '▼'}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(entry.type)}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div className="cf-title" style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(entry.type)}</div>
+                <div className="cf-sub" style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {new Date(entry.ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} · {names.get(entry.accountId) || '—'}
                   {entry.note ? ` · ${entry.note.replace(/\[\[[^\]]*\]\]/g, '').trim()}` : ''}
                 </div>
               </div>
-              <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: signed > 0 ? 'var(--good)' : 'var(--bad)', whiteSpace: 'nowrap' }}>
+              <div className="mono cf-amt" style={{ fontSize: 13, fontWeight: 800, color: signed > 0 ? 'var(--good)' : 'var(--bad)', whiteSpace: 'nowrap' }}>
                 {signed > 0 ? '+' : '−'}{money(Math.abs(signed))} <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>{entry.currency}</span>
               </div>
             </div>

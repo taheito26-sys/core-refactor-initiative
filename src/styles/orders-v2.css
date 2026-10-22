@@ -373,3 +373,43 @@
 .tracker-root.ov2 .rowBtn { color: var(--text); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); }
 .tracker-root.ov2 .pill:not(.good):not(.warn):not(.bad) { color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .tracker-root.ov2 .ov2-c-detail { padding-inline-start: calc(11 * var(--cpx)); padding-bottom: calc(6 * var(--cpx)); }
+
+/* Cash Management reads about 12% larger than the other redesigned pages */
+.tracker-root.ov2.cv2 { --px: calc(min(100vw, 560px) / 430 * 1.12); --cpx: calc(var(--px) * 1.05); --ov2-min-font: 9.5px; }
+
+/* cash flow */
+.cf-v2 .cf-chiprow { display: flex; align-items: center; gap: calc(5 * var(--px)); overflow-x: auto; scrollbar-width: none; padding: calc(2 * var(--px)) 0 calc(4 * var(--px)); }
+.cf-v2 .cf-chiprow::-webkit-scrollbar { display: none; }
+.cf-v2 .cf-sep { flex: none; width: 1px; height: calc(16 * var(--px)); background: var(--line); margin: 0 calc(2 * var(--px)); }
+.tracker-root.ov2 .cf-v2 .ov2-chip.good.on { background: var(--good); border-color: var(--good); }
+.tracker-root.ov2 .cf-v2 .ov2-chip.bad.on { background: var(--bad); border-color: var(--bad); }
+.cf-v2 .cf-internal { display: inline-flex; align-items: center; gap: calc(6 * var(--px)); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); color: var(--muted); cursor: pointer; }
+.cf-v2 .cf-empty { padding: calc(14 * var(--px)); font-size: max(var(--ov2-min-font), calc(10 * var(--px))); color: var(--muted); }
+.cf-v2 .cf-dayhead { padding: calc(8 * var(--cpx)) calc(11 * var(--cpx)) !important; background: color-mix(in srgb, var(--text) 3%, var(--card-bg)) !important; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent) !important; }
+.cf-v2 .cf-daytitle { font-size: max(var(--ov2-min-font), calc(10.5 * var(--cpx))) !important; }
+.cf-v2 .cf-daynet { font-size: max(var(--ov2-min-font), calc(9 * var(--cpx))) !important; }
+.cf-v2 .cf-row { padding: calc(8 * var(--cpx)) calc(11 * var(--cpx)) !important; gap: calc(9 * var(--cpx)) !important; border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent) !important; }
+.cf-v2 .cf-row:last-child { border-bottom: 0 !important; }
+.cf-v2 .cf-ic { width: calc(28 * var(--cpx)) !important; height: calc(28 * var(--cpx)) !important; font-size: max(var(--ov2-min-font), calc(11 * var(--cpx))) !important; }
+.cf-v2 .cf-title { font-size: max(var(--ov2-min-font), calc(10.5 * var(--cpx))) !important; }
+.cf-v2 .cf-sub { font-size: max(var(--ov2-min-font), calc(8.5 * var(--cpx))) !important; }
+.cf-v2 .cf-amt { font-size: max(var(--ov2-min-font), calc(11.5 * var(--cpx))) !important; font-variant-numeric: tabular-nums; }
+
+/* net position */
+.np-v2 .np-line { padding: 0 !important; overflow: hidden; border-inline-start: calc(2.5 * var(--cpx)) solid var(--tone) !important; }
+.np-v2 .np-line-head { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: calc(9 * var(--cpx)); padding: calc(9 * var(--cpx)) calc(11 * var(--cpx)); }
+.np-v2 .np-ic { width: calc(30 * var(--cpx)); height: calc(30 * var(--cpx)); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--tone) 16%, transparent); color: var(--tone); }
+.np-v2 .np-ic svg { width: calc(15 * var(--cpx)); height: calc(15 * var(--cpx)); }
+.np-v2 .np-main { display: flex; flex-direction: column; gap: calc(5 * var(--cpx)); min-width: 0; }
+.np-v2 .np-title { font-size: max(var(--ov2-min-font), calc(10.5 * var(--cpx))); font-weight: 700; color: var(--text); }
+.np-v2 .np-bar { display: block; height: calc(4 * var(--cpx)); border-radius: 99px; background: color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; }
+.np-v2 .np-bar i { display: block; height: 100%; background: var(--tone); border-radius: 99px; }
+.np-v2 .np-amt { display: flex; flex-direction: column; align-items: flex-end; font-size: max(var(--ov2-min-font), calc(13 * var(--cpx))); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); direction: ltr; }
+[dir=rtl] .np-v2 .np-amt { align-items: flex-start; }
+.np-v2 .np-amt small { font-size: max(var(--ov2-min-font), calc(7.5 * var(--cpx))); font-weight: 600; color: var(--muted); }
+.np-v2 .np-chev { width: calc(14 * var(--cpx)); height: calc(14 * var(--cpx)); color: var(--muted); transition: transform .15s; }
+.np-v2 .np-chev.open { transform: rotate(180deg); }
+.np-v2 .np-body { display: flex; flex-direction: column; gap: calc(4 * var(--cpx)); padding: calc(9 * var(--cpx)) calc(11 * var(--cpx)) calc(11 * var(--cpx)); border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: max(var(--ov2-min-font), calc(9.5 * var(--cpx))); }
+.np-v2 .panel { padding: calc(11 * var(--cpx)) !important; }
+.np-v2 .np-line.panel { padding: 0 !important; }
+.np-v2 .np-month > div:first-child, .np-v2 #personal-loans-panel > div:first-child > div:first-child { font-size: max(var(--ov2-min-font), calc(12 * var(--cpx))) !important; }

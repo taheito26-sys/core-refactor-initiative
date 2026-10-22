@@ -13,6 +13,8 @@ import {
 } from '../position';
 import { buildPositionReportHtml, exportPositionPdf } from '../report';
 import '@/styles/tracker.css';
+import { ArrowLeftRight, ChevronDown, Coins, HandCoins, Handshake, Landmark, Scale, TrendingUp, Users, type LucideIcon } from 'lucide-react';
+import { OrdersV2Kpis, type V2Kpi } from '@/features/orders/v2/OrdersV2';
 
 const money = (n: number, signed = false) => `${signed && n > 0 ? '+' : n < 0 ? '−' : ''}${fmtTotal(Math.abs(n))}`;
 const signColor = (n: number) => (n > 0.5 ? 'var(--good)' : n < -0.5 ? 'var(--bad)' : 'var(--muted)');
@@ -50,7 +52,16 @@ function DayBars({ days, label }: { days: DayRow[]; label: string }) {
  * in five lines, and how it moved month by month. It reads the same tracker
  * state as the rest of the page, so cash added there is counted here at once.
  */
-export function NetPositionView({ state, applyState }: { state: TrackerState; applyState: (next: TrackerState) => void }) {
+const LINE_LOOK: Record<LineKey, { Icon: LucideIcon; tone: string }> = {
+  cash_hand: { Icon: HandCoins, tone: 'var(--good)' },
+  cash_bank: { Icon: Landmark, tone: 'var(--brand)' },
+  exchange_usdt: { Icon: Coins, tone: 'var(--warn)' },
+  customer_loans: { Icon: Users, tone: 'var(--brand2)' },
+  personal_loans: { Icon: Handshake, tone: 'var(--bad)' },
+};
+
+/** `v2` draws the page like the redesigned phone layout of Cash Management; the figures and controls are the same. */
+export function NetPositionView({ state, applyState, v2 = false }: { state: TrackerState; applyState: (next: TrackerState) => void; v2?: boolean }) {
   const isMobile = useIsMobile();
   const t = useT();
   const lang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
@@ -263,25 +274,54 @@ export function NetPositionView({ state, applyState }: { state: TrackerState; ap
   const field: React.CSSProperties = { width: 90, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, textAlign: 'end' };
   const unavailable = settingsUnavailable || daysUnavailable;
 
+  const v2Kpis: V2Kpi[] = !v2 ? [] : [
+    {
+      key: 'now', label: L('Net position now', 'صافي المركز الآن'), Icon: Scale, tone: 'brand', value: money(position.netQAR), unit: 'QAR',
+      spark: summary.days.length > 1 ? summary.days.map(d => d.net) : undefined, kind: 'line', sparkWide: true,
+    },
+    { key: 'change', label: L('Change', 'التغيّر'), Icon: TrendingUp, tone: summary.change < -0.5 ? 'bad' : 'good', valueTone: summary.change > 0.5 ? 'good' : summary.change < -0.5 ? 'bad' : undefined, value: money(summary.change, true), unit: 'QAR' },
+    { key: 'open', label: L('Opening', 'الافتتاح'), Icon: ArrowLeftRight, tone: 'brand2', value: summary.opening ? money(summary.opening.net) : '—', unit: summary.opening ? 'QAR' : undefined },
+    { key: 'close', label: L('Closing', 'الإغلاق'), Icon: ArrowLeftRight, tone: 't5', value: summary.closing ? money(summary.closing.net) : '—', unit: summary.closing ? 'QAR' : undefined },
+  ];
+
   return (
-    <div dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760, marginInline: 'auto', width: '100%' }}>
-      <div>
+    <div className={v2 ? 'np-v2' : undefined} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760, marginInline: 'auto', width: '100%' }}>
+      {v2 && <OrdersV2Kpis cards={v2Kpis} />}
+      {!v2 && <div>
         <div style={{ fontSize: 14, fontWeight: 800 }}>⚖️ {t('npNavTitle')}</div>
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>{L('What you have right now: cash, banks, USDT on exchanges, and what people owe you.', 'ما تملكه الآن: النقد والبنوك وUSDT على المنصات وما يدين لك به الناس.')}</div>
-      </div>
+      </div>}
 
       {unavailable && <div role="alert" style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ {L('Saving is not available yet. The numbers below are still live.', 'الحفظ غير متاح بعد. الأرقام أدناه لا تزال حيّة.')}</div>}
 
       {/* ── Right now ── */}
-      <div className="panel" style={{ padding: 14 }}>
+      <div className="panel" style={{ padding: 14, ...(v2 && !position.warnings.length ? { display: 'none' } : {}) }}>
         <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{L('Net position now', 'صافي المركز الآن')}</div>
-        <div className="mono" style={{ fontSize: 28, fontWeight: 800 }}>{money(position.netQAR)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>QAR</span></div>
+        <div className="mono" style={{ fontSize: 28, fontWeight: 800, ...(v2 ? { display: 'none' } : {}) }}>{money(position.netQAR)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>QAR</span></div>
         {position.warnings.includes('usdt_unpriced') && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 4 }}>⚠ {L('There is no USDT buying price yet, so USDT is not valued.', 'لا يوجد سعر شراء USDT بعد، لذا لا يُقيَّم الـ USDT.')}</div>}
         {position.warnings.includes('egp_unpriced') && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 4 }}>⚠ {L('There is no EGP rate yet, so EGP amounts are not valued. Type one below.', 'لا يوجد سعر للجنيه بعد، لذا لا تُقيَّم مبالغ الجنيه. اكتب سعرًا أدناه.')}</div>}
       </div>
 
       {/* ── The five lines ── */}
-      {position.lines.map(line => (
+      {v2 && position.lines.map(line => {
+        const { Icon, tone } = LINE_LOOK[line.key];
+        const share = position.netQAR > 0 ? Math.max(0, Math.min(100, (line.qar / position.netQAR) * 100)) : 0;
+        return (
+          <div key={line.key} className="panel np-line" style={{ ['--tone' as string]: tone }}>
+            <button type="button" className="np-line-head" onClick={() => setOpen(o => ({ ...o, [line.key]: !o[line.key] }))} aria-expanded={!!open[line.key]}>
+              <span className="np-ic"><Icon /></span>
+              <span className="np-main">
+                <span className="np-title">{lineTitle(line.key)}</span>
+                <span className="np-bar"><i style={{ width: `${share}%` }} /></span>
+              </span>
+              <span className="np-amt">{money(line.qar)}<small>QAR · {Math.round(share)}%</small></span>
+              <ChevronDown className={open[line.key] ? 'np-chev open' : 'np-chev'} />
+            </button>
+            {open[line.key] && <div className="np-body">{lineBody(line)}</div>}
+          </div>
+        );
+      })}
+      {!v2 && position.lines.map(line => (
         <div key={line.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
           <button
             type="button"
@@ -327,7 +367,7 @@ export function NetPositionView({ state, applyState }: { state: TrackerState; ap
       <PersonalLoansPanel state={state} applyState={applyState} loans={personalLoans} unavailable={personalLoansUnavailable} lang={lang} />
 
       {/* ── Month by month ── */}
-      <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className={v2 ? 'panel np-month' : 'panel'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 800 }}>{L('Month by month', 'شهرًا بشهر')}</div>
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>
           {L('Today’s position is saved automatically once you open this page. A month opens at the last saved day before it and closes at its last saved day.', 'يُحفظ مركز اليوم تلقائيًا عند فتح هذه الصفحة. يبدأ الشهر من آخر يوم محفوظ قبله وينتهي عند آخر يوم محفوظ فيه.')}
@@ -338,7 +378,7 @@ export function NetPositionView({ state, applyState }: { state: TrackerState; ap
           <button type="button" className="rowBtn" onClick={() => setPicked(months[monthIndex - 1])} disabled={monthIndex <= 0} aria-label="next month">›</button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: v2 ? 'none' : 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
             { k: L('Opening', 'الافتتاح'), v: summary.opening ? money(summary.opening.net) : '—', c: undefined as string | undefined },
             { k: L('Closing', 'الإغلاق'), v: summary.closing ? money(summary.closing.net) : '—', c: undefined },

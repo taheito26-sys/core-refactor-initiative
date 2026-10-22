@@ -4170,7 +4170,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   return (
-    <div className={`tracker-root${v2 ? ' ov2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
+    <div className={`tracker-root${v2 ? ' ov2 cv2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
       {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
 
       {v2 && (
@@ -4314,7 +4314,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {/* ── CASH FLOW TAB ── */}
       {innerTab === 'flow' && (
-        <CashFlowPanel ledger={ledger} accounts={accounts} typeLabel={ty => LEDGER_TYPE_LABELS[ty as LedgerEntryType] || ty} t={t} isMobile={isMobile} onOpenAccount={setAccountDetailId} />
+        <CashFlowPanel ledger={ledger} accounts={accounts} typeLabel={ty => LEDGER_TYPE_LABELS[ty as LedgerEntryType] || ty} t={t} isMobile={isMobile} onOpenAccount={setAccountDetailId} v2={v2} />
       )}
 
       {/* ── ACCOUNTS TAB ── */}
@@ -5673,7 +5673,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       )}
 
       {/* ── PUBLIC STATEMENTS TAB ── */}
-      {innerTab === 'position' && <NetPositionView state={state} applyState={applyState} />}
+      {innerTab === 'position' && <NetPositionView state={state} applyState={applyState} v2={v2} />}
 
       {innerTab === 'statements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
