@@ -259,7 +259,7 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
           kind: "network",
           direction: src.direction,
           asset: d.coin,
-          amount: parseFloat(d.amount ?? "0"),
+          amount: networkAmount(src.direction, d.amount, d.transactionFee),
           status: String(d.status ?? ""),
           // Same "" vs null pitfall as OKX below: a still-confirming Binance
           // deposit can report txId as "" rather than omitting it.
@@ -360,7 +360,7 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
           kind: "network",
           direction: src.direction,
           asset: d.ccy,
-          amount: parseFloat(d.amt ?? "0"),
+          amount: networkAmount(src.direction, d.amt, d.fee),
           status: String(d.state ?? ""),
           // OKX reliably sends "" (not null/undefined) for txId on a deposit
           // that's still confirming -- `??` does not fall through on "", so
@@ -411,6 +411,20 @@ async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRo
   return { rows: rows.filter((r) => r.reference), failures };
 }
 
+/**
+ * What an on-chain transfer moved out of (or into) the wallet. Both exchanges
+ * report a withdrawal's `amount`/`amt` without the network fee that was
+ * charged on top of it (`transactionFee` on Binance, `fee` on OKX), so a
+ * 50,000 USDT send would otherwise be recorded as 49,999. Outgoing transfers
+ * are recorded at the full amount that left the wallet, fee included.
+ */
+function networkAmount(direction: "in" | "out", amount: unknown, fee: unknown): number {
+  const base = parseFloat(String(amount ?? "0")) || 0;
+  if (direction !== "out") return base;
+  const charged = Math.abs(parseFloat(String(fee ?? "0")) || 0);
+  return base + charged;
+}
+
 // ── Looking up one transfer by its hash ───────────────────────────────────
 //
 // The rolling sync only reaches back 90 days and only the first page of each
@@ -446,7 +460,7 @@ async function lookupBinanceTransfer(creds: Credentials, ref: string): Promise<{
           const raw = d[src.timeKey];
           const ms = typeof raw === "number" ? raw : Date.parse(raw ?? "");
           rows.push({
-            kind: "network", direction: src.direction, asset: d.coin, amount: parseFloat(d.amount ?? "0"),
+            kind: "network", direction: src.direction, asset: d.coin, amount: networkAmount(src.direction, d.amount, d.transactionFee),
             status: String(d.status ?? ""), reference: String(d.txId || d.id), counterparty: d.address ?? null,
             network: d.network ?? null, transfer_time: Number.isFinite(ms) ? new Date(ms).toISOString() : null, raw: d,
           });
@@ -494,7 +508,7 @@ async function lookupOkxTransfer(creds: Credentials, ref: string): Promise<{ row
       for (const d of json.data ?? []) {
         if (d.ccy !== TRACKED_ASSET) continue;
         rows.push({
-          kind: "network", direction: src.direction, asset: d.ccy, amount: parseFloat(d.amt ?? "0"), status: String(d.state ?? ""),
+          kind: "network", direction: src.direction, asset: d.ccy, amount: networkAmount(src.direction, d.amt, d.fee), status: String(d.state ?? ""),
           reference: String(d.txId || d.wdId || d.depId || ""), counterparty: (src.direction === "in" ? d.from : d.to) ?? null,
           network: d.chain ?? null, transfer_time: d.ts ? new Date(Number(d.ts)).toISOString() : null, raw: d,
         });
