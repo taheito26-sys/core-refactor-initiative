@@ -286,7 +286,7 @@ export function NetPositionView({ state, applyState, v2 = false }: { state: Trac
 
   return (
     <div className={v2 ? 'np-v2' : undefined} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760, marginInline: 'auto', width: '100%' }}>
-      {v2 && <OrdersV2Kpis cards={v2Kpis} />}
+      {v2 && <OrdersV2Kpis compact cards={v2Kpis} />}
       {!v2 && <div>
         <div style={{ fontSize: 14, fontWeight: 800 }}>⚖️ {t('npNavTitle')}</div>
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>{L('What you have right now: cash, banks, USDT on exchanges, and what people owe you.', 'ما تملكه الآن: النقد والبنوك وUSDT على المنصات وما يدين لك به الناس.')}</div>

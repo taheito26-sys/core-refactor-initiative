@@ -90,6 +90,7 @@ export function CashFlowPanel({ ledger, accounts, typeLabel, t, isMobile = false
           </div>
           {totals.map(tot => (
             <OrdersV2Kpis
+              compact
               key={`cf-${tot.currency}`}
               cards={[
                 { key: 'in', label: `${t('cfIn')} · ${tot.currency}`, Icon: ArrowDownLeft, tone: 'good', valueTone: 'good', value: money(tot.inAmount), unit: tot.currency },

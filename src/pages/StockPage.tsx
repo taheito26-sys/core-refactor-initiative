@@ -1134,7 +1134,7 @@ export default function StockPage() {
       {v2 ? (
         <>
           <OrdersV2Header title={t('stock')} subtitle={t('sv2Subtitle')} newLabel={t('addBatchTitle')} onNew={v2OpenAddBatch} />
-          {activeStockSection === 'batches' && <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />}
+          {activeStockSection === 'batches' && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeStockSection}
             onSelect={id => setActiveStockSection(id as typeof activeStockSection)}

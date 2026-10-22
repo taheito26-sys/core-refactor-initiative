@@ -60,15 +60,16 @@ export interface V2Kpi {
   kind?: 'line' | 'bars';
 }
 
-export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array<{ key: string; label: string; value: string }> }) {
+/** `compact` draws each figure in a short card: one-line label, the unit beside the number and a thin trend strip. */
+export function OrdersV2Kpis({ cards, extras, compact }: { cards: V2Kpi[]; extras?: Array<{ key: string; label: string; value: string }>; compact?: boolean }) {
   return (
     <div className="ov2-kpis-wrap">
-      <div className="ov2-kpis" style={cards.length < 4 ? { gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` } : undefined}>
+      <div className={cn('ov2-kpis', compact && 'compact')} style={cards.length < 4 ? { gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` } : undefined}>
         {cards.map(k => (
           <section key={k.key} className="ov2-kpi" style={{ ['--tone' as string]: toneVar(k.tone) }}>
-            <header><span className="ov2-ic"><k.Icon /></span><h3>{k.label}</h3></header>
-            <div className="ov2-kval" style={k.valueTone ? { color: toneVar(k.valueTone) } : undefined}><b>{k.value}</b></div>
-            {k.unit && <div className="ov2-kunit">{k.unit}</div>}
+            <header><span className="ov2-ic"><k.Icon /></span><h3 title={k.label}>{k.label}</h3></header>
+            <div className="ov2-kval" style={k.valueTone ? { color: toneVar(k.valueTone) } : undefined}><b>{k.value}</b>{compact && k.unit && <small>{k.unit}</small>}</div>
+            {!compact && k.unit && <div className="ov2-kunit">{k.unit}</div>}
             {k.delta != null && (
               <div className={cn('ov2-kdelta', k.delta >= 0 ? 'up' : 'down')}>
                 {k.delta >= 0 ? <ArrowUp /> : <ArrowDown />}<b>{k.delta >= 0 ? '+' : ''}{Math.round(k.delta)}%</b>

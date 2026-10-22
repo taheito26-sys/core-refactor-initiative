@@ -4176,7 +4176,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {v2 && (
         <>
           <OrdersV2Header title={t('cashManagement')} subtitle={t('cv2Subtitle')} newLabel={t('addAccountBtn')} onNew={() => setShowAddAccount(true)} />
-          <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />
+          <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />
           <OrdersV2Tabs
             scroll
             active={innerTab}
@@ -4713,6 +4713,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           {/* The book in one line per currency: loaned, repaid, still owed */}
           {v2 && bookTotals.map(row => (
             <OrdersV2Kpis
+              compact
               key={`v2-book-${row.currency}`}
               cards={[
                 { key: 'loaned', label: t('loanColLoaned'), Icon: HandCoins, tone: 'brand', value: formatMoney(row.loaned), unit: row.currency },
