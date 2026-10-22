@@ -65,7 +65,7 @@
 .tracker-root .dh-menu-action button { color: var(--brand); }
 
 /* ── headline cards ── */
-.tracker-root .dh-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(8 * var(--u)); }
+.tracker-root .dh-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(8 * var(--u)); }
 .tracker-root .dh-stat { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: calc(5 * var(--u)); min-height: calc(93 * var(--u)); padding: calc(11 * var(--u)) calc(11 * var(--u)) calc(9 * var(--u)); }
 .tracker-root .dh-stat header { display: flex; align-items: center; gap: calc(6 * var(--u)); }
 .tracker-root .dh-stat h3 { font-size: calc(11 * var(--f)); font-weight: 600; line-height: 1.2; }

@@ -126,13 +126,11 @@ export function DashboardHome({
     [points, win, dwin, clientMetric],
   );
   const volSpark = useMemo(() => sparkline(points, win, p => p.vol, 6), [points, win]);
-  const ownVolSpark = useMemo(() => sparkline(points, win, p => (p.own ? p.vol : 0), 6), [points, win]);
   const netSpark = useMemo(() => sparkline(points, win, p => p.net, 12), [points, win]);
   const clients = useMemo(() => topClients(points, win, clientMetric), [points, win, clientMetric]);
   const maxOrders = Math.max(1, ...clients.map(c => c.orders));
 
   const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; unit: string; value: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
-    { key: 'trading', label: t('dhTradingVolume'), Icon: BarChart3, tone: 'good', unit: 'var(--brand)', value: cur.ownVol, pct: pctChange(dCur.ownVol, dPrev?.ownVol), spark: ownVolSpark, kind: 'bars' },
     { key: 'total', label: t('dhTotalVolume'), Icon: Layers, tone: 't5', unit: 'var(--t5)', value: cur.vol, pct: pctChange(dCur.vol, dPrev?.vol), spark: volSpark, kind: 'bars' },
     { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', unit: 'var(--text)', value: cur.net, pct: pctChange(dCur.net, dPrev?.net), spark: netSpark, kind: 'line' },
   ];
