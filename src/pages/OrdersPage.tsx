@@ -50,7 +50,7 @@ import { isTradeTaggable } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
-import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
+import { ImportedBadge, ManualBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
@@ -3738,6 +3738,7 @@ export default function OrdersPage() {
                 {tr.importedFrom === 'binance' ? '⚡' : '🔶'}
               </span>
             )}
+            {!tr.importedFrom && <ManualBadge iconOnly className="manual-mark-sm" />}
             {loan && (
               <span
                 className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
@@ -4096,7 +4097,7 @@ export default function OrdersPage() {
     const marks = (
       <>
         {isMerchantLinked && <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🤝</span>}
-        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🔶</span> : null}
+        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🔶</span> : <ManualBadge iconOnly className="ov2-manual" />}
         {loan && (
           <span
             className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
@@ -4408,7 +4409,7 @@ export default function OrdersPage() {
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                 {isMerchantLinked && <span title={t('type')} style={{ fontSize: 12 }}>🤝</span>}
                                 {cn ? <span className="tradeBuyerChip" title={cn} style={{ width: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
-                                {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
+                                {tr.importedFrom ? <ImportedBadge exchange={tr.importedFrom} /> : <ManualBadge />}
                               </span>
                             </td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>

@@ -345,3 +345,31 @@
 .tracker-root.ov2 .ov2-tabs.scroll { display: flex; overflow-x: auto; scrollbar-width: none; padding-bottom: calc(5 * var(--px)); margin-bottom: calc(-5 * var(--px)); }
 .tracker-root.ov2 .ov2-tabs.scroll::-webkit-scrollbar { display: none; }
 .tracker-root.ov2 .ov2-tabs.scroll .ov2-tab { flex: 0 0 auto; padding: 0 calc(11 * var(--px)); }
+
+/* a hand beside an order or batch typed in by hand, the counterpart of the exchange bolt */
+.manual-mark { flex: none; color: var(--brand2, var(--brand)); }
+.ov2-manual { width: calc(10 * var(--cpx)); height: calc(10 * var(--cpx)); stroke-width: 2.4; }
+.manual-mark-sm { width: 11px; height: 11px; stroke-width: 2.4; }
+
+/* ─── Cash Management, redesigned phone layout: loans and statements ─── */
+.cv2-cur { display: inline-flex; align-items: center; font-size: max(var(--ov2-min-font), calc(7.5 * var(--cpx))); font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: calc(6 * var(--cpx)); padding: 0 calc(5 * var(--cpx)); line-height: 1.5; }
+.tracker-root.ov2 .cv2-sechead { margin: calc(2 * var(--px)) 0 0 !important; }
+.tracker-root.ov2 .cv2-sechead > div:first-child { font-size: max(var(--ov2-min-font), calc(13 * var(--px))) !important; }
+.tracker-root.ov2 .cv2-sechead .ov2-new { height: calc(27 * var(--px)); }
+.tracker-root.ov2 .cv2-note { font-size: max(var(--ov2-min-font), calc(9 * var(--px))) !important; border-radius: calc(9 * var(--px)) !important; padding: calc(7 * var(--px)) calc(10 * var(--px)) !important; }
+.cv2-attach { display: flex; flex-direction: column; gap: calc(4 * var(--cpx)); margin-bottom: calc(8 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(8.5 * var(--cpx))); color: var(--muted); }
+
+/* the loan tab's inner panels take the card look of the rest of the page */
+.tracker-root.ov2 .panel { background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); border-radius: calc(10 * var(--cpx)); box-shadow: var(--lt-shadow2); }
+.tracker-root.ov2 .ov2-c-detail .panel { box-shadow: none; background: color-mix(in srgb, var(--text) 3%, var(--card-bg)); }
+.tracker-root.ov2 .loan-detail { padding: 0 !important; border: 0 !important; background: transparent !important; }
+.tracker-root.ov2 .loan-cell-lbl, .tracker-root.ov2 .loan-totals-lbl { font-size: max(var(--ov2-min-font), calc(7 * var(--cpx))); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+.tracker-root.ov2 .loan-num { font-size: max(var(--ov2-min-font), calc(11 * var(--cpx))); font-weight: 800; font-variant-numeric: tabular-nums; }
+.tracker-root.ov2 .loan-order-card, .tracker-root.ov2 .loan-payment-card { padding: calc(8 * var(--cpx)) calc(9 * var(--cpx)); }
+.tracker-root.ov2 .loan-payment-card { border-inline-start: calc(2 * var(--cpx)) solid var(--good); }
+.tracker-root.ov2 .loan-row { padding: calc(8 * var(--cpx)) calc(10 * var(--cpx)); }
+.tracker-root.ov2 .rowBtn { border-radius: calc(7 * var(--px)); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; }
+.tracker-root.ov2 .loan-detail .btn { background: var(--brand); color: var(--card-bg); border: 0; border-radius: calc(8 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(9 * var(--cpx))) !important; font-weight: 700; }
+.tracker-root.ov2 .rowBtn { color: var(--text); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); }
+.tracker-root.ov2 .pill:not(.good):not(.warn):not(.bad) { color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.tracker-root.ov2 .ov2-c-detail { padding-inline-start: calc(11 * var(--cpx)); padding-bottom: calc(6 * var(--cpx)); }

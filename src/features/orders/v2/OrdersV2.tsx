@@ -63,7 +63,7 @@ export interface V2Kpi {
 export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array<{ key: string; label: string; value: string }> }) {
   return (
     <div className="ov2-kpis-wrap">
-      <div className="ov2-kpis">
+      <div className="ov2-kpis" style={cards.length < 4 ? { gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` } : undefined}>
         {cards.map(k => (
           <section key={k.key} className="ov2-kpi" style={{ ['--tone' as string]: toneVar(k.tone) }}>
             <header><span className="ov2-ic"><k.Icon /></span><h3>{k.label}</h3></header>
@@ -91,7 +91,7 @@ export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array
 // ── Tabs ──
 export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll }: { tabs: Array<{ id: T; label: string; Icon: LucideIcon }>; active: T; onSelect: (id: T) => void; scroll?: boolean }) {
   return (
-    <div className={cn('ov2-tabs', scroll && 'scroll')} role="tablist">
+    <div className={cn('ov2-tabs', scroll && 'scroll')} role="tablist" style={scroll ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
       {tabs.map(tab => (
         <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={cn('ov2-tab', active === tab.id && 'on')} onClick={() => onSelect(tab.id)}>
           <tab.Icon />{tab.label}
@@ -103,7 +103,7 @@ export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll 
 
 // ── Search ──
 export function OrdersV2SearchBar({ value, onChange, placeholder, onFilter, filterActive, filterLabel }: {
-  value: string; onChange: (v: string) => void; placeholder: string; onFilter: () => void; filterActive: boolean; filterLabel: string;
+  value: string; onChange: (v: string) => void; placeholder: string; onFilter?: () => void; filterActive?: boolean; filterLabel?: string;
 }) {
   return (
     <div className="ov2-search">
@@ -112,9 +112,11 @@ export function OrdersV2SearchBar({ value, onChange, placeholder, onFilter, filt
         <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} autoComplete="off" spellCheck={false} />
         {value && <button type="button" onClick={() => onChange('')} aria-label="Clear"><X /></button>}
       </label>
-      <button type="button" className={cn('ov2-filterbtn', filterActive && 'on')} onClick={onFilter} aria-label={filterLabel} title={filterLabel}>
-        <Filter />{filterActive && <i />}
-      </button>
+      {onFilter && (
+        <button type="button" className={cn('ov2-filterbtn', filterActive && 'on')} onClick={onFilter} aria-label={filterLabel} title={filterLabel}>
+          <Filter />{filterActive && <i />}
+        </button>
+      )}
     </div>
   );
 }

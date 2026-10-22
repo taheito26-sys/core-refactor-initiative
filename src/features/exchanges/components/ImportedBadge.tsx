@@ -1,4 +1,5 @@
-import { Zap } from 'lucide-react';
+import { Hand, Zap } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { EXCHANGE_LABELS, type ExchangeId } from '../types';
 
@@ -28,6 +29,28 @@ export function ImportedBadge({ exchange }: { exchange: ExchangeId }) {
     >
       <Zap className="h-2.5 w-2.5 fill-current" />
       {EXCHANGE_LABELS[exchange]}
+    </span>
+  );
+}
+
+/** Marks a batch/trade row typed in by hand rather than imported from an exchange; `iconOnly` draws just the hand. */
+export function ManualBadge({ iconOnly = false, className }: { iconOnly?: boolean; className?: string }) {
+  const t = useT();
+  const label = t('manualEntry');
+  if (iconOnly) {
+    return <Hand className={cn('manual-mark', className)} aria-label={label} role="img"><title>{label}</title></Hand>;
+  }
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-extrabold leading-tight ring-1 ring-inset',
+        'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] ring-[hsl(var(--border))]',
+        className,
+      )}
+      title={label}
+    >
+      <Hand className="h-2.5 w-2.5" />
+      {t('manualShort')}
     </span>
   );
 }

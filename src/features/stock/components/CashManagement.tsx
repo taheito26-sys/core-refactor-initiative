@@ -1,5 +1,5 @@
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
-import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject, type ReactNode } from 'react';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 import { CashFlowPanel } from './CashFlowPanel';
 import { useSearchParams } from 'react-router-dom';
@@ -37,9 +37,9 @@ import { LoanStatementModal } from '@/features/stock/components/LoanStatementMod
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
-import { ArrowLeftRight, FileText, HandCoins, Landmark, Scale, Wallet } from 'lucide-react';
-import { OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
-import { initialOf, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
+import { ArrowLeftRight, Banknote, CheckCircle2, FileText, HandCoins, Landmark, ListChecks, Scale, Wallet } from 'lucide-react';
+import { OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
+import { avatarTone, initialOf } from '@/features/orders/v2/orders-v2-model';
 import { useCashDesign } from '@/features/orders/v2/design';
 import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import '@/styles/orders-v2.css';
@@ -4062,6 +4062,113 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     );
   };
 
+  const v2MonthItems = (months: string[]) => months.map(m => {
+    const [y, mm] = m.split('-');
+    return { key: m, label: monthPillLabel(m), long: new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' }) };
+  });
+  const v2Cur = (currency: string) => <span className="cv2-cur">{currency}</span>;
+
+  const renderReceivableV2Card = (stmt: BuyerStatement, pct: number, overdue: boolean, expanded: boolean, detail: ReactNode) => (
+    <OrdersV2Card
+      key={`v2-recv-${stmt.key}`}
+      id={stmt.key}
+      name={stmt.customerName}
+      initial={initialOf(stmt.customerName)}
+      tone={avatarTone(stmt.customerName, 5)}
+      marks={v2Cur(stmt.currency)}
+      subtitle={`${pct}% ${t('loanRepaidPctLabel')}${stmt.phone ? ` · ${stmt.phone}` : ''}`}
+      statusLabel={`${stmt.oldestOpenDays}${t('loanDaysShort')}${overdue ? ` · ${t('loanOverdueTag')}` : ''}`}
+      statusKind={overdue ? 'bad' : 'warn'}
+      dateText={stmt.lastPaymentTs != null ? fmtDate(stmt.lastPaymentTs) : t('loanNoPaymentsYet')}
+      qty={`${stmt.openCount}/${stmt.loans.length}`}
+      rate={fmtTotal(stmt.totalLoaned)}
+      volume={fmtTotal(stmt.totalRepaid)}
+      volumeTone="good"
+      net={fmtTotal(stmt.outstanding)}
+      netTone="bad"
+      labels={{ qty: t('loanColOrders'), rate: t('loanColLoaned'), volume: t('loanColRepaid'), net: t('cv2Owed') }}
+      detailsLabel={expanded ? t('ov2Hide') : t('ov2Details')}
+      detailsOpen={expanded}
+      onDetails={() => toggleBuyer(stmt.key)}
+      menu={[
+        { key: 'statement', label: `📄 ${t('loanStatementOpen')}`, tone: 'brand', onClick: () => setStatementKey(stmt.key) },
+        ...(stmt.openCount > 0 ? [{ key: 'split', label: `🔗 ${t('loanSplitPayment')}`, onClick: () => setSplitPaymentStatement({ statement: stmt }) }] : []),
+        { key: 'details', label: expanded ? t('ov2Hide') : t('ov2Details'), onClick: () => toggleBuyer(stmt.key) },
+      ]}
+      menuLabel={t('ov2Menu')}
+      chatLabel={t('ov2Chat')}
+      copyLabel={t('ov2Copy')}
+      copiedLabel={t('ov2Copied')}
+    >
+      {detail}
+    </OrdersV2Card>
+  );
+
+  const renderStatementV2Card = (stmt: BuyerStatement) => {
+    const link = activeLinkFor(stmt.customerId, stmt.currency);
+    const isOpen = viewingReportKey === stmt.key;
+    const report = reportByKey[stmt.key];
+    const menu: V2MenuItem[] = [
+      { key: 'view', label: isOpen ? t('statementReportHide') : t('statementReportView'), tone: 'brand', onClick: () => viewStatementReport(stmt) },
+      ...(link ? [
+        { key: 'copy', label: t('statementLinkCopy'), onClick: () => copyStatementLink(link) },
+        { key: 'revoke', label: t('statementLinkRevoke'), tone: 'bad' as const, onClick: () => revokeStatementLink(link) },
+      ] : []),
+    ];
+    return (
+      <OrdersV2Card
+        key={`v2-stmt-${stmt.key}`}
+        id={stmt.key}
+        name={stmt.customerName}
+        initial={initialOf(stmt.customerName)}
+        tone={avatarTone(stmt.customerName, 5)}
+        marks={v2Cur(stmt.currency)}
+        subtitle={link?.customer_user_id ? (connectedCustomers.find(c => c.customer_user_id === link.customer_user_id)?.display_name || t('cv2PortalLinked')) : undefined}
+        statusLabel={link ? t('cv2LinkActive') : t('cv2NoLink')}
+        statusKind={link ? 'good' : 'warn'}
+        dateText={stmt.lastPaymentTs != null ? fmtDate(stmt.lastPaymentTs) : '—'}
+        qty={String(stmt.loans.length)}
+        rate={fmtTotal(stmt.totalLoaned)}
+        volume={fmtTotal(stmt.totalRepaid)}
+        volumeTone="good"
+        net={fmtTotal(stmt.outstanding)}
+        netTone={stmt.outstanding > 0 ? 'bad' : 'good'}
+        labels={{ qty: t('loanColOrders'), rate: t('loanColLoaned'), volume: t('loanColRepaid'), net: t('cv2Owed') }}
+        detailsLabel={creatingLinkKey === stmt.key ? '…' : isOpen ? t('statementReportHide') : t('statementReportView')}
+        detailsOpen={isOpen}
+        onDetails={() => { if (creatingLinkKey !== stmt.key) void viewStatementReport(stmt); }}
+        menu={menu}
+        menuLabel={t('ov2Menu')}
+        chatLabel={t('ov2Chat')}
+        copyLabel={t('ov2Copy')}
+        copiedLabel={t('ov2Copied')}
+      >
+        {link && connectedCustomers.length > 0 && (
+          <label className="cv2-attach">
+            <span>{t('statementLinkPortalAttachHint')}</span>
+            <ModernSelect
+              value={link.customer_user_id || ''}
+              disabled={attachingLinkId === link.id}
+              onChange={e => attachStatementLinkCustomer(link, e.target.value || null)}
+            >
+              <option value="">{t('statementLinkPortalAttachNone')}</option>
+              {connectedCustomers.map(c => (
+                <option key={c.customer_user_id} value={c.customer_user_id}>{c.display_name}</option>
+              ))}
+            </ModernSelect>
+          </label>
+        )}
+        {report === 'loading' || !report ? (
+          <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>…</div>
+        ) : report === 'error' ? (
+          <div style={{ fontSize: 12, color: 'var(--bad)', textAlign: 'center', padding: 20 }}>{t('statementLinkCreateFailed')}</div>
+        ) : (
+          <PublicStatementReport data={report} />
+        )}
+      </OrdersV2Card>
+    );
+  };
+
   return (
     <div className={`tracker-root${v2 ? ' ov2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
       {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
@@ -4431,13 +4538,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── LOANS TAB ── */}
       {innerTab === 'loans' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+          <div className={v2 ? 'cv2-sechead' : undefined} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, fontWeight: 800 }}>{t('loanReceivables')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {buyerStatements.length > 0 && (
                 <button className="rowBtn" onClick={exportReceivablesBook}>📊 {t('loanExportExcel')}</button>
               )}
-              <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
+              <button className={v2 ? 'ov2-new' : 'btn'} style={v2 ? undefined : { padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
             </div>
           </div>
 
@@ -4604,7 +4711,18 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           )}
 
           {/* The book in one line per currency: loaned, repaid, still owed */}
-          {bookTotals.length > 0 && (
+          {v2 && bookTotals.map(row => (
+            <OrdersV2Kpis
+              key={`v2-book-${row.currency}`}
+              cards={[
+                { key: 'loaned', label: t('loanColLoaned'), Icon: HandCoins, tone: 'brand', value: formatMoney(row.loaned), unit: row.currency },
+                { key: 'repaid', label: t('loanColRepaid'), Icon: CheckCircle2, tone: 'good', valueTone: 'good', value: formatMoney(row.repaid), unit: row.currency },
+                { key: 'out', label: t('loanColOutstanding'), Icon: Banknote, tone: row.outstanding > 0 ? 'bad' : 'good', valueTone: row.outstanding > 0 ? 'bad' : 'good', value: formatMoney(row.outstanding), unit: row.currency },
+              ]}
+              extras={[{ key: 'owing', label: t('loanBuyersOwing'), value: String(row.buyersOwing) }]}
+            />
+          ))}
+          {!v2 && bookTotals.length > 0 && (
             <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
               {bookTotals.map(row => (
                 <div key={row.currency} className="panel loan-totals">
@@ -4634,10 +4752,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           )}
 
           {/* Loaned Orders ↔ Payments ↔ Closed */}
+          {v2 && (
+            <OrdersV2Tabs
+              active={loanSubTab}
+              onSelect={id => setLoanSubTab(id as typeof loanSubTab)}
+              tabs={[
+                { id: 'orders', label: `${t('loanTabOrders')} ${activeLoanCount}`, Icon: ListChecks },
+                { id: 'payments', label: `${v2TabLabel(t('cashLoansPaymentsTab'))} ${paymentBuyerStatements.reduce((sum, x) => sum + x.payments.length, 0)}`, Icon: Banknote },
+                { id: 'closed', label: `${t('loanTabClosed')} ${closedLoanCount}`, Icon: CheckCircle2 },
+              ]}
+            />
+          )}
           <div
             style={{
               display: 'flex', gap: 4, marginBottom: 12, padding: 4,
               borderRadius: 12, background: 'var(--panel2)', border: '1px solid var(--line)',
+              ...(v2 ? { display: 'none' } : {}),
             }}
           >
             {([
@@ -4679,7 +4809,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             })}
           </div>
 
-          {loans.length > 0 && (
+          {v2 && loans.length > 0 && (
+            <OrdersV2SearchBar value={loanQuery} onChange={setLoanQuery} placeholder={t('loanSearchPlaceholder')} />
+          )}
+          {!v2 && loans.length > 0 && (
             <div className="inputBox" style={{ marginBottom: 10 }}>
               <input
                 value={loanQuery}
@@ -4703,7 +4836,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </div>
           ) : loanSubTab === 'orders' ? (
             <>
-              {availableLoanMonths.length > 0 && (
+              {v2 && availableLoanMonths.length > 0 && (
+                <OrdersV2Months months={v2MonthItems(availableLoanMonths)} selected={selectedLoanMonth} onSelect={setSelectedLoanMonth} allLabel={t('allMonths')} />
+              )}
+              {!v2 && availableLoanMonths.length > 0 && (
                 <div className="month-filter-row">
                   <button
                     onClick={() => setSelectedLoanMonth('all')}
@@ -4729,8 +4865,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 </div>
               ) : (
               /* One row per buyer account — the receivables ledger */
-              <div className="loan-book">
-                <div className="loan-book-head loan-cols">
+              <div className={v2 ? 'orders-cards-list' : 'loan-book'}>
+                {!v2 && <div className="loan-book-head loan-cols">
                   <span>{t('loanColBuyer')}</span>
                   <span className="r">{t('loanColOrders')}</span>
                   <span className="r">{t('loanColLoaned')}</span>
@@ -4738,7 +4874,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   <span className="r">{t('loanColOutstanding')}</span>
                   <span className="r">{t('loanColLastPayment')}</span>
                   <span />
-                </div>
+                </div>}
 
                           {visibleReceivableStatements.map(stmt => {
                   const expanded = expandedBuyerKeys.has(stmt.key);
@@ -4746,56 +4882,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     ? Math.min(100, Math.round((stmt.totalRepaid / stmt.totalLoaned) * 100))
                     : 0;
                   const overdue = stmt.oldestOpenDays > 30;
-                  return (
-                    <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-                      <button className="loan-row loan-cols" onClick={() => toggleBuyer(stmt.key)}>
-                        <div className="loan-cell-buyer">
-                          <div style={{ fontSize: 12.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {stmt.customerName}
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                            <span className="pill" style={{ fontSize: 9 }}>{stmt.currency}</span>
-                            <span className={`pill ${overdue ? 'bad' : 'warn'}`} style={{ fontSize: 9 }}>
-                              {stmt.oldestOpenDays}{t('loanDaysShort')}{overdue ? ` · ${t('loanOverdueTag')}` : ''}
-                            </span>
-                            {stmt.phone && <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{stmt.phone}</span>}
-                          </div>
-                        </div>
-                        <div className="r">
-                          <div className="loan-cell-lbl">{t('loanColOrders')}</div>
-                          <span className="mono" style={{ fontSize: 11 }}>{stmt.openCount}/{stmt.loans.length}</span>
-                        </div>
-                        <div className="r">
-                          <div className="loan-cell-lbl">{t('loanColLoaned')}</div>
-                          <span className="loan-num">{formatMoney(stmt.totalLoaned)}</span>
-                        </div>
-                        <div className="r">
-                          <div className="loan-cell-lbl">{t('loanColRepaid')}</div>
-                          <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</span>
-                        </div>
-                        <div className="r">
-                          <div className="loan-cell-lbl">{t('loanColOutstanding')}</div>
-                          <span className="loan-num" style={{ color: 'var(--bad)', fontSize: 13 }}>{formatMoney(stmt.outstanding)}</span>
-                          <div className="prog loan-prog" style={{ height: 4 }}>
-                            <span style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
-                          </div>
-                          <div style={{ fontSize: 8.5, color: 'var(--muted)', marginTop: 2 }}>{pct}% {t('loanRepaidPctLabel')}</div>
-                        </div>
-                        <div className="r">
-                          <div className="loan-cell-lbl">{t('loanColLastPayment')}</div>
-                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
-                            {stmt.lastPaymentTs != null ? fmtDate(stmt.lastPaymentTs) : t('loanNoPaymentsYet')}
-                          </span>
-                        </div>
-                        <span
-                          className="loan-cell-chev mono"
-                          style={{ fontSize: 11, color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
-                        >
-                          ▾
-                        </span>
-                      </button>
-
-                      {expanded && (
+                  const detail = expanded ? (
                         <div className="loan-detail">
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             <button
@@ -5263,7 +5350,58 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           })()}
 
                         </div>
-                      )}
+                  ) : null;
+                  if (v2) return renderReceivableV2Card(stmt, pct, overdue, expanded, detail);
+                  return (
+                    <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+                      <button className="loan-row loan-cols" onClick={() => toggleBuyer(stmt.key)}>
+                        <div className="loan-cell-buyer">
+                          <div style={{ fontSize: 12.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {stmt.customerName}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span className="pill" style={{ fontSize: 9 }}>{stmt.currency}</span>
+                            <span className={`pill ${overdue ? 'bad' : 'warn'}`} style={{ fontSize: 9 }}>
+                              {stmt.oldestOpenDays}{t('loanDaysShort')}{overdue ? ` · ${t('loanOverdueTag')}` : ''}
+                            </span>
+                            {stmt.phone && <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{stmt.phone}</span>}
+                          </div>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColOrders')}</div>
+                          <span className="mono" style={{ fontSize: 11 }}>{stmt.openCount}/{stmt.loans.length}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColLoaned')}</div>
+                          <span className="loan-num">{formatMoney(stmt.totalLoaned)}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColRepaid')}</div>
+                          <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColOutstanding')}</div>
+                          <span className="loan-num" style={{ color: 'var(--bad)', fontSize: 13 }}>{formatMoney(stmt.outstanding)}</span>
+                          <div className="prog loan-prog" style={{ height: 4 }}>
+                            <span style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
+                          </div>
+                          <div style={{ fontSize: 8.5, color: 'var(--muted)', marginTop: 2 }}>{pct}% {t('loanRepaidPctLabel')}</div>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColLastPayment')}</div>
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                            {stmt.lastPaymentTs != null ? fmtDate(stmt.lastPaymentTs) : t('loanNoPaymentsYet')}
+                          </span>
+                        </div>
+                        <span
+                          className="loan-cell-chev mono"
+                          style={{ fontSize: 11, color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+                        >
+                          ▾
+                        </span>
+                      </button>
+
+                      {detail}
                     </div>
                   );
                 })}
@@ -5272,7 +5410,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             </>
           ) : loanSubTab === 'payments' ? (
             <>
-              {availablePaymentMonths.length > 0 && (
+              {v2 && availablePaymentMonths.length > 0 && (
+                <OrdersV2Months months={v2MonthItems(availablePaymentMonths)} selected={selectedPaymentMonth} onSelect={setSelectedPaymentMonth} allLabel={t('allMonths')} />
+              )}
+              {!v2 && availablePaymentMonths.length > 0 && (
                 <div className="month-filter-row">
                   <button
                     onClick={() => setSelectedPaymentMonth('all')}
@@ -5536,7 +5677,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {innerTab === 'statements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
+          <div className={v2 ? 'cv2-note' : undefined} style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
             💡 {t('statementsTabDesc')}
           </div>
 
@@ -5544,6 +5685,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             <div className="empty" style={{ padding: '32px 0' }}>
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
+          ) : v2 ? (
+            <div className="orders-cards-list">{buyerStatements.map(renderStatementV2Card)}</div>
           ) : (
             <div className="tableWrap">
               <table>

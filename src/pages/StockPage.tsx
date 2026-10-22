@@ -51,7 +51,7 @@ import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMont
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { explainReconciliationDelta, type PendingExchangeItem } from '@/features/exchanges/reconcile';
-import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
+import { ImportedBadge, ManualBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { LoansPanel } from '@/features/stock/components/LoansPanel';
 import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
@@ -1074,7 +1074,7 @@ export default function StockPage() {
         tone={avatarTone(name, 5)}
         marks={(
           <>
-            {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+            {b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}
             {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 'calc(7.5 * var(--cpx))', whiteSpace: 'nowrap' }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
           </>
         )}
@@ -1475,7 +1475,7 @@ export default function StockPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
                       <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.source || '—'}</span>
-                        {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                        {b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}
                         {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 9, flexShrink: 0 }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -1588,7 +1588,7 @@ export default function StockPage() {
                         <td>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
                             <span style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.source || '—'}>{b.source || '—'}</span>
-                            {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                            {b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}
                             {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 9, flexShrink: 0 }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
                           </span>
                         </td>
