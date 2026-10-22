@@ -1,3 +1,4 @@
+import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject } from 'react';
 import { ModernSelect } from '@/components/shared/ModernSelect';
 import { CashFlowPanel } from './CashFlowPanel';
@@ -1992,6 +1993,9 @@ interface AccountLedgerModalProps {
 function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, onEditNote, isMobile = false }: AccountLedgerModalProps) {
   const t = useT();
   const [typeFilter, setTypeFilter] = useState('');
+  // A day or period (YYYY-MM-DD); with the second day empty the period is just the first.
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
 
@@ -2019,8 +2023,15 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
   const rows = useMemo(() => {
     let list = [...sorted].reverse();
     if (typeFilter) list = list.filter(e => e.type === typeFilter);
+    if (periodFrom) {
+      const from = new Date(`${periodFrom}T00:00:00`).getTime();
+      const to = new Date(`${periodTo || periodFrom}T23:59:59.999`).getTime();
+      list = list.filter(e => e.ts >= from && e.ts <= to);
+    }
     return list;
-  }, [sorted, typeFilter]);
+  }, [sorted, typeFilter, periodFrom, periodTo]);
+  const periodIn = useMemo(() => rows.filter(e => e.direction === 'in').reduce((s, e) => s + e.amount, 0), [rows]);
+  const periodOut = useMemo(() => rows.filter(e => e.direction === 'out').reduce((s, e) => s + e.amount, 0), [rows]);
 
   const totalsIn = useMemo(() => entries.filter(e => e.direction === 'in').reduce((s, e) => s + e.amount, 0), [entries]);
   const totalsOut = useMemo(() => entries.filter(e => e.direction === 'out').reduce((s, e) => s + e.amount, 0), [entries]);
@@ -2062,18 +2073,31 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
           </div>
         </div>
 
-        {usedTypes.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {usedTypes.length > 1 && (
             <ModernSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={selectStyle}>
               <option value="" style={optionStyle}>{t('allTypesOpt')}</option>
               {usedTypes.map(lType => (
                 <option key={lType} value={lType} style={optionStyle}>{typeLabels[lType]}</option>
               ))}
             </ModernSelect>
-            {typeFilter && <button className="rowBtn" onClick={() => setTypeFilter('')}>✕ {t('clearAll')}</button>}
-            <span className="muted" style={{ fontSize: 10 }}>{rows.length} {t('entriesCount')}</span>
-          </div>
-        )}
+          )}
+          <PeriodPicker
+            from={periodFrom}
+            to={periodTo}
+            onChange={(from, to) => { setPeriodFrom(from); setPeriodTo(to); }}
+            lang={t.lang === 'ar' ? 'ar' : 'en'}
+            title={t('filterByDate')}
+            emptyLabel={t('filterByDate')}
+          />
+          {(typeFilter || periodFrom) && <button className="rowBtn" onClick={() => { setTypeFilter(''); setPeriodFrom(''); setPeriodTo(''); }}>✕ {t('clearAll')}</button>}
+          <span className="muted" style={{ fontSize: 10 }}>{rows.length} {t('entriesCount')}</span>
+          {periodFrom && (
+            <span className="mono" style={{ fontSize: 10 }}>
+              <strong style={{ color: 'var(--good)' }}>+{fmtTotal(periodIn)}</strong>{' · '}<strong style={{ color: 'var(--bad)' }}>−{fmtTotal(periodOut)}</strong>
+            </span>
+          )}
+        </div>
 
         {rows.length === 0 ? (
           <div className="empty" style={{ padding: '24px 0' }}>

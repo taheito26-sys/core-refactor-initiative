@@ -476,8 +476,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const nowMinute = Math.floor(Date.now() / 60000);
   const nowTs = nowMinute * 60000;
   const win = useMemo(() => {
-    const custom = customFrom && customTo
-      ? { from: new Date(`${customFrom}T00:00`).getTime(), to: new Date(`${customTo}T00:00`).getTime() }
+    const custom = customFrom
+      ? { from: new Date(`${customFrom}T00:00`).getTime(), to: new Date(`${customTo || customFrom}T00:00`).getTime() }
       : null;
     return rangeWindow(settings.range, nowMinute * 60000, firstTs, custom);
   }, [settings.range, customFrom, customTo, firstTs, nowMinute]);

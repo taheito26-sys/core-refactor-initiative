@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { ZoomControls } from '@/components/shared/ZoomControls';
+import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { useDashboardFilters } from '../../dashboard-filters';
@@ -11,13 +12,14 @@ import type { DashPoint, OrderScope } from '../../dashboard-model';
 export function DashboardFilterSheet() {
   const t = useT();
   const { filterOpen, setFilterOpen, scope, setScope, customFrom, customTo, setCustom, reset } = useDashboardFilters();
+  const { settings } = useTheme();
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
   if (!filterOpen) return null;
   const scopes: Array<{ id: OrderScope; label: string }> = [
     { id: 'all', label: t('dhAllOrders') },
     { id: 'own', label: t('dhOwnOrders') },
     { id: 'partner', label: t('dhPartnerOrders') },
   ];
-  const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="dh-sheet-scrim" onClick={() => setFilterOpen(false)}>
       <div className="dh-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label={t('dhFilters')}>
@@ -35,11 +37,14 @@ export function DashboardFilterSheet() {
         </div>
         <div className="dh-sheet-sec">
           <label>{t('dhCustomPeriod')}</label>
-          <div className="dh-dates">
-            <input type="date" value={customFrom} max={customTo || today} onChange={e => setCustom(e.target.value, customTo)} aria-label={t('dhFrom')} />
-            <span>→</span>
-            <input type="date" value={customTo} min={customFrom || undefined} max={today} onChange={e => setCustom(customFrom, e.target.value)} aria-label={t('dhTo')} />
-          </div>
+          <PeriodPicker
+            from={customFrom}
+            to={customTo}
+            onChange={(from, to) => setCustom(from, to)}
+            lang={lang}
+            title={t('dhCustomPeriod')}
+            emptyLabel={t('dhCustomPeriod')}
+          />
           <p className="dh-sheet-hint">{t('dhCustomHint')}</p>
         </div>
         <div className="dh-sheet-sec dh-sheet-zoom">

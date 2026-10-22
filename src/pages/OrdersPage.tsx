@@ -14,7 +14,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { comparePlacement, toLocalInputValue } from '@/lib/order-sequence';
 import { P2PAuditButton } from '@/features/exchanges/components/P2PAuditButton';
-import { DayFilterDropdown } from '@/features/orders/components/DayFilterDropdown';
+import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { SaleTypeToggle } from '@/features/orders/components/SaleTypeToggle';
 import { localCur } from '@/lib/currency-locale';
 import { fiatPerQar } from '@/features/orders/fiat-conversion';
@@ -471,6 +471,7 @@ export default function OrdersPage() {
   const [ordersPage, setOrdersPage] = useState(1);
   const [buyerFilter, setBuyerFilter] = useState('');
   const [dayFilter, setDayFilter] = useState(''); // 'YYYY-MM-DD', empty = no day filter
+  const [dayFilterTo, setDayFilterTo] = useState(''); // last day of a period, empty = just dayFilter
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
   // ── Dynamic rows per page: fit table to available viewport height ──
@@ -1004,7 +1005,8 @@ export default function OrdersPage() {
     () => [...state.trades].sort((a, b) => comparePlacement({ ts: b.ts, orderNumber: b.exchangeOrderNumber, id: b.id }, { ts: a.ts, orderNumber: a.exchangeOrderNumber, id: a.id })),
     [state.trades],
   );
-  const effectiveRange = selectedMonth === 'all' ? 'all' : state.range;
+  // A day or period picked in the date filter is looked up across all time, not inside the month or range chips.
+  const effectiveRange = selectedMonth === 'all' || dayFilter ? 'all' : state.range;
 
   const list = useMemo(() => allTrades.filter(t => {
     if (!inRange(t.ts, effectiveRange)) return false;
@@ -1060,11 +1062,11 @@ export default function OrdersPage() {
       if (dayFilter) {
         const d = new Date(t.ts);
         const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        if (dayKey !== dayFilter) return false;
+        if (dayKey < dayFilter || dayKey > (dayFilterTo || dayFilter)) return false;
       }
       return true;
     });
-  }, [list, query, state.customers, buyerFilterGroup, dayFilter]);
+  }, [list, query, state.customers, buyerFilterGroup, dayFilter, dayFilterTo]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
   // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
@@ -1086,6 +1088,7 @@ export default function OrdersPage() {
   const clearOrderFilters = useCallback(() => {
     setBuyerFilter('');
     setDayFilter('');
+    setDayFilterTo('');
   }, []);
 
   const hasActiveOrderFilters = Boolean(buyerFilter || dayFilter);
@@ -1118,19 +1121,19 @@ export default function OrdersPage() {
   }, [allTrades, allMerchantDeals, allTransfers, cancelledDealIds, cancelledLocalTradeIds, currentMonthKey]);
 
   const subFilteredMy = useMemo(() => {
-    if (selectedMonth === 'all') return filtered;
+    if (selectedMonth === 'all' || dayFilter) return filtered;
     return filtered.filter(tr => {
       const d = new Date(tr.ts);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return key === selectedMonth;
     });
-  }, [filtered, selectedMonth]);
+  }, [filtered, selectedMonth, dayFilter]);
 
   // ── Pagination ──
   const ORDERS_PER_PAGE = isMobile ? 10 : ordersPerPage;
   const totalOrderPages = Math.max(1, Math.ceil(subFilteredMy.length / ORDERS_PER_PAGE));
   // Reset page when filters change
-  useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range, dayFilter]);
+  useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range, dayFilter, dayFilterTo]);
   const paginatedOrders = useMemo(() => {
     // On mobile, show all orders (no pagination)
     if (isMobile) return subFilteredMy;
@@ -4084,11 +4087,13 @@ export default function OrdersPage() {
                     <option key={c.id} value={c.id}>{resolveCustomerName(c, t.lang)}</option>
                   ))}
                 </ModernSelect>
-                <DayFilterDropdown
-                  value={dayFilter}
-                  onChange={setDayFilter}
+                <PeriodPicker
+                  from={dayFilter}
+                  to={dayFilterTo}
+                  onChange={(from, to) => { setDayFilter(from); setDayFilterTo(to); }}
                   lang={t.lang === 'ar' ? 'ar' : 'en'}
                   title={t('filterByDay')}
+                  emptyLabel={t('filterByDate')}
                 />
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>

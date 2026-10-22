@@ -47,8 +47,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   // On the phone dashboard the bar carries search and filter buttons, and the zoom control moves into the filter sheet.
   const onPhoneDashboard = isMobile && location.pathname === '/dashboard';
-  const { setSearchOpen, setFilterOpen, scope, customFrom, customTo } = useDashboardFilters();
-  const dashFiltersActive = scope !== 'all' || !!(customFrom && customTo);
+  const { setSearchOpen, setFilterOpen, scope, customFrom } = useDashboardFilters();
+  const dashFiltersActive = scope !== 'all' || !!customFrom;
   const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', onPhoneDashboard ? 'px-1 py-1 text-[9px]' : 'px-1.5 py-1 text-[10px]');
 
   return (
