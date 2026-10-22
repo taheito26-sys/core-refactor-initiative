@@ -66,7 +66,17 @@ import {
 import {
   AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
 } from '@/features/customers/portal-order-sync';
+import {
+  ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon,
+} from 'lucide-react';
+import {
+  BoltMark, OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
+  type V2Kpi, type V2MenuItem,
+} from '@/features/orders/v2/OrdersV2';
+import { useOrdersDesign } from '@/features/orders/v2/design';
+import { avatarTone, bucketSeries, initialOf, orderCountChange, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
 import '@/styles/tracker.css';
+import '@/styles/orders-v2.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
@@ -464,6 +474,12 @@ export default function OrdersPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers'>('my');
+  // The redesigned phone layout; the classic one stays available (see features/orders/v2/design).
+  const [design, setDesign] = useOrdersDesign();
+  const v2 = isMobile && design === 'v2';
+  const [v2Oldest, setV2Oldest] = useState(false);
+  const [v2View, setV2View] = useState<'list' | 'grid'>('list');
+  const [v2FilterOpen, setV2FilterOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   // Backfills a connected exchange's P2P history for exactly the clicked
   // month, so months outside the auto-sync's rolling window still show up.
@@ -1051,11 +1067,13 @@ export default function OrdersPage() {
     return new Set(customerIdsByCanonicalName.get(canonicalizeName(selected.name)) ?? [buyerFilter]);
   }, [buyerFilter, state.customers, customerIdsByCanonicalName]);
 
+  const orderRefs = useMemo(() => orderReferences(state.trades.filter(tr => !tr.voided)), [state.trades]);
+
   const filtered = useMemo(() => {
     return list.filter(t => {
       if (query) {
         const c = state.customers.find(x => x.id === t.customerId);
-        const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), ...(c ? customerNameVariants(c) : [])].join(' ').toLowerCase();
+        const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), orderRefs.get(t.id) ?? '', t.exchangeOrderNumber ?? '', ...(c ? customerNameVariants(c) : [])].join(' ').toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       if (buyerFilterGroup && !buyerFilterGroup.has(t.customerId)) return false;
@@ -1066,7 +1084,7 @@ export default function OrdersPage() {
       }
       return true;
     });
-  }, [list, query, state.customers, buyerFilterGroup, dayFilter, dayFilterTo]);
+  }, [list, query, state.customers, buyerFilterGroup, dayFilter, dayFilterTo, orderRefs]);
 
   // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
   // Deduped by canonical name so a cosmetic-duplicate Customer row doesn't
@@ -3982,6 +4000,7 @@ export default function OrdersPage() {
   // numbers overflow the narrow KPI box and run into the next card.
   const stripUnit = (s: string) => s.replace(/\s*(QAR|EGP|USDT)$/i, '');
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number; egpTotal?: number | null }) => {
+    if (v2) return null; // the redesigned layout draws its figures at the top of the page
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
@@ -4009,9 +4028,187 @@ export default function OrdersPage() {
     );
   };
 
-  return (
-    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
+  // ── Redesigned phone layout: figures, months and cards, all from the same data as the classic layout ──
+  const v2Months = useMemo(() => availableMonths.map(m => {
+    const [y, mm] = m.split('-');
+    const d = new Date(parseInt(y), parseInt(mm) - 1);
+    const loc = t.lang === 'ar' ? 'ar-EG' : 'en-US';
+    return { key: m, label: d.toLocaleString(loc, { month: 'short', year: '2-digit' }), long: d.toLocaleString(loc, { month: 'long', year: 'numeric' }) };
+  }), [availableMonths, t.lang]);
+
+  const v2KpiSource = activeTab === 'incoming' ? inKpi : activeTab === 'outgoing' ? outKpi : myKpi;
+  const v2Kpis: V2Kpi[] = (() => {
+    if (!v2 || activeTab === 'customers') return [];
+    const isMy = activeTab === 'my';
+    const rows = isMy ? subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId) : [];
+    const sparkOf = (pick: (tr: Trade) => number) => bucketSeries(rows.map(tr => ({ ts: tr.ts, value: pick(tr) })));
+    const netOf = (tr: Trade) => {
+      const c = derived.tradeCalc.get(tr.id);
+      if (c?.ok) return c.netQAR;
+      return tr.manualBuyPrice ? tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : 0;
+    };
+    const change = isMy ? orderCountChange(allTrades.filter(tr => !tr.voided && tr.approvalStatus !== 'cancelled').map(tr => tr.ts), selectedMonth, Date.now()) : null;
+    const k = v2KpiSource as { count: number; qty?: number; vol: number; net: number };
+    const cards: V2Kpi[] = [
+      { key: 'count', label: t('ov2TotalOrders'), Icon: ListChecks, tone: 'brand', value: String(k.count), delta: change, deltaLabel: t('ov2VsLast'), spark: isMy ? sparkOf(() => 1) : undefined, kind: 'line' },
+      ...(k.qty != null ? [{ key: 'qty', label: t('ov2UsdtQty'), Icon: Layers, tone: 'good' as const, value: fmtU(k.qty), unit: 'USDT', spark: sparkOf(tr => tr.amountUSDT) }] : []),
+      { key: 'vol', label: t('ov2TotalVolume'), Icon: ArrowLeftRightIcon, tone: 't5', value: splitMoney(fmtC(k.vol)).n, unit: splitMoney(fmtC(k.vol)).u || undefined, spark: sparkOf(tr => tr.amountUSDT * tr.sellPriceQAR) },
+      { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line' },
+    ];
+    return cards;
+  })();
+  const v2Extras = !v2 ? [] : [
+    ...(activeTab === 'my' && buyerFilter && myKpi.egpTotal != null ? [{ key: 'egp', label: t('ov2TotalEgp'), value: fmtTotal(myKpi.egpTotal) }] : []),
+    ...(activeTab !== 'my' && activeTab !== 'customers' && v2KpiSource.count > 0 ? [{ key: 'avg', label: t('ov2AvgDeal'), value: stripUnit(fmtC(v2KpiSource.vol / v2KpiSource.count)) }] : []),
+  ];
+
+  const renderMyOrderV2Card = (tr: Trade) => {
+    const c = derived.tradeCalc.get(tr.id);
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements })
+      : null;
+    const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
+    const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
+    const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
+    const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+    const name = customerLabel(tr.customerId) || '—';
+    const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
+    const qty = linkedRow?.quantity ?? tr.amountUSDT;
+    const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
+    const loan = loanByTradeId.get(tr.id);
+    const loanPct = loan ? Math.min(100, Math.round((getLoanRepaid(loan) / (loan.principal || 1)) * 100)) : 0;
+    const reference = orderRefs.get(tr.id) ?? '';
+    const portalUser = resolveTradePortalUserId(tr, state.customers, portalLinks);
+    const locale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-US';
+    const when = new Date(tr.ts);
+
+    const menu: V2MenuItem[] = [
+      ...((!tr.approvalStatus || tr.approvalStatus === 'pending_approval') ? [{ key: 'edit', label: t('edit'), onClick: () => openEdit(tr.id) }] : []),
+      ...(tr.approvalStatus === 'pending_approval' ? [{ key: 'cancel', label: t('cancel'), tone: 'bad' as const, onClick: () => handleCancelTrade(tr.id) }] : []),
+      ...(tr.approvalStatus === 'approved' ? [{ key: 'reqcancel', label: t('requestCancellation'), tone: 'warn' as const, onClick: () => handleCancelTrade(tr.id) }] : []),
+      ...(portalUser ? [{ key: 'push', label: `📤 ${t('pushToClientPortal')}`, tone: 'brand' as const, onClick: () => pushTradeToClient(tr) }] : []),
+      { key: 'details', label: detailsOpen[tr.id] ? t('ov2Hide') : t('ov2Details'), onClick: () => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] })) },
+      { key: 'copy', label: t('ov2Copy'), onClick: () => { void navigator.clipboard?.writeText(reference); toast.success(t('ov2Copied')); } },
+    ];
+
+    const marks = (
+      <>
+        {isMerchantLinked && <span style={{ fontSize: 12 }}>🤝</span>}
+        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 12 }}>🔶</span> : null}
+        {loan && (
+          <span
+            className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
+            title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
+            style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+          >
+            🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
+          </span>
+        )}
+        {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 11 }}>🚨</span>}
+      </>
+    );
+
+    const status = tr.approvalStatus === 'pending_approval'
+      ? { label: t('ov2Pending'), kind: 'warn' as const }
+      : tr.approvalStatus === 'rejected'
+        ? { label: t('ov2Rejected'), kind: 'bad' as const }
+        : { label: t('ov2Completed'), kind: 'good' as const };
+
+    return (
+      <OrdersV2Card
+        key={`v2-trade-${tr.id}`}
+        id={tr.id}
+        name={name}
+        initial={initialOf(name)}
+        tone={avatarTone(name, 6)}
+        marks={marks}
+        reference={reference}
+        statusLabel={status.label}
+        statusKind={status.kind}
+        dateText={when.toLocaleDateString(locale)}
+        timeText={when.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })}
+        qty={`${fmtU(qty)}`}
+        rate={fmtP(rate)}
+        volume={fmtC(rev)}
+        net={Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+        netTone={Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : 'muted'}
+        labels={{ qty: t('qty'), rate: t('otcRate'), volume: t('volume'), net: t('net') }}
+        detailsLabel={detailsOpen[tr.id] ? t('ov2Hide') : t('ov2Details')}
+        detailsOpen={!!detailsOpen[tr.id]}
+        onDetails={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
+        menu={menu}
+        menuLabel={t('ov2Menu')}
+        onChat={portalUser ? () => navigate('/chat') : undefined}
+        chatLabel={t('ov2Chat')}
+        copyLabel={t('ov2Copy')}
+        copiedLabel={t('ov2Copied')}
+        highlight={loan ? 'loan' : null}
+      >
+        {isMerchantLinked && linkedRel && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8, fontSize: 12 }}>
+            <span className="muted">{t('merchant')}</span>
+            <strong style={{ textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
+          </div>
+        )}
+        {loan && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>
+              <span>{t('loanRepaymentHistory')}</span>
+              <span className="mono">{fmtTotal(getLoanRepaid(loan))} / {fmtTotal(loan.principal)} {loan.currency}</span>
+            </div>
+            <div className="prog" style={{ height: 6 }}>
+              <span style={{ width: `${loanPct}%`, background: loan.status === 'closed' ? 'var(--good)' : 'var(--warn)' }} />
+            </div>
+          </div>
+        )}
+        {renderDetail(tr, c)}
+      </OrdersV2Card>
+    );
+  };
+
+  const v2SearchValue = settings.searchQuery || '';
+  const v2FiltersActive = Boolean(buyerFilter || dayFilter);
+  const v2NewOrder = () => setNewSaleSheetOpen(true);
+
+  return (
+    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${v2 ? ' ov2' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+
+      {v2 ? (
+        <>
+          <OrdersV2Header title={t('ov2Title')} subtitle={t('ov2Subtitle')} newLabel={t('newOrder')} onNew={v2NewOrder} />
+          {v2Kpis.length > 0 && <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />}
+          <OrdersV2Tabs
+            active={activeTab}
+            onSelect={id => {
+              if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
+              else if (id === 'customers') setActiveTab('customers');
+              else { setActiveTab(id); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }
+            }}
+            tabs={[
+              { id: 'my', label: t('ov2AllOrders'), Icon: ListChecks },
+              { id: 'incoming', label: t('incomingOrders'), Icon: ArrowDownToLine },
+              { id: 'outgoing', label: t('outgoingOrders'), Icon: ArrowUpFromLine },
+              { id: 'customers', label: t('customers'), Icon: UsersIcon },
+            ]}
+          />
+          {activeTab === 'my' && (
+            <>
+              <OrdersV2SearchBar
+                value={v2SearchValue}
+                onChange={v => update({ searchQuery: v })}
+                placeholder={t('ov2Search')}
+                onFilter={() => setV2FilterOpen(true)}
+                filterActive={v2FiltersActive}
+                filterLabel={t('ov2Filters')}
+              />
+              <ExchangeReferenceSearch state={state} scope="orders" compact value={v2SearchValue} onValueChange={v => update({ searchQuery: v })} hideInput />
+            </>
+          )}
+        </>
+      ) : (
+        <>
       <ExchangeReferenceSearch state={state} scope="orders" compact />
 
       {/* ─── TAB BAR ─── */}
@@ -4041,6 +4238,8 @@ export default function OrdersPage() {
           👥 {t('customers')}
         </button>
       </div>
+        </>
+      )}
 
       {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
       {activeTab === 'customers' && (
@@ -4055,6 +4254,9 @@ export default function OrdersPage() {
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
             <>
+              {v2 ? (
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+              ) : (
               <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
@@ -4076,6 +4278,7 @@ export default function OrdersPage() {
                   );
                 })}
               </div>
+              )}
 
               <div className="orders-filter-row" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0' }}>
                 <ModernSelect compact
@@ -4094,16 +4297,18 @@ export default function OrdersPage() {
                   lang={t.lang === 'ar' ? 'ar' : 'en'}
                   title={t('filterByDay')}
                   emptyLabel={t('filterByDate')}
+                  triggerClassName={v2 ? 'ov2-chipbtn' : undefined}
+                  triggerActiveClassName={v2 ? 'on' : undefined}
                 />
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
                 <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} side="sell" onRegister={applyExchangeOrderPrefill} />
-                <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
-                  {exportingXlsx ? t('exporting') : t('exportXlsx')}
+                <button className="rowBtn ov2-xlsx" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
+                  {v2 && <FileSpreadsheet />}{exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>
-                <button className="rowBtn" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}>
-                  {exportingPdf ? t('exporting') : t('exportPdf')}
+                <button className="rowBtn ov2-pdf" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}>
+                  {v2 && <FileTextIcon />}{exportingPdf ? t('exporting') : t('exportPdf')}
                 </button>
               </div>
 
@@ -4117,8 +4322,20 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('addBatchThenSale')}</div>
                 </div>
               ) : isMobile ? (
-                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {paginatedOrders.map((tr) => renderMyOrderMobileCard(tr))}
+                <>
+                {v2 && (
+                  <OrdersV2ListHeader
+                    count={subFilteredMy.length}
+                    word={t('ov2OrdersWord')}
+                    sortLabel={v2Oldest ? t('ov2OldestFirst') : t('ov2LatestFirst')}
+                    sortAsc={v2Oldest}
+                    onSort={() => setV2Oldest(o => !o)}
+                    view={v2View}
+                    onView={setV2View}
+                  />
+                )}
+                <div className={`orders-cards-list${v2 && v2View === 'grid' ? ' grid' : ''}`} style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {(v2 && v2Oldest ? [...paginatedOrders].reverse() : paginatedOrders).map((tr) => (v2 ? renderMyOrderV2Card(tr) : renderMyOrderMobileCard(tr)))}
                   {/* Unlinked merchant deals (same logic as desktop) */}
                   {(() => {
                     const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
@@ -4144,6 +4361,7 @@ export default function OrdersPage() {
                     });
                   })()}
                 </div>
+                </>
               ) : (
                 <div className="tableWrap ledgerWrap">
                   <table>
@@ -4362,6 +4580,9 @@ export default function OrdersPage() {
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
             <>
+              {v2 ? (
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+              ) : (
               <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
@@ -4383,6 +4604,7 @@ export default function OrdersPage() {
                   );
                 })}
               </div>
+              )}
 
               {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
@@ -4534,6 +4756,9 @@ export default function OrdersPage() {
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
+              {v2 ? (
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+              ) : (
               <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
@@ -4555,6 +4780,7 @@ export default function OrdersPage() {
                   );
                 })}
               </div>
+              )}
 
               {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
@@ -6566,7 +6792,7 @@ export default function OrdersPage() {
       )}
 
       {/* ── FAB: open New Sale sheet (mobile only) ── */}
-      {isMobile && activeTab === 'my' && (
+      {isMobile && !v2 && activeTab === 'my' && (
         <button
           onClick={() => setNewSaleSheetOpen(true)}
           title="New Sale"
@@ -6584,6 +6810,38 @@ export default function OrdersPage() {
           onPointerUp={e => (e.currentTarget.style.transform = '')}
         >
           +
+        </button>
+      )}
+
+      {/* ── Redesigned layout: the filters sheet behind the funnel, and the way back to the classic layout ── */}
+      {v2 && (
+        <OrdersV2Sheet open={v2FilterOpen} title={t('ov2Filters')} onClose={() => setV2FilterOpen(false)} doneLabel={t('ov2Done')}>
+          <label>{t('buyer')}
+            <ModernSelect value={buyerFilter} onChange={e => setBuyerFilter(e.target.value)}>
+              <option value="">{t('allBuyers')}</option>
+              {buyerFilterOptions.map(c => (
+                <option key={c.id} value={c.id}>{resolveCustomerName(c, t.lang)}</option>
+              ))}
+            </ModernSelect>
+          </label>
+          <label>{t('filterByDate')}
+            <PeriodPicker
+              from={dayFilter}
+              to={dayFilterTo}
+              onChange={(from, to) => { setDayFilter(from); setDayFilterTo(to); }}
+              lang={t.lang === 'ar' ? 'ar' : 'en'}
+              title={t('filterByDay')}
+              emptyLabel={t('filterByDate')}
+              triggerClassName="ov2-chipbtn"
+              triggerActiveClassName="on"
+            />
+          </label>
+          {hasActiveOrderFilters && <button type="button" className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>}
+        </OrdersV2Sheet>
+      )}
+      {isMobile && (
+        <button type="button" className="ov2-classic" onClick={() => setDesign(design === 'v2' ? 'classic' : 'v2')}>
+          {design === 'v2' ? t('ov2Classic') : t('ov2Try')}
         </button>
       )}
 

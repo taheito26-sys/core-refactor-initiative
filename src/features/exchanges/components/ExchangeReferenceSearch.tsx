@@ -34,6 +34,9 @@ export function ExchangeReferenceSearch({
   onManualFix,
   compact,
   scope = 'all',
+  value,
+  onValueChange,
+  hideInput,
 }: {
   state: TrackerState;
   /** Offered on a record that is still unregistered. */
@@ -42,10 +45,16 @@ export function ExchangeReferenceSearch({
   compact?: boolean;
   /** stock = received USDT and stock batches, orders = sent USDT and sales, all = both (the Loans tab). */
   scope?: ReferenceScope;
+  /** When the page draws its own search box, the text comes from there and this only shows what it finds. */
+  value?: string;
+  onValueChange?: (next: string) => void;
+  hideInput?: boolean;
 }) {
   const t = useT();
   const queryClient = useQueryClient();
-  const [query, setQuery] = useState('');
+  const [innerQuery, setInnerQuery] = useState('');
+  const query = value ?? innerQuery;
+  const setQuery = onValueChange ?? setInnerQuery;
   const [looking, setLooking] = useState(false);
   const [lookedUp, setLookedUp] = useState('');
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
@@ -107,9 +116,11 @@ export function ExchangeReferenceSearch({
   const statusColor = (hit: ExchangeReferenceHit) =>
     hit.status.kind === 'pending' ? 'var(--warn)' : hit.status.kind === 'resolved' ? 'var(--muted)' : 'var(--good)';
 
+  if (hideInput && !searchable) return null;
+
   return (
     <div className="panel" style={{ padding: compact ? 8 : 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      {!hideInput && <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -119,7 +130,7 @@ export function ExchangeReferenceSearch({
           style={{ flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)', fontSize: 12, fontFamily: 'monospace' }}
         />
         {query && <button type="button" className="rowBtn" onClick={() => { setQuery(''); setLookedUp(''); }}>✕</button>}
-      </div>
+      </div>}
 
       {query && !searchable && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('refTooShort')}</div>}
 
