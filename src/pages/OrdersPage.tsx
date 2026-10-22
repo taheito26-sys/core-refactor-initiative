@@ -4051,9 +4051,9 @@ export default function OrdersPage() {
     const change = isMy ? orderCountChange(allTrades.filter(tr => !tr.voided && tr.approvalStatus !== 'cancelled').map(tr => tr.ts), selectedMonth, Date.now()) : null;
     const k = v2KpiSource as { count: number; qty?: number; vol: number; net: number };
     const cards: V2Kpi[] = [
-      { key: 'count', label: t('ov2TotalOrders'), Icon: ListChecks, tone: 'brand', value: String(k.count), delta: change, deltaLabel: t('ov2VsLast'), spark: isMy ? sparkOf(() => 1) : undefined, kind: 'line' },
-      ...(k.qty != null ? [{ key: 'qty', label: t('ov2UsdtQty'), Icon: Layers, tone: 'good' as const, value: fmtU(k.qty), unit: 'USDT', spark: sparkOf(tr => tr.amountUSDT) }] : []),
-      { key: 'vol', label: t('ov2TotalVolume'), Icon: ArrowLeftRightIcon, tone: 't5', value: splitMoney(fmtC(k.vol)).n, unit: splitMoney(fmtC(k.vol)).u || undefined, spark: sparkOf(tr => tr.amountUSDT * tr.sellPriceQAR) },
+      { key: 'count', label: t('ov2TotalOrders'), Icon: ListChecks, tone: 'brand', sparkTone: 'good', value: String(k.count), delta: change, deltaLabel: t('ov2VsLast'), spark: isMy ? sparkOf(() => 1) : undefined, kind: 'line' },
+      ...(k.qty != null ? [{ key: 'qty', label: t('ov2UsdtQty'), Icon: Layers, tone: 'good' as const, sparkTone: 'brand' as const, value: fmtU(k.qty), unit: 'USDT', spark: sparkOf(tr => tr.amountUSDT) }] : []),
+      { key: 'vol', label: t('ov2TotalVolume'), Icon: ArrowLeftRightIcon, tone: 'brand2', value: splitMoney(fmtC(k.vol)).n, unit: splitMoney(fmtC(k.vol)).u || undefined, spark: sparkOf(tr => tr.amountUSDT * tr.sellPriceQAR) },
       { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line' },
     ];
     return cards;

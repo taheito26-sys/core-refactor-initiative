@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  ArrowRight, ArrowUp, ArrowDown, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MessageCircle,
+  ArrowRight, ArrowUp, ArrowDown, CalendarDays, Check, Clock, ChevronDown, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MessageCircle,
   MoreVertical, Plus, Search, X, Zap, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -53,6 +53,8 @@ export interface V2Kpi {
   delta?: number | null;
   deltaLabel?: string;
   spark?: number[];
+  /** The trend's own colour when it differs from the icon's. */
+  sparkTone?: V2Tone;
   kind?: 'line' | 'bars';
 }
 
@@ -71,7 +73,7 @@ export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array
                 {k.deltaLabel && <span>{k.deltaLabel}</span>}
               </div>
             )}
-            {k.spark && k.spark.some(v => v !== 0) && <Sparkline className={cn('ov2-kspark', k.kind ?? 'bars')} values={k.spark} color={toneVar(k.tone)} kind={k.kind ?? 'bars'} />}
+            {k.spark && k.spark.some(v => v !== 0) && <Sparkline className={cn('ov2-kspark', k.kind ?? 'bars')} values={k.spark} color={toneVar(k.sparkTone ?? k.tone)} kind={k.kind ?? 'bars'} />}
           </section>
         ))}
       </div>
@@ -237,7 +239,7 @@ export function OrdersV2Card(p: V2CardProps) {
         </div>
         <div className="ov2-c-meta">
           <span className={cn('ov2-status', p.statusKind)}>{p.statusLabel}</span>
-          <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span><span>{p.timeText}</span></div>
+          <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span><span><Clock />{p.timeText}</span></div>
         </div>
         <div className="ov2-c-acts">
           {p.onChat && <button type="button" className="ov2-icbtn" onClick={p.onChat} aria-label={p.chatLabel} title={p.chatLabel}><MessageCircle /></button>}
