@@ -53,7 +53,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
   return (
     <header
-      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? 'flex-nowrap' : 'border-b border-border', onPhoneDashboard ? '' : 'max-md:flex-wrap max-md:justify-start')}
+      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? '' : 'border-b border-border', 'max-md:flex-wrap max-md:justify-start')}
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -144,8 +144,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         </div>
       )}
 
-      {/* ── Zoom Controls ── */}
-      {!onPhoneDashboard && <ZoomControls />}
+      {/* ── Zoom Controls (on a narrow phone dashboard they drop to the end of a second line rather than leave the screen) ── */}
+      <ZoomControls className={onPhoneDashboard ? 'ms-auto' : undefined} />
 
       {/* ── Activity ── */}
       <div className="max-md:order-[-1] shrink-0">

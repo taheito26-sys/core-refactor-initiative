@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { ZoomControls } from '@/components/shared/ZoomControls';
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -46,10 +45,6 @@ export function DashboardFilterSheet() {
             emptyLabel={t('dhCustomPeriod')}
           />
           <p className="dh-sheet-hint">{t('dhCustomHint')}</p>
-        </div>
-        <div className="dh-sheet-sec dh-sheet-zoom">
-          <label>{t('dhZoomLabel')}</label>
-          <ZoomControls />
         </div>
         <footer className="dh-sheet-foot">
           <button type="button" className="dh-btn ghost" onClick={reset}>{t('dhReset')}</button>

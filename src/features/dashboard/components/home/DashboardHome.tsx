@@ -4,14 +4,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
-import { ZoomControls } from '@/components/shared/ZoomControls';
-import { useDashboardFilters } from '../../dashboard-filters';
 import {
   deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
   type DashPoint, type RangeWindow,
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
-import { DhSelect } from './DhSelect';
 import { ProfitTrendCard } from './ProfitTrendCard';
 import { DashboardFilterSheet, DashboardSearchSheet } from './DashboardSheets';
 
@@ -102,7 +99,6 @@ export function DashboardHome({
 }: DashboardHomeProps) {
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
-  const { scope, setScope } = useDashboardFilters();
 
   // Everything on this page is sized in units that follow the screen's real width, so it fills a
   // small phone and a large one alike; the app zoom is divided back out so zoom still enlarges it.
@@ -141,8 +137,6 @@ export function DashboardHome({
     { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', unit: 'var(--text)', value: cur.net, pct: pctChange(dCur.net, dPrev?.net), spark: netSpark, kind: 'line' },
   ];
 
-  const scopeLabel = scope === 'own' ? t('dhOwnOrders') : scope === 'partner' ? t('dhPartnerOrders') : t('dhAllOrders');
-  const [dFrom, dTo] = rangeText.split(' – ');
   const monthStats = useMemo(() => {
     const d = new Date(now);
     const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -173,26 +167,6 @@ export function DashboardHome({
 
   return (
     <div className="dh" ref={rootRef} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      {/* Hero */}
-      <section className="dh-hero">
-        <div className="dh-hero-t">
-          <h1>{t('dhTitle')}</h1>
-          <p>{t('dhSubtitle')}</p>
-          <ZoomControls className="dh-zoom" showPercent="always" />
-        </div>
-        <DhSelect
-          className="dh-hero-scope"
-          value={scope}
-          onChange={setScope}
-          ariaLabel={scopeLabel}
-          options={[{ value: 'all', label: t('dhAllOrders') }, { value: 'own', label: t('dhOwnOrders') }, { value: 'partner', label: t('dhPartnerOrders') }]}
-        />
-        <div className="dh-hero-range">
-          <CalendarDays />
-          <span>{dFrom}<br />{dTo ? `– ${dTo}` : ''}</span>
-        </div>
-      </section>
-
       {/* Three headline figures */}
       <div className="dh-stats">
         {stats.map(s => {
