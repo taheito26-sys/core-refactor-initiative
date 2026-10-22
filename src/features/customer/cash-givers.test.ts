@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findGiverInNotes, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from './cash-givers';
+import { findGiverInNotes, giverAccent, giverPaymentNumbers, GIVER_COLORS, NO_GIVER_COLOR, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from './cash-givers';
 
 describe('findGiverInNotes', () => {
   const givers = ['Hassan', 'Damrawi', 'حسن'];
@@ -160,5 +160,24 @@ describe('uniquePaymentKeys', () => {
     expect(rows.map(r => r.key)).toEqual(['QAR:1:17500', 'QAR:1:40000', 'QAR:1:17500#2']);
     expect(rows.map(r => r.base)).toEqual(['QAR:1:17500', 'QAR:1:40000', 'QAR:1:17500']);
     expect(new Set(rows.map(r => r.key)).size).toBe(3);
+  });
+});
+
+describe('giverAccent', () => {
+  const names = ['Hassan', 'Damrawi'];
+  it('gives each person their own colour and keeps it for every payment', () => {
+    expect(giverAccent('Hassan', names)).toBe(giverAccent('hassan', names));
+    expect(giverAccent('Hassan', names)).not.toBe(giverAccent('Damrawi', names));
+  });
+  it('does not change when payments or other people come and go', () => {
+    expect(giverAccent('Damrawi', names)).toBe(giverAccent('Damrawi', [...names, 'Saeed']));
+  });
+  it('uses a separate colour for payments with no giver and never the waiting red', () => {
+    expect(giverAccent(null, names)).toBe(NO_GIVER_COLOR);
+    expect(GIVER_COLORS).not.toContain(NO_GIVER_COLOR);
+    expect(GIVER_COLORS).not.toContain('#e11d48');
+  });
+  it('colours a person missing from the list steadily', () => {
+    expect(giverAccent('Newcomer', names)).toBe(giverAccent('Newcomer', names));
   });
 });

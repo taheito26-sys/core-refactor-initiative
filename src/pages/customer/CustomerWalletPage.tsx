@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
+import { giverAccent, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
 import { DateRangeFilterDropdown } from "@/features/orders/components/DateRangeFilterDropdown";
@@ -567,8 +567,9 @@ const NO_GIVER = "__none__";
 
 // ── Payments card styling ─────────────────────────────────────────
 
-// Card accents alternate within a status for completed rows (green/purple). A payment still waiting
-// on the merchant is always red, and a rejected one grey, so red only ever means "not confirmed yet".
+// A completed payment takes the colour of the person who gave the cash (see giverAccent), so it is the same
+// for all of that person's payments. A payment still waiting on the merchant is always red, and a rejected
+// one grey, so red only ever means "not confirmed yet".
 const PAYMENT_STATUS_STYLES = {
   completed: { accents: ["#16a34a", "#7c3aed"], Icon: Check, label: (L: (en: string, ar: string) => string) => L("Completed", "مكتمل") },
   pending: { accents: ["#e11d48"], Icon: Clock, label: (L: (en: string, ar: string) => string) => L("Processing", "قيد المعالجة") },
@@ -1074,15 +1075,12 @@ export default function CustomerWalletPage() {
     return counts;
   }, [byGiverRows]);
   const rowAccent = useMemo(() => {
-    const seen = { completed: 0, pending: 0, rejected: 0 };
     const map = new Map<string, string>();
     for (const r of paymentRows) {
-      const accents = PAYMENT_STATUS_STYLES[r.status].accents;
-      map.set(r.key, accents[seen[r.status] % accents.length]);
-      seen[r.status] += 1;
+      map.set(r.key, r.status === "completed" ? giverAccent(r.giver, giverNames) : PAYMENT_STATUS_STYLES[r.status].accents[0]);
     }
     return map;
-  }, [paymentRows]);
+  }, [paymentRows, giverNames]);
   const visibleRows = useMemo(
     () => (statusFilter === "all" ? byGiverRows : byGiverRows.filter(r => r.status === statusFilter)),
     [byGiverRows, statusFilter],

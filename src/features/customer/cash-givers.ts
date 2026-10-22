@@ -131,3 +131,23 @@ export function uniquePaymentKeys<T extends { currency: string; date: number; am
     return { ...r, key: n === 1 ? base : `${base}#${n}`, base };
   });
 }
+
+/** Colours a giver's payments can take, none of them the red a waiting payment uses or the grey of a cancelled one. */
+export const GIVER_COLORS = ['#16a34a', '#7c3aed', '#0ea5e9', '#f59e0b', '#db2777', '#0d9488', '#ea580c', '#4f46e5'] as const;
+/** Payments with no giver. */
+export const NO_GIVER_COLOR = '#2563eb';
+
+/**
+ * One colour per person, whatever their payments or orders are: it follows the giver's place in the buyer's own
+ * list, so the same person keeps the same colour every time, and a person the list has not got yet falls back to
+ * a colour taken from the name, which is just as steady.
+ */
+export function giverAccent(giver: string | null | undefined, giverNames: string[]): string {
+  if (!giver) return NO_GIVER_COLOR;
+  const want = normalizeGiverText(giver);
+  const at = giverNames.findIndex(n => normalizeGiverText(n) === want);
+  if (at >= 0) return GIVER_COLORS[at % GIVER_COLORS.length];
+  let hash = 0;
+  for (const ch of want) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return GIVER_COLORS[hash % GIVER_COLORS.length];
+}
