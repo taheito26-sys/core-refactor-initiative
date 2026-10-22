@@ -7,9 +7,10 @@ const dayCode = (ts: number) => { const d = new Date(ts); return `${d.getFullYea
 
 /**
  * The reference shown on an order card, ORD-YYYYMMDD-NNN: the day it was placed and its place among that day's
- * orders, oldest first, ordered the way the page orders everything else (see comparePlacement).
+ * orders, oldest first, ordered the way the page orders everything else (see comparePlacement). Stock batches use
+ * the same numbering under their own prefix (BAT-…).
  */
-export function orderReferences(trades: Array<{ id: string; ts: number; exchangeOrderNumber?: string | null }>): Map<string, string> {
+export function orderReferences(trades: Array<{ id: string; ts: number; exchangeOrderNumber?: string | null }>, prefix = 'ORD'): Map<string, string> {
   const sorted = [...trades].sort((a, b) => comparePlacement(
     { ts: a.ts, orderNumber: a.exchangeOrderNumber, id: a.id },
     { ts: b.ts, orderNumber: b.exchangeOrderNumber, id: b.id },
@@ -20,7 +21,7 @@ export function orderReferences(trades: Array<{ id: string; ts: number; exchange
     const code = dayCode(tr.ts);
     const n = (perDay.get(code) ?? 0) + 1;
     perDay.set(code, n);
-    out.set(tr.id, `ORD-${code}-${String(n).padStart(3, '0')}`);
+    out.set(tr.id, `${prefix}-${code}-${String(n).padStart(3, '0')}`);
   }
   return out;
 }

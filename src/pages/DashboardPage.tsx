@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -36,6 +36,7 @@ import { ArrowLeftRight, BadgeDollarSign, Boxes, Clock, Hourglass, Landmark, Pie
 const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
 import ClassicDashboardPage from '@/pages/ClassicDashboardPage';
 import { useHomeDesign } from '@/features/orders/v2/design';
+import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import '@/styles/tracker.css';
 import '@/styles/dashboard-home.css';
 
@@ -50,12 +51,13 @@ interface DashboardPageProps {
 /** The merchant home: the redesigned dashboard, or the classic one when the user has switched back to it. */
 export default function DashboardPage(props: DashboardPageProps = {}) {
   const [design, setDesign] = useHomeDesign();
+  const layoutSwitch = props.isAdminView ? null : <LayoutSwitch design={design} onChange={setDesign} />;
   return design === 'classic'
-    ? <ClassicDashboardPage {...props} onUseNewLayout={() => setDesign('v2')} />
-    : <DashboardHomePage {...props} onUseClassic={() => setDesign('classic')} />;
+    ? <ClassicDashboardPage {...props} topSlot={layoutSwitch} />
+    : <DashboardHomePage {...props} topSlot={layoutSwitch} />;
 }
 
-function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, onUseClassic }: DashboardPageProps & { onUseClassic?: () => void }) {
+function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, topSlot }: DashboardPageProps & { topSlot?: ReactNode }) {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
@@ -685,6 +687,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
 
   return (
     <div className="tracker-root dashboard-home-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100%' }}>
+      {topSlot}
       <DashboardHome
         points={points}
         allPoints={allPoints}
@@ -703,15 +706,6 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
       >
         <CustomKpis trackerOptions={homeKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} period={kpiPeriod} onPeriod={setKpiPeriod} />
       </DashboardHome>
-      {onUseClassic && (
-        <button
-          type="button"
-          onClick={onUseClassic}
-          style={{ display: 'block', margin: '0 auto 12px', border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', padding: '8px 12px', cursor: 'pointer' }}
-        >
-          {t('ov2Classic')}
-        </button>
-      )}
 
       {showCashBox && !isAdminView && (
         <CashBoxManager

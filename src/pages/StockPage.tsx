@@ -58,6 +58,15 @@ import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDial
 import { usePendingExchangeItems } from '@/features/stock/hooks/usePendingExchangeItems';
 import { batchUntaggedUSDT } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
+import { Coins, Factory, Handshake, Layers, Package, TrendingUp, Wallet } from 'lucide-react';
+import {
+  OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
+  type V2Kpi, type V2MenuItem,
+} from '@/features/orders/v2/OrdersV2';
+import { avatarTone, bucketSeries, initialOf, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
+import { useStockDesign } from '@/features/orders/v2/design';
+import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
+import '@/styles/orders-v2.css';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -137,6 +146,12 @@ export default function StockPage() {
   // buttons still reference. Suppliers moved here from the old combined CRM
   // page; customers moved to the Orders page instead.
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
+  // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
+  const [design, setDesign] = useStockDesign();
+  const v2 = isMobile && design === 'v2';
+  const [v2FilterOpen, setV2FilterOpen] = useState(false);
+  const [v2Oldest, setV2Oldest] = useState(false);
+  const [v2View, setV2View] = useState<'list' | 'grid'>('list');
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
   // ── Mobile Add Batch Sheet ────────────────────────────────────────
   const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
@@ -1002,9 +1017,149 @@ export default function StockPage() {
     submitBtn: { background: 'linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #6366f1))', border: 'none', color: '#fff', boxShadow: '0 4px 14px -4px color-mix(in srgb, var(--brand) 60%, transparent)' } as React.CSSProperties,
   };
 
-  return (
-    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+  // ── Redesigned phone layout: figures, months and batch cards from the same data as the classic layout ──
+  const v2Months = availableMonths.map(m => {
+    const [y, mm] = m.split('-');
+    const d = new Date(parseInt(y), parseInt(mm) - 1);
+    const loc = t.lang === 'ar' ? 'ar-EG' : 'en-US';
+    return { key: m, label: d.toLocaleString(loc, { month: 'short', year: '2-digit' }), long: d.toLocaleString(loc, { month: 'long', year: 'numeric' }) };
+  });
+  const v2Invested = perf.reduce((sum, b) => sum + b.initialUSDT * b.buyPriceQAR, 0);
+  const v2Spark = (pick: (b: typeof perf[number]) => number) => bucketSeries(perf.map(b => ({ ts: b.ts, value: pick(b) })));
+  const v2Money = (v: number, signed = false) => { const { n, u } = splitMoney(fmtC(v)); return { value: `${signed && v >= 0 ? '+' : ''}${n}`, unit: u || undefined }; };
+  const v2Kpis: V2Kpi[] = !v2 ? [] : [
+    { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(recentAvailableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
+    { key: 'invested', label: t('totalInvestedQar'), Icon: Wallet, tone: 'brand', ...v2Money(v2Invested), spark: v2Spark(b => b.initialUSDT * b.buyPriceQAR) },
+    ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(recentAvailableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
+    { key: 'avg', label: t('monthAvgBuyPrice'), Icon: Coins, tone: 'warn', value: monthAvgBuyPrice != null ? fmtP(monthAvgBuyPrice) : '—', unit: monthAvgBuyPrice != null ? `${localCur(baseFiat, t.lang)}/${localCur('USDT', t.lang)}` : undefined, kind: 'line', spark: perf.length > 1 ? [...perf].reverse().map(b => b.buyPriceQAR) : undefined },
+  ];
+  const v2Extras = !v2 ? [] : [
+    ...(reconcileExchangesEnabled ? [{ key: 'delta', label: t('reconciliationDelta'), value: `${reconciliationDelta >= 0 ? '+' : ''}${fmtU(reconciliationDelta)} USDT` }] : []),
+    ...(activeFifoBatch ? [{ key: 'fifo', label: t('activeFifoLayer'), value: `${activeFifoBatch.source || '—'} · ${fmtP(activeFifoBatch.buyPriceQAR)}` }] : []),
+    { key: 'binance', label: `${EXCHANGE_LABELS.binance} USDT`, value: fmtU(exchangeUsdtTotals.binance) },
+    { key: 'okx', label: `${EXCHANGE_LABELS.okx} USDT`, value: fmtU(exchangeUsdtTotals.okx) },
+  ];
+  const v2SearchValue = settings.searchQuery || '';
+  const v2Refs = v2 ? orderReferences(state.batches, 'BAT') : new Map<string, string>();
+  const v2OpenAddBatch = () => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); };
 
+  const renderBatchV2Card = (b: typeof perf[number]) => {
+    const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
+    const consumed = Math.max(0, b.initialUSDT - rem);
+    const prog = Math.max(0, Math.min(100, (b.initialUSDT > 0 ? rem / b.initialUSDT : 0) * 100));
+    const ct = batchCycleTime(state, derived, b.id);
+    const isOpen = !!detailsOpen[b.id];
+    const name = b.source || '—';
+    const reference = v2Refs.get(b.id) ?? '';
+    const locale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-US';
+    const when = new Date(b.ts);
+    const untagged = batchUntaggedUSDT(state, b.id);
+    const status = rem <= 1e-9
+      ? { label: t('depleted'), kind: 'bad' as const }
+      : rem < b.initialUSDT ? { label: t('partial'), kind: 'warn' as const } : { label: t('fresh'), kind: 'good' as const };
+    const profit = b.profit || 0;
+    const toggle = () => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }));
+    const menu: V2MenuItem[] = [
+      { key: 'edit', label: t('edit'), onClick: () => openEdit(b.id) },
+      ...(untagged > 1e-6 ? [{ key: 'loan', label: `🤝 ${t('mloanTitle')}`, tone: 'brand' as const, onClick: () => setLoanSources([{ type: 'batch', batchId: b.id, available: untagged, ts: b.ts }]) }] : []),
+      { key: 'details', label: isOpen ? t('ov2Hide') : t('ov2Details'), onClick: toggle },
+      { key: 'copy', label: t('sv2Copy'), onClick: () => { void navigator.clipboard?.writeText(reference); toast.success(t('sv2Copied')); } },
+    ];
+    return (
+      <OrdersV2Card
+        key={`v2-batch-${b.id}`}
+        id={b.id}
+        name={name}
+        initial={initialOf(name)}
+        tone={avatarTone(name, 5)}
+        marks={(
+          <>
+            {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+            {borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 'calc(7.5 * var(--cpx))', whiteSpace: 'nowrap' }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}
+          </>
+        )}
+        reference={reference}
+        statusLabel={status.label}
+        statusKind={status.kind}
+        dateText={when.toLocaleDateString(locale)}
+        timeText={when.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })}
+        qty={`${fmtU(b.initialUSDT)} USDT`}
+        rate={`${fmtP(b.buyPriceQAR)} ${localCur(baseFiat, t.lang)}`}
+        volume={`${fmtU(rem)} USDT`}
+        net={profit !== 0 ? `${profit >= 0 ? '+' : ''}${fmtC(profit)}` : '—'}
+        netTone={profit !== 0 ? (profit >= 0 ? 'good' : 'bad') : 'muted'}
+        labels={{ qty: t('qty'), rate: t('buyPrice'), volume: t('rem'), net: t('profit') }}
+        detailsLabel={isOpen ? t('ov2Hide') : t('ov2Details')}
+        detailsOpen={isOpen}
+        onDetails={toggle}
+        menu={menu}
+        menuLabel={t('ov2Menu')}
+        chatLabel={t('ov2Chat')}
+        copyLabel={t('sv2Copy')}
+        copiedLabel={t('sv2Copied')}
+      >
+        <div style={{ display: 'grid', gap: 6, marginBottom: 8, fontSize: 11 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('cost')}</span>
+            <strong className="mono">{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('batchConsumedQty')}</span>
+            <strong className="mono">{fmtU(consumed)}</strong>
+          </div>
+          {ct !== null && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span className="muted">{t('cycleTime')}</span>
+              <span className="cycle-badge">{fmtDur(ct)}</span>
+            </div>
+          )}
+          {b.note && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span className="muted">{t('batchNotes')}</span>
+              <strong style={{ textAlign: 'end', maxWidth: '62%' }}>{b.note}</strong>
+            </div>
+          )}
+        </div>
+        <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
+        <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
+      </OrdersV2Card>
+    );
+  };
+
+  return (
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+
+      {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
+
+      {v2 ? (
+        <>
+          <OrdersV2Header title={t('stock')} subtitle={t('sv2Subtitle')} newLabel={t('addBatchTitle')} onNew={v2OpenAddBatch} />
+          {activeStockSection === 'batches' && <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />}
+          <OrdersV2Tabs
+            active={activeStockSection}
+            onSelect={id => setActiveStockSection(id as typeof activeStockSection)}
+            tabs={[
+              { id: 'batches', label: t('stock'), Icon: Package },
+              { id: 'suppliers', label: t('suppliers'), Icon: Factory },
+              { id: 'transfers', label: t('mloanTab'), Icon: Handshake },
+            ]}
+          />
+          {activeStockSection !== 'transfers' && (
+            <>
+              <OrdersV2SearchBar
+                value={v2SearchValue}
+                onChange={v => update({ searchQuery: v })}
+                placeholder={t('sv2Search')}
+                onFilter={() => setV2FilterOpen(true)}
+                filterActive={hasActiveStockFilters}
+                filterLabel={t('ov2Filters')}
+              />
+              <ExchangeReferenceSearch state={state} scope="stock" compact value={v2SearchValue} onValueChange={v => update({ searchQuery: v })} hideInput />
+            </>
+          )}
+        </>
+      ) : (
+        <>
       {activeStockSection !== 'transfers' && <ExchangeReferenceSearch state={state} scope="stock" compact />}
 
       {/* ─── SECTION TAB BAR ─── */}
@@ -1028,6 +1183,8 @@ export default function StockPage() {
           🤝 {t('mloanTab')}
         </button>
       </div>
+        </>
+      )}
 
       {/* ── SUPPLIERS TAB — moved here from the old combined CRM page ── */}
       {activeStockSection === 'suppliers' && (
@@ -1047,6 +1204,9 @@ export default function StockPage() {
       {stockTab === 'batches' && (
       <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection !== 'batches' ? { display: 'none' } : undefined) }}>
         <div>
+          {v2 ? (
+            <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={setSelectedMonth} allLabel={t('allMonths')} />
+          ) : (
           <div 
             className="orders-tab-bar" 
             style={{ 
@@ -1080,8 +1240,9 @@ export default function StockPage() {
               );
             })}
           </div>
+          )}
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+          <div className={v2 ? 'orders-filter-row' : undefined} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
             <ModernSelect compact
               value={supplierFilter}
               onChange={e => setSupplierFilter(e.target.value)}
@@ -1097,7 +1258,7 @@ export default function StockPage() {
             <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} side="buy" onRegister={applyExchangeOrderPrefill} />
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
+          <div style={{ display: v2 ? 'none' : 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
@@ -1284,6 +1445,21 @@ export default function StockPage() {
               <div className="empty-t">{t('noBatchesShort')}</div>
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
+          ) : v2 ? (
+            <>
+              <OrdersV2ListHeader
+                count={perf.length}
+                word={t('sv2BatchesWord')}
+                sortLabel={v2Oldest ? t('ov2OldestFirst') : t('ov2LatestFirst')}
+                sortAsc={v2Oldest}
+                onSort={() => setV2Oldest(o => !o)}
+                view={v2View}
+                onView={setV2View}
+              />
+              <div className={`orders-cards-list${v2View === 'grid' ? ' grid' : ''}`} style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                {(v2Oldest ? [...perf].reverse() : perf).map(renderBatchV2Card)}
+              </div>
+            </>
           ) : isMobile ? (
             <div className="orders-cards-list">
               {perf.map((b) => {
@@ -1733,7 +1909,7 @@ export default function StockPage() {
       )} {/* end batches tab */}
 
       {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
-      {isMobile && stockTab === 'batches' && activeStockSection === 'batches' && (
+      {isMobile && !v2 && stockTab === 'batches' && activeStockSection === 'batches' && (
         <button
           aria-label={t('addBatchTitle')}
           onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
@@ -1749,6 +1925,20 @@ export default function StockPage() {
             lineHeight: 1,
           }}
         >+</button>
+      )}
+
+      {v2 && (
+        <OrdersV2Sheet open={v2FilterOpen} title={t('ov2Filters')} onClose={() => setV2FilterOpen(false)} doneLabel={t('ov2Done')}>
+          <label>{t('suppliers')}
+            <ModernSelect value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
+              <option value="">{t('allSuppliers')}</option>
+              {supplierFilterOptions.map(supplier => (
+                <option key={supplier} value={supplier}>{supplier}</option>
+              ))}
+            </ModernSelect>
+          </label>
+          {hasActiveStockFilters && <button type="button" className="rowBtn" onClick={clearStockFilters}>{t('clearFilters')}</button>}
+        </OrdersV2Sheet>
       )}
 
       {/* ── Mobile Add Batch Bottom Sheet ──────────────────────────── */}

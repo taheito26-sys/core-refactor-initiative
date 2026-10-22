@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -42,7 +42,7 @@ interface DashboardPageProps {
  * The merchant home as it was before the redesign, kept whole as the classic layout the user can switch back to
  * (see DashboardPage and features/orders/v2/design).
  */
-export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, onUseNewLayout }: DashboardPageProps & { onUseNewLayout?: () => void } = {}) {
+export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, topSlot }: DashboardPageProps & { topSlot?: ReactNode } = {}) {
   const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('today');
   const { settings } = useTheme();
   const t = useT();
@@ -642,6 +642,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
 
   return (
     <div className={`tracker-root${isMobile ? ' dashboard-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+      {topSlot}
       <div className="kpi-band-grid">
         <div className="kpi-band">
           <div className="kpi-band-title">{t('tradingVolume')}</div>
@@ -828,16 +829,6 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
           </div>
         </div>
       </div>
-
-      {onUseNewLayout && (
-        <button
-          type="button"
-          onClick={onUseNewLayout}
-          style={{ alignSelf: 'center', border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', padding: '8px 12px', cursor: 'pointer' }}
-        >
-          {t('ov2Try')}
-        </button>
-      )}
 
       {showCashBox && !isAdminView && (
         <CashBoxManager

@@ -26,6 +26,12 @@ describe('order references', () => {
     expect(refs.get('y')?.endsWith('-001')).toBe(true);
     expect(refs.get('x')?.endsWith('-002')).toBe(true);
   });
+
+  it('numbers stock batches the same way under their own prefix', () => {
+    const refs = orderReferences([{ id: 'b1', ts: at(2026, 10, 5, 9) }, { id: 'b2', ts: at(2026, 10, 5, 11) }], 'BAT');
+    expect(refs.get('b1')).toBe('BAT-20261005-001');
+    expect(refs.get('b2')).toBe('BAT-20261005-002');
+  });
 });
 
 describe('buyer avatars', () => {
