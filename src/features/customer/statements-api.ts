@@ -33,11 +33,37 @@ function writeCache(variant: StatementVariant, userId: string, data: unknown) {
   }
 }
 
-async function fetchStatements<T>(variant: StatementVariant): Promise<T[]> {
+const inflight = new Map<StatementVariant, Promise<unknown[]>>();
+
+// One call per variant at a time: the early warm-up (see warmStatements) and the page that mounts a moment later
+// share the same request instead of each asking the slow function.
+function fetchStatements<T>(variant: StatementVariant): Promise<T[]> {
+  const running = inflight.get(variant);
+  if (running) return running as Promise<T[]>;
   const fn = variant === 'sales' ? 'customer-loan-statement?sales=1' : 'customer-loan-statement';
-  const { data, error } = await supabase.functions.invoke(fn, { method: 'GET' });
-  if (error || !data || (data as { error?: string }).error) throw new Error('statement fetch failed');
-  return (data as { statements: T[] }).statements ?? [];
+  const call = (async () => {
+    const { data, error } = await supabase.functions.invoke(fn, { method: 'GET' });
+    if (error || !data || (data as { error?: string }).error) throw new Error('statement fetch failed');
+    return (data as { statements: T[] }).statements ?? [];
+  })();
+  inflight.set(variant, call);
+  const done = () => { inflight.delete(variant); };
+  call.then(done, done);
+  return call;
+}
+
+/**
+ * Starts the statement call the moment the signed-in user is known, in parallel with the profile lookups that
+ * gate the portal, and stores the answer for the pages. Only for a device that has opened the portal before, so a
+ * merchant's session never makes the call.
+ */
+export function warmStatements(userId: string | null | undefined) {
+  if (!userId || !readCache('plain', userId)) return;
+  void fetchStatements('plain').then(data => writeCache('plain', userId, data)).catch(() => undefined);
+  // The orders page's variant follows a moment later so the two calls don't compete.
+  if (readCache('sales', userId)) {
+    setTimeout(() => { void fetchStatements('sales').then(data => writeCache('sales', userId, data)).catch(() => undefined); }, 1500);
+  }
 }
 
 /** Query options shared by Home, Orders, Wallet and the layout's warm-up. */

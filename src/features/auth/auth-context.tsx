@@ -1,3 +1,4 @@
+import { warmStatements } from '@/features/customer/statements-api';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { claimLocalScope, releaseLocalScope } from '@/lib/session-scope';
@@ -293,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Calling getSession() in parallel causes the "lock stolen" race.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
+        if (_event === 'INITIAL_SESSION') warmStatements(newSession?.user?.id);
         void syncAuthState(newSession, _event === 'INITIAL_SESSION');
       }
     );
