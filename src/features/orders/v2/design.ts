@@ -42,3 +42,6 @@ export const useHomeDesign = () => usePageDesign('home-design', 'home');
 
 /** The Stock page: the redesigned phone layout or the classic one (?stock=classic). */
 export const useStockDesign = () => usePageDesign('stock-design', 'stock');
+
+/** Cash Management: the redesigned phone layout or the classic one (?cash=classic). */
+export const useCashDesign = () => usePageDesign('cash-design', 'cash');

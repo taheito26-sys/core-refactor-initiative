@@ -37,6 +37,12 @@ import { LoanStatementModal } from '@/features/stock/components/LoanStatementMod
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
+import { ArrowLeftRight, FileText, HandCoins, Landmark, Scale, Wallet } from 'lucide-react';
+import { OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
+import { initialOf, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
+import { useCashDesign } from '@/features/orders/v2/design';
+import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
+import '@/styles/orders-v2.css';
 
 interface PublicStatementLink {
   id: string;
@@ -3004,6 +3010,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   }), [t]);
 
   const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'position' | 'statements'>('accounts');
+  // ── Redesigned phone layout (classic stays one tap away, or ?cash=classic) ──
+  const [design, setDesign] = useCashDesign();
+  const v2 = isMobile && design === 'v2';
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
@@ -3973,10 +3982,120 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     setPendingAccount(account);
   };
 
+  // ── Redesigned phone layout: the same figures and accounts, drawn like the Orders page ──
+  const v2Money = (v: number, unit = 'QAR') => ({ value: fmtTotal(v), unit });
+  const v2Kpis: V2Kpi[] = !v2 ? [] : [
+    { key: 'total', label: t('totalCashLbl'), Icon: Wallet, tone: 'brand', ...v2Money(totalQAR), valueTone: totalQAR < 0 ? 'bad' : undefined },
+    { key: 'hand', label: t('inHandLbl'), Icon: HandCoins, tone: 'good', ...v2Money(inHandQAR) },
+    { key: 'bank', label: t('banksLbl'), Icon: Landmark, tone: 'brand2', ...v2Money(bankQAR) },
+    {
+      key: 'loans', label: t('kpiLoansOut'), Icon: ArrowLeftRight, tone: loanKpi.lead && loanKpi.lead.remaining > 0 ? 'bad' : 'good',
+      ...v2Money(loanKpi.lead ? loanKpi.lead.remaining : 0, loanKpi.lead ? loanKpi.lead.currency : 'QAR'),
+    },
+  ];
+  const v2Extras = !v2 ? [] : [
+    ...((vaultQAR !== 0 || accountCounts.vault > 0) ? [{ key: 'vault', label: t('vaultLbl'), value: `${fmtTotal(vaultQAR)} QAR` }] : []),
+    ...((custodyQAR !== 0 || accountCounts.merchant_custody > 0) ? [{ key: 'custody', label: t('kpiCustody'), value: `${fmtTotal(custodyQAR)} QAR` }] : []),
+    ...(loanKpi.lead ? [
+      { key: 'given', label: t('kpiLoansGiven'), value: `${fmtTotal(loanKpi.lead.given)} ${loanKpi.lead.currency}` },
+      { key: 'repaid', label: t('kpiLoansRepaid'), value: `${fmtTotal(loanKpi.lead.received)} ${loanKpi.lead.currency} · ${Math.round(loanKpi.repaidPct)}%` },
+    ] : []),
+    ...loanKpi.others.map(o => ({ key: `out-${o.currency}`, label: `${t('kpiLoansOut')} ${o.currency}`, value: fmtTotal(o.remaining) })),
+  ];
+  const v2TabLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+\s*/u, '');
+  const V2_ACCOUNT_TONE: Record<CashAccountType, number> = { bank: 0, hand: 1, vault: 2, merchant_custody: 3 };
+
+  const renderAccountV2Card = (acc: CashAccount) => {
+    const bal = balances.get(acc.id) || 0;
+    const mov24h = get24hMovement(acc.id, ledger);
+    const batchCount = batchFundingSources.get(acc.id) || 0;
+    const lastEntry = ledger.reduce<CashLedgerEntry | null>((last, e) => (e.accountId === acc.id && (!last || e.ts > last.ts) ? e : last), null);
+    const isInactive = acc.status === 'inactive';
+    const locale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-US';
+    const share = totalQAR > 0 && acc.currency === 'QAR' ? Math.round((bal / totalQAR) * 100) : null;
+    const menu: V2MenuItem[] = isInactive ? [{ key: 'edit', label: t('edit'), onClick: () => setEditingAccount(acc) }] : [
+      ...(acc.type === 'merchant_custody' ? [
+        { key: 'fund', label: t('fundMerchant'), onClick: () => setShowDeposit({ account: acc, mode: 'funding' }) },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { key: 'proceeds', label: t('recordProceeds' as any) || 'Proceeds', onClick: () => setShowDeposit({ account: acc, mode: 'proceeds' }) },
+        { key: 'settle', label: t('settleBack'), onClick: () => setShowDeposit({ account: acc, mode: 'settlement' }) },
+      ] : [
+        { key: 'deposit', label: t('depositTitle'), tone: 'brand' as const, onClick: () => setShowDeposit({ account: acc, mode: 'deposit' }) },
+        { key: 'withdraw', label: t('withdrawTitle'), onClick: () => setShowDeposit({ account: acc, mode: 'withdrawal' }) },
+      ]),
+      { key: 'transfer', label: t('transferLbl'), onClick: () => { setTransferFromId(acc.id); setShowTransfer(true); } },
+      { key: 'notes', label: t('notesDetailsBtn'), onClick: () => setShowNotesDetails(acc) },
+      { key: 'edit', label: t('edit'), onClick: () => setEditingAccount(acc) },
+      { key: 'clear', label: t('clearLedger'), tone: 'bad' as const, onClick: () => setClearLedgerPromptId(acc.id) },
+      { key: 'delete', label: t('deleteAccountBtn'), tone: 'bad' as const, onClick: () => setDeleteAccountPromptId(acc.id) },
+    ];
+    return (
+      <OrdersV2Card
+        key={`v2-acc-${acc.id}`}
+        id={acc.id}
+        name={acc.name}
+        initial={initialOf(acc.name)}
+        tone={V2_ACCOUNT_TONE[acc.type] ?? 0}
+        marks={<span style={{ fontSize: 'max(var(--ov2-min-font), calc(7.5 * var(--cpx)))', fontWeight: 700, color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: 'calc(6 * var(--cpx))', padding: '0 calc(5 * var(--cpx))' }}>{acc.currency}</span>}
+        subtitle={[ACCOUNT_TYPE_LABELS[acc.type], acc.bankName, acc.branch].filter(Boolean).join(' · ')}
+        statusLabel={isInactive ? t('cv2Inactive') : t('cv2Active')}
+        statusKind={isInactive ? 'bad' : 'good'}
+        dateText={lastEntry ? new Date(lastEntry.ts).toLocaleDateString(locale) : '—'}
+        timeText={lastEntry ? new Date(lastEntry.ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false }) : undefined}
+        qty={`${fmtTotal(bal)} ${acc.currency}`}
+        rate={mov24h !== 0 ? `${mov24h > 0 ? '+' : '−'}${fmtTotal(Math.abs(mov24h))}` : '—'}
+        rateTone={mov24h > 0 ? 'good' : mov24h < 0 ? 'bad' : 'muted'}
+        volume={String(batchCount)}
+        volumeTone="plain"
+        net={share != null ? `${share}%` : '—'}
+        netTone="muted"
+        labels={{ qty: t('cv2Balance'), rate: t('cv2Day'), volume: t('cv2Batches'), net: t('cv2Share') }}
+        detailsLabel={t('ledger')}
+        detailsOpen={false}
+        onDetails={() => setAccountDetailId(acc.id)}
+        menu={menu}
+        menuLabel={t('ov2Menu')}
+        chatLabel={t('ov2Chat')}
+        copyLabel={t('ov2Copy')}
+        copiedLabel={t('ov2Copied')}
+      />
+    );
+  };
+
   return (
-    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
+    <div className={`tracker-root${v2 ? ' ov2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
+      {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
+
+      {v2 && (
+        <>
+          <OrdersV2Header title={t('cashManagement')} subtitle={t('cv2Subtitle')} newLabel={t('addAccountBtn')} onNew={() => setShowAddAccount(true)} />
+          <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />
+          <OrdersV2Tabs
+            scroll
+            active={innerTab}
+            onSelect={id => setInnerTab(id as typeof innerTab)}
+            tabs={[
+              { id: 'accounts', label: v2TabLabel(t('cashAccountsTab')), Icon: Landmark },
+              { id: 'flow', label: v2TabLabel(t('cashFlowTab')), Icon: ArrowLeftRight },
+              { id: 'loans', label: v2TabLabel(t('cashLoansTab')), Icon: HandCoins },
+              { id: 'position', label: v2TabLabel(t('cashPositionTab')), Icon: Scale },
+              { id: 'statements', label: v2TabLabel(t('cashStatementsTab')), Icon: FileText },
+            ]}
+          />
+          {innerTab === 'accounts' && (
+            <div className="orders-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" className="rowBtn" onClick={() => setShowCashCounter(true)}>{t('countCashBtn')}</button>
+              {activeAccounts.length > 1 && (
+                <button type="button" className="rowBtn" onClick={() => { setTransferFromId(undefined); setShowTransfer(true); }}>⇄ {t('transferLbl')}</button>
+              )}
+              <button type="button" className="rowBtn" onClick={() => setShowMerchantCustody(true)}>🤝 {t('kpiCustody')}</button>
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── KPI boxes ── */}
-      <div className="cash-kpi-grid">
+      <div className="cash-kpi-grid" style={v2 ? { display: 'none' } : undefined}>
         <KpiBox
           icon="✋"
           label={t('inHandLbl')}
@@ -4069,7 +4188,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       </div>
 
       {/* ── Inner Tabs ── */}
-      <div className="cash-inner-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+      <div className="cash-inner-tabs" style={{ display: v2 ? 'none' : 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {tabBtn('accounts', t('cashAccountsTab'))}
           {tabBtn('flow', t('cashFlowTab'))}
@@ -4113,6 +4232,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <div className="empty-t">{t('noCashAccountsTitle')}</div>
               <div className="empty-s">{t('noCashAccountsDesc')}</div>
               <button className="btn" style={{ marginTop: 12 }} onClick={() => setShowAddAccount(true)}>{t('addFirstAccountBtn')}</button>
+            </div>
+          ) : v2 ? (
+            <div className="orders-cards-list">
+              {accounts.map(renderAccountV2Card)}
             </div>
           ) : (
             <div className="cash-accounts-grid" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 10 } : undefined}>

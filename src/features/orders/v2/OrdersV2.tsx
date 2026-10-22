@@ -89,9 +89,9 @@ export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array
 }
 
 // ── Tabs ──
-export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect }: { tabs: Array<{ id: T; label: string; Icon: LucideIcon }>; active: T; onSelect: (id: T) => void }) {
+export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll }: { tabs: Array<{ id: T; label: string; Icon: LucideIcon }>; active: T; onSelect: (id: T) => void; scroll?: boolean }) {
   return (
-    <div className="ov2-tabs" role="tablist">
+    <div className={cn('ov2-tabs', scroll && 'scroll')} role="tablist">
       {tabs.map(tab => (
         <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={cn('ov2-tab', active === tab.id && 'on')} onClick={() => onSelect(tab.id)}>
           <tab.Icon />{tab.label}
@@ -199,11 +199,13 @@ export interface V2CardProps {
   initial: string;
   /** What sits next to the name: a source mark, a partner mark and loan badges. */
   marks?: ReactNode;
-  reference: string;
+  /** The copyable number under the name; without one, `subtitle` is shown there instead. */
+  reference?: string;
+  subtitle?: ReactNode;
   statusLabel: string;
   statusKind: 'good' | 'warn' | 'bad';
   dateText: string;
-  timeText: string;
+  timeText?: string;
   qty: string;
   rate: string;
   volume: string;
@@ -219,6 +221,9 @@ export interface V2CardProps {
   copiedLabel: string;
   menuLabel: string;
   labels: { qty: string; rate: string; volume: string; net: string };
+  /** The colour of the third figure; orders draw their volume in the warning colour. */
+  volumeTone?: 'vol' | 'good' | 'bad' | 'muted' | 'plain';
+  rateTone?: 'good' | 'bad' | 'muted';
   highlight?: 'loan' | null;
   children?: ReactNode;
 }
@@ -237,11 +242,13 @@ export function OrdersV2Card(p: V2CardProps) {
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
           <div className="ov2-c-name"><span title={p.name}>{p.name}</span>{p.marks}</div>
-          <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}>#{p.reference}<Copy /></button>
+          {p.reference
+            ? <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}>#{p.reference}<Copy /></button>
+            : p.subtitle != null && <span className="ov2-c-ref">{p.subtitle}</span>}
         </div>
         <div className="ov2-c-meta">
           <span className={cn('ov2-status', p.statusKind)}>{p.statusLabel}</span>
-          <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span><span><Clock />{p.timeText}</span></div>
+          <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>
         </div>
         <div className="ov2-c-acts">
           {p.onChat && <button type="button" className="ov2-icbtn" onClick={p.onChat} aria-label={p.chatLabel} title={p.chatLabel}><MessageCircle /></button>}
@@ -262,8 +269,8 @@ export function OrdersV2Card(p: V2CardProps) {
       <div className="ov2-c-bottom">
         <dl className="ov2-stats">
           <div><dt>{p.labels.qty}</dt><dd><Amount text={p.qty} /></dd></div>
-          <div><dt>{p.labels.rate}</dt><dd><Amount text={p.rate} /></dd></div>
-          <div><dt>{p.labels.volume}</dt><dd className="vol"><Amount text={p.volume} /></dd></div>
+          <div><dt>{p.labels.rate}</dt><dd className={p.rateTone}><Amount text={p.rate} /></dd></div>
+          <div><dt>{p.labels.volume}</dt><dd className={(p.volumeTone ?? 'vol') === 'plain' ? undefined : (p.volumeTone ?? 'vol')}><Amount text={p.volume} /></dd></div>
           <div><dt>{p.labels.net}</dt><dd className={p.netTone}><Amount text={p.net} /></dd></div>
         </dl>
         <button type="button" className="ov2-details" onClick={p.onDetails}>{p.detailsLabel}<ArrowRight /></button>

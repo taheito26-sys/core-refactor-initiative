@@ -340,3 +340,8 @@
 .tracker-root.ov2 .ov2-stats dd small { display: inline-block; }
 .tracker-root.ov2 .ov2-c-bottom { flex-wrap: nowrap; }
 .tracker-root.ov2 .ov2-stats { flex: 1 1 0; min-width: 0; }
+
+/* tab rows with more tabs than fit side by side scroll sideways instead of squeezing their labels */
+.tracker-root.ov2 .ov2-tabs.scroll { display: flex; overflow-x: auto; scrollbar-width: none; padding-bottom: calc(5 * var(--px)); margin-bottom: calc(-5 * var(--px)); }
+.tracker-root.ov2 .ov2-tabs.scroll::-webkit-scrollbar { display: none; }
+.tracker-root.ov2 .ov2-tabs.scroll .ov2-tab { flex: 0 0 auto; padding: 0 calc(11 * var(--px)); }
