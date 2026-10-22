@@ -4054,7 +4054,7 @@ export default function OrdersPage() {
       { key: 'count', label: t('ov2TotalOrders'), Icon: ListChecks, tone: 'brand', sparkTone: 'good', value: String(k.count), delta: change, deltaLabel: t('ov2VsLast'), spark: isMy ? sparkOf(() => 1) : undefined, kind: 'line' },
       ...(k.qty != null ? [{ key: 'qty', label: t('ov2UsdtQty'), Icon: Layers, tone: 'good' as const, sparkTone: 'brand' as const, value: fmtU(k.qty), unit: 'USDT', spark: sparkOf(tr => tr.amountUSDT) }] : []),
       { key: 'vol', label: t('ov2TotalVolume'), Icon: ArrowLeftRightIcon, tone: 'brand2', value: splitMoney(fmtC(k.vol)).n, unit: splitMoney(fmtC(k.vol)).u || undefined, spark: sparkOf(tr => tr.amountUSDT * tr.sellPriceQAR) },
-      { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line' },
+      { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', sparkWide: true, valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line' },
     ];
     return cards;
   })();
@@ -4129,8 +4129,8 @@ export default function OrdersPage() {
         statusKind={status.kind}
         dateText={when.toLocaleDateString(locale)}
         timeText={when.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })}
-        qty={`${fmtU(qty)}`}
-        rate={fmtP(rate)}
+        qty={`${fmtU(qty)} USDT`}
+        rate={`${fmtP(rate)} ${splitMoney(fmtC(1)).u}`.trim()}
         volume={fmtC(rev)}
         net={Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
         netTone={Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : 'muted'}

@@ -199,3 +199,137 @@
 .ov2-sheet .ov2-chipbtn.on { border-color: var(--brand); color: var(--brand); }
 .ov2-sheet .ov2-chipbtn svg { width: 12px; height: 12px; color: var(--brand); }
 .ov2-sheet-body .msel-trigger { width: 100%; height: 33px; }
+
+
+/* ─── Prototype dimensions ───────────────────────────────────────────────────
+   Measured object by object on the prototype (a 430px-wide phone) and set here exactly; these rules come last so
+   they settle every size above. */
+.tracker-root.ov2 { --ov2-gap: 10.5px; padding: 0 11px 12px !important; }
+
+/* header */
+.tracker-root.ov2 .ov2-head { padding: 7px 2px 0; margin-bottom: 7px; align-items: flex-start; }
+.tracker-root.ov2 .ov2-head h1 { font-size: 20.7px; line-height: 1.15; letter-spacing: -.3px; }
+.tracker-root.ov2 .ov2-head p { margin-top: 3px; font-size: 8.6px; line-height: 1.3; }
+.tracker-root.ov2 .ov2-new { height: 30.5px; padding: 0 15px; gap: 6px; border-radius: 6px; font-size: 8.4px; font-weight: 700; margin-top: 3px; }
+.tracker-root.ov2 .ov2-new svg { width: 9px; height: 9px; stroke-width: 2.8; }
+
+/* figure cards */
+.tracker-root.ov2 .ov2-kpis { gap: 9px; }
+.tracker-root.ov2 .ov2-kpi { min-height: 87.5px; border-radius: 9px; padding: 9.5px 8.5px 8px; gap: 0; }
+.tracker-root.ov2 .ov2-kpi header { gap: 7.5px; }
+.tracker-root.ov2 .ov2-ic { width: 17.5px; height: 17.5px; border-radius: 4.5px; }
+.tracker-root.ov2 .ov2-ic svg { width: 11px; height: 11px; }
+.tracker-root.ov2 .ov2-kpi h3 { font-size: 7px; font-weight: 600; }
+.tracker-root.ov2 .ov2-kval { margin-top: 6.5px; }
+.tracker-root.ov2 .ov2-kval b { font-size: 14.5px; line-height: 1.05; }
+.tracker-root.ov2 .ov2-kunit { font-size: 7.6px; margin-top: 2px; }
+.tracker-root.ov2 .ov2-kdelta { font-size: 7px; margin-top: 3px; gap: 1px 3px; }
+.tracker-root.ov2 .ov2-kdelta svg { width: 7px; height: 7px; }
+.tracker-root.ov2 .ov2-kdelta span { font-size: 7.4px; margin-top: 3px; max-width: none; }
+.tracker-root.ov2 .ov2-kspark { inset-inline-end: 7.5px; bottom: 14px; width: 40px; height: 21px; }
+.tracker-root.ov2 .ov2-kspark.line { inset-inline-end: 7.5px; bottom: 22px; width: 42px; height: 14px; }
+.tracker-root.ov2 .ov2-kspark.line.wide { inset-inline-end: 6px; bottom: 6px; width: 80px; height: 26px; }
+
+/* tabs */
+.tracker-root.ov2 .ov2-tabs { gap: 4px; }
+.tracker-root.ov2 .ov2-tab { height: 24.5px; border-radius: 12.25px; font-size: 7.8px; gap: 6px; }
+.tracker-root.ov2 .ov2-tab svg { width: 13px; height: 13px; }
+
+/* search */
+.tracker-root.ov2 .ov2-search { gap: 7.5px; }
+.tracker-root.ov2 .ov2-search-box { height: 26.5px; border-radius: 13.25px; padding: 0 12px; gap: 6px; }
+.tracker-root.ov2 .ov2-search-box svg { width: 10px; height: 10px; }
+.tracker-root.ov2 .ov2-search-box input { font-size: 8.3px; }
+.tracker-root.ov2 .ov2-filterbtn { width: 32.5px; height: 27.5px; border-radius: 8px; }
+.tracker-root.ov2 .ov2-filterbtn svg { width: 12px; height: 12px; }
+
+/* months */
+.tracker-root.ov2 .ov2-months { gap: 5px; margin-bottom: 8.5px; }
+.tracker-root.ov2 .ov2-mbtn { height: 25px; padding: 0 9px 0 0; gap: 0; border-radius: 7px; font-size: 7.9px; overflow: hidden; }
+.tracker-root.ov2 .ov2-mcal { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 100%; border-inline-end: 1px solid color-mix(in srgb, var(--line) 50%, transparent); margin-inline-end: 10px; }
+.tracker-root.ov2 .ov2-mcal svg { width: 12px; height: 12px; color: var(--text); }
+.tracker-root.ov2 .ov2-mlabel { min-width: 43px; margin-inline-end: 10px; }
+.tracker-root.ov2 .ov2-mbtn > svg:last-child { width: 9px; height: 9px; }
+.tracker-root.ov2 .ov2-chips { gap: 5px; padding: 1px; }
+.tracker-root.ov2 .ov2-chip { height: 24px; min-width: 46px; padding: 0 11px; border-radius: 12px; font-size: 7.8px; }
+.tracker-root.ov2 .ov2-mnext { width: 18px; height: 24px; }
+.tracker-root.ov2 .ov2-mnext svg { width: 10px; height: 10px; }
+
+/* filter chips */
+.tracker-root.ov2 .orders-filter-row { gap: 5px !important; margin: 0 0 9.5px !important; justify-content: space-between; }
+.tracker-root.ov2 .orders-filter-row .rowBtn,
+.tracker-root.ov2 .orders-filter-row .msel-trigger,
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { height: 25px; min-height: 25px; border-radius: 7px; padding: 0 10px; gap: 6px; font-size: 7.8px; flex: 1 1 auto; justify-content: center; }
+.tracker-root.ov2 .orders-filter-row .msel-trigger { justify-content: space-between; flex-grow: 1.4; padding: 0 12px; }
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn svg, .tracker-root.ov2 .orders-filter-row .rowBtn svg { width: 11px; height: 11px; }
+
+/* list header */
+.tracker-root.ov2 .ov2-listhead { padding: 9px 11px 6px; gap: 6px; }
+.tracker-root.ov2 .ov2-listhead h2 { font-size: 12.4px; }
+.tracker-root.ov2 .ov2-sort { font-size: 8px; gap: 5px; margin-inline-end: 9px; }
+.tracker-root.ov2 .ov2-sort svg { width: 10px; height: 10px; }
+.tracker-root.ov2 .ov2-view { padding: 0; gap: 0; border: 0; border-radius: 4px; background: color-mix(in srgb, var(--text) 7%, var(--card-bg)); overflow: hidden; }
+.tracker-root.ov2 .ov2-view button { width: 23px; height: 20px; border-radius: 4px; }
+.tracker-root.ov2 .ov2-view svg { width: 11px; height: 11px; }
+
+/* order cards */
+.tracker-root.ov2 .orders-cards-list { padding: 0 !important; margin: 0 !important; gap: 7px; }
+.tracker-root.ov2 .ov2-card { border-radius: 8px; padding: 7.5px 9px 2.5px 0; gap: 5px; border-inline-start-width: 2px; }
+.tracker-root.ov2 .ov2-c-top { padding-inline-start: 11px; column-gap: 7.5px; }
+.tracker-root.ov2 .ov2-avatar { width: 30px; height: 30px; font-size: 13px; }
+.tracker-root.ov2 .ov2-c-name { font-size: 10.3px; gap: 4px; }
+.tracker-root.ov2 .ov2-bolt { width: 9px; height: 9px; }
+.tracker-root.ov2 .ov2-c-ref { font-size: 8px; margin-top: 3px; gap: 5px; }
+.tracker-root.ov2 .ov2-c-ref svg { width: 8.5px; height: 8.5px; }
+.tracker-root.ov2 .ov2-status { height: 19px; padding: 0 8.5px; border-radius: 9.5px; font-size: 8.2px; }
+.tracker-root.ov2 .ov2-c-meta { gap: 15px; }
+.tracker-root.ov2 .ov2-c-when { font-size: 8px; gap: 3px; }
+.tracker-root.ov2 .ov2-c-when span { gap: 5px; }
+.tracker-root.ov2 .ov2-c-when svg { width: 9px; height: 9px; }
+.tracker-root.ov2 .ov2-c-acts { gap: 9px; align-self: center; }
+.tracker-root.ov2 .ov2-icbtn { width: 25px; height: 25px; }
+.tracker-root.ov2 .ov2-icbtn svg { width: 11px; height: 11px; }
+.tracker-root.ov2 .ov2-icbtn.plain { width: 12px; }
+.tracker-root.ov2 .ov2-c-bottom { gap: 13.5px; align-items: flex-start; }
+.tracker-root.ov2 .ov2-stats { flex: 1 1 auto; border-radius: 0 7px 7px 0; padding: 9.5px 0 8px 11px; min-height: 41px; gap: 0; grid-template-columns: 1.08fr 0.82fr 1.1fr 1fr; }
+.tracker-root.ov2 .ov2-stats > div + div { padding-inline-start: 12px; }
+.tracker-root.ov2 .ov2-stats dt { font-size: 7.8px; font-weight: 600; letter-spacing: 0; margin-bottom: 3px; }
+.tracker-root.ov2 .ov2-stats dd { font-size: 11.5px; }
+.tracker-root.ov2 .ov2-stats dd small { font-size: 7.9px; font-weight: 600; color: inherit; margin-inline-start: 2px; }
+.tracker-root.ov2 .ov2-stats dd:not(.vol):not(.good):not(.bad) small { color: var(--text); }
+.tracker-root.ov2 .ov2-details { width: 58px; height: 24.5px; padding: 0; border-radius: 6px; font-size: 7.8px; gap: 6px; margin-top: 1.5px; }
+.tracker-root.ov2 .ov2-details svg { width: 9px; height: 9px; }
+
+/* second pass against the prototype's measurements */
+.tracker-root.ov2 .ov2-head { margin-bottom: 2px; }
+.tracker-root.ov2 .ov2-new { padding: 0 18px; }
+.tracker-root.ov2 .ov2-kpi { min-height: 87px; padding-top: 9px; padding-bottom: 6px; }
+.tracker-root.ov2 .ov2-search { margin-bottom: -2px; }
+.tracker-root.ov2 .ov2-mlabel { margin-inline-end: 6px; }
+.tracker-root.ov2 .orders-cards-list { margin: 0 !important; padding: 0 2px !important; }
+.tracker-root.ov2 .ov2-c-top { display: flex; align-items: center; }
+.tracker-root.ov2 .ov2-c-main { flex: 0 1 auto; }
+.tracker-root.ov2 .ov2-c-meta { margin: 0 auto; flex-direction: row; flex-wrap: nowrap; }
+.tracker-root.ov2 .ov2-c-acts { flex: none; }
+.tracker-root.ov2 .ov2-stats { padding-top: 8px; padding-bottom: 7px; }
+.tracker-root.ov2 .ov2-details { align-self: flex-start; margin-top: 1.5px; }
+@media (max-width: 399px) {
+  .tracker-root.ov2 .ov2-c-top { flex-wrap: wrap; }
+  .tracker-root.ov2 .ov2-c-meta { order: 3; flex-basis: 100%; margin: 4px 0 0 37.5px; }
+}
+.tracker-root.ov2 .ov2-kpi h3 { font-size: 7.6px; }
+.tracker-root.ov2 .ov2-kspark.line.wide { height: 22px; bottom: 5px; }
+.tracker-root.ov2 .ov2-new { font-size: 8.8px; }
+.tracker-root.ov2 .ov2-tab { font-size: 8.2px; }
+.tracker-root.ov2 .ov2-search-box input { font-size: 8.6px; }
+.tracker-root.ov2 .ov2-chip, .tracker-root.ov2 .ov2-mbtn { font-size: 8.2px; }
+.tracker-root.ov2 .orders-filter-row .rowBtn,
+.tracker-root.ov2 .orders-filter-row .msel-trigger,
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { font-size: 8.2px; }
+.tracker-root.ov2 .orders-filter-row { flex-wrap: nowrap !important; }
+.tracker-root.ov2 .orders-filter-row .rowBtn,
+.tracker-root.ov2 .orders-filter-row .msel-trigger,
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { flex: 0 1 auto; min-width: 0; padding: 0 8px; font-size: 7.9px; }
+.tracker-root.ov2 .orders-filter-row .msel-trigger { flex: 1 1 auto; max-width: 94px !important; padding: 0 10px; }
+@media (max-width: 399px) { .tracker-root.ov2 .orders-filter-row { flex-wrap: wrap !important; } }
+.tracker-root.ov2 .orders-filter-row { padding: 0 !important; }

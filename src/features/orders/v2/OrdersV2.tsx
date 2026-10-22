@@ -55,6 +55,8 @@ export interface V2Kpi {
   spark?: number[];
   /** The trend's own colour when it differs from the icon's. */
   sparkTone?: V2Tone;
+  /** A trend drawn across the whole card instead of in its corner. */
+  sparkWide?: boolean;
   kind?: 'line' | 'bars';
 }
 
@@ -73,7 +75,7 @@ export function OrdersV2Kpis({ cards, extras }: { cards: V2Kpi[]; extras?: Array
                 {k.deltaLabel && <span>{k.deltaLabel}</span>}
               </div>
             )}
-            {k.spark && k.spark.some(v => v !== 0) && <Sparkline className={cn('ov2-kspark', k.kind ?? 'bars')} values={k.spark} color={toneVar(k.sparkTone ?? k.tone)} kind={k.kind ?? 'bars'} />}
+            {k.spark && k.spark.some(v => v !== 0) && <Sparkline className={cn('ov2-kspark', k.kind ?? 'bars', k.sparkWide && 'wide')} values={k.spark} color={toneVar(k.sparkTone ?? k.tone)} kind={k.kind ?? 'bars'} />}
           </section>
         ))}
       </div>
@@ -129,7 +131,7 @@ export function OrdersV2Months({ months, selected, onSelect, allLabel }: {
     <div className="ov2-months">
       <div className="ov2-mdrop" ref={ref}>
         <button type="button" className="ov2-mbtn" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}>
-          <CalendarDays /><span>{allLabel}</span><ChevronDown className={open ? 'open' : ''} />
+          <span className="ov2-mcal"><CalendarDays /></span><span className="ov2-mlabel">{allLabel}</span><ChevronDown className={open ? 'open' : ''} />
         </button>
         {open && (
           <ul className="ov2-menu" role="listbox">
@@ -259,8 +261,8 @@ export function OrdersV2Card(p: V2CardProps) {
       </div>
       <div className="ov2-c-bottom">
         <dl className="ov2-stats">
-          <div><dt>{p.labels.qty}</dt><dd>{p.qty}</dd></div>
-          <div><dt>{p.labels.rate}</dt><dd>{p.rate}</dd></div>
+          <div><dt>{p.labels.qty}</dt><dd><Amount text={p.qty} /></dd></div>
+          <div><dt>{p.labels.rate}</dt><dd><Amount text={p.rate} /></dd></div>
           <div><dt>{p.labels.volume}</dt><dd className="vol"><Amount text={p.volume} /></dd></div>
           <div><dt>{p.labels.net}</dt><dd className={p.netTone}><Amount text={p.net} /></dd></div>
         </dl>
