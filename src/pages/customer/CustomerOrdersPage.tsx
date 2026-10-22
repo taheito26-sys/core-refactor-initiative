@@ -27,7 +27,7 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ZoomControls } from '@/components/shared/ZoomControls';
-import { DateRangeFilterDropdown } from '@/features/orders/components/DateRangeFilterDropdown';
+import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
@@ -1259,7 +1259,7 @@ export default function CustomerOrdersPage() {
                   {hasOrderFilterCriteria && (
                     <button type="button" onClick={() => setShowOrderFilter(true)} title={L('Edit filter', 'تعديل التصفية')} className="co-tool icon"><Pencil /></button>
                   )}
-                  <DateRangeFilterDropdown
+                  <PeriodPicker
                     from={orderFilterOn ? orderFilterDay : ''}
                     to={orderFilterOn ? orderFilterTo : ''}
                     onChange={setOrderPeriod}
@@ -1452,7 +1452,7 @@ export default function CustomerOrdersPage() {
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
               )}
-              <DateRangeFilterDropdown
+              <PeriodPicker
                 from={orderFilterOn ? orderFilterDay : ''}
                 to={orderFilterOn ? orderFilterTo : ''}
                 onChange={setOrderPeriod}

@@ -13,7 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { giverAccent, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
-import { DateRangeFilterDropdown } from "@/features/orders/components/DateRangeFilterDropdown";
+import { PeriodPicker } from "@/components/shared/PeriodPicker";
 import "@/styles/customer-home.css";
 import "@/styles/customer-orders.css";
 import "@/styles/customer-theme.css";
@@ -1636,7 +1636,7 @@ export default function CustomerWalletPage() {
 
               {/* Filters: a day or period, and who handed over the cash. They combine with the search and the amount filter. */}
               <div className="cw-fltrow">
-                <DateRangeFilterDropdown
+                <PeriodPicker
                   from={paymentFilterOn ? paymentFilterDay : ""}
                   to={paymentFilterOn ? paymentFilterTo : ""}
                   onChange={setPaymentPeriod}
