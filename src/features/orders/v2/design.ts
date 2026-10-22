@@ -10,25 +10,32 @@ export type OrdersDesign = 'v2' | 'classic';
 const KEY = 'orders-design';
 export const DEFAULT_ORDERS_DESIGN: OrdersDesign = 'v2';
 
-export function readOrdersDesign(search = typeof window !== 'undefined' ? window.location.search : ''): OrdersDesign {
+/** A page's chosen layout: `?<param>=classic` (or `=v2`) in the address wins and is remembered. */
+export function readPageDesign(storageKey: string, param: string, search = typeof window !== 'undefined' ? window.location.search : ''): OrdersDesign {
   try {
-    const forced = new URLSearchParams(search).get('orders');
+    const forced = new URLSearchParams(search).get(param);
     if (forced === 'classic' || forced === 'v2') {
-      localStorage.setItem(KEY, forced);
+      localStorage.setItem(storageKey, forced);
       return forced;
     }
-    const saved = localStorage.getItem(KEY);
+    const saved = localStorage.getItem(storageKey);
     return saved === 'classic' || saved === 'v2' ? saved : DEFAULT_ORDERS_DESIGN;
   } catch {
     return DEFAULT_ORDERS_DESIGN;
   }
 }
 
-export function useOrdersDesign(): [OrdersDesign, (next: OrdersDesign) => void] {
-  const [design, setDesign] = useState<OrdersDesign>(() => readOrdersDesign());
+export function usePageDesign(storageKey: string, param: string): [OrdersDesign, (next: OrdersDesign) => void] {
+  const [design, setDesign] = useState<OrdersDesign>(() => readPageDesign(storageKey, param));
   const choose = useCallback((next: OrdersDesign) => {
-    try { localStorage.setItem(KEY, next); } catch { /* storage unavailable: the choice lasts for this visit */ }
+    try { localStorage.setItem(storageKey, next); } catch { /* storage unavailable: the choice lasts for this visit */ }
     setDesign(next);
-  }, []);
+  }, [storageKey]);
   return [design, choose];
 }
+
+export const readOrdersDesign = (search?: string) => readPageDesign(KEY, 'orders', search);
+export const useOrdersDesign = () => usePageDesign(KEY, 'orders');
+
+/** The merchant home: the redesigned dashboard or the classic one, switched the same way (?home=classic). */
+export const useHomeDesign = () => usePageDesign('home-design', 'home');

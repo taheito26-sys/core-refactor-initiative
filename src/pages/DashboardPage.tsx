@@ -34,6 +34,8 @@ import { listSharedOrdersForActor } from '@/features/orders/shared-order-workflo
 import { ArrowLeftRight, BadgeDollarSign, Boxes, Clock, Hourglass, Landmark, PieChart, Percent, Receipt, Ruler, ShoppingCart } from 'lucide-react';
 
 const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
+import ClassicDashboardPage from '@/pages/ClassicDashboardPage';
+import { useHomeDesign } from '@/features/orders/v2/design';
 import '@/styles/tracker.css';
 import '@/styles/dashboard-home.css';
 
@@ -45,7 +47,15 @@ interface DashboardPageProps {
   isAdminView?: boolean;
 }
 
-export default function DashboardPage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView }: DashboardPageProps = {}) {
+/** The merchant home: the redesigned dashboard, or the classic one when the user has switched back to it. */
+export default function DashboardPage(props: DashboardPageProps = {}) {
+  const [design, setDesign] = useHomeDesign();
+  return design === 'classic'
+    ? <ClassicDashboardPage {...props} onUseNewLayout={() => setDesign('v2')} />
+    : <DashboardHomePage {...props} onUseClassic={() => setDesign('classic')} />;
+}
+
+function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, onUseClassic }: DashboardPageProps & { onUseClassic?: () => void }) {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
@@ -693,6 +703,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       >
         <CustomKpis trackerOptions={homeKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} period={kpiPeriod} onPeriod={setKpiPeriod} />
       </DashboardHome>
+      {onUseClassic && (
+        <button
+          type="button"
+          onClick={onUseClassic}
+          style={{ display: 'block', margin: '0 auto 12px', border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', padding: '8px 12px', cursor: 'pointer' }}
+        >
+          {t('ov2Classic')}
+        </button>
+      )}
 
       {showCashBox && !isAdminView && (
         <CashBoxManager

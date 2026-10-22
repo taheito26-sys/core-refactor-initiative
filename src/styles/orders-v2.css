@@ -3,7 +3,13 @@
    colour is one of the active theme's variables, so a theme picked in Settings recolours this page too.
    Every size is written in --px, one pixel of the 430px-wide prototype scaled to the phone's real width, so the page
    keeps the prototype's proportions on a narrower or wider screen; the app's zoom still enlarges it. */
-.tracker-root.ov2 { --px: calc(min(100vw, 560px) / 430); }
+.tracker-root.ov2 {
+  --px: calc(min(100vw, 560px) / 430);
+  /* the order cards are drawn 10% larger than the prototype for easier reading */
+  --cpx: calc(var(--px) * 1.1);
+  /* no text on this page goes below this, whatever the screen width */
+  --ov2-min-font: 8.5px;
+}
 
 .tracker-root.ov2 { --ov2-gap: calc(9 * var(--px)); padding: calc(3 * var(--px)) calc(11 * var(--px)) calc(12 * var(--px)) !important; gap: var(--ov2-gap) !important; }
 .tracker-root.ov2 * { box-sizing: border-box; }
@@ -15,9 +21,9 @@
 /* header */
 .ov2-head { display: flex; align-items: flex-start; justify-content: space-between; gap: calc(8 * var(--px)); padding: calc(3 * var(--px)) calc(2 * var(--px)) 0; margin-bottom: calc(6 * var(--px)); }
 .ov2-head-t { min-width: 0; }
-.ov2-head h1 { font-size: calc(21 * var(--px)); font-weight: 800; letter-spacing: -.5px; line-height: 1.1; }
-.ov2-head p { margin-top: calc(3 * var(--px)); font-size: calc(9.5 * var(--px)); color: var(--muted); line-height: 1.35; }
-.ov2-new { display: inline-flex; align-items: center; justify-content: center; gap: calc(5 * var(--px)); height: calc(31 * var(--px)); padding: 0 calc(14 * var(--px)); border: 0; border-radius: calc(9 * var(--px)); background: var(--brand); color: var(--card-bg); font-size: calc(10 * var(--px)); font-weight: 700; white-space: nowrap; box-shadow: 0 calc(4 * var(--px)) calc(10 * var(--px)) color-mix(in srgb, var(--brand) 28%, transparent); }
+.ov2-head h1 { font-size: max(var(--ov2-min-font), calc(21 * var(--px))); font-weight: 800; letter-spacing: -.5px; line-height: 1.1; }
+.ov2-head p { margin-top: calc(3 * var(--px)); font-size: max(var(--ov2-min-font), calc(9.5 * var(--px))); color: var(--muted); line-height: 1.35; }
+.ov2-new { display: inline-flex; align-items: center; justify-content: center; gap: calc(5 * var(--px)); height: calc(31 * var(--px)); padding: 0 calc(14 * var(--px)); border: 0; border-radius: calc(9 * var(--px)); background: var(--brand); color: var(--card-bg); font-size: max(var(--ov2-min-font), calc(10 * var(--px))); font-weight: 700; white-space: nowrap; box-shadow: 0 calc(4 * var(--px)) calc(10 * var(--px)) color-mix(in srgb, var(--brand) 28%, transparent); }
 .ov2-new svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); stroke-width: 2.6; }
 
 /* figures */
@@ -26,25 +32,25 @@
 .ov2-kpi header { display: flex; align-items: center; gap: calc(4.5 * var(--px)); }
 .ov2-ic { width: calc(17 * var(--px)); height: calc(17 * var(--px)); border-radius: calc(6 * var(--px)); display: inline-flex; align-items: center; justify-content: center; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
 .ov2-ic svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); stroke-width: 2.2; }
-.ov2-kpi h3 { font-size: calc(8 * var(--px)); font-weight: 600; line-height: 1.15; color: var(--text); min-width: 0; white-space: nowrap; }
+.ov2-kpi h3 { font-size: max(var(--ov2-min-font), calc(8 * var(--px))); font-weight: 600; line-height: 1.15; color: var(--text); min-width: 0; white-space: nowrap; }
 .ov2-kval { margin-top: calc(5 * var(--px)); font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
 [dir=rtl] .ov2-kval { text-align: right; }
-.ov2-kval b { font-size: calc(14 * var(--px)); font-weight: 800; letter-spacing: -.2px; white-space: nowrap; line-height: 1.1; }
-.ov2-kunit { font-size: calc(8 * var(--px)); color: var(--muted); font-weight: 600; }
-.ov2-kdelta { display: flex; align-items: center; flex-wrap: wrap; gap: 1px calc(3 * var(--px)); font-size: calc(8 * var(--px)); font-weight: 700; margin-top: 1px; }
+.ov2-kval b { font-size: max(var(--ov2-min-font), calc(14 * var(--px))); font-weight: 800; letter-spacing: -.2px; white-space: nowrap; line-height: 1.1; }
+.ov2-kunit { font-size: max(var(--ov2-min-font), calc(8 * var(--px))); color: var(--muted); font-weight: 600; }
+.ov2-kdelta { display: flex; align-items: center; flex-wrap: wrap; gap: 1px calc(3 * var(--px)); font-size: max(var(--ov2-min-font), calc(8 * var(--px))); font-weight: 700; margin-top: 1px; }
 .ov2-kdelta svg { width: calc(8 * var(--px)); height: calc(8 * var(--px)); stroke-width: 3; }
 .ov2-kdelta.up { color: var(--good); }
 .ov2-kdelta.down { color: var(--bad); }
-.ov2-kdelta span { flex-basis: 100%; color: var(--muted); font-weight: 500; font-size: calc(7.5 * var(--px)); max-width: 58%; }
+.ov2-kdelta span { flex-basis: 100%; color: var(--muted); font-weight: 500; font-size: max(var(--ov2-min-font), calc(7.5 * var(--px))); max-width: 58%; }
 .ov2-kspark { position: absolute; inset-inline-end: calc(6 * var(--px)); bottom: calc(7 * var(--px)); width: 38%; height: calc(26 * var(--px)); }
 .ov2-kspark.line { width: 32%; height: calc(20 * var(--px)); }
 .ov2-extras { display: flex; flex-wrap: wrap; gap: calc(4.5 * var(--px)); margin-top: calc(6 * var(--px)); }
-.ov2-extras span { display: inline-flex; align-items: baseline; gap: calc(4.5 * var(--px)); padding: calc(4 * var(--px)) calc(7.5 * var(--px)); border-radius: calc(9 * var(--px)); background: var(--card-bg); box-shadow: var(--lt-shadow2); font-size: calc(8 * var(--px)); color: var(--muted); font-weight: 600; }
-.ov2-extras b { color: var(--text); font-size: calc(9.5 * var(--px)); font-variant-numeric: tabular-nums; }
+.ov2-extras span { display: inline-flex; align-items: baseline; gap: calc(4.5 * var(--px)); padding: calc(4 * var(--px)) calc(7.5 * var(--px)); border-radius: calc(9 * var(--px)); background: var(--card-bg); box-shadow: var(--lt-shadow2); font-size: max(var(--ov2-min-font), calc(8 * var(--px))); color: var(--muted); font-weight: 600; }
+.ov2-extras b { color: var(--text); font-size: max(var(--ov2-min-font), calc(9.5 * var(--px))); font-variant-numeric: tabular-nums; }
 
 /* tabs */
 .ov2-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(6 * var(--px)); }
-.ov2-tab { display: inline-flex; align-items: center; justify-content: center; gap: calc(4 * var(--px)); height: calc(25 * var(--px)); padding: 0 calc(3 * var(--px)); border: 1px solid color-mix(in srgb, var(--line) 40%, transparent); border-radius: calc(12 * var(--px)); background: var(--card-bg); color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; box-shadow: var(--lt-shadow2); min-width: 0; white-space: nowrap; }
+.ov2-tab { display: inline-flex; align-items: center; justify-content: center; gap: calc(4 * var(--px)); height: calc(25 * var(--px)); padding: 0 calc(3 * var(--px)); border: 1px solid color-mix(in srgb, var(--line) 40%, transparent); border-radius: calc(12 * var(--px)); background: var(--card-bg); color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; box-shadow: var(--lt-shadow2); min-width: 0; white-space: nowrap; }
 .ov2-tab svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); stroke-width: 2.2; color: var(--brand); }
 .ov2-tab.on { background: var(--brand); border-color: var(--brand); color: var(--card-bg); box-shadow: 0 calc(4.5 * var(--px)) calc(12 * var(--px)) color-mix(in srgb, var(--brand) 30%, transparent); }
 .ov2-tab.on svg { color: var(--card-bg); }
@@ -53,7 +59,7 @@
 .ov2-search { display: flex; gap: calc(6 * var(--px)); }
 .ov2-search-box { flex: 1; min-width: 0; display: flex; align-items: center; gap: calc(7 * var(--px)); height: calc(28 * var(--px)); padding: 0 calc(10 * var(--px)); border-radius: calc(14 * var(--px)); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); box-shadow: var(--lt-shadow2); }
 .ov2-search-box svg { width: calc(13 * var(--px)); height: calc(13 * var(--px)); color: var(--muted); }
-.ov2-search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: calc(9 * var(--px)); font-family: inherit; }
+.ov2-search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: max(var(--ov2-min-font), calc(9 * var(--px))); font-family: inherit; }
 .ov2-search-box input::placeholder { color: var(--muted); }
 .ov2-search-box button { border: 0; background: transparent; color: var(--muted); display: inline-flex; padding: calc(2 * var(--px)); }
 .ov2-search-box button svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); }
@@ -64,13 +70,13 @@
 /* months */
 .ov2-months { display: flex; align-items: center; gap: calc(6 * var(--px)); min-width: 0; }
 .ov2-mdrop { position: relative; flex: none; }
-.ov2-mbtn { display: inline-flex; align-items: center; gap: calc(6 * var(--px)); height: calc(24 * var(--px)); padding: 0 calc(9 * var(--px)); border-radius: calc(12 * var(--px)); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; box-shadow: var(--lt-shadow2); white-space: nowrap; }
+.ov2-mbtn { display: inline-flex; align-items: center; gap: calc(6 * var(--px)); height: calc(24 * var(--px)); padding: 0 calc(9 * var(--px)); border-radius: calc(12 * var(--px)); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; box-shadow: var(--lt-shadow2); white-space: nowrap; }
 .ov2-mbtn svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); color: var(--muted); }
 .ov2-mbtn svg:last-child { width: calc(10 * var(--px)); height: calc(10 * var(--px)); transition: transform .15s; }
 .ov2-mbtn svg.open { transform: rotate(180deg); }
 .ov2-chips { flex: 1; min-width: 0; display: flex; gap: calc(6 * var(--px)); overflow-x: auto; scrollbar-width: none; padding: calc(2 * var(--px)); }
 .ov2-chips::-webkit-scrollbar { display: none; }
-.ov2-chip { flex: none; height: calc(22 * var(--px)); padding: 0 calc(12 * var(--px)); border-radius: calc(11 * var(--px)); border: 1px solid color-mix(in srgb, var(--line) 50%, transparent); background: var(--card-bg); color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; box-shadow: var(--lt-shadow2); }
+.ov2-chip { flex: none; height: calc(22 * var(--px)); padding: 0 calc(12 * var(--px)); border-radius: calc(11 * var(--px)); border: 1px solid color-mix(in srgb, var(--line) 50%, transparent); background: var(--card-bg); color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; box-shadow: var(--lt-shadow2); }
 .ov2-chip.on { background: var(--brand); border-color: var(--brand); color: var(--card-bg); }
 .ov2-mnext, .ov2-mprev { flex: none; width: calc(24 * var(--px)); height: calc(24 * var(--px)); border-radius: 50%; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
 .ov2-mprev { display: none; }
@@ -79,7 +85,7 @@
 /* menus (month list and card actions) */
 .ov2-menu { position: absolute; z-index: 40; top: calc(100% + calc(4.5 * var(--px))); inset-inline-start: 0; min-width: calc(142.5 * var(--px)); max-height: calc(240 * var(--px)); overflow-y: auto; margin: 0; padding: calc(4.5 * var(--px)); list-style: none; background: var(--card-bg); border: 1px solid var(--line); border-radius: calc(10.5 * var(--px)); box-shadow: var(--lt-shadow); }
 .ov2-kebab .ov2-menu { inset-inline-start: auto; inset-inline-end: 0; }
-.ov2-menu button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: calc(7.5 * var(--px)); border: 0; background: transparent; color: var(--text); text-align: start; padding: calc(8 * var(--px)) calc(9 * var(--px)); border-radius: calc(7.5 * var(--px)); font-size: calc(10 * var(--px)); font-weight: 600; white-space: nowrap; }
+.ov2-menu button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: calc(7.5 * var(--px)); border: 0; background: transparent; color: var(--text); text-align: start; padding: calc(8 * var(--px)) calc(9 * var(--px)); border-radius: calc(7.5 * var(--px)); font-size: max(var(--ov2-min-font), calc(10 * var(--px))); font-weight: 600; white-space: nowrap; }
 .ov2-menu button:hover { background: var(--hover-card); }
 .ov2-menu button.on { color: var(--brand); }
 .ov2-menu button.bad { color: var(--bad); }
@@ -93,7 +99,7 @@
 .tracker-root.ov2 .orders-filter-row .msel-trigger,
 .tracker-root.ov2 .orders-filter-row .ov2-chipbtn {
   height: calc(25 * var(--px)); min-height: calc(25 * var(--px)); padding: 0 calc(10 * var(--px)); border-radius: calc(8 * var(--px)); max-width: none !important; flex: none; border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  background: var(--card-bg); color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; box-shadow: var(--lt-shadow2);
+  background: var(--card-bg); color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; box-shadow: var(--lt-shadow2);
   display: inline-flex; align-items: center; gap: calc(3 * var(--px)); width: auto !important; white-space: nowrap;
 }
 .tracker-root.ov2 .orders-filter-row .ov2-chipbtn.on { border-color: var(--brand); color: var(--brand); }
@@ -105,8 +111,8 @@
 
 /* list header */
 .ov2-listhead { display: flex; align-items: center; gap: calc(6 * var(--px)); margin: 0 -11px; padding: calc(10 * var(--px)) calc(11 * var(--px)) calc(4 * var(--px)); background: color-mix(in srgb, var(--card-bg) 55%, transparent); border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent); }
-.ov2-listhead h2 { flex: 1; font-size: calc(13.5 * var(--px)); font-weight: 800; }
-.ov2-sort { display: inline-flex; align-items: center; gap: calc(4 * var(--px)); border: 0; background: transparent; color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; }
+.ov2-listhead h2 { flex: 1; font-size: max(var(--ov2-min-font), calc(13.5 * var(--px))); font-weight: 800; }
+.ov2-sort { display: inline-flex; align-items: center; gap: calc(4 * var(--px)); border: 0; background: transparent; color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; }
 .ov2-sort svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); }
 .ov2-view { display: inline-flex; padding: calc(2 * var(--px)); border-radius: calc(9 * var(--px)); background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); gap: 1px; }
 .ov2-view button { width: calc(22 * var(--px)); height: calc(20 * var(--px)); border: 0; border-radius: calc(7 * var(--px)); background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
@@ -114,46 +120,46 @@
 .ov2-view svg { width: calc(13 * var(--px)); height: calc(13 * var(--px)); }
 
 /* cards */
-.tracker-root.ov2 .orders-cards-list { display: flex; flex-direction: column; gap: calc(6 * var(--px)); }
+.tracker-root.ov2 .orders-cards-list { display: flex; flex-direction: column; gap: calc(6 * var(--cpx)); }
 .tracker-root.ov2 .orders-cards-list.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.ov2-card { background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); border-inline-start: calc(3 * var(--px)) solid var(--tone); border-radius: calc(10 * var(--px)); box-shadow: var(--lt-shadow2); padding: calc(6 * var(--px)) calc(8 * var(--px)) calc(5 * var(--px)) calc(8 * var(--px)); display: flex; flex-direction: column; gap: calc(4 * var(--px)); min-width: 0; }
+.ov2-card { background: var(--card-bg); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); border-inline-start: calc(3 * var(--cpx)) solid var(--tone); border-radius: calc(10 * var(--cpx)); box-shadow: var(--lt-shadow2); padding: calc(6 * var(--cpx)) calc(8 * var(--cpx)) calc(5 * var(--cpx)) calc(8 * var(--cpx)); display: flex; flex-direction: column; gap: calc(4 * var(--cpx)); min-width: 0; }
 .ov2-card.loan { background: linear-gradient(0deg, color-mix(in srgb, var(--warn) 6%, var(--card-bg)), var(--card-bg)); }
-.ov2-c-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "av main acts" "av meta meta"; column-gap: calc(8 * var(--px)); row-gap: calc(3 * var(--px)); align-items: center; }
-.ov2-avatar { grid-area: av; width: calc(30 * var(--px)); height: calc(30 * var(--px)); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(145deg, color-mix(in srgb, var(--tone) 78%, var(--card-bg)), var(--tone)); color: var(--card-bg); font-size: calc(14 * var(--px)); font-weight: 700; }
+.ov2-c-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "av main acts" "av meta meta"; column-gap: calc(8 * var(--cpx)); row-gap: calc(3 * var(--cpx)); align-items: center; }
+.ov2-avatar { grid-area: av; width: calc(30 * var(--cpx)); height: calc(30 * var(--cpx)); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(145deg, color-mix(in srgb, var(--tone) 78%, var(--card-bg)), var(--tone)); color: var(--card-bg); font-size: max(var(--ov2-min-font), calc(14 * var(--cpx))); font-weight: 700; }
 .ov2-c-main { grid-area: main; min-width: 0; }
-.ov2-c-name { display: flex; align-items: center; flex-wrap: wrap; gap: calc(4 * var(--px)); font-size: calc(10.5 * var(--px)); font-weight: 700; line-height: 1.2; }
+.ov2-c-name { display: flex; align-items: center; flex-wrap: wrap; gap: calc(4 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(10.5 * var(--cpx))); font-weight: 700; line-height: 1.2; }
 .ov2-c-name > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-.ov2-bolt { width: calc(11 * var(--px)); height: calc(11 * var(--px)); color: var(--warn); fill: var(--warn); }
-.ov2-c-ref { display: inline-flex; align-items: center; gap: calc(4 * var(--px)); margin-top: calc(2 * var(--px)); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: calc(8.5 * var(--px)); font-weight: 500; font-variant-numeric: tabular-nums; }
-.ov2-c-ref svg { width: calc(10 * var(--px)); height: calc(10 * var(--px)); }
-.ov2-c-meta { grid-area: meta; display: flex; align-items: center; flex-wrap: wrap; gap: calc(4.5 * var(--px)) calc(9 * var(--px)); }
-.ov2-status { display: inline-flex; align-items: center; height: calc(20 * var(--px)); padding: 0 calc(9 * var(--px)); border-radius: calc(10 * var(--px)); font-size: calc(8 * var(--px)); font-weight: 600; background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.ov2-bolt { width: calc(11 * var(--cpx)); height: calc(11 * var(--cpx)); color: var(--warn); fill: var(--warn); }
+.ov2-c-ref { display: inline-flex; align-items: center; gap: calc(4 * var(--cpx)); margin-top: calc(2 * var(--cpx)); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: max(var(--ov2-min-font), calc(8.5 * var(--cpx))); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ov2-c-ref svg { width: calc(10 * var(--cpx)); height: calc(10 * var(--cpx)); }
+.ov2-c-meta { grid-area: meta; display: flex; align-items: center; flex-wrap: wrap; gap: calc(4.5 * var(--cpx)) calc(9 * var(--cpx)); }
+.ov2-status { display: inline-flex; align-items: center; height: calc(20 * var(--cpx)); padding: 0 calc(9 * var(--cpx)); border-radius: calc(10 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(8 * var(--cpx))); font-weight: 600; background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
 .ov2-status.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .ov2-status.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
-.ov2-c-when { display: flex; flex-direction: column; gap: calc(2 * var(--px)); font-size: calc(8.5 * var(--px)); color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
-.ov2-c-when span { display: inline-flex; align-items: center; gap: calc(4.5 * var(--px)); }
-.ov2-c-when svg { width: calc(10 * var(--px)); height: calc(10 * var(--px)); }
-.ov2-c-acts { grid-area: acts; display: flex; align-items: center; gap: calc(4.5 * var(--px)); align-self: start; }
+.ov2-c-when { display: flex; flex-direction: column; gap: calc(2 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(8.5 * var(--cpx))); color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ov2-c-when span { display: inline-flex; align-items: center; gap: calc(4.5 * var(--cpx)); }
+.ov2-c-when svg { width: calc(10 * var(--cpx)); height: calc(10 * var(--cpx)); }
+.ov2-c-acts { grid-area: acts; display: flex; align-items: center; gap: calc(4.5 * var(--cpx)); align-self: start; }
 .ov2-kebab { position: relative; }
-.ov2-icbtn { width: calc(22 * var(--px)); height: calc(22 * var(--px)); border-radius: 50%; border: 0; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+.ov2-icbtn { width: calc(22 * var(--cpx)); height: calc(22 * var(--cpx)); border-radius: 50%; border: 0; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
 .ov2-icbtn.plain { background: transparent; color: var(--text); }
-.ov2-icbtn svg { width: calc(13 * var(--px)); height: calc(13 * var(--px)); }
-.ov2-c-bottom { display: flex; align-items: stretch; flex-wrap: wrap; gap: calc(7.5 * var(--px)); }
-.ov2-stats { flex: 1 1 calc(200 * var(--px)); min-width: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: space-between; gap: calc(4 * var(--px)); padding: calc(5 * var(--px)) calc(8 * var(--px)); border-radius: calc(8 * var(--px)); background: color-mix(in srgb, var(--text) 4%, var(--card-bg)); }
+.ov2-icbtn svg { width: calc(13 * var(--cpx)); height: calc(13 * var(--cpx)); }
+.ov2-c-bottom { display: flex; align-items: stretch; flex-wrap: wrap; gap: calc(7.5 * var(--cpx)); }
+.ov2-stats { flex: 1 1 calc(200 * var(--cpx)); min-width: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: space-between; gap: calc(4 * var(--cpx)); padding: calc(5 * var(--cpx)) calc(8 * var(--cpx)); border-radius: calc(8 * var(--cpx)); background: color-mix(in srgb, var(--text) 4%, var(--card-bg)); }
 .ov2-stats > div { min-width: 0; }
-.ov2-stats > div + div { border-inline-start: 1px solid color-mix(in srgb, var(--line) 70%, transparent); padding-inline-start: calc(6 * var(--px)); }
-.ov2-stats dt { font-size: calc(7 * var(--px)); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); margin-bottom: 1px; line-height: 1.2; }
-.ov2-stats dd { margin: 0; font-size: calc(11.5 * var(--px)); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; direction: ltr; text-align: start; line-height: 1.2; }
-.ov2-stats dd small { font-size: calc(7.5 * var(--px)); font-weight: 700; color: var(--muted); margin-inline-start: calc(2 * var(--px)); }
+.ov2-stats > div + div { border-inline-start: 1px solid color-mix(in srgb, var(--line) 70%, transparent); padding-inline-start: calc(6 * var(--cpx)); }
+.ov2-stats dt { font-size: max(var(--ov2-min-font), calc(7 * var(--cpx))); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); margin-bottom: 1px; line-height: 1.2; }
+.ov2-stats dd { margin: 0; font-size: max(var(--ov2-min-font), calc(11.5 * var(--cpx))); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; direction: ltr; text-align: start; line-height: 1.2; }
+.ov2-stats dd small { font-size: max(var(--ov2-min-font), calc(7.5 * var(--cpx))); font-weight: 700; color: var(--muted); margin-inline-start: calc(2 * var(--cpx)); }
 [dir=rtl] .ov2-stats dd { text-align: right; }
 .ov2-stats dd.vol { color: var(--warn); }
 .ov2-stats dd.good { color: var(--good); }
 .ov2-stats dd.bad { color: var(--bad); }
 .ov2-stats dd.muted { color: var(--muted); }
-.ov2-details { flex: none; align-self: center; display: inline-flex; align-items: center; justify-content: center; gap: calc(4 * var(--px)); height: calc(24 * var(--px)); padding: 0 calc(11 * var(--px)); border: 0; border-radius: calc(8 * var(--px)); background: var(--brand); color: var(--card-bg); font-size: calc(9 * var(--px)); font-weight: 700; }
-.ov2-details svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); stroke-width: 2.6; }
+.ov2-details { flex: none; align-self: center; display: inline-flex; align-items: center; justify-content: center; gap: calc(4 * var(--cpx)); height: calc(24 * var(--cpx)); padding: 0 calc(11 * var(--cpx)); border: 0; border-radius: calc(8 * var(--cpx)); background: var(--brand); color: var(--card-bg); font-size: max(var(--ov2-min-font), calc(9 * var(--cpx))); font-weight: 700; }
+.ov2-details svg { width: calc(11 * var(--cpx)); height: calc(11 * var(--cpx)); stroke-width: 2.6; }
 [dir=rtl] .ov2-details svg { transform: scaleX(-1); }
-.ov2-c-detail { border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); padding-top: calc(9 * var(--px)); }
+.ov2-c-detail { border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); padding-top: calc(9 * var(--cpx)); }
 
 @media all {
   .ov2-c-top { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "av main meta acts"; }
@@ -162,28 +168,28 @@
 
 /* grid view: two compact cards a row */
 .orders-cards-list.grid .ov2-c-top { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "av main acts" "meta meta meta"; }
-.orders-cards-list.grid .ov2-avatar { width: calc(28.5 * var(--px)); height: calc(28.5 * var(--px)); font-size: calc(13 * var(--px)); }
-.orders-cards-list.grid .ov2-c-name { font-size: calc(10 * var(--px)); }
+.orders-cards-list.grid .ov2-avatar { width: calc(28.5 * var(--cpx)); height: calc(28.5 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(13 * var(--cpx))); }
+.orders-cards-list.grid .ov2-c-name { font-size: max(var(--ov2-min-font), calc(10 * var(--cpx))); }
 .orders-cards-list.grid .ov2-c-meta { flex-wrap: wrap; }
 .orders-cards-list.grid .ov2-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); flex-basis: 100%; }
 .orders-cards-list.grid .ov2-stats > div + div { border-inline-start: 0; padding-inline-start: 0; }
 .orders-cards-list.grid .ov2-details { width: 100%; }
-.orders-cards-list.grid .ov2-icbtn { width: calc(24 * var(--px)); height: calc(24 * var(--px)); }
+.orders-cards-list.grid .ov2-icbtn { width: calc(24 * var(--cpx)); height: calc(24 * var(--cpx)); }
 
 /* filters sheet */
 .ov2-scrim { position: fixed; inset: 0; z-index: 9000; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(calc(3 * var(--px))); display: flex; align-items: flex-end; justify-content: center; }
 .ov2-sheet { width: 100%; max-width: calc(390 * var(--px)); max-height: 88vh; overflow-y: auto; background: var(--card-bg); border: 1px solid var(--line); border-radius: calc(15 * var(--px)) calc(15 * var(--px)) 0 0; padding: calc(12 * var(--px)); display: flex; flex-direction: column; gap: calc(10.5 * var(--px)); box-shadow: var(--lt-shadow); color: var(--text); }
 .ov2-sheet header { display: flex; align-items: center; justify-content: space-between; }
-.ov2-sheet h2 { display: flex; align-items: center; gap: calc(6 * var(--px)); font-size: calc(13 * var(--px)); font-weight: 800; }
+.ov2-sheet h2 { display: flex; align-items: center; gap: calc(6 * var(--px)); font-size: max(var(--ov2-min-font), calc(13 * var(--px))); font-weight: 800; }
 .ov2-sheet h2 svg { width: calc(14 * var(--px)); height: calc(14 * var(--px)); color: var(--brand); }
 .ov2-sheet header button { border: 0; background: transparent; color: var(--muted); display: inline-flex; }
 .ov2-sheet-body { display: flex; flex-direction: column; gap: calc(9 * var(--px)); }
-.ov2-sheet-body label { display: flex; flex-direction: column; gap: calc(4.5 * var(--px)); font-size: calc(9 * var(--px)); font-weight: 700; color: var(--muted); }
+.ov2-sheet-body label { display: flex; flex-direction: column; gap: calc(4.5 * var(--px)); font-size: max(var(--ov2-min-font), calc(9 * var(--px))); font-weight: 700; color: var(--muted); }
 .ov2-sheet footer { display: flex; justify-content: flex-end; }
 .ov2-sheet footer .ov2-new { width: 100%; }
 
 /* the way back to the classic layout */
-.ov2-classic { align-self: center; border: 0; background: transparent; color: var(--muted); font-size: calc(9 * var(--px)); text-decoration: underline; padding: calc(6 * var(--px)) calc(9 * var(--px)); }
+.ov2-classic { align-self: center; border: 0; background: transparent; color: var(--muted); font-size: max(var(--ov2-min-font), calc(9 * var(--px))); text-decoration: underline; padding: calc(6 * var(--px)) calc(9 * var(--px)); }
 
 /* things the new layout shortens stay reachable: the old month row and the floating add button are replaced above */
 .tracker-root.ov2 .month-filter-row { display: none; }
@@ -192,7 +198,7 @@
 /* a date button anywhere in this layout looks like the other chips */
 .tracker-root.ov2 .ov2-chipbtn, .ov2-sheet .ov2-chipbtn {
   height: calc(25 * var(--px)); padding: 0 calc(10 * var(--px)); border-radius: calc(8 * var(--px)); border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  background: var(--card-bg); color: var(--text); font-size: calc(8.5 * var(--px)); font-weight: 600; box-shadow: var(--lt-shadow2);
+  background: var(--card-bg); color: var(--text); font-size: max(var(--ov2-min-font), calc(8.5 * var(--px))); font-weight: 600; box-shadow: var(--lt-shadow2);
   display: inline-flex; align-items: center; gap: calc(4.5 * var(--px)); width: fit-content; white-space: nowrap;
 }
 .ov2-sheet .ov2-chipbtn.on { border-color: var(--brand); color: var(--brand); }
@@ -207,9 +213,9 @@
 
 /* header */
 .tracker-root.ov2 .ov2-head { padding: calc(7 * var(--px)) calc(2 * var(--px)) 0; margin-bottom: calc(7 * var(--px)); align-items: flex-start; }
-.tracker-root.ov2 .ov2-head h1 { font-size: calc(20.7 * var(--px)); line-height: 1.15; letter-spacing: -.3px; }
-.tracker-root.ov2 .ov2-head p { margin-top: calc(3 * var(--px)); font-size: calc(8.6 * var(--px)); line-height: 1.3; }
-.tracker-root.ov2 .ov2-new { height: calc(30.5 * var(--px)); padding: 0 calc(15 * var(--px)); gap: calc(6 * var(--px)); border-radius: calc(6 * var(--px)); font-size: calc(8.4 * var(--px)); font-weight: 700; margin-top: calc(3 * var(--px)); }
+.tracker-root.ov2 .ov2-head h1 { font-size: max(var(--ov2-min-font), calc(20.7 * var(--px))); line-height: 1.15; letter-spacing: -.3px; }
+.tracker-root.ov2 .ov2-head p { margin-top: calc(3 * var(--px)); font-size: max(var(--ov2-min-font), calc(8.6 * var(--px))); line-height: 1.3; }
+.tracker-root.ov2 .ov2-new { height: calc(30.5 * var(--px)); padding: 0 calc(15 * var(--px)); gap: calc(6 * var(--px)); border-radius: calc(6 * var(--px)); font-size: max(var(--ov2-min-font), calc(8.4 * var(--px))); font-weight: 700; margin-top: calc(3 * var(--px)); }
 .tracker-root.ov2 .ov2-new svg { width: calc(9 * var(--px)); height: calc(9 * var(--px)); stroke-width: 2.8; }
 
 /* figure cards */
@@ -218,39 +224,39 @@
 .tracker-root.ov2 .ov2-kpi header { gap: calc(7.5 * var(--px)); }
 .tracker-root.ov2 .ov2-ic { width: calc(17.5 * var(--px)); height: calc(17.5 * var(--px)); border-radius: calc(4.5 * var(--px)); }
 .tracker-root.ov2 .ov2-ic svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); }
-.tracker-root.ov2 .ov2-kpi h3 { font-size: calc(7 * var(--px)); font-weight: 600; }
+.tracker-root.ov2 .ov2-kpi h3 { font-size: max(var(--ov2-min-font), calc(7 * var(--px))); font-weight: 600; }
 .tracker-root.ov2 .ov2-kval { margin-top: calc(6.5 * var(--px)); }
-.tracker-root.ov2 .ov2-kval b { font-size: calc(14.5 * var(--px)); line-height: 1.05; }
-.tracker-root.ov2 .ov2-kunit { font-size: calc(7.6 * var(--px)); margin-top: calc(2 * var(--px)); }
-.tracker-root.ov2 .ov2-kdelta { font-size: calc(7 * var(--px)); margin-top: calc(3 * var(--px)); gap: 1px calc(3 * var(--px)); }
+.tracker-root.ov2 .ov2-kval b { font-size: max(var(--ov2-min-font), calc(14.5 * var(--px))); line-height: 1.05; }
+.tracker-root.ov2 .ov2-kunit { font-size: max(var(--ov2-min-font), calc(7.6 * var(--px))); margin-top: calc(2 * var(--px)); }
+.tracker-root.ov2 .ov2-kdelta { font-size: max(var(--ov2-min-font), calc(7 * var(--px))); margin-top: calc(3 * var(--px)); gap: 1px calc(3 * var(--px)); }
 .tracker-root.ov2 .ov2-kdelta svg { width: calc(7 * var(--px)); height: calc(7 * var(--px)); }
-.tracker-root.ov2 .ov2-kdelta span { font-size: calc(7.4 * var(--px)); margin-top: calc(3 * var(--px)); max-width: none; }
+.tracker-root.ov2 .ov2-kdelta span { font-size: max(var(--ov2-min-font), calc(7.4 * var(--px))); margin-top: calc(3 * var(--px)); max-width: none; }
 .tracker-root.ov2 .ov2-kspark { inset-inline-end: calc(7.5 * var(--px)); bottom: calc(14 * var(--px)); width: calc(40 * var(--px)); height: calc(21 * var(--px)); }
 .tracker-root.ov2 .ov2-kspark.line { inset-inline-end: calc(7.5 * var(--px)); bottom: calc(22 * var(--px)); width: calc(42 * var(--px)); height: calc(14 * var(--px)); }
 .tracker-root.ov2 .ov2-kspark.line.wide { inset-inline-end: calc(6 * var(--px)); bottom: calc(6 * var(--px)); width: calc(80 * var(--px)); height: calc(26 * var(--px)); }
 
 /* tabs */
 .tracker-root.ov2 .ov2-tabs { gap: calc(4 * var(--px)); }
-.tracker-root.ov2 .ov2-tab { height: calc(24.5 * var(--px)); border-radius: calc(12.25 * var(--px)); font-size: calc(7.8 * var(--px)); gap: calc(6 * var(--px)); }
+.tracker-root.ov2 .ov2-tab { height: calc(24.5 * var(--px)); border-radius: calc(12.25 * var(--px)); font-size: max(var(--ov2-min-font), calc(7.8 * var(--px))); gap: calc(6 * var(--px)); }
 .tracker-root.ov2 .ov2-tab svg { width: calc(13 * var(--px)); height: calc(13 * var(--px)); }
 
 /* search */
 .tracker-root.ov2 .ov2-search { gap: calc(7.5 * var(--px)); }
 .tracker-root.ov2 .ov2-search-box { height: calc(26.5 * var(--px)); border-radius: calc(13.25 * var(--px)); padding: 0 calc(12 * var(--px)); gap: calc(6 * var(--px)); }
 .tracker-root.ov2 .ov2-search-box svg { width: calc(10 * var(--px)); height: calc(10 * var(--px)); }
-.tracker-root.ov2 .ov2-search-box input { font-size: calc(8.3 * var(--px)); }
+.tracker-root.ov2 .ov2-search-box input { font-size: max(var(--ov2-min-font), calc(8.3 * var(--px))); }
 .tracker-root.ov2 .ov2-filterbtn { width: calc(32.5 * var(--px)); height: calc(27.5 * var(--px)); border-radius: calc(8 * var(--px)); }
 .tracker-root.ov2 .ov2-filterbtn svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); }
 
 /* months */
 .tracker-root.ov2 .ov2-months { gap: calc(5 * var(--px)); margin-bottom: calc(8.5 * var(--px)); }
-.tracker-root.ov2 .ov2-mbtn { height: calc(25 * var(--px)); padding: 0 calc(9 * var(--px)) 0 0; gap: 0; border-radius: calc(7 * var(--px)); font-size: calc(7.9 * var(--px)); overflow: hidden; }
+.tracker-root.ov2 .ov2-mbtn { height: calc(25 * var(--px)); padding: 0 calc(9 * var(--px)) 0 0; gap: 0; border-radius: calc(7 * var(--px)); font-size: max(var(--ov2-min-font), calc(7.9 * var(--px))); overflow: hidden; }
 .tracker-root.ov2 .ov2-mcal { display: inline-flex; align-items: center; justify-content: center; width: calc(32 * var(--px)); height: 100%; border-inline-end: 1px solid color-mix(in srgb, var(--line) 50%, transparent); margin-inline-end: calc(10 * var(--px)); }
 .tracker-root.ov2 .ov2-mcal svg { width: calc(12 * var(--px)); height: calc(12 * var(--px)); color: var(--text); }
 .tracker-root.ov2 .ov2-mlabel { min-width: calc(43 * var(--px)); margin-inline-end: calc(10 * var(--px)); }
 .tracker-root.ov2 .ov2-mbtn > svg:last-child { width: calc(9 * var(--px)); height: calc(9 * var(--px)); }
 .tracker-root.ov2 .ov2-chips { gap: calc(5 * var(--px)); padding: 1px; }
-.tracker-root.ov2 .ov2-chip { height: calc(24 * var(--px)); min-width: calc(46 * var(--px)); padding: 0 calc(11 * var(--px)); border-radius: calc(12 * var(--px)); font-size: calc(7.8 * var(--px)); }
+.tracker-root.ov2 .ov2-chip { height: calc(24 * var(--px)); min-width: calc(46 * var(--px)); padding: 0 calc(11 * var(--px)); border-radius: calc(12 * var(--px)); font-size: max(var(--ov2-min-font), calc(7.8 * var(--px))); }
 .tracker-root.ov2 .ov2-mnext { width: calc(18 * var(--px)); height: calc(24 * var(--px)); }
 .tracker-root.ov2 .ov2-mnext svg { width: calc(10 * var(--px)); height: calc(10 * var(--px)); }
 
@@ -258,46 +264,46 @@
 .tracker-root.ov2 .orders-filter-row { gap: calc(5 * var(--px)) !important; margin: 0 0 calc(9.5 * var(--px)) !important; justify-content: space-between; }
 .tracker-root.ov2 .orders-filter-row .rowBtn,
 .tracker-root.ov2 .orders-filter-row .msel-trigger,
-.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { height: calc(25 * var(--px)); min-height: calc(25 * var(--px)); border-radius: calc(7 * var(--px)); padding: 0 calc(10 * var(--px)); gap: calc(6 * var(--px)); font-size: calc(7.8 * var(--px)); flex: 1 1 auto; justify-content: center; }
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { height: calc(25 * var(--px)); min-height: calc(25 * var(--px)); border-radius: calc(7 * var(--px)); padding: 0 calc(10 * var(--px)); gap: calc(6 * var(--px)); font-size: max(var(--ov2-min-font), calc(7.8 * var(--px))); flex: 1 1 auto; justify-content: center; }
 .tracker-root.ov2 .orders-filter-row .msel-trigger { justify-content: space-between; flex-grow: 1.4; padding: 0 calc(12 * var(--px)); }
 .tracker-root.ov2 .orders-filter-row .ov2-chipbtn svg, .tracker-root.ov2 .orders-filter-row .rowBtn svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); }
 
 /* list header */
 .tracker-root.ov2 .ov2-listhead { padding: calc(9 * var(--px)) calc(11 * var(--px)) calc(6 * var(--px)); gap: calc(6 * var(--px)); }
-.tracker-root.ov2 .ov2-listhead h2 { font-size: calc(12.4 * var(--px)); }
-.tracker-root.ov2 .ov2-sort { font-size: calc(8 * var(--px)); gap: calc(5 * var(--px)); margin-inline-end: calc(9 * var(--px)); }
+.tracker-root.ov2 .ov2-listhead h2 { font-size: max(var(--ov2-min-font), calc(12.4 * var(--px))); }
+.tracker-root.ov2 .ov2-sort { font-size: max(var(--ov2-min-font), calc(8 * var(--px))); gap: calc(5 * var(--px)); margin-inline-end: calc(9 * var(--px)); }
 .tracker-root.ov2 .ov2-sort svg { width: calc(10 * var(--px)); height: calc(10 * var(--px)); }
 .tracker-root.ov2 .ov2-view { padding: 0; gap: 0; border: 0; border-radius: calc(4 * var(--px)); background: color-mix(in srgb, var(--text) 7%, var(--card-bg)); overflow: hidden; }
 .tracker-root.ov2 .ov2-view button { width: calc(23 * var(--px)); height: calc(20 * var(--px)); border-radius: calc(4 * var(--px)); }
 .tracker-root.ov2 .ov2-view svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); }
 
 /* order cards */
-.tracker-root.ov2 .orders-cards-list { padding: 0 !important; margin: 0 !important; gap: calc(7 * var(--px)); }
-.tracker-root.ov2 .ov2-card { border-radius: calc(8 * var(--px)); padding: calc(7.5 * var(--px)) calc(9 * var(--px)) calc(2.5 * var(--px)) 0; gap: calc(5 * var(--px)); border-inline-start-width: calc(2 * var(--px)); }
-.tracker-root.ov2 .ov2-c-top { padding-inline-start: calc(11 * var(--px)); column-gap: calc(7.5 * var(--px)); }
-.tracker-root.ov2 .ov2-avatar { width: calc(30 * var(--px)); height: calc(30 * var(--px)); font-size: calc(13 * var(--px)); }
-.tracker-root.ov2 .ov2-c-name { font-size: calc(10.3 * var(--px)); gap: calc(4 * var(--px)); }
-.tracker-root.ov2 .ov2-bolt { width: calc(9 * var(--px)); height: calc(9 * var(--px)); }
-.tracker-root.ov2 .ov2-c-ref { font-size: calc(8 * var(--px)); margin-top: calc(3 * var(--px)); gap: calc(5 * var(--px)); }
-.tracker-root.ov2 .ov2-c-ref svg { width: calc(8.5 * var(--px)); height: calc(8.5 * var(--px)); }
-.tracker-root.ov2 .ov2-status { height: calc(19 * var(--px)); padding: 0 calc(8.5 * var(--px)); border-radius: calc(9.5 * var(--px)); font-size: calc(8.2 * var(--px)); }
-.tracker-root.ov2 .ov2-c-meta { gap: calc(15 * var(--px)); }
-.tracker-root.ov2 .ov2-c-when { font-size: calc(8 * var(--px)); gap: calc(3 * var(--px)); }
-.tracker-root.ov2 .ov2-c-when span { gap: calc(5 * var(--px)); }
-.tracker-root.ov2 .ov2-c-when svg { width: calc(9 * var(--px)); height: calc(9 * var(--px)); }
-.tracker-root.ov2 .ov2-c-acts { gap: calc(9 * var(--px)); align-self: center; }
-.tracker-root.ov2 .ov2-icbtn { width: calc(25 * var(--px)); height: calc(25 * var(--px)); }
-.tracker-root.ov2 .ov2-icbtn svg { width: calc(11 * var(--px)); height: calc(11 * var(--px)); }
-.tracker-root.ov2 .ov2-icbtn.plain { width: calc(12 * var(--px)); }
-.tracker-root.ov2 .ov2-c-bottom { gap: calc(13.5 * var(--px)); align-items: flex-start; }
-.tracker-root.ov2 .ov2-stats { flex: 1 1 auto; border-radius: 0 calc(7 * var(--px)) calc(7 * var(--px)) 0; padding: calc(9.5 * var(--px)) 0 calc(8 * var(--px)) calc(11 * var(--px)); min-height: calc(41 * var(--px)); gap: 0; grid-template-columns: 1.08fr 0.82fr 1.1fr 1fr; }
-.tracker-root.ov2 .ov2-stats > div + div { padding-inline-start: calc(12 * var(--px)); }
-.tracker-root.ov2 .ov2-stats dt { font-size: calc(7.8 * var(--px)); font-weight: 600; letter-spacing: 0; margin-bottom: calc(3 * var(--px)); }
-.tracker-root.ov2 .ov2-stats dd { font-size: calc(11.5 * var(--px)); }
-.tracker-root.ov2 .ov2-stats dd small { font-size: calc(7.9 * var(--px)); font-weight: 600; color: inherit; margin-inline-start: calc(2 * var(--px)); }
+.tracker-root.ov2 .orders-cards-list { padding: 0 !important; margin: 0 !important; gap: calc(7 * var(--cpx)); }
+.tracker-root.ov2 .ov2-card { border-radius: calc(8 * var(--cpx)); padding: calc(7.5 * var(--cpx)) calc(9 * var(--cpx)) calc(2.5 * var(--cpx)) 0; gap: calc(5 * var(--cpx)); border-inline-start-width: calc(2 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-top { padding-inline-start: calc(11 * var(--cpx)); column-gap: calc(7.5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-avatar { width: calc(30 * var(--cpx)); height: calc(30 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(13 * var(--cpx))); }
+.tracker-root.ov2 .ov2-c-name { font-size: max(var(--ov2-min-font), calc(10.3 * var(--cpx))); gap: calc(4 * var(--cpx)); }
+.tracker-root.ov2 .ov2-bolt { width: calc(9 * var(--cpx)); height: calc(9 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-ref { font-size: max(var(--ov2-min-font), calc(8 * var(--cpx))); margin-top: calc(3 * var(--cpx)); gap: calc(5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-ref svg { width: calc(8.5 * var(--cpx)); height: calc(8.5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-status { height: calc(19 * var(--cpx)); padding: 0 calc(8.5 * var(--cpx)); border-radius: calc(9.5 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(8.2 * var(--cpx))); }
+.tracker-root.ov2 .ov2-c-meta { gap: calc(15 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-when { font-size: max(var(--ov2-min-font), calc(8 * var(--cpx))); gap: calc(3 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-when span { gap: calc(5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-when svg { width: calc(9 * var(--cpx)); height: calc(9 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-acts { gap: calc(9 * var(--cpx)); align-self: center; }
+.tracker-root.ov2 .ov2-icbtn { width: calc(25 * var(--cpx)); height: calc(25 * var(--cpx)); }
+.tracker-root.ov2 .ov2-icbtn svg { width: calc(11 * var(--cpx)); height: calc(11 * var(--cpx)); }
+.tracker-root.ov2 .ov2-icbtn.plain { width: calc(12 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-bottom { gap: calc(13.5 * var(--cpx)); align-items: flex-start; }
+.tracker-root.ov2 .ov2-stats { flex: 1 1 auto; border-radius: 0 calc(7 * var(--cpx)) calc(7 * var(--cpx)) 0; padding: calc(9.5 * var(--cpx)) 0 calc(8 * var(--cpx)) calc(11 * var(--cpx)); min-height: calc(41 * var(--cpx)); gap: 0; grid-template-columns: 1.08fr 0.82fr 1.1fr 1fr; }
+.tracker-root.ov2 .ov2-stats > div + div { padding-inline-start: calc(12 * var(--cpx)); }
+.tracker-root.ov2 .ov2-stats dt { font-size: max(var(--ov2-min-font), calc(7.8 * var(--cpx))); font-weight: 600; letter-spacing: 0; margin-bottom: calc(3 * var(--cpx)); }
+.tracker-root.ov2 .ov2-stats dd { font-size: max(var(--ov2-min-font), calc(11.5 * var(--cpx))); }
+.tracker-root.ov2 .ov2-stats dd small { font-size: max(var(--ov2-min-font), calc(7.9 * var(--cpx))); font-weight: 600; color: inherit; margin-inline-start: calc(2 * var(--cpx)); }
 .tracker-root.ov2 .ov2-stats dd:not(.vol):not(.good):not(.bad) small { color: var(--text); }
-.tracker-root.ov2 .ov2-details { width: calc(58 * var(--px)); height: calc(24.5 * var(--px)); padding: 0; border-radius: calc(6 * var(--px)); font-size: calc(7.8 * var(--px)); gap: calc(6 * var(--px)); margin-top: 1.5px; }
-.tracker-root.ov2 .ov2-details svg { width: calc(9 * var(--px)); height: calc(9 * var(--px)); }
+.tracker-root.ov2 .ov2-details { width: calc(58 * var(--cpx)); height: calc(24.5 * var(--cpx)); padding: 0; border-radius: calc(6 * var(--cpx)); font-size: max(var(--ov2-min-font), calc(7.8 * var(--cpx))); gap: calc(6 * var(--cpx)); margin-top: 1.5px; }
+.tracker-root.ov2 .ov2-details svg { width: calc(9 * var(--cpx)); height: calc(9 * var(--cpx)); }
 
 /* second pass against the prototype's measurements */
 .tracker-root.ov2 .ov2-head { margin-bottom: calc(2 * var(--px)); }
@@ -305,25 +311,32 @@
 .tracker-root.ov2 .ov2-kpi { min-height: calc(87 * var(--px)); padding-top: calc(9 * var(--px)); padding-bottom: calc(6 * var(--px)); }
 .tracker-root.ov2 .ov2-search { margin-bottom: calc(-2 * var(--px)); }
 .tracker-root.ov2 .ov2-mlabel { margin-inline-end: calc(6 * var(--px)); }
-.tracker-root.ov2 .orders-cards-list { margin: 0 !important; padding: 0 calc(2 * var(--px)) !important; }
+.tracker-root.ov2 .orders-cards-list { margin: 0 !important; padding: 0 calc(2 * var(--cpx)) !important; }
 .tracker-root.ov2 .ov2-c-top { display: flex; align-items: center; }
 .tracker-root.ov2 .ov2-c-main { flex: 0 1 auto; }
 .tracker-root.ov2 .ov2-c-meta { margin: 0 auto; flex-direction: row; flex-wrap: nowrap; }
 .tracker-root.ov2 .ov2-c-acts { flex: none; }
-.tracker-root.ov2 .ov2-stats { padding-top: calc(8 * var(--px)); padding-bottom: calc(7 * var(--px)); }
-.tracker-root.ov2 .ov2-details { align-self: flex-start; margin-top: calc(1.5 * var(--px)); }
-.tracker-root.ov2 .ov2-kpi h3 { font-size: calc(7.6 * var(--px)); }
+.tracker-root.ov2 .ov2-stats { padding-top: calc(8 * var(--cpx)); padding-bottom: calc(7 * var(--cpx)); }
+.tracker-root.ov2 .ov2-details { align-self: flex-start; margin-top: calc(1.5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-kpi h3 { font-size: max(var(--ov2-min-font), calc(7.6 * var(--px))); }
 .tracker-root.ov2 .ov2-kspark.line.wide { height: calc(22 * var(--px)); bottom: calc(5 * var(--px)); }
-.tracker-root.ov2 .ov2-new { font-size: calc(8.8 * var(--px)); }
-.tracker-root.ov2 .ov2-tab { font-size: calc(8.2 * var(--px)); }
-.tracker-root.ov2 .ov2-search-box input { font-size: calc(8.6 * var(--px)); }
-.tracker-root.ov2 .ov2-chip, .tracker-root.ov2 .ov2-mbtn { font-size: calc(8.2 * var(--px)); }
+.tracker-root.ov2 .ov2-new { font-size: max(var(--ov2-min-font), calc(8.8 * var(--px))); }
+.tracker-root.ov2 .ov2-tab { font-size: max(var(--ov2-min-font), calc(8.2 * var(--px))); }
+.tracker-root.ov2 .ov2-search-box input { font-size: max(var(--ov2-min-font), calc(8.6 * var(--px))); }
+.tracker-root.ov2 .ov2-chip, .tracker-root.ov2 .ov2-mbtn { font-size: max(var(--ov2-min-font), calc(8.2 * var(--px))); }
 .tracker-root.ov2 .orders-filter-row .rowBtn,
 .tracker-root.ov2 .orders-filter-row .msel-trigger,
-.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { font-size: calc(8.2 * var(--px)); }
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { font-size: max(var(--ov2-min-font), calc(8.2 * var(--px))); }
 .tracker-root.ov2 .orders-filter-row { flex-wrap: nowrap !important; }
 .tracker-root.ov2 .orders-filter-row .rowBtn,
 .tracker-root.ov2 .orders-filter-row .msel-trigger,
-.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { flex: 0 1 auto; min-width: 0; padding: 0 calc(8 * var(--px)); font-size: calc(7.9 * var(--px)); }
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn { flex: 0 1 auto; min-width: 0; padding: 0 calc(8 * var(--px)); font-size: max(var(--ov2-min-font), calc(7.9 * var(--px))); }
 .tracker-root.ov2 .orders-filter-row .msel-trigger { flex: 1 1 auto; max-width: calc(94 * var(--px)) !important; padding: 0 calc(10 * var(--px)); }
 .tracker-root.ov2 .orders-filter-row { padding: 0 !important; }
+/* larger minimum text on a narrow phone: titles may take two lines and a unit drops under its figure instead of overlapping */
+.tracker-root.ov2 .ov2-kpi h3 { white-space: normal; line-height: 1.1; }
+.tracker-root.ov2 .ov2-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root.ov2 .ov2-stats dd { white-space: normal; line-height: 1.15; }
+.tracker-root.ov2 .ov2-stats dd small { display: inline-block; }
+.tracker-root.ov2 .ov2-c-bottom { flex-wrap: nowrap; }
+.tracker-root.ov2 .ov2-stats { flex: 1 1 0; min-width: 0; }
