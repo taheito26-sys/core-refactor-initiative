@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { persistedQuery } from "@/lib/persisted-query";
 import { giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
@@ -628,12 +627,12 @@ export default function CustomerWalletPage() {
 
   const { data: accounts = [], isLoading: accLoading } = useQuery({
     queryKey: ["customer-cash-accounts", userId],
-    ...persistedQuery("cash-accounts", userId, async () => {
+    queryFn: async () => {
       if (!userId) return [] as Account[];
       const { data, error } = await supabase.from("cash_accounts").select("*").eq("user_id", userId).order("created_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Account[];
-    }),
+    },
     enabled: !!userId,
   });
 
@@ -654,7 +653,7 @@ export default function CustomerWalletPage() {
   // rows that already gate their read-only loan statement above.
   const { data: statementLinks = [] } = useQuery({
     queryKey: ["customer-statement-links", userId],
-    ...persistedQuery("statement-links", userId, async () => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("buyer_statement_links")
         .select("user_id, customer_id, currency")
@@ -665,7 +664,7 @@ export default function CustomerWalletPage() {
         return [];
       }
       return (data ?? []).map(l => ({ merchantUserId: l.user_id, customerId: l.customer_id, currency: l.currency }));
-    }),
+    },
     enabled: !!userId,
   });
 
@@ -727,12 +726,12 @@ export default function CustomerWalletPage() {
   // own note field on the same row, which the customer can't edit.
   const { data: paymentNotes = [] } = useQuery({
     queryKey: ["customer-payment-notes", userId],
-    ...persistedQuery("payment-notes", userId, async () => {
+    queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await supabase.from("customer_payment_notes").select("payment_key, note").eq("user_id", userId);
       if (error) throw error;
       return data ?? [];
-    }),
+    },
     enabled: !!userId,
   });
   const paymentNoteByKey = useMemo(() => new Map(paymentNotes.map(n => [n.payment_key, n.note])), [paymentNotes]);
@@ -755,23 +754,23 @@ export default function CustomerWalletPage() {
   // buyer's own annotations (see the migration), so a failed read just means no givers.
   const { data: giverRows = [] } = useQuery({
     queryKey: ["customer-cash-givers", userId],
-    ...persistedQuery("cash-givers", userId, async () => {
+    queryFn: async () => {
       if (!userId) return [] as { name: string }[];
       const { data, error } = await supabase.from("customer_cash_givers" as any).select("name").eq("user_id", userId).order("created_at", { ascending: true });
       if (error) { console.warn("[CustomerWalletPage] cash givers query error:", error.message); return [] as { name: string }[]; }
       return (data ?? []) as unknown as { name: string }[];
-    }),
+    },
     enabled: !!userId,
   });
   const giverNames = useMemo(() => giverRows.map(g => g.name), [giverRows]);
   const { data: giverAssignments = [] } = useQuery({
     queryKey: ["customer-payment-givers", userId],
-    ...persistedQuery("payment-givers", userId, async () => {
+    queryFn: async () => {
       if (!userId) return [] as { payment_key: string; giver_name: string }[];
       const { data, error } = await supabase.from("customer_payment_givers" as any).select("payment_key, giver_name").eq("user_id", userId);
       if (error) { console.warn("[CustomerWalletPage] payment givers query error:", error.message); return [] as { payment_key: string; giver_name: string }[]; }
       return (data ?? []) as unknown as { payment_key: string; giver_name: string }[];
-    }),
+    },
     enabled: !!userId,
   });
   const assignedGiverByKey = useMemo(() => new Map(giverAssignments.map(a => [a.payment_key, a.giver_name])), [giverAssignments]);
@@ -1241,12 +1240,12 @@ export default function CustomerWalletPage() {
 
   const { data: ledger = [], isLoading: ledgerLoading } = useQuery({
     queryKey: ["customer-cash-ledger", userId],
-    ...persistedQuery("cash-ledger", userId, async () => {
+    queryFn: async () => {
       if (!userId) return [] as LedgerRow[];
       const { data, error } = await supabase.from("cash_ledger").select("*").eq("user_id", userId).order("ts", { ascending: false });
       if (error) throw error;
       return (data ?? []) as LedgerRow[];
-    }),
+    },
     enabled: !!userId,
   });
 

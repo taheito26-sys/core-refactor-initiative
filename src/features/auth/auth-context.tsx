@@ -1,4 +1,4 @@
-import { warmStatements } from '@/features/customer/statements-api';
+import { rememberCustomerRole, warmStatements } from '@/features/customer/statements-api';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { claimLocalScope, releaseLocalScope } from '@/lib/session-scope';
@@ -175,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!customerRes.error) {
         setCustomerProfile((customerRes.data as CustomerProfile | null) ?? ensuredCustomerProfile);
         knownRef.current.customer = !!(customerRes.data ?? ensuredCustomerProfile);
+        if (customerRes.data) rememberCustomerRole(resolvedUserId);
       }
 
       // Not knowing is not the same as "no profile": if a merchant or customer lookup failed and nothing

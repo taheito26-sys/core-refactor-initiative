@@ -7,6 +7,37 @@ type AnySupabaseClient = any;
 // deno-lint-ignore no-explicit-any
 type AnyTrade = any;
 
+/** The parts of a merchant's tracker snapshot a buyer statement is built from. */
+export interface StatementState {
+  customers?: unknown;
+  customerLoans?: unknown;
+  trades?: AnyTrade[];
+}
+
+/**
+ * Reads only the three parts of the snapshot a statement needs, not the whole row, and shares one read between
+ * every link of the same merchant in a request.
+ */
+export function loadStatementState(
+  supabase: AnySupabaseClient,
+  merchantUserId: string,
+  shared?: Map<string, Promise<StatementState | null>>,
+): Promise<StatementState | null> {
+  const existing = shared?.get(merchantUserId);
+  if (existing) return existing;
+  const read = (async () => {
+    const { data, error } = await supabase
+      .from("tracker_snapshots")
+      .select("customers:state->customers, customerLoans:state->customerLoans, trades:state->trades")
+      .eq("user_id", merchantUserId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? (data as StatementState) : null;
+  })();
+  shared?.set(merchantUserId, read);
+  return read;
+}
+
 export interface StatementLinkRow {
   user_id: string;
   customer_id: string;
@@ -57,18 +88,19 @@ export async function buildLoanStatementResponse(
   // Opt-in, used only by the buyer's own orders page: also returns every
   // non-loan sale as `saleOrders`, and a zero-balance statement for a buyer
   // who has sales but no loans. Every other caller keeps the loan-only shape.
-  options: { includeSaleOrders?: boolean } = {},
+  options: { includeSaleOrders?: boolean; snapshots?: Map<string, Promise<StatementState | null>> } = {},
 ) {
-  const { data: snapshot, error: snapshotError } = await supabase
-    .from("tracker_snapshots")
-    .select("state")
-    .eq("user_id", link.user_id)
-    .maybeSingle();
+  // The buyer's profile name is looked up while the (much larger) tracker snapshot loads, not after it.
+  const profilePromise = link.customer_user_id
+    ? supabase
+      .from("customer_profiles")
+      .select("display_name, display_name_ar")
+      .eq("user_id", link.customer_user_id)
+      .maybeSingle()
+    : Promise.resolve({ data: null });
 
-  if (snapshotError) throw snapshotError;
-  if (!snapshot?.state) return null;
-
-  const state = snapshot.state as { customers?: unknown; customerLoans?: unknown; trades?: AnyTrade[] };
+  const state = await loadStatementState(supabase, link.user_id, options.snapshots);
+  if (!state) return null;
   // deno-lint-ignore no-explicit-any
   const customers = (state.customers ?? []) as any[];
   const statements = buildBuyerStatements({
@@ -160,15 +192,29 @@ export async function buildLoanStatementResponse(
     }
   }
 
+  // Both lookups of the exchange's own order data depend only on the trades read above, so they run together.
+  const importedTradeIds = buyerTrades.filter((tr) => tr.importedFrom).map((tr) => tr.id);
+  const [fallbackRes, placedRes] = await Promise.all([
+    tradesNeedingFallback.length > 0
+      ? supabase
+        .from("exchange_p2p_orders")
+        .select("exchange, order_number, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+        .eq("user_id", link.user_id)
+        .eq("linked_entity_type", "trade")
+      : Promise.resolve({ data: [] }),
+    importedTradeIds.length > 0
+      ? supabase
+        .from("exchange_p2p_orders")
+        .select("order_time, linked_entity_id")
+        .eq("user_id", link.user_id)
+        .eq("linked_entity_type", "trade")
+        .in("linked_entity_id", importedTradeIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
   if (tradesNeedingFallback.length > 0) {
     const tradeById = new Map(tradesNeedingFallback.map((tr) => [tr.id, tr]));
-    const { data: exchangeOrders } = await supabase
-      .from("exchange_p2p_orders")
-      .select("exchange, order_number, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
-      .eq("user_id", link.user_id)
-      .eq("linked_entity_type", "trade");
-
-    for (const o of exchangeOrders ?? []) {
+    for (const o of fallbackRes.data ?? []) {
       const trade = tradeById.get(o.linked_entity_id);
       if (!trade) continue;
       const usdtAmount = Number(trade.amountUSDT) || 0;
@@ -193,16 +239,9 @@ export async function buildLoanStatementResponse(
   // trade's timestamp is the merchant's and moves whenever they edit the
   // order. Anchor every imported order to the exchange time when it is known,
   // so the buyer's sequence never depends on what the merchant touched last.
-  const importedTradeIds = buyerTrades.filter((tr) => tr.importedFrom).map((tr) => tr.id);
   if (importedTradeIds.length > 0) {
-    const { data: placedRows } = await supabase
-      .from("exchange_p2p_orders")
-      .select("order_time, linked_entity_id")
-      .eq("user_id", link.user_id)
-      .eq("linked_entity_type", "trade")
-      .in("linked_entity_id", importedTradeIds);
     const placedAt = new Map<string, number>();
-    for (const row of placedRows ?? []) {
+    for (const row of placedRes.data ?? []) {
       const ms = new Date(row.order_time ?? 0).getTime();
       if (Number.isFinite(ms) && ms > 0) placedAt.set(row.linked_entity_id, ms);
     }
@@ -226,17 +265,9 @@ export async function buildLoanStatementResponse(
   // that entry is often just whatever spelling the merchant typed once when
   // placing the first order, long before the buyer had a portal account,
   // and can be in the wrong language entirely.
-  let profileNameEn: string | null = null;
-  let profileNameAr: string | null = null;
-  if (link.customer_user_id) {
-    const { data: profile } = await supabase
-      .from("customer_profiles")
-      .select("display_name, display_name_ar")
-      .eq("user_id", link.customer_user_id)
-      .maybeSingle();
-    profileNameEn = profile?.display_name ?? null;
-    profileNameAr = profile?.display_name_ar ?? null;
-  }
+  const { data: profile } = await profilePromise;
+  const profileNameEn: string | null = profile?.display_name ?? null;
+  const profileNameAr: string | null = profile?.display_name_ar ?? null;
 
   return {
     customerName: statement.customerName,

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { buildLoanStatementResponse } from "../_shared/buildLoanStatement.ts";
+import { buildLoanStatementResponse, type StatementState } from "../_shared/buildLoanStatement.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,11 +60,12 @@ Deno.serve(async (req) => {
     // Only the buyer's orders page asks for ?sales=1; every other caller
     // keeps the loan-only response.
     const includeSaleOrders = new URL(req.url).searchParams.get("sales") === "1";
-    const statements = [];
-    for (const link of links) {
-      const statement = await buildLoanStatementResponse(supabase, link, false, { includeSaleOrders });
-      if (statement) statements.push(statement);
-    }
+    // Every link is built at the same time, and links to the same merchant share one read of their tracker data.
+    const snapshots = new Map<string, Promise<StatementState | null>>();
+    const built = await Promise.all(
+      links.map((link) => buildLoanStatementResponse(supabase, link, false, { includeSaleOrders, snapshots })),
+    );
+    const statements = built.filter((statement) => statement);
 
     return json({ statements });
   } catch (err) {
