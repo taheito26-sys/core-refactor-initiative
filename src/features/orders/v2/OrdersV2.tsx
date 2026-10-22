@@ -221,7 +221,7 @@ export interface V2CardProps {
   children?: ReactNode;
 }
 
-const AVATARS = ['good', 'brand', 't5', 'warn', 'bad', 'brand2'] as const;
+const AVATARS = ['brand', 'good', 'brand2', 'warn', 'bad'] as const;
 
 export function OrdersV2Card(p: V2CardProps) {
   const [menuOpen, setMenuOpen] = useState(false);

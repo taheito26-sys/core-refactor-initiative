@@ -4122,7 +4122,7 @@ export default function OrdersPage() {
         id={tr.id}
         name={name}
         initial={initialOf(name)}
-        tone={avatarTone(name, 6)}
+        tone={avatarTone(name, 5)}
         marks={marks}
         reference={reference}
         statusLabel={status.label}
