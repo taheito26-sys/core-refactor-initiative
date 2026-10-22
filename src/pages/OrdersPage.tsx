@@ -4095,18 +4095,18 @@ export default function OrdersPage() {
 
     const marks = (
       <>
-        {isMerchantLinked && <span style={{ fontSize: 12 }}>🤝</span>}
-        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 12 }}>🔶</span> : null}
+        {isMerchantLinked && <span style={{ fontSize: 'calc(9 * var(--px))' }}>🤝</span>}
+        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 'calc(9 * var(--px))' }}>🔶</span> : null}
         {loan && (
           <span
             className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
             title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
-            style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+            style={{ fontSize: 'calc(7.5 * var(--px))', whiteSpace: 'nowrap', padding: 'calc(1 * var(--px)) calc(6 * var(--px))' }}
           >
             🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
           </span>
         )}
-        {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 11 }}>🚨</span>}
+        {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 'calc(7.5 * var(--px))' }}>🚨</span>}
       </>
     );
 
