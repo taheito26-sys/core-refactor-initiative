@@ -434,3 +434,115 @@
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta { margin-top: 0; flex-wrap: nowrap; }
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta span { display: none; }
 .tracker-root.ov2 .orders-filter-row .rowBtn.cv2-add { background: var(--brand); border-color: var(--brand); color: var(--card-bg); font-weight: 700; }
+
+/* Shared Orders and Stock controls. Navigation stays distinct from filters and actions. */
+.tracker-root.ov2 .ov2-tabs {
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0;
+}
+.tracker-root.ov2 .ov2-tab {
+  position: relative;
+  min-height: 42px;
+  height: auto;
+  gap: 6px;
+  padding: 10px 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: clamp(10px, calc(10 * var(--px)), 13px);
+  font-weight: 600;
+}
+.tracker-root.ov2 .ov2-tab span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tracker-root.ov2 .ov2-tab svg { width: 15px; height: 15px; color: inherit; }
+.tracker-root.ov2 .ov2-tab.on { color: var(--brand); background: color-mix(in srgb, var(--brand) 5%, transparent); }
+.tracker-root.ov2 .ov2-tab.on::after { content: ''; position: absolute; inset-inline: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--brand); }
+.tracker-root.ov2 .ov2-search { gap: 8px; padding-top: 2px; }
+.tracker-root.ov2 .ov2-search-box {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card-bg) 65%, transparent);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.tracker-root.ov2 .ov2-search-box:focus-within { border-color: var(--brand); outline: 2px solid color-mix(in srgb, var(--brand) 12%, transparent); }
+.tracker-root.ov2 .ov2-search-box input { font-size: clamp(11px, calc(10 * var(--px)), 13px); }
+.tracker-root.ov2 .ov2-search-box > svg { width: 16px; height: 16px; }
+.tracker-root.ov2 .ov2-filterbtn {
+  width: auto;
+  height: 40px;
+  padding: 0 12px;
+  gap: 6px;
+  border-radius: 10px;
+  border-color: var(--line);
+  background: var(--card-bg);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tracker-root.ov2 .ov2-filterbtn svg { width: 15px; height: 15px; }
+.tracker-root.ov2 .ov2-filterbtn.on { background: color-mix(in srgb, var(--brand) 9%, var(--card-bg)); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
+.tracker-root.ov2 .ov2-months { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.tracker-root.ov2 .ov2-period { display: flex; align-items: center; gap: 8px; min-width: 0; padding-inline-end: 10px; border-inline-end: 1px solid var(--line); }
+.tracker-root.ov2 .ov2-period > svg { width: 15px; height: 15px; color: var(--muted); }
+.tracker-root.ov2 .ov2-period .msel-trigger { height: 34px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); box-shadow: none; font-size: 11px; font-weight: 650; }
+.tracker-root.ov2 .ov2-chips { display: flex; flex: 1 1 150px; gap: 4px; padding: 0; min-width: 0; overflow: visible; }
+.tracker-root.ov2 .ov2-chip { height: 32px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: var(--muted); font-size: 10px; font-weight: 600; }
+.tracker-root.ov2 .ov2-chip.on { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); }
+.tracker-root.ov2 .orders-filter-row { justify-content: flex-start; gap: 8px !important; padding: 2px 0 10px; }
+.tracker-root.ov2 .orders-filter-row .rowBtn,
+.tracker-root.ov2 .orders-filter-row .msel-trigger,
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 11px;
+  gap: 6px;
+  border-radius: 8px;
+  background: var(--card-bg);
+  border-color: var(--line);
+  box-shadow: none;
+  font-size: 11px;
+  max-width: 100% !important;
+  min-width: 0;
+}
+.tracker-root.ov2 .orders-filter-row .msel-value { overflow: hidden; text-overflow: ellipsis; }
+.tracker-root.ov2 .orders-filter-row .rowBtn svg,
+.tracker-root.ov2 .orders-filter-row .ov2-chipbtn svg { width: 14px; height: 14px; }
+.tracker-root.ov2 .orders-filter-row .ov2-export { margin-inline-start: auto; color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, var(--card-bg)); border-color: color-mix(in srgb, var(--brand) 25%, var(--line)); }
+.ov2-export-menu { min-width: 170px; border-radius: 10px; }
+.ov2-export-menu [role=menuitem] { gap: 10px; padding: 10px; font-size: 12px; cursor: pointer; }
+.ov2-export-menu svg { width: 16px; height: 16px; }
+.tracker-root.ov2 .ov2-extras { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-block: 8px !important; }
+.tracker-root.ov2 .ov2-extras span { background: transparent; padding: 0; border-radius: 0; box-shadow: none; gap: 6px; font-size: 10px; }
+.tracker-root.ov2 .ov2-extras b { font-size: 11px; font-weight: 650; }
+.tracker-root.ov2 .ov2-reconcile { justify-content: space-between; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--card-bg) 70%, transparent); }
+.tracker-root.ov2 .ov2-reconcile > span { font-size: 11px; font-weight: 500; line-height: 1.5; color: var(--muted); }
+.tracker-root.ov2 .ov2-reconcile button { flex-shrink: 0; }
+.tracker-root.ov2 .ov2-reconcile [data-state=checked] { background: var(--brand); }
+.tracker-root.ov2 .ov2-tab:focus-visible,
+.tracker-root.ov2 .ov2-chip:focus-visible,
+.tracker-root.ov2 .ov2-filterbtn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 420px) {
+  .tracker-root.ov2 .ov2-months { gap: 4px; }
+  .tracker-root.ov2 .ov2-period { gap: 3px; padding-inline-end: 4px; }
+  .tracker-root.ov2 .ov2-period .msel-trigger { max-width: 148px; padding: 0 4px; }
+  .tracker-root.ov2 .ov2-chips { gap: 0; }
+  .tracker-root.ov2 .ov2-chip { padding: 0 7px; font-size: 10px; }
+  .tracker-root.ov2 .orders-filter-row { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tracker-root.ov2 .orders-filter-row > .rowBtn,
+  .tracker-root.ov2 .orders-filter-row > .msel-trigger,
+  .tracker-root.ov2 .orders-filter-row > .ov2-chipbtn { width: 100% !important; justify-content: center; margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tracker-root.ov2 .ov2-tab, .tracker-root.ov2 .ov2-chip { transition: none; }
+}
+
+@media (min-width: 421px) {
+  .tracker-root.ov2 .orders-filter-row > .msel-trigger { flex: 0 1 210px !important; width: 210px !important; }
+}
+@media (max-width: 360px) {
+  .tracker-root.ov2 .ov2-tab svg { display: none; }
+}

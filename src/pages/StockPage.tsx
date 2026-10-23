@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
@@ -1300,9 +1301,18 @@ export default function StockPage() {
           </div>
 
           <div style={{ marginBottom: 9 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-              <Checkbox checked={reconcileExchangesEnabled} onCheckedChange={(v) => setReconcileExchangesEnabled(v === true)} />
-              {t('checkExchangeReconciliation') || 'Check tracker vs. exchange balances'}
+            <label className={v2 ? 'ov2-reconcile' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+              {v2 ? (
+                <>
+                  <span>{t('checkExchangeReconciliation')}</span>
+                  <Switch checked={reconcileExchangesEnabled} onCheckedChange={setReconcileExchangesEnabled} aria-label={t('checkExchangeReconciliation')} />
+                </>
+              ) : (
+                <>
+                  <Checkbox checked={reconcileExchangesEnabled} onCheckedChange={(v) => setReconcileExchangesEnabled(v === true)} />
+                  {t('checkExchangeReconciliation')}
+                </>
+              )}
             </label>
             {reconcileExchangesEnabled && (
               <div style={{
