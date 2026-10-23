@@ -17,7 +17,51 @@ const TERMINAL_HC: LayoutDef = {
       sidebarBg:'#000000', topbarBg:'#000000',
       cardBg:'#050505', inputBg:'#111111',
       hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(0,255,255,0.4)',
-    }
+    },
+    // Amber Phosphor
+    t2: {
+      bg:'#000000', panel:'#0a0700', panel2:'#141000', panel3:'#221a00',
+      text:'#ffffff', muted:'#a0a0a0', muted2:'#666666',
+      line:'#3a2e00', line2:'#1c1600',
+      brand:'#ffb000', brand2:'#cc8d00', brand3:'rgba(255,176,0,0.15)',
+      good:'#00ff00', bad:'#ff0000', warn:'#ffff00',
+      sidebarBg:'#000000', topbarBg:'#000000',
+      cardBg:'#070500', inputBg:'#120e00',
+      hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(255,176,0,0.4)',
+    },
+    // Magenta Grid
+    t3: {
+      bg:'#000000', panel:'#0a000a', panel2:'#140014', panel3:'#220022',
+      text:'#ffffff', muted:'#a0a0a0', muted2:'#666666',
+      line:'#3a1a38', line2:'#1c0c1c',
+      brand:'#ff2bd6', brand2:'#cc22ab', brand3:'rgba(255,43,214,0.15)',
+      good:'#00ff00', bad:'#ff0000', warn:'#ffff00',
+      sidebarBg:'#000000', topbarBg:'#000000',
+      cardBg:'#070007', inputBg:'#120012',
+      hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(255,43,214,0.4)',
+    },
+    // Lime Signal
+    t4: {
+      bg:'#000000', panel:'#070a00', panel2:'#0f1400', panel3:'#1a2200',
+      text:'#ffffff', muted:'#a0a0a0', muted2:'#666666',
+      line:'#2e3a10', line2:'#161c08',
+      brand:'#b6ff00', brand2:'#8fcc00', brand3:'rgba(182,255,0,0.15)',
+      good:'#00ff00', bad:'#ff0000', warn:'#ffff00',
+      sidebarBg:'#000000', topbarBg:'#000000',
+      cardBg:'#050700', inputBg:'#0e1200',
+      hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(182,255,0,0.4)',
+    },
+    // Ice Blue
+    t5: {
+      bg:'#000000', panel:'#00050a', panel2:'#000a14', panel3:'#001222',
+      text:'#ffffff', muted:'#a0a0a0', muted2:'#666666',
+      line:'#1a2a3a', line2:'#0c141c',
+      brand:'#4da3ff', brand2:'#2f80e0', brand3:'rgba(77,163,255,0.15)',
+      good:'#00ff00', bad:'#ff0000', warn:'#ffff00',
+      sidebarBg:'#000000', topbarBg:'#000000',
+      cardBg:'#000307', inputBg:'#000912',
+      hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(77,163,255,0.4)',
+    },
   }
 };
 
@@ -48,7 +92,40 @@ const QUANTUM_LEDGER: LayoutDef = {
       sidebarBg:'#000000', topbarBg:'rgba(5,5,5,.98)',
       cardBg:'#121212', inputBg:'rgba(132,204,22,.08)',
       hoverCard:'rgba(132,204,22,.06)', glow:'rgba(132,204,22,.3)',
-    }
+    },
+    // Violet
+    t3: {
+      bg:'#0b0618', panel:'#161028', panel2:'#211a3a', panel3:'#322a52',
+      text:'#f5f3ff', muted:'#a5a1c4', muted2:'#6f6a92',
+      line:'rgba(139,92,246,.2)', line2:'rgba(139,92,246,.1)',
+      brand:'#8b5cf6', brand2:'#a78bfa', brand3:'rgba(139,92,246,.15)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#07040f', topbarBg:'rgba(11,6,24,.98)',
+      cardBg:'#161028', inputBg:'rgba(139,92,246,.08)',
+      hoverCard:'rgba(139,92,246,.06)', glow:'rgba(167,139,250,.3)',
+    },
+    // Cyan
+    t4: {
+      bg:'#02131a', panel:'#08202a', panel2:'#0f2f3d', panel3:'#1b4252',
+      text:'#ecfeff', muted:'#8fb8c4', muted2:'#5d8794',
+      line:'rgba(6,182,212,.2)', line2:'rgba(6,182,212,.1)',
+      brand:'#06b6d4', brand2:'#22d3ee', brand3:'rgba(6,182,212,.15)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#010c10', topbarBg:'rgba(2,19,26,.98)',
+      cardBg:'#08202a', inputBg:'rgba(6,182,212,.08)',
+      hoverCard:'rgba(6,182,212,.06)', glow:'rgba(34,211,238,.3)',
+    },
+    // Rose
+    t5: {
+      bg:'#14050b', panel:'#22101a', panel2:'#311827', panel3:'#47243a',
+      text:'#fff1f4', muted:'#c49aa8', muted2:'#8e6676',
+      line:'rgba(244,63,94,.2)', line2:'rgba(244,63,94,.1)',
+      brand:'#f43f5e', brand2:'#fb7185', brand3:'rgba(244,63,94,.15)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#0c0307', topbarBg:'rgba(20,5,11,.98)',
+      cardBg:'#22101a', inputBg:'rgba(244,63,94,.08)',
+      hoverCard:'rgba(244,63,94,.06)', glow:'rgba(251,113,133,.3)',
+    },
   }
 };
 
@@ -273,6 +350,28 @@ const OPERATIONS_DESK: LayoutDef = {
       cardBg:'#1e1810', inputBg:'rgba(249,115,22,.06)',
       hoverCard:'rgba(249,115,22,.04)', glow:'rgba(251,146,60,.2)',
     },
+    // Violet Ops
+    t4: {
+      bg:'#120b1f', panel:'#1a1230', panel2:'#231942', panel3:'#2e2256',
+      text:'#e4dcf6', muted:'#8a78b0', muted2:'#6a5890',
+      line:'rgba(168,85,247,.1)', line2:'rgba(168,85,247,.05)',
+      brand:'#a855f7', brand2:'#c084fc', brand3:'rgba(168,85,247,.1)',
+      good:'#4ecdc4', bad:'#ff6b6b', warn:'#ffe66d',
+      sidebarBg:'#0b0614', topbarBg:'rgba(18,11,31,.98)',
+      cardBg:'#1a1230', inputBg:'rgba(168,85,247,.06)',
+      hoverCard:'rgba(168,85,247,.04)', glow:'rgba(192,132,252,.18)',
+    },
+    // Coral Ops
+    t5: {
+      bg:'#1a0a12', panel:'#25101b', panel2:'#311626', panel3:'#3e1d31',
+      text:'#f6dce6', muted:'#b07890', muted2:'#905870',
+      line:'rgba(236,72,153,.1)', line2:'rgba(236,72,153,.05)',
+      brand:'#ec4899', brand2:'#f472b6', brand3:'rgba(236,72,153,.1)',
+      good:'#4ecdc4', bad:'#ff6b6b', warn:'#ffe66d',
+      sidebarBg:'#12060c', topbarBg:'rgba(26,10,18,.98)',
+      cardBg:'#25101b', inputBg:'rgba(236,72,153,.06)',
+      hoverCard:'rgba(236,72,153,.04)', glow:'rgba(244,114,182,.18)',
+    },
   },
 };
 
@@ -313,6 +412,28 @@ const ATLAS_GRID: LayoutDef = {
       sidebarBg:'#2A3828', topbarBg:'rgba(228,226,212,.95)',
       cardBg:'#D4D0B8', inputBg:'rgba(53,92,75,.05)',
       hoverCard:'rgba(74,122,94,.06)', glow:'rgba(46,106,79,.08)',
+    },
+    // Harbour Slate
+    t4: {
+      bg:'#E2E3DD', panel:'#CDD0C6', panel2:'#A9AFA4', panel3:'#7C8578',
+      text:'#1C2228', muted:'#4A5560', muted2:'#6C7680',
+      line:'rgba(28,34,40,.12)', line2:'rgba(28,34,40,.06)',
+      brand:'#3A5A7A', brand2:'#8E3B2E', brand3:'rgba(58,90,122,.10)',
+      good:'#3E6B57', bad:'#A43A32', warn:'#C17A1C',
+      sidebarBg:'#26323C', topbarBg:'rgba(226,227,221,.95)',
+      cardBg:'#D6D8CE', inputBg:'rgba(58,90,122,.05)',
+      hoverCard:'rgba(142,59,46,.06)', glow:'rgba(58,90,122,.08)',
+    },
+    // Plum Earth
+    t5: {
+      bg:'#EAE1DD', panel:'#D9CBC5', panel2:'#BCA8A0', panel3:'#917870',
+      text:'#2A1C22', muted:'#5E4650', muted2:'#7C6670',
+      line:'rgba(42,28,34,.12)', line2:'rgba(42,28,34,.06)',
+      brand:'#6B3A5E', brand2:'#355C4B', brand3:'rgba(107,58,94,.10)',
+      good:'#3E6B57', bad:'#A43A32', warn:'#C17A1C',
+      sidebarBg:'#33202C', topbarBg:'rgba(234,225,221,.95)',
+      cardBg:'#DFD2CC', inputBg:'rgba(107,58,94,.05)',
+      hoverCard:'rgba(53,92,75,.06)', glow:'rgba(107,58,94,.08)',
     },
   },
 };
@@ -355,6 +476,28 @@ const VELVET_MONO: LayoutDef = {
       cardBg:'#222228', inputBg:'rgba(122,138,159,.05)',
       hoverCard:'rgba(159,122,175,.06)', glow:'rgba(122,138,159,.10)',
     },
+    // Emerald Velvet
+    t4: {
+      bg:'#0F1614', panel:'#17211E', panel2:'#202D29', panel3:'#2C3D37',
+      text:'#E6F2EC', muted:'#A0B8AE', muted2:'#7A9088',
+      line:'rgba(230,242,236,.08)', line2:'rgba(230,242,236,.04)',
+      brand:'#5FA88A', brand2:'#D3A15F', brand3:'rgba(95,168,138,.10)',
+      good:'#7FA483', bad:'#C46A6A', warn:'#D9A441',
+      sidebarBg:'#0B110F', topbarBg:'rgba(15,22,20,.95)',
+      cardBg:'#1A2421', inputBg:'rgba(95,168,138,.05)',
+      hoverCard:'rgba(211,161,95,.06)', glow:'rgba(95,168,138,.10)',
+    },
+    // Crimson Velvet
+    t5: {
+      bg:'#1A0E10', panel:'#26151A', panel2:'#331C23', panel3:'#45262F',
+      text:'#F6E6E8', muted:'#C0A0A6', muted2:'#947880',
+      line:'rgba(246,230,232,.08)', line2:'rgba(246,230,232,.04)',
+      brand:'#C0505A', brand2:'#D3A15F', brand3:'rgba(192,80,90,.10)',
+      good:'#7FA483', bad:'#D9706A', warn:'#D9A441',
+      sidebarBg:'#140A0C', topbarBg:'rgba(26,14,16,.95)',
+      cardBg:'#2A181D', inputBg:'rgba(192,80,90,.05)',
+      hoverCard:'rgba(211,161,95,.06)', glow:'rgba(192,80,90,.10)',
+    },
   },
 };
 
@@ -395,6 +538,28 @@ const PAPERWIRE: LayoutDef = {
       sidebarBg:'#1E2A1C', topbarBg:'rgba(240,237,228,.96)',
       cardBg:'#FDFBF4', inputBg:'rgba(45,106,79,.04)',
       hoverCard:'rgba(155,34,38,.04)', glow:'rgba(45,106,79,.06)',
+    },
+    // Indigo Ink
+    t4: {
+      bg:'#EFEFEA', panel:'#FCFCF8', panel2:'#E0E1DA', panel3:'#C4C6BC',
+      text:'#14161E', muted:'#4E5568', muted2:'#7C8294',
+      line:'rgba(20,22,30,.10)', line2:'rgba(20,22,30,.05)',
+      brand:'#2B3A8C', brand2:'#9B2226', brand3:'rgba(43,58,140,.08)',
+      good:'#2D6A4F', bad:'#AE2012', warn:'#BB7A00',
+      sidebarBg:'#1C2033', topbarBg:'rgba(239,239,234,.96)',
+      cardBg:'#FCFCF8', inputBg:'rgba(43,58,140,.04)',
+      hoverCard:'rgba(155,34,38,.04)', glow:'rgba(43,58,140,.06)',
+    },
+    // Sepia Ledger
+    t5: {
+      bg:'#F4EBDD', panel:'#FFF9EF', panel2:'#E9DAC2', panel3:'#CDB794',
+      text:'#1E140A', muted:'#6E5636', muted2:'#987E5C',
+      line:'rgba(30,20,10,.10)', line2:'rgba(30,20,10,.05)',
+      brand:'#7A4A1E', brand2:'#005F73', brand3:'rgba(122,74,30,.08)',
+      good:'#2D6A4F', bad:'#AE2012', warn:'#BB7A00',
+      sidebarBg:'#2E2014', topbarBg:'rgba(244,235,221,.96)',
+      cardBg:'#FFF9EF', inputBg:'rgba(122,74,30,.04)',
+      hoverCard:'rgba(0,95,115,.04)', glow:'rgba(122,74,30,.06)',
     },
   },
 };
@@ -497,6 +662,28 @@ const GLASS_MOBILE: LayoutDef = {
       sidebarBg:'#ffffff', topbarBg:'rgba(239,246,255,.8)',
       cardBg:'rgba(255,255,255,.7)', inputBg:'rgba(37,99,235,.05)',
       hoverCard:'rgba(37,99,235,.04)', glow:'rgba(37,99,235,.15)',
+    },
+    // Lavender Glass
+    t4: {
+      bg:'#faf5ff', panel:'rgba(255,255,255,.7)', panel2:'rgba(243,232,255,.6)', panel3:'rgba(233,213,255,.5)',
+      text:'#2e1065', muted:'#7c3aed', muted2:'#a78bfa',
+      line:'rgba(46,16,101,.08)', line2:'rgba(46,16,101,.04)',
+      brand:'#8b5cf6', brand2:'#7c3aed', brand3:'rgba(139,92,246,.1)',
+      good:'#059669', bad:'#dc2626', warn:'#d97706',
+      sidebarBg:'#ffffff', topbarBg:'rgba(250,245,255,.8)',
+      cardBg:'rgba(255,255,255,.7)', inputBg:'rgba(139,92,246,.05)',
+      hoverCard:'rgba(139,92,246,.04)', glow:'rgba(139,92,246,.15)',
+    },
+    // Mint Glass
+    t5: {
+      bg:'#f0fdf8', panel:'rgba(255,255,255,.7)', panel2:'rgba(220,252,239,.6)', panel3:'rgba(187,247,222,.5)',
+      text:'#063b2c', muted:'#0f766e', muted2:'#5eae9a',
+      line:'rgba(6,59,44,.08)', line2:'rgba(6,59,44,.04)',
+      brand:'#0d9488', brand2:'#0f766e', brand3:'rgba(13,148,136,.1)',
+      good:'#16a34a', bad:'#dc2626', warn:'#d97706',
+      sidebarBg:'#ffffff', topbarBg:'rgba(240,253,248,.8)',
+      cardBg:'rgba(255,255,255,.7)', inputBg:'rgba(13,148,136,.05)',
+      hoverCard:'rgba(13,148,136,.04)', glow:'rgba(13,148,136,.15)',
     },
   },
 };
