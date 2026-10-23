@@ -49,8 +49,8 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
     <section className="dh-card dh-trend">
       <header className="dh-trend-head">
         <h2><TrendingUp />{labels.title}</h2>
-        <span className="dh-legend"><i style={{ background: 'var(--good)' }} />{labels.profit}</span>
-        <span className="dh-legend"><i style={{ background: 'var(--brand)' }} />{labels.volume}</span>
+        <span className="dh-legend"><i style={{ background: 'var(--dh-bar, var(--good))' }} />{labels.profit}</span>
+        <span className="dh-legend"><i style={{ background: 'var(--dh-line, var(--brand))' }} />{labels.volume}</span>
         <DhSelect<Granularity>
           className="dh-trend-sel"
           value={granularity}
@@ -65,8 +65,8 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
           <ComposedChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" style={{ stopColor: 'var(--good)', stopOpacity: 0.95 }} />
-                <stop offset="1" style={{ stopColor: 'var(--good)', stopOpacity: 0.45 }} />
+                <stop offset="0" style={{ stopColor: 'var(--dh-bar, var(--good))', stopOpacity: 0.95 }} />
+                <stop offset="1" style={{ stopColor: 'var(--dh-bar, var(--good))', stopOpacity: 0.45 }} />
               </linearGradient>
             </defs>
             <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval={0} height={20} />
@@ -80,14 +80,14 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
                 return (
                   <div className="dh-tip">
                     <div className="dh-tip-t">{row.full}</div>
-                    <div><i style={{ background: 'var(--good)' }} />{row.net >= 0 ? '+' : ''}{money(row.net)}</div>
-                    <div><i style={{ background: 'var(--brand)' }} />{money(row.vol)}</div>
+                    <div><i style={{ background: 'var(--dh-bar, var(--good))' }} />{row.net >= 0 ? '+' : ''}{money(row.net)}</div>
+                    <div><i style={{ background: 'var(--dh-line, var(--brand))' }} />{money(row.vol)}</div>
                   </div>
                 );
               }}
             />
             <Bar yAxisId="net" dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={15} fill={`url(#${gradId})`} />
-            <Line yAxisId="vol" type="monotone" dataKey="vol" stroke="var(--brand)" strokeWidth={1.5} dot={{ r: 2.2, fill: 'var(--brand)', stroke: 'var(--card-bg)', strokeWidth: 0.8 }} activeDot={{ r: 3 }} />
+            <Line yAxisId="vol" type="monotone" dataKey="vol" stroke="var(--dh-line, var(--brand))" strokeWidth={1.5} dot={{ r: 2.2, fill: 'var(--dh-line, var(--brand))', stroke: 'var(--card-bg)', strokeWidth: 0.8 }} activeDot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

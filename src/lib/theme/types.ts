@@ -22,6 +22,12 @@ export interface ThemeDef {
   inputBg: string;
   hoverCard: string;
   glow: string;
+  /** Profit-trend bars on the home page; the profit colour (good) when unset. */
+  chartBar?: string;
+  /** Profit-trend volume line; the brand colour when unset. */
+  chartLine?: string;
+  /** The home page's cash card; the warning colour when unset. */
+  cashTone?: string;
 }
 
 export interface LayoutDef {

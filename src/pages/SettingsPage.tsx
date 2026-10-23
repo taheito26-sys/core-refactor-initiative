@@ -52,6 +52,7 @@ import {
   type ThemeDef,
 } from '@/lib/theme-context';
 import { resolveThemeForLayout } from '@/lib/theme/utils';
+import { PRESET_NAMES, PRESET_THEMES } from '@/lib/theme/presets';
 import type { AppSettings } from '@/lib/theme/types';
 
 export default function SettingsPage() {
@@ -81,7 +82,8 @@ export default function SettingsPage() {
   };
 
   const curLayoutDef = LAYOUTS.find(l => l.id === draft.layout) || LAYOUTS[0];
-  const curThemeEntries = Object.entries(curLayoutDef.themes) as [string, ThemeDef][];
+  // The layout's own colour sets, then the featured sets offered with every layout (also in the top bar's colour button).
+  const curThemeEntries = [...Object.entries(curLayoutDef.themes), ...Object.entries(PRESET_THEMES)] as [string, ThemeDef][];
 
   // ── Vault / Backup state ──
   const [cloudBackups, setCloudBackups] = useState<VaultBackup[]>([]);
@@ -218,7 +220,7 @@ export default function SettingsPage() {
                           <div key={i} className="w-3 h-3 rounded-sm flex-1" style={{ background: c }} />
                         ))}
                       </div>
-                      <div className="text-[10px] text-center font-medium">{THEME_NAMES[tid] || tid}</div>
+                      <div className="text-[10px] text-center font-medium">{THEME_NAMES[tid] || PRESET_NAMES[tid]?.[t.lang === 'ar' ? 'ar' : 'en'] || tid}</div>
                     </button>
                   );
                 })}

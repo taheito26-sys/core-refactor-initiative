@@ -192,7 +192,7 @@ export function DashboardHome({
       <div className="dh-tiles">{tiles.map(renderTile)}</div>
 
       {/* Cash */}
-      <section className="dh-card dh-cash" style={{ ['--tone' as string]: 'var(--warn)' }}>
+      <section className="dh-card dh-cash" style={{ ['--tone' as string]: 'var(--dh-cash, var(--warn))' }}>
         <div className="dh-cash-l">
           <span className="dh-ic big solid"><Wallet /></span>
           <div>

@@ -121,8 +121,8 @@
 .tracker-root .dh-cash-l { grid-area: l; display: flex; align-items: center; gap: calc(9 * var(--u)); }
 .tracker-root .dh-cash-l .dh-ic.big { width: calc(25 * var(--u)); height: calc(25 * var(--u)); }
 .tracker-root .dh-cash-l h3 { font-size: calc(11 * var(--f)); font-weight: 600; }
-.tracker-root .dh-cash .dh-val b { font-size: calc(20 * var(--f)); color: var(--warn); }
-.tracker-root .dh-cash .dh-val small { color: var(--warn); font-size: calc(13 * var(--f)); }
+.tracker-root .dh-cash .dh-val b { font-size: calc(20 * var(--f)); color: var(--dh-cash, var(--warn)); }
+.tracker-root .dh-cash .dh-val small { color: var(--dh-cash, var(--warn)); font-size: calc(13 * var(--f)); }
 .tracker-root .dh-cash-bar { grid-area: bar; display: flex; gap: calc(1.5 * var(--u)); height: calc(6 * var(--u)); border-radius: 999px; overflow: hidden; align-self: end; }
 .tracker-root .dh-cash-bar i { display: block; min-width: calc(3 * var(--u)); }
 .tracker-root .dh-cash-legend { grid-area: legend; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: calc(4 * var(--u)); font-size: calc(10 * var(--f)); color: var(--muted); }

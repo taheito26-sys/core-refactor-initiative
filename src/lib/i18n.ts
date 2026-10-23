@@ -586,6 +586,7 @@ const translations = {
   ov2LayoutNew: { en: 'New', ar: 'جديد' },
   ov2LayoutClassic: { en: 'Classic', ar: 'كلاسيكي' },
   themeColors: { en: 'Colours', ar: 'الألوان' },
+  themeFeatured: { en: 'Featured colours', ar: 'ألوان مختارة' },
   ov2LayoutLabel: { en: 'Page layout', ar: 'تصميم الصفحة' },
   sv2Subtitle: { en: 'Track your USDT batches, suppliers and loans', ar: 'تابع دفعات USDT والموردين والقروض' },
   sv2Search: { en: 'Find by supplier, date or note…', ar: 'ابحث بالمورد أو التاريخ أو الملاحظة…' },

@@ -1,3 +1,4 @@
+import { PRESET_THEMES } from './presets';
 import { AppSettings, LayoutDef, ThemeDef } from './types';
 import { LAYOUTS } from './layouts';
 
@@ -65,7 +66,7 @@ export function detectOptimalFontSize(baseSize: number, visionProfile: string): 
 
 export function getTheme(layoutId: string, themeId: string): { layout: LayoutDef; theme: ThemeDef } {
   const layout = LAYOUTS.find(l => l.id === layoutId) || LAYOUTS[0];
-  const theme = layout.themes[themeId] || layout.themes.t1;
+  const theme = layout.themes[themeId] || PRESET_THEMES[themeId] || layout.themes.t1;
   return { layout, theme };
 }
 
@@ -77,7 +78,7 @@ export function getTheme(layoutId: string, themeId: string): { layout: LayoutDef
  */
 export function resolveThemeForLayout(layoutId: string, themeId: string): string {
   const layout = LAYOUTS.find(l => l.id === layoutId) || LAYOUTS[0];
-  return layout.themes[themeId] ? themeId : 't1';
+  return layout.themes[themeId] || PRESET_THEMES[themeId] ? themeId : 't1';
 }
 
 export function applyThemeToDOM(settings: AppSettings) {
@@ -122,6 +123,13 @@ export function applyThemeToDOM(settings: AppSettings) {
   root.style.setProperty('--sidebar-accent-foreground', sidebarDark ? '210 40% 92%' : hexToHSL(theme.text));
   root.style.setProperty('--sidebar-border', hexToHSL(theme.panel3));
   root.style.setProperty('--sidebar-ring', hexToHSL(theme.brand));
+
+  // Accents a theme may set for the home page's chart and cash card; without them those keep good / brand / warn.
+  const accents: Array<[string, string | undefined]> = [['--dh-bar', theme.chartBar], ['--dh-line', theme.chartLine], ['--dh-cash', theme.cashTone]];
+  for (const [name, value] of accents) {
+    if (value) root.style.setProperty(name, value);
+    else root.style.removeProperty(name);
+  }
 
   root.style.setProperty('--tracker-bg', theme.bg);
   root.style.setProperty('--tracker-panel', theme.panel);
