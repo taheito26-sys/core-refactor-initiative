@@ -124,7 +124,7 @@ export function CustomerLayout() {
 
       <div className="main-shell flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        {!ownsShell && <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
+        {!ownsShell && <header className="app-topbar sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
