@@ -257,3 +257,14 @@
 .tracker-root .dh[data-narrow] .dh-kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tracker-root .dh[data-narrow] .dh-ord-bar { display: none; }
 .tracker-root .dh[data-narrow] .dh-table th[colspan] { width: auto; }
+
+/* top clients: the client cell stays a real table cell (its avatar and name sit in a flex box inside it), takes the
+   width the other columns leave, and keeps the whole name on one line; long names wrap rather than being cut */
+.tracker-root .dh-table .dh-client-td { width: 100%; }
+.tracker-root .dh-table .dh-client span:last-child { white-space: nowrap; overflow-wrap: normal; }
+.tracker-root .dh-table td.dh-ord-td { width: 1%; white-space: nowrap; }
+.tracker-root .dh-table .dh-ord { display: flex; align-items: center; gap: calc(6 * var(--u)); }
+.tracker-root .dh-table .dh-ord .dh-ord-n { width: auto; }
+.tracker-root .dh-table .dh-ord .dh-ord-bar { display: block; width: calc(34 * var(--u)); min-width: 0; padding: 0 !important; }
+.tracker-root .dh-table td.r, .tracker-root .dh-table th.r { padding-inline-start: calc(8 * var(--u)); }
+@media (max-width: 380px) { .tracker-root .dh-table .dh-client span:last-child { white-space: normal; overflow-wrap: anywhere; } }

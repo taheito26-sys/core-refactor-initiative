@@ -234,7 +234,7 @@ export function DashboardHome({
         ) : (
           <table className="dh-table">
             <thead>
-              <tr><th>#</th><th>{t('dhClient')}</th><th colSpan={2}>{t('dhOrders')}</th><th className="r">{clientMetric === 'profit' ? t('dhNetProfitTab') : t('dhVolume')}</th><th className="r">{t('dhChange')}</th></tr>
+              <tr><th>#</th><th>{t('dhClient')}</th><th>{t('dhOrders')}</th><th className="r">{clientMetric === 'profit' ? t('dhNetProfitTab') : t('dhVolume')}</th><th className="r">{t('dhChange')}</th></tr>
             </thead>
             <tbody>
               {clients.map((c, i) => {
@@ -242,9 +242,8 @@ export function DashboardHome({
                 return (
                   <tr key={c.name}>
                     <td><span className="dh-medal" style={{ background: MEDALS[i] }}>{i + 1}</span></td>
-                    <td className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span>{c.name}</span></td>
-                    <td className="dh-ord-n">{c.orders}</td>
-                    <td className="dh-ord-bar"><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: BARS[i] }} /></i></td>
+                    <td className="dh-client-td"><div className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span title={c.name}>{c.name}</span></div></td>
+                    <td className="dh-ord-td"><div className="dh-ord"><span className="dh-ord-n">{c.orders}</span><span className="dh-ord-bar"><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: BARS[i] }} /></i></span></div></td>
                     <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</td>
                     <td className={`r ${change == null ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : `${change >= 0 ? '+' : ''}${Math.round(change)}%`}</td>
                   </tr>
