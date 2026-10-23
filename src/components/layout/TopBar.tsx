@@ -11,6 +11,7 @@ import { ZoomControls } from '@/components/shared/ZoomControls';
 import { UserProfileModal } from '@/features/profile/UserProfileModal';
 import { useHomeDesign } from '@/features/orders/v2/design';
 import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
+import { ThemeColorPicker } from './ThemeColorPicker';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
   if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
@@ -55,7 +56,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const onHome = location.pathname === '/dashboard';
   const [design, setDesign] = useHomeDesign();
   // On a phone every control shares one line, so each is drawn small; the bar also ignores the app zoom (app-topbar).
-  const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', isMobile ? 'px-[3.5px] py-[3px] text-[8.5px] leading-none' : 'px-1.5 py-1 text-[10px]');
+  const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', isMobile ? 'px-[3px] py-[3px] text-[8.5px] leading-none' : 'px-1.5 py-1 text-[10px]');
 
   return (
     <header
@@ -159,13 +160,16 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         </button>
       </div>}
 
+      {/* ── Colours of the current layout ── */}
+      <ThemeColorPicker compact={isMobile} />
+
       {/* ── Dashboard search and filter (phone) ── */}
       {onPhoneDashboard && (
         <div className="flex shrink-0 items-center gap-[2px]">
-          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-[3px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
+          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-[2px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
             <Search className="h-3 w-3" />
           </button>
-          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-[3px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
+          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-[2px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
             <Filter className="h-3 w-3" />
             {dashFiltersActive && <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-primary" />}
           </button>
