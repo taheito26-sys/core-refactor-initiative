@@ -7,14 +7,15 @@ interface PageHeaderProps {
   className?: string;
 }
 
+/**
+ * The page's own actions. The page's name already shows in the navigation bar, so no title is drawn here; `title`
+ * and `description` only name the bar for assistive technology.
+ */
 export function PageHeader({ title, description, children, className }: PageHeaderProps) {
+  if (!children) return null;
   return (
-    <div className={cn('flex items-center justify-between border-b px-6 py-4', className)}>
-      <div>
-        <h1 className="text-xl font-display font-bold">{title}</h1>
-        {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+    <div className={cn('flex items-center justify-end gap-2 border-b px-6 py-2', className)} role="toolbar" aria-label={description ? `${title}: ${description}` : title}>
+      {children}
     </div>
   );
 }

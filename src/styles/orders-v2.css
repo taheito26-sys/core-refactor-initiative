@@ -433,3 +433,4 @@
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kval small { overflow: visible; }
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta { margin-top: 0; flex-wrap: nowrap; }
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta span { display: none; }
+.tracker-root.ov2 .orders-filter-row .rowBtn.cv2-add { background: var(--brand); border-color: var(--brand); color: var(--card-bg); font-weight: 700; }

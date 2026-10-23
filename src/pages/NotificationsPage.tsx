@@ -415,23 +415,8 @@ export default function NotificationsPage() {
       {/* ── Hero Header ── */}
       <div className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-accent/[0.03]" />
-        <div className="relative px-4 sm:px-6 py-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 shadow-sm">
-                <Sparkles className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-xl font-black text-foreground tracking-tight">{t('activityCenter')}</h1>
-                <p className="text-[12px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
-                  </span>
-                  {t('realTimeUpdates')} · {(notifications ?? []).length} {t('totalAlerts')}
-                </p>
-              </div>
-            </div>
+        <div className="relative px-4 sm:px-6 py-2">
+          <div className="flex items-start justify-end gap-4">
             <div className="flex items-center gap-2">
               {/* Select mode toggle */}
               <Button

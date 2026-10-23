@@ -70,7 +70,7 @@ import {
   ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon,
 } from 'lucide-react';
 import {
-  BoltMark, OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
+  BoltMark, OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { useOrdersDesign } from '@/features/orders/v2/design';
@@ -4177,7 +4177,6 @@ export default function OrdersPage() {
 
       {v2 ? (
         <>
-          <OrdersV2Header title={t('ov2Title')} subtitle={t('ov2Subtitle')} />
           {v2Kpis.length > 0 && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeTab}

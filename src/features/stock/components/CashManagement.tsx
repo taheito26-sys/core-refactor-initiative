@@ -38,7 +38,7 @@ import { PublicStatementReport, type PublicStatement } from '@/features/stock/co
 import { canonicalizeName } from '@/lib/text-normalize';
 import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
 import { ArrowLeftRight, Banknote, CheckCircle2, FileText, HandCoins, Landmark, ListChecks, Scale, Wallet } from 'lucide-react';
-import { OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
+import { OrdersV2Card, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, initialOf } from '@/features/orders/v2/orders-v2-model';
 import { useCashDesign } from '@/features/orders/v2/design';
 import '@/styles/orders-v2.css';
@@ -4173,7 +4173,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
       {v2 && (
         <>
-          <OrdersV2Header title={t('cashManagement')} subtitle={t('cv2Subtitle')} newLabel={t('addAccountBtn')} onNew={() => setShowAddAccount(true)} />
           <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />
           <OrdersV2Tabs
             scroll
@@ -4189,6 +4188,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           />
           {innerTab === 'accounts' && (
             <div className="orders-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" className="rowBtn cv2-add" onClick={() => setShowAddAccount(true)}>＋ {t('addAccountBtn')}</button>
               <button type="button" className="rowBtn" onClick={() => setShowCashCounter(true)}>{t('countCashBtn')}</button>
               {activeAccounts.length > 1 && (
                 <button type="button" className="rowBtn" onClick={() => { setTransferFromId(undefined); setShowTransfer(true); }}>⇄ {t('transferLbl')}</button>

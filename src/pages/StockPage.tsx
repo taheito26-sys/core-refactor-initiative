@@ -60,7 +60,7 @@ import { batchUntaggedUSDT } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
 import { Coins, Factory, Handshake, Layers, Package, TrendingUp, Wallet } from 'lucide-react';
 import {
-  OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
+  OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, bucketSeries, initialOf, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
@@ -1130,7 +1130,6 @@ export default function StockPage() {
 
       {v2 ? (
         <>
-          <OrdersV2Header title={t('stock')} subtitle={t('sv2Subtitle')} />
           {activeStockSection === 'batches' && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeStockSection}

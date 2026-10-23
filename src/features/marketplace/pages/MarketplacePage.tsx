@@ -197,15 +197,7 @@ export default function MarketplacePage() {
   return (
     <div className="p-2 sm:p-3 md:p-6 space-y-3 max-w-6xl mx-auto">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h1 className="text-base sm:text-lg md:text-xl font-black tracking-tight truncate">
-            {t('otcP2pTrading')}
-          </h1>
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
-            {t('otcBuySellSubtitle')}
-          </p>
-        </div>
+      <div className="flex items-center justify-end gap-2">
         <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1 shrink-0 h-8 text-xs">
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t('otcPostAd')}</span>
