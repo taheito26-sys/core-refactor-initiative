@@ -4,7 +4,9 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 // Per-table results for the next reads of each profile table.
 type Res = { data: unknown; error: { message: string } | null };
 const results: Record<string, Res[]> = {};
+const profileReads = vi.fn();
 const nextFor = (table: string): Res => {
+  profileReads(table);
   const q = results[table] ?? [];
   return q.length > 1 ? q.shift()! : q[0] ?? { data: null, error: null };
 };
@@ -36,9 +38,24 @@ const session = { user: { id: 'u1', email: 'a@b.c' } };
 const ok = (data: unknown): Res => ({ data, error: null });
 const bad: Res = { data: null, error: { message: 'timeout' } };
 
-beforeEach(() => { for (const k of Object.keys(results)) delete results[k]; authCallback = null; });
+beforeEach(() => { for (const k of Object.keys(results)) delete results[k]; authCallback = null; profileReads.mockClear(); });
 
 describe('profile loading', () => {
+  it('shares profile requests during overlapping sign-in events and reads again after completion', async () => {
+    results.profiles = [ok({ id: 'p', user_id: 'u1', status: 'approved', role: 'customer' })];
+    results.merchant_profiles = [ok(null)];
+    results.customer_profiles = [ok({ id: 'c', user_id: 'u1' })];
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => {
+      authCallback?.('INITIAL_SESSION', session);
+      authCallback?.('SIGNED_IN', session);
+    });
+    await waitFor(() => expect(screen.getByTestId('s').textContent).toBe('ready|none'));
+    expect(profileReads).toHaveBeenCalledTimes(3);
+    await act(async () => { authCallback?.('SIGNED_IN', session); });
+    expect(profileReads).toHaveBeenCalledTimes(6);
+  });
+
   it('keeps waiting instead of treating a failed merchant lookup as "no merchant profile"', async () => {
     results.profiles = [ok({ id: 'p', user_id: 'u1', status: 'approved', role: 'merchant' })];
     results.merchant_profiles = [bad, bad, bad, bad, bad, bad];

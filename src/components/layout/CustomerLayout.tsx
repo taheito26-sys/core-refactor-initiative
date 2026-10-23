@@ -1,9 +1,7 @@
-﻿import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ZoomControls } from '@/components/shared/ZoomControls';
 import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, type LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { statementQueryOptions } from '@/features/customer/statements-api';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -46,17 +44,7 @@ export function CustomerLayout() {
   const location  = useLocation();
   const navigate  = useNavigate();
   const isMobile  = useIsMobile();
-  const { logout, customerProfile, userId } = useAuth();
-  const queryClient = useQueryClient();
-
-  // Start the slow statement calls as soon as the portal opens, so Home and Orders find them ready instead of
-  // starting them on arrival. Orders' variant goes a moment later so the two don't compete.
-  useEffect(() => {
-    if (!userId) return;
-    void queryClient.prefetchQuery(statementQueryOptions('plain', userId));
-    const later = setTimeout(() => { void queryClient.prefetchQuery(statementQueryOptions('sales', userId)); }, 1500);
-    return () => clearTimeout(later);
-  }, [userId, queryClient]);
+  const { logout, customerProfile } = useAuth();
   const { settings, update } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { unreadCount } = useNotifications();

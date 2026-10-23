@@ -1,9 +1,9 @@
-﻿import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
+import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
 import { statementQueryOptions } from '@/features/customer/statements-api';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Plus, X, Wallet, Clock } from 'lucide-react';
+import { AlertCircle, Plus, X, Wallet, Clock, Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -17,11 +17,12 @@ import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
 import { getLocalizedCurrencyName } from '@/lib/currency-locale';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
-import { NewOrderForm } from './CustomerOrdersPage';
 import { useNotifications } from '@/hooks/useNotifications';
 import { CustomerHomeView } from '@/features/customer/home/CustomerHomeView';
 import { buildActivity } from '@/features/customer/home/home-model';
 import { useRateTrend } from '@/features/customer/home/useRateTrend';
+
+const NewOrderForm = lazy(() => import('./CustomerOrdersPage').then(module => ({ default: module.NewOrderForm })));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -63,18 +64,9 @@ export default function CustomerHomePage() {
     return () => { void supabase.removeChannel(channel); };
   }, [userId, dashQc]);
 
-  // Pre-portal order/loan history — load with a slight delay on mobile to
-  // avoid blocking initial render on slow connections. The dashboard shows
-  // core metrics without it, and historical data loads asynchronously.
-  const [historyReady, setHistoryReady] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setHistoryReady(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
   const { data: historyStatements = [] } = useQuery({
     ...statementQueryOptions<PublicStatement>('plain', userId),
-    enabled: !!userId && historyReady,
+    enabled: !!userId,
   });
 
   // `paired` marks rows where the QAR and EGP figures come from the same
@@ -160,7 +152,7 @@ export default function CustomerHomePage() {
     queryFn: getCustomerMarketKpis,
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
-    enabled: historyReady,
+    enabled: !!userId,
   });
   const guideRate = marketData?.guide?.rate ?? null;
   const egyptBuyAvg = marketData?.egypt?.buyAvg ?? null;
@@ -545,13 +537,20 @@ export default function CustomerHomePage() {
 
       {/* New Order Modal — opens inline without navigating away, triggered from Quick Actions above */}
       {showNewOrder && connections.length > 0 && (
-        <NewOrderForm
-          connections={connections}
-          userId={userId!}
-          lang={lang}
-          onClose={() => setShowNewOrder(false)}
-          onCreated={() => { setShowNewOrder(false); }}
-        />
+        <Suspense fallback={
+          <div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="sr-only">{L('Loading order form', 'جارٍ تحميل نموذج الطلب')}</span>
+          </div>
+        }>
+          <NewOrderForm
+            connections={connections}
+            userId={userId!}
+            lang={lang}
+            onClose={() => setShowNewOrder(false)}
+            onCreated={() => { setShowNewOrder(false); }}
+          />
+        </Suspense>
       )}
 
     </>

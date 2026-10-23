@@ -154,6 +154,10 @@ export async function getQatarEgyptGuideRate(): Promise<QatarEgyptGuideRate> {
     fetchLatestSnapshot('egypt'),
   ]);
 
+  return buildQatarEgyptGuideRate(qatarRow, egyptRow);
+}
+
+function buildQatarEgyptGuideRate(qatarRow: MarketSnapshotRow | null, egyptRow: MarketSnapshotRow | null): QatarEgyptGuideRate {
   const qatarSellAvg = toFiniteNumber(qatarRow?.data?.sellAvg);
   const egyptBuyAvg = toFiniteNumber(egyptRow?.data?.buyAvg);
   const rate = qatarSellAvg && egyptBuyAvg && qatarSellAvg > 0 && egyptBuyAvg > 0
@@ -186,15 +190,14 @@ export async function getQatarEgyptGuideRate(): Promise<QatarEgyptGuideRate> {
 export async function getCustomerMarketKpis(): Promise<CustomerMarketKpis> {
   await refreshP2PSnapshotsIfStale();
 
-  const [qatarRow, egyptRow, guide] = await Promise.all([
+  const [qatarRow, egyptRow] = await Promise.all([
     fetchLatestSnapshot('qatar'),
     fetchLatestSnapshot('egypt'),
-    getQatarEgyptGuideRate(),
   ]);
 
   return {
     qatar: toMarketCard(qatarRow, 'Qatar'),
     egypt: toMarketCard(egyptRow, 'Egypt'),
-    guide,
+    guide: buildQatarEgyptGuideRate(qatarRow, egyptRow),
   };
 }
