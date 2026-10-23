@@ -28,14 +28,15 @@ function useOutsideClose(open: boolean, close: () => void) {
 }
 
 // ── Header ──
-export function OrdersV2Header({ title, subtitle, newLabel, onNew }: { title: string; subtitle: string; newLabel: string; onNew: () => void }) {
+/** Without `onNew` the page adds through its floating + button instead of a header button. */
+export function OrdersV2Header({ title, subtitle, newLabel, onNew }: { title: string; subtitle: string; newLabel?: string; onNew?: () => void }) {
   return (
     <header className="ov2-head">
       <div className="ov2-head-t">
         <h1>{title}</h1>
         <p>{subtitle}</p>
       </div>
-      <button type="button" className="ov2-new" onClick={onNew}><Plus />{newLabel}</button>
+      {onNew && <button type="button" className="ov2-new" onClick={onNew}><Plus />{newLabel}</button>}
     </header>
   );
 }

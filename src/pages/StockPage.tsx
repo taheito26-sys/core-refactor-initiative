@@ -1040,7 +1040,6 @@ export default function StockPage() {
   ];
   const v2SearchValue = settings.searchQuery || '';
   const v2Refs = v2 ? orderReferences(state.batches, 'BAT') : new Map<string, string>();
-  const v2OpenAddBatch = () => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); };
 
   const renderBatchV2Card = (b: typeof perf[number]) => {
     const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
@@ -1131,7 +1130,7 @@ export default function StockPage() {
 
       {v2 ? (
         <>
-          <OrdersV2Header title={t('stock')} subtitle={t('sv2Subtitle')} newLabel={t('addBatchTitle')} onNew={v2OpenAddBatch} />
+          <OrdersV2Header title={t('stock')} subtitle={t('sv2Subtitle')} />
           {activeStockSection === 'batches' && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeStockSection}
@@ -1907,7 +1906,7 @@ export default function StockPage() {
       )} {/* end batches tab */}
 
       {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
-      {isMobile && !v2 && stockTab === 'batches' && activeStockSection === 'batches' && (
+      {isMobile && stockTab === 'batches' && activeStockSection === 'batches' && (
         <button
           aria-label={t('addBatchTitle')}
           onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}

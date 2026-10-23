@@ -4171,14 +4171,13 @@ export default function OrdersPage() {
 
   const v2SearchValue = settings.searchQuery || '';
   const v2FiltersActive = Boolean(buyerFilter || dayFilter);
-  const v2NewOrder = () => setNewSaleSheetOpen(true);
 
   return (
     <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${v2 ? ' ov2' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {v2 ? (
         <>
-          <OrdersV2Header title={t('ov2Title')} subtitle={t('ov2Subtitle')} newLabel={t('newOrder')} onNew={v2NewOrder} />
+          <OrdersV2Header title={t('ov2Title')} subtitle={t('ov2Subtitle')} />
           {v2Kpis.length > 0 && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeTab}
@@ -6793,7 +6792,7 @@ export default function OrdersPage() {
       )}
 
       {/* ── FAB: open New Sale sheet (mobile only) ── */}
-      {isMobile && !v2 && activeTab === 'my' && (
+      {isMobile && activeTab === 'my' && (
         <button
           onClick={() => setNewSaleSheetOpen(true)}
           title="New Sale"
