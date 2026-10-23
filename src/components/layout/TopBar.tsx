@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Bell, Users, TrendingUp, User, Search, Filter } from 'lucide-react';
 import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
@@ -58,8 +58,37 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   // On a phone every control shares one line, so each is drawn small; the bar also ignores the app zoom (app-topbar).
   const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', isMobile ? 'px-[3px] py-[3px] text-[8.5px] leading-none' : 'px-1.5 py-1 text-[10px]');
 
+  // ── Phone: the controls always span the bar edge to edge ──
+  // The row is drawn at its natural size and then scaled so its width is exactly the bar's, whatever the app zoom
+  // (already divided out by app-topbar) or how many controls this page shows: fewer controls are drawn larger.
+  const headerRef = useRef<HTMLElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+  useLayoutEffect(() => {
+    if (!isMobile) return undefined;
+    const header = headerRef.current;
+    const row = rowRef.current;
+    if (!header || !row) return undefined;
+    const measure = () => {
+      const cs = getComputedStyle(header);
+      const avail = header.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      setFit(prev => {
+        const natural = row.getBoundingClientRect().width / prev;
+        if (!(natural > 0) || !(avail > 0)) return prev;
+        const next = Math.max(0.6, Math.min(2.2, avail / natural));
+        return Math.abs(next - prev) < 0.004 ? prev : next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(header);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [isMobile, location.pathname, settings.language, settings.currency, design]);
+
   return (
     <header
+      ref={headerRef}
       className={cn('app-topbar sticky top-0 z-20 flex items-center bg-background/95 backdrop-blur-sm', isMobile ? 'flex-nowrap gap-[2px] px-1 py-1' : 'gap-1 md:gap-2 px-2 md:px-3 py-1.5', onPhoneDashboard ? '' : 'border-b border-border')}
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 5px)',
@@ -67,6 +96,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         paddingRight: 'max(4px, env(safe-area-inset-right, 0px))',
       } : undefined}
     >
+      <div ref={rowRef} className={isMobile ? 'flex w-max shrink-0 flex-nowrap items-center gap-[2px]' : 'contents'} style={isMobile ? { zoom: fit } : undefined}>
       {isMobile && onMenuClick && (
         <button onClick={onMenuClick} className="order-[-2] p-[3px] rounded-md hover:bg-muted text-muted-foreground shrink-0">
           <Menu className="h-4 w-4" />
@@ -188,7 +218,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       </div>
 
       {/* ── Spacer ── */}
-      <div className="flex-1" />
+      <div className="flex-1 max-md:hidden" />
 
       {/* ── Sync indicator ── */}
       <div className="hidden md:flex items-center gap-1">
@@ -214,6 +244,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       >
         {t('signOut')}
       </button>
+
+      </div>
 
       <UserProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
