@@ -26,3 +26,10 @@
   background: var(--brand);
   color: var(--card-bg);
 }
+
+/* inside the top bar: same height as the bar's other toggles */
+.layout-switch.in-topbar, .layout-switch.in-topbar-desk { margin: 0; margin-inline-start: auto; padding: 2px; gap: 0; border-radius: 6px; background: hsl(var(--muted)); border: 0; }
+.layout-switch.in-topbar button, .layout-switch.in-topbar-desk button { font-size: 8.5px; padding: 3px 4px; border-radius: 4px; line-height: 1; }
+.layout-switch.in-topbar-desk button { font-size: 11px; padding: 4px 10px; }
+.layout-switch.in-topbar button, .layout-switch.in-topbar-desk button { color: hsl(var(--muted-foreground)); }
+.layout-switch.in-topbar button.on, .layout-switch.in-topbar-desk button.on { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }

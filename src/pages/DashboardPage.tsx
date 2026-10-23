@@ -36,7 +36,6 @@ import { ArrowLeftRight, BadgeDollarSign, Boxes, Clock, Hourglass, Landmark, Pie
 const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
 import ClassicDashboardPage from '@/pages/ClassicDashboardPage';
 import { useHomeDesign } from '@/features/orders/v2/design';
-import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import '@/styles/tracker.css';
 import '@/styles/dashboard-home.css';
 
@@ -50,11 +49,10 @@ interface DashboardPageProps {
 
 /** The merchant home: the redesigned dashboard, or the classic one when the user has switched back to it. */
 export default function DashboardPage(props: DashboardPageProps = {}) {
-  const [design, setDesign] = useHomeDesign();
-  const layoutSwitch = props.isAdminView ? null : <LayoutSwitch design={design} onChange={setDesign} />;
+  const [design] = useHomeDesign();
   return design === 'classic'
-    ? <ClassicDashboardPage {...props} topSlot={layoutSwitch} />
-    : <DashboardHomePage {...props} topSlot={layoutSwitch} />;
+    ? <ClassicDashboardPage {...props} />
+    : <DashboardHomePage {...props} />;
 }
 
 function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, topSlot }: DashboardPageProps & { topSlot?: ReactNode }) {

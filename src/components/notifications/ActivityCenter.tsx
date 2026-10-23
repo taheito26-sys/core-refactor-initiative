@@ -488,7 +488,8 @@ function EmptyState({ category, t }: { category: NotificationCategoryGroup; t: R
 
 const CATEGORIES: NotificationCategoryGroup[] = ['all', 'approval', 'deal', 'order', 'invite', 'message', 'system'];
 
-export default function ActivityCenter() {
+/** `compact` draws a smaller bell for the one-line phone top bar. */
+export default function ActivityCenter({ compact = false }: { compact?: boolean } = {}) {
   const [open, setOpen]                       = useState(false);
   const [activeCategory, setActiveCategory]   = useState<NotificationCategoryGroup>('all');
   const navigate                              = useNavigate();
@@ -544,9 +545,9 @@ export default function ActivityCenter() {
       <PopoverTrigger asChild>
         <button
           aria-label="Notifications"
-          className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+          className={compact ? 'relative p-[3px] rounded-md hover:bg-muted text-muted-foreground transition-colors' : 'relative p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors'}
         >
-          <Bell className="h-5 w-5" />
+          <Bell className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
               {unreadCount > 99 ? '99+' : unreadCount}

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // ─── Which layout the app is shown in ───
 // The redesigned phone layout ships next to the classic one. One switch, at the top of the home page, picks it for
@@ -29,11 +29,23 @@ export function readPageDesign(storageKey: string, params: string | string[], se
   }
 }
 
+const CHANGE_EVENT = 'app-design-change';
+
+/** The chosen layout; a choice made anywhere (the switch in the top bar) reaches every mounted page at once. */
 export function usePageDesign(storageKey: string, params: string | string[]): [OrdersDesign, (next: OrdersDesign) => void] {
   const [design, setDesign] = useState<OrdersDesign>(() => readPageDesign(storageKey, params));
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ key: string; design: OrdersDesign }>).detail;
+      if (detail?.key === storageKey) setDesign(detail.design);
+    };
+    window.addEventListener(CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(CHANGE_EVENT, onChange);
+  }, [storageKey]);
   const choose = useCallback((next: OrdersDesign) => {
     try { localStorage.setItem(storageKey, next); } catch { /* storage unavailable: the choice lasts for this visit */ }
     setDesign(next);
+    window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { key: storageKey, design: next } }));
   }, [storageKey]);
   return [design, choose];
 }

@@ -9,6 +9,8 @@ import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
 import { ZoomControls } from '@/components/shared/ZoomControls';
 import { UserProfileModal } from '@/features/profile/UserProfileModal';
+import { useHomeDesign } from '@/features/orders/v2/design';
+import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
   if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
@@ -49,25 +51,29 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const onPhoneDashboard = isMobile && location.pathname === '/dashboard';
   const { setSearchOpen, setFilterOpen, scope, customFrom } = useDashboardFilters();
   const dashFiltersActive = scope !== 'all' || !!customFrom;
-  const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', onPhoneDashboard ? 'px-1 py-1 text-[9px]' : 'px-1.5 py-1 text-[10px]');
+  // The New | Classic choice for every page lives here, on the home page only.
+  const onHome = location.pathname === '/dashboard';
+  const [design, setDesign] = useHomeDesign();
+  // On a phone every control shares one line, so each is drawn small; the bar also ignores the app zoom (app-topbar).
+  const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', isMobile ? 'px-[3.5px] py-[3px] text-[8.5px] leading-none' : 'px-1.5 py-1 text-[10px]');
 
   return (
     <header
-      className={cn('sticky top-0 z-20 flex items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5', onPhoneDashboard ? '' : 'border-b border-border', 'max-md:flex-wrap max-md:justify-start')}
+      className={cn('app-topbar sticky top-0 z-20 flex items-center bg-background/95 backdrop-blur-sm', isMobile ? 'flex-nowrap gap-[2px] px-1 py-1' : 'gap-1 md:gap-2 px-2 md:px-3 py-1.5', onPhoneDashboard ? '' : 'border-b border-border')}
       style={isMobile ? {
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
-        paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(8px, env(safe-area-inset-right, 0px))',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 5px)',
+        paddingLeft: 'max(4px, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(4px, env(safe-area-inset-right, 0px))',
       } : undefined}
     >
       {isMobile && onMenuClick && (
-        <button onClick={onMenuClick} className="order-[-2] p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+        <button onClick={onMenuClick} className="order-[-2] p-[3px] rounded-md hover:bg-muted text-muted-foreground shrink-0">
           <Menu className="h-4 w-4" />
         </button>
       )}
 
       {/* ── Period Toggle ── */}
-      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      <div className="flex shrink-0 items-center gap-0 bg-muted rounded-md p-[2px]">
         {RANGES.map(r => (
           <button
             key={r.id}
@@ -85,8 +91,30 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         ))}
       </div>
 
+      {/* ── Currency and language: one tap-to-switch button each on a phone, both choices side by side elsewhere ── */}
+      {isMobile && (
+        <>
+          <button
+            type="button"
+            onClick={() => { const c = settings.currency === 'USDT' ? 'QAR' : 'USDT'; update({ currency: c, ...(c !== 'USDT' ? { baseFiatCurrency: c } : {}) }); }}
+            title="QAR / USDT"
+            className={cn(pillCls, 'shrink-0 bg-primary text-primary-foreground shadow-sm')}
+          >
+            {settings.currency}
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ language: settings.language === 'ar' ? 'en' : 'ar' })}
+            title={`${t('arabic')} / ${t('english')}`}
+            className={cn(pillCls, 'shrink-0 bg-muted text-foreground')}
+          >
+            {settings.language === 'ar' ? 'AR' : 'EN'}
+          </button>
+        </>
+      )}
+
       {/* ── Currency Toggle ── */}
-      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      {!isMobile && <div className="flex shrink-0 items-center gap-0 bg-muted rounded-md p-[2px]">
         {(['QAR', 'USDT'] as const).map(c => (
           <button
             key={c}
@@ -101,10 +129,10 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             {c}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* ── Language Toggle ── */}
-      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      {!isMobile && <div className="flex shrink-0 items-center gap-0 bg-muted rounded-md p-[2px]">
         <button
           onClick={() => update({ language: 'ar' })}
           className={cn(
@@ -129,27 +157,30 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
           <span className="md:hidden">EN</span>
           <span className="hidden md:inline">{t('english')}</span>
         </button>
-      </div>
+      </div>}
 
       {/* ── Dashboard search and filter (phone) ── */}
       {onPhoneDashboard && (
-        <div className="ms-auto flex shrink-0 items-center gap-1">
-          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-1 rounded-full border border-border bg-card text-foreground hover:bg-muted">
-            <Search className="h-4 w-4" />
+        <div className="flex shrink-0 items-center gap-[2px]">
+          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-[3px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
+            <Search className="h-3 w-3" />
           </button>
-          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-1 rounded-full border border-border bg-card text-foreground hover:bg-muted">
-            <Filter className="h-4 w-4" />
+          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-[3px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
+            <Filter className="h-3 w-3" />
             {dashFiltersActive && <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-primary" />}
           </button>
         </div>
       )}
 
-      {/* ── Zoom Controls (on a narrow phone dashboard they drop to the end of a second line rather than leave the screen) ── */}
-      <ZoomControls className={onPhoneDashboard ? 'ms-auto' : undefined} />
+      {/* ── Zoom Controls ── */}
+      <ZoomControls className="shrink-0" compact={isMobile} />
+
+      {/* ── New | Classic, for every page, chosen from the home page ── */}
+      {onHome && <LayoutSwitch design={design} onChange={setDesign} className={cn('shrink-0', isMobile ? 'in-topbar ms-auto' : 'in-topbar-desk')} />}
 
       {/* ── Activity ── */}
       <div className="max-md:order-[-1] shrink-0">
-        <ActivityCenter />
+        <ActivityCenter compact={isMobile} />
       </div>
 
       {/* ── Spacer ── */}

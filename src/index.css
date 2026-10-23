@@ -401,3 +401,5 @@ html .app-shell {
   from { transform: translateX(30px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+/* The top bar keeps its size whatever the app zoom: the zoom on <html> (lib/app-zoom) is divided back out here. */
+.app-topbar { zoom: calc(1 / var(--app-zoom, 1)); }

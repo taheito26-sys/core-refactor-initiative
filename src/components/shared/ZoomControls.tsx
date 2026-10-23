@@ -10,11 +10,13 @@ interface ZoomControlsProps {
   variant?: 'default' | 'hero';
   /** Small caption in the middle of the hero stepper. */
   label?: string;
+  /** Smaller buttons, for the one-line phone top bar. */
+  compact?: boolean;
 }
 
 // The zoom stepper shared by the merchant top bar and the customer portal. Both drive the same
 // app-wide zoom (lib/app-zoom), which main.tsx re-applies on every load.
-export function ZoomControls({ className, showPercent = 'md', variant = 'default', label }: ZoomControlsProps) {
+export function ZoomControls({ className, showPercent = 'md', variant = 'default', label, compact = false }: ZoomControlsProps) {
   const [zoomLevel, setZoomLevel] = useState<number>(() => getStoredZoom());
 
   useEffect(() => {
@@ -43,14 +45,14 @@ export function ZoomControls({ className, showPercent = 'md', variant = 'default
   }
 
   return (
-    <div className={cn('flex items-center gap-0.5 bg-muted rounded-md p-0.5', className)}>
+    <div className={cn('flex items-center bg-muted rounded-md', compact ? 'gap-0 p-[2px]' : 'gap-0.5 p-0.5', className)}>
       <button
         onClick={() => handleZoom('out')}
         title="Zoom out"
-        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+        className={cn('rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all', compact ? 'p-[3px]' : 'p-1')}
         disabled={zoomLevel <= ZOOM_MIN}
       >
-        <ZoomOut className="h-4 w-4" />
+        <ZoomOut className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
       </button>
       <span className={cn('text-[9px] font-semibold text-muted-foreground px-0.5 min-w-[24px] text-center', showPercent === 'md' && 'hidden md:inline')}>
         {Math.round(zoomLevel * 100)}%
@@ -58,10 +60,10 @@ export function ZoomControls({ className, showPercent = 'md', variant = 'default
       <button
         onClick={() => handleZoom('in')}
         title="Zoom in"
-        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+        className={cn('rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all', compact ? 'p-[3px]' : 'p-1')}
         disabled={zoomLevel >= ZOOM_MAX}
       >
-        <ZoomIn className="h-4 w-4" />
+        <ZoomIn className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
       </button>
     </div>
   );
