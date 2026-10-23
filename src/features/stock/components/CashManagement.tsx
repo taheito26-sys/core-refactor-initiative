@@ -41,7 +41,6 @@ import { ArrowLeftRight, Banknote, CheckCircle2, FileText, HandCoins, Landmark, 
 import { OrdersV2Card, OrdersV2Header, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, initialOf } from '@/features/orders/v2/orders-v2-model';
 import { useCashDesign } from '@/features/orders/v2/design';
-import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import '@/styles/orders-v2.css';
 
 interface PublicStatementLink {
@@ -3011,7 +3010,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'position' | 'statements'>('accounts');
   // ── Redesigned phone layout (classic stays one tap away, or ?cash=classic) ──
-  const [design, setDesign] = useCashDesign();
+  const [design] = useCashDesign();
   const v2 = isMobile && design === 'v2';
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
@@ -4171,7 +4170,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   return (
     <div className={`tracker-root${v2 ? ' ov2 cv2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
-      {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
 
       {v2 && (
         <>

@@ -71,7 +71,7 @@ export function OrdersV2Kpis({ cards, extras, compact }: { cards: V2Kpi[]; extra
             <div className="ov2-kval" style={k.valueTone ? { color: toneVar(k.valueTone) } : undefined}><b>{k.value}</b>{compact && k.unit && <small>{k.unit}</small>}</div>
             {!compact && k.unit && <div className="ov2-kunit">{k.unit}</div>}
             {k.delta != null && (
-              <div className={cn('ov2-kdelta', k.delta >= 0 ? 'up' : 'down')}>
+              <div className={cn('ov2-kdelta', k.delta >= 0 ? 'up' : 'down')} title={k.deltaLabel}>
                 {k.delta >= 0 ? <ArrowUp /> : <ArrowDown />}<b>{k.delta >= 0 ? '+' : ''}{Math.round(k.delta)}%</b>
                 {k.deltaLabel && <span>{k.deltaLabel}</span>}
               </div>

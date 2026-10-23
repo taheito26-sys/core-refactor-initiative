@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { avatarTone, bucketSeries, initialOf, orderCountChange, orderReferences, splitAmount } from '@/features/orders/v2/orders-v2-model';
-import { DEFAULT_ORDERS_DESIGN, readOrdersDesign } from '@/features/orders/v2/design';
+import { DEFAULT_ORDERS_DESIGN, readAppDesign, readOrdersDesign } from '@/features/orders/v2/design';
 
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
 
@@ -65,13 +65,20 @@ describe('bucketSeries', () => {
   });
 });
 
-describe('orders design switch', () => {
+describe('layout switch', () => {
   beforeEach(() => localStorage.clear());
   it('opens on the new layout, and ?orders=classic is the way back', () => {
     expect(readOrdersDesign('')).toBe(DEFAULT_ORDERS_DESIGN);
     expect(readOrdersDesign('?orders=classic')).toBe('classic');
     expect(readOrdersDesign('')).toBe('classic');
     expect(readOrdersDesign('?orders=v2')).toBe('v2');
+  });
+
+  it('is one choice for every page, made from the home page', () => {
+    expect(readAppDesign('?home=classic')).toBe('classic');
+    expect(readOrdersDesign('')).toBe('classic');
+    expect(readAppDesign('?stock=v2')).toBe('v2');
+    expect(readAppDesign('')).toBe('v2');
   });
 });
 

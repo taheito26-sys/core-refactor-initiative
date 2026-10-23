@@ -65,7 +65,6 @@ import {
 } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, bucketSeries, initialOf, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
 import { useStockDesign } from '@/features/orders/v2/design';
-import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import '@/styles/orders-v2.css';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -147,7 +146,7 @@ export default function StockPage() {
   // page; customers moved to the Orders page instead.
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
   // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
-  const [design, setDesign] = useStockDesign();
+  const [design] = useStockDesign();
   const v2 = isMobile && design === 'v2';
   const [v2FilterOpen, setV2FilterOpen] = useState(false);
   const [v2Oldest, setV2Oldest] = useState(false);
@@ -1129,7 +1128,6 @@ export default function StockPage() {
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
-      {isMobile && <LayoutSwitch design={design} onChange={setDesign} />}
 
       {v2 ? (
         <>

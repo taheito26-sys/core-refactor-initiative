@@ -1,22 +1,26 @@
 import { useCallback, useState } from 'react';
 
-// ─── Which Orders layout is shown ───
-// The redesigned phone layout ships next to the classic one. Anything the new layout cannot show stays reachable
-// in it, and the classic layout is one tap (or ?orders=classic in the address) away, so going back never needs a
-// release.
+// ─── Which layout the app is shown in ───
+// The redesigned phone layout ships next to the classic one. One switch, at the top of the home page, picks it for
+// every page (home, Orders, Stock, Cash Management), so going back never needs a release. `?home=classic` in the
+// address does the same; the older per-page `?orders=`, `?stock=` and `?cash=` still work and set the same choice.
 
 export type OrdersDesign = 'v2' | 'classic';
 
-const KEY = 'orders-design';
+const KEY = 'home-design';
+const PARAMS = ['home', 'orders', 'stock', 'cash'];
 export const DEFAULT_ORDERS_DESIGN: OrdersDesign = 'v2';
 
-/** A page's chosen layout: `?<param>=classic` (or `=v2`) in the address wins and is remembered. */
-export function readPageDesign(storageKey: string, param: string, search = typeof window !== 'undefined' ? window.location.search : ''): OrdersDesign {
+/** The app's chosen layout: a `?home=classic` (or `=v2`) in the address wins and is remembered. */
+export function readPageDesign(storageKey: string, params: string | string[], search = typeof window !== 'undefined' ? window.location.search : ''): OrdersDesign {
   try {
-    const forced = new URLSearchParams(search).get(param);
-    if (forced === 'classic' || forced === 'v2') {
-      localStorage.setItem(storageKey, forced);
-      return forced;
+    const query = new URLSearchParams(search);
+    for (const param of Array.isArray(params) ? params : [params]) {
+      const forced = query.get(param);
+      if (forced === 'classic' || forced === 'v2') {
+        localStorage.setItem(storageKey, forced);
+        return forced;
+      }
     }
     const saved = localStorage.getItem(storageKey);
     return saved === 'classic' || saved === 'v2' ? saved : DEFAULT_ORDERS_DESIGN;
@@ -25,8 +29,8 @@ export function readPageDesign(storageKey: string, param: string, search = typeo
   }
 }
 
-export function usePageDesign(storageKey: string, param: string): [OrdersDesign, (next: OrdersDesign) => void] {
-  const [design, setDesign] = useState<OrdersDesign>(() => readPageDesign(storageKey, param));
+export function usePageDesign(storageKey: string, params: string | string[]): [OrdersDesign, (next: OrdersDesign) => void] {
+  const [design, setDesign] = useState<OrdersDesign>(() => readPageDesign(storageKey, params));
   const choose = useCallback((next: OrdersDesign) => {
     try { localStorage.setItem(storageKey, next); } catch { /* storage unavailable: the choice lasts for this visit */ }
     setDesign(next);
@@ -34,14 +38,11 @@ export function usePageDesign(storageKey: string, param: string): [OrdersDesign,
   return [design, choose];
 }
 
-export const readOrdersDesign = (search?: string) => readPageDesign(KEY, 'orders', search);
-export const useOrdersDesign = () => usePageDesign(KEY, 'orders');
+export const readAppDesign = (search?: string) => readPageDesign(KEY, PARAMS, search);
+export const useAppDesign = () => usePageDesign(KEY, PARAMS);
 
-/** The merchant home: the redesigned dashboard or the classic one, switched the same way (?home=classic). */
-export const useHomeDesign = () => usePageDesign('home-design', 'home');
-
-/** The Stock page: the redesigned phone layout or the classic one (?stock=classic). */
-export const useStockDesign = () => usePageDesign('stock-design', 'stock');
-
-/** Cash Management: the redesigned phone layout or the classic one (?cash=classic). */
-export const useCashDesign = () => usePageDesign('cash-design', 'cash');
+export const readOrdersDesign = readAppDesign;
+export const useHomeDesign = useAppDesign;
+export const useOrdersDesign = useAppDesign;
+export const useStockDesign = useAppDesign;
+export const useCashDesign = useAppDesign;

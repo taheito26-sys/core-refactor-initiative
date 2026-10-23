@@ -474,8 +474,8 @@ export default function OrdersPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers'>('my');
-  // The redesigned phone layout; the classic one stays available (see features/orders/v2/design).
-  const [design, setDesign] = useOrdersDesign();
+  // The redesigned phone layout; the switch at the top of the home page picks it (see features/orders/v2/design).
+  const [design] = useOrdersDesign();
   const v2 = isMobile && design === 'v2';
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');
@@ -4179,7 +4179,7 @@ export default function OrdersPage() {
       {v2 ? (
         <>
           <OrdersV2Header title={t('ov2Title')} subtitle={t('ov2Subtitle')} newLabel={t('newOrder')} onNew={v2NewOrder} />
-          {v2Kpis.length > 0 && <OrdersV2Kpis cards={v2Kpis} extras={v2Extras} />}
+          {v2Kpis.length > 0 && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
             active={activeTab}
             onSelect={id => {
@@ -6839,11 +6839,6 @@ export default function OrdersPage() {
           </label>
           {hasActiveOrderFilters && <button type="button" className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>}
         </OrdersV2Sheet>
-      )}
-      {isMobile && (
-        <button type="button" className="ov2-classic" onClick={() => setDesign(design === 'v2' ? 'classic' : 'v2')}>
-          {design === 'v2' ? t('ov2Classic') : t('ov2Try')}
-        </button>
       )}
 
       {loanSources && (
