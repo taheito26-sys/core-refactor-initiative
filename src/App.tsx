@@ -9,7 +9,6 @@ import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
 import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
 import { ThemeProvider } from "@/lib/theme-context";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
@@ -177,6 +176,7 @@ const CustomerWalletPage = React.lazy(() => import("./pages/customer/CustomerWal
 // actually navigated to, and the single Suspense boundary around <Routes>
 // below only engages for these; the customer/auth pages above never
 // suspend, so their first paint is unaffected.
+const AppLayout = React.lazy(() => import("@/components/layout/AppLayout").then(module => ({ default: module.AppLayout })));
 const OnboardingPage = React.lazy(() => import("./pages/merchant/OnboardingPage"));
 const AdminApprovalsPage = React.lazy(() => import("./pages/admin/AdminApprovalsPage"));
 const AdminPage = React.lazy(() => import("./pages/admin/AdminPage"));

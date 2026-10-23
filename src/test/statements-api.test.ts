@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const invoke = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: (...a: unknown[]) => invoke(...a) } } }));
 
-import { rememberCustomerRole, statementKey, statementQueryOptions, warmStatements } from '@/features/customer/statements-api';
+import { statementKey, statementQueryOptions } from '@/features/customer/statements-api';
 
 describe('statement query options', () => {
   beforeEach(() => { localStorage.clear(); invoke.mockReset(); });
@@ -35,13 +35,21 @@ describe('statement query options', () => {
     await expect(statementQueryOptions('sales', 'u1').queryFn()).rejects.toThrow();
   });
 
-  it('starts early only for an account known to be a buyer', async () => {
-    invoke.mockResolvedValue({ data: { statements: [] }, error: null });
-    warmStatements('merchant-1');
+  it('does not share an in-flight response across accounts or variants', async () => {
+    invoke.mockImplementation(async () => ({ data: { statements: [] }, error: null }));
+    await Promise.all([
+      statementQueryOptions('plain', 'buyer-1').queryFn(),
+      statementQueryOptions('plain', 'buyer-2').queryFn(),
+      statementQueryOptions('sales', 'buyer-1').queryFn(),
+    ]);
+    expect(invoke).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not fetch before an account is available', async () => {
+    const options = statementQueryOptions('plain', null);
+    expect(options.enabled).toBe(false);
+    expect(await options.queryFn()).toEqual([]);
     expect(invoke).not.toHaveBeenCalled();
-    rememberCustomerRole('buyer-1');
-    warmStatements('buyer-1');
-    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the two variants under their own keys', () => {

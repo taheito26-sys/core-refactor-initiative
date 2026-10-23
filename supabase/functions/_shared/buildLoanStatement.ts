@@ -92,26 +92,25 @@ export async function buildLoanStatementResponse(
 ) {
   // The buyer's profile name is looked up while the (much larger) tracker snapshot loads, not after it.
   const profilePromise = link.customer_user_id
-    ? supabase
+    ? Promise.resolve(supabase
       .from("customer_profiles")
       .select("display_name, display_name_ar")
       .eq("user_id", link.customer_user_id)
-      .maybeSingle()
+      .maybeSingle())
     : Promise.resolve({ data: null });
 
   const state = await loadStatementState(supabase, link.user_id, options.snapshots);
   if (!state) return null;
   // deno-lint-ignore no-explicit-any
   const customers = (state.customers ?? []) as any[];
+  const customerIdGroup = resolveCustomerIdGroup(customers, link.customer_id);
   const statements = buildBuyerStatements({
     // deno-lint-ignore no-explicit-any
-    loans: (state.customerLoans ?? []) as any,
+    loans: ((state.customerLoans ?? []) as any[]).filter(loan => customerIdGroup.has(loan.customerId) && loan.currency === link.currency),
     // deno-lint-ignore no-explicit-any
-    customers: customers as any,
+    customers: customers.filter(customer => customerIdGroup.has(customer.id)) as any,
     now: Date.now(),
   });
-
-  const customerIdGroup = resolveCustomerIdGroup(customers, link.customer_id);
 
   const groupStatements = statements.filter(
     (s) => customerIdGroup.has(s.customerId) && s.currency === link.currency,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildLoanStatementResponse, loadStatementState, type StatementState } from '../../supabase/functions/_shared/buildLoanStatement.ts';
 
 const state: StatementState = {
@@ -49,6 +49,33 @@ describe('buyer statement loading', () => {
       expect(s?.outstanding).toBe(60);
       expect(s?.payments).toHaveLength(1);
       expect(s?.payments[0].amount).toBe(40);
+    }
+  });
+
+  it('does not calculate other buyers or currencies while keeping duplicate buyer records', async () => {
+    const { client } = fakeClient();
+    const spy = vi.spyOn(await import('@/features/stock/utils/loanStatement'), 'buildBuyerStatements');
+    const buyerLoan = (state.customerLoans as object[])[0];
+    const originalCustomers = state.customers;
+    const originalLoans = state.customerLoans;
+    state.customers = [{ id: 'c1', name: 'Buyer' }, { id: 'duplicate', name: 'Buyer' }, { id: 'other', name: 'Other' }];
+    state.customerLoans = [buyerLoan,
+      { ...buyerLoan, id: 'l2', customerId: 'duplicate' },
+      { ...buyerLoan, id: 'l3', customerId: 'other' },
+      { ...buyerLoan, id: 'l4', currency: 'EGP' },
+    ];
+    try {
+      const result = await buildLoanStatementResponse(client, { user_id: 'm1', customer_id: 'c1', currency: 'QAR' }, false);
+      expect(result?.totalLoaned).toBe(200);
+      expect(result?.outstanding).toBe(120);
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({
+        loans: expect.arrayContaining([expect.objectContaining({ id: 'l1' }), expect.objectContaining({ id: 'l2' })]),
+      }));
+      expect(spy.mock.calls[0][0].loans).toHaveLength(2);
+    } finally {
+      state.customers = originalCustomers;
+      state.customerLoans = originalLoans;
+      spy.mockRestore();
     }
   });
 
