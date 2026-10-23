@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
-import { isTrackerClearInProgress, isTrackerDataCleared } from './tracker-backup';
+import { isTrackerClearInProgress, isTrackerDataCleared, getTrackerWriteGeneration } from './tracker-backup';
 
 const DISABLE_CASH_CLOUD_SYNC = false;
 
@@ -12,7 +12,14 @@ const DISABLE_CASH_CLOUD_SYNC = false;
  * Without this gate, a debounced auto-save firing during the post-mount
  * race window wipes every cash row the user has.
  */
-let _cashCloudLoadedThisSession = false;
+let _cashLoadedUserId: string | null = null;
+let _cashSyncEpoch = 0;
+let _cashClearInProgress = false;
+const pendingCashWrites = new Set<Promise<void>>();
+export function resetCashSyncSession(): void {
+  _cashLoadedUserId = null;
+  _cashSyncEpoch += 1;
+}
 
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
@@ -211,7 +218,19 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
 
 // Save (full upsert)
 
-export async function saveCashToCloud(
+export function saveCashToCloud(
+  accounts: CashAccount[], ledger: CashLedgerEntry[], reconcile = false, replacementUserId?: string,
+): Promise<void> {
+  const request = persistCashToCloud(accounts, ledger, reconcile, replacementUserId);
+  if (!replacementUserId) {
+    pendingCashWrites.add(request);
+    const done = () => { pendingCashWrites.delete(request); };
+    request.then(done, done);
+  }
+  return request;
+}
+
+async function persistCashToCloud(
   accounts: CashAccount[],
   ledger: CashLedgerEntry[],
   /**
@@ -232,16 +251,24 @@ export async function saveCashToCloud(
    * about, but never deletes ones it doesn't.
    */
   reconcile = false,
+  /** Account-scoped replacement from an explicitly confirmed tracker restore. */
+  replacementUserId?: string,
 ): Promise<void> {
-  if (DISABLE_CASH_CLOUD_SYNC) return;
+  if (_cashClearInProgress) throw new Error('A cash clear is in progress.');
+  if (DISABLE_CASH_CLOUD_SYNC || (!replacementUserId && (isTrackerClearInProgress() || isTrackerDataCleared()))) return;
+  const epoch = _cashSyncEpoch;
+  const generation = getTrackerWriteGeneration();
+  const cancelled = () => epoch !== _cashSyncEpoch || generation !== getTrackerWriteGeneration()
+    || _cashClearInProgress || (!replacementUserId && (isTrackerClearInProgress() || isTrackerDataCleared()));
   const {
-    data: { user },
+    data: { user }, error: authError,
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (authError) throw authError;
+  if (!user) throw new Error('Sign in before saving cash.');
 
   const uid = user.id;
 
-  // GATED on _cashCloudLoadedThisSession: before this device's session has
+  // GATED on _cashLoadedUserId: before this device's session has
   // loaded fresh cash data from the cloud at least once, its in-memory
   // accounts/ledger may still be whatever was cached in localStorage from a
   // previous session — which can be stale relative to edits/deletes made on
@@ -249,7 +276,13 @@ export async function saveCashToCloud(
   // a row another device just deleted, or clobber an edit it just made, even
   // though this call isn't a reconcile delete. Wait for the first
   // loadCashFromCloud() to land before writing anything.
-  if (!_cashCloudLoadedThisSession) return;
+  if (cancelled()) throw new Error('Cash write cancelled by a clear or session change.');
+  if (replacementUserId && replacementUserId !== uid) throw new Error('Account changed during cash restore.');
+  if (!replacementUserId && _cashLoadedUserId !== uid) throw new Error('Load current cash data before saving.');
+  if (replacementUserId && accounts.length === 0 && ledger.length === 0) {
+    await clearCashStateFromCloud(uid);
+    return;
+  }
 
   if (accounts.length > 0) {
     const { error: accErr } = await (supabase
@@ -257,10 +290,11 @@ export async function saveCashToCloud(
       .from('cash_accounts') as any)
       .upsert(accounts.map((a) => accountToRow(a, uid)), { onConflict: 'id' });
     if (accErr) {
-      console.warn('[cash-sync] accounts upsert failed:', accErr.message);
+      throw new Error(`Cash accounts save failed: ${accErr.message}`);
     }
   }
 
+  if (cancelled()) throw new Error('Cash write cancelled by a clear or session change.');
   if (ledger.length > 0) {
     const rows = ledger.map((e) => entryToRow(e, uid));
     const { error: ledErr } = await (supabase
@@ -273,12 +307,13 @@ export async function saveCashToCloud(
       // and log exactly which row is bad instead of failing silently.
       console.warn('[cash-sync] ledger batch upsert failed, retrying per row:', ledErr.message);
       for (const row of rows) {
+        if (cancelled()) throw new Error('Cash write cancelled by a clear or session change.');
         const { error: rowErr } = await (supabase
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('cash_ledger') as any)
           .upsert([row], { onConflict: 'id' });
         if (rowErr) {
-          console.error('[cash-sync] ledger row rejected:', row.id, row.type, rowErr.message);
+          throw new Error(`Cash ledger save failed: ${rowErr.message}`);
         }
       }
     }
@@ -289,6 +324,7 @@ export async function saveCashToCloud(
   // reappears on the next merchant-wide load. Only run this for callers that
   // are the authoritative cash-management surface — see the `reconcile`
   // parameter doc above.
+  if (cancelled()) throw new Error('Cash write cancelled by a clear or session change.');
   if (!reconcile) return;
 
   // Additional safety: if BOTH accounts and ledger are empty, skip the
@@ -318,39 +354,50 @@ export async function saveCashToCloud(
   ]);
 
   if (accDelRes.error) {
-    console.warn('[cash-sync] accounts reconcile delete failed:', accDelRes.error.message);
+    throw new Error(`Cash accounts delete failed: ${accDelRes.error.message}`);
   }
   if (ledDelRes.error) {
-    console.warn('[cash-sync] ledger reconcile delete failed:', ledDelRes.error.message);
+    throw new Error(`Cash ledger delete failed: ${ledDelRes.error.message}`);
   }
 }
 
 /** Delete all cash rows for the current user. */
-export async function clearCashStateFromCloud(): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+export async function clearCashStateFromCloud(expectedUserId?: string): Promise<void> {
+  if (_cashClearInProgress) throw new Error('A cash clear is already in progress.');
+  _cashClearInProgress = true;
+  resetCashSyncSession();
+  const epoch = _cashSyncEpoch;
+  try {
+    await Promise.allSettled([...pendingCashWrites]);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Sign in before clearing cash.');
 
-  const uid = user.id;
-  const [accResult, ledResult] = await Promise.all([
-    (supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .from('cash_accounts') as any)
-      .delete()
-      .eq('user_id', uid),
-    (supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .from('cash_ledger') as any)
-      .delete()
-      .eq('user_id', uid),
-  ]);
+    if (epoch !== _cashSyncEpoch) throw new Error('Account changed during cash clear.');
+    const uid = user.id;
+    if (expectedUserId && uid !== expectedUserId) throw new Error('Account changed during cash clear.');
+    const [accResult, ledResult] = await Promise.all([
+      (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('cash_accounts') as any)
+        .delete()
+        .eq('user_id', uid),
+      (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('cash_ledger') as any)
+        .delete()
+        .eq('user_id', uid),
+    ]);
 
-  if (accResult.error) {
-    console.warn('[cash-sync] clear cash accounts failed:', accResult.error.message);
-  }
-  if (ledResult.error) {
-    console.warn('[cash-sync] clear cash ledger failed:', ledResult.error.message);
+    if (accResult.error) {
+      throw new Error(`Cash clear failed: ${accResult.error.message}`);
+    }
+    if (ledResult.error) {
+      throw new Error(`Cash clear failed: ${ledResult.error.message}`);
+    }
+  } finally {
+    _cashClearInProgress = false;
   }
 }
 
@@ -360,7 +407,9 @@ export async function loadCashFromCloud(): Promise<{
   accounts: CashAccount[];
   ledger: CashLedgerEntry[];
 } | null> {
-  if (DISABLE_CASH_CLOUD_SYNC) return null;
+  if (DISABLE_CASH_CLOUD_SYNC || _cashClearInProgress || isTrackerClearInProgress() || isTrackerDataCleared()) return null;
+  const epoch = _cashSyncEpoch;
+  const generation = getTrackerWriteGeneration();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -417,7 +466,8 @@ export async function loadCashFromCloud(): Promise<{
   }
 
   // Cloud has been observed — reconcile-delete is now safe.
-  _cashCloudLoadedThisSession = true;
+  if (epoch !== _cashSyncEpoch || generation !== getTrackerWriteGeneration() || isTrackerDataCleared() || isTrackerClearInProgress()) return null;
+  _cashLoadedUserId = user.id;
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

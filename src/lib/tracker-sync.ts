@@ -1,11 +1,14 @@
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
-import { findTrackerStorageKey } from './tracker-backup';
+import { findTrackerStorageKey, getTrackerWriteGeneration, isTrackerDataCleared, isTrackerClearInProgress,
+  syncTrackerWriteGenerationToAtLeast, bumpTrackerWriteGeneration, liftTrackerClearBarrier, clearTrackerClearGuard } from './tracker-backup';
+import { clearCashStateFromCloud, saveCashToCloud, resetCashSyncSession } from './cash-sync';
 import { hasMeaningfulTrackerData } from './tracker-backup';
 import { mergeLoansByRecency, mergeBatchesByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { mergeTransfersByRecency } from './usdt-transfers';
 import { uploadVaultBackup } from './supabase-vault';
 
+let _sessionEpoch = 0;
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedJson = '';
 /**
@@ -49,6 +52,8 @@ const _foreignIds: Record<string, Set<string>> = {
  * each of which would otherwise let one user's rows reach another's snapshot.
  */
 export function resetTrackerSyncSession(): void {
+  _sessionEpoch += 1;
+  resetCashSyncSession();
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = null;
   if (_prefTimer) clearTimeout(_prefTimer);
@@ -151,6 +156,8 @@ type TrackerSnapshotRow = {
   state: Partial<TrackerState> | null;
   updated_at?: string | null;
   user_id?: string;
+  write_generation?: number;
+  is_cleared?: boolean;
 };
 
 function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[] {
@@ -173,7 +180,7 @@ function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[
 /** Merge multiple snapshot states into one merchant-scoped view. */
 export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Partial<TrackerState> | null {
   const validRows = rows
-    .filter(r => r.state && typeof r.state === 'object')
+    .filter(r => !r.is_cleared && r.state && typeof r.state === 'object')
     .sort((a, b) => {
       const at = new Date(a.updated_at || 0).getTime();
       const bt = new Date(b.updated_at || 0).getTime();
@@ -248,7 +255,6 @@ function persistToLocal(state: TrackerState): void {
   try {
     const key = findTrackerStorageKey(window.localStorage);
     window.localStorage.setItem(key, stateToJson(state));
-    window.localStorage.removeItem('tracker_data_cleared');
   } catch {
     // quota exceeded — silent
   }
@@ -265,10 +271,37 @@ async function ensureRow(userId: string): Promise<void> {
     );
 }
 
-/** Save tracker state to Supabase (upsert) — debounced */
-async function persistToCloud(state: TrackerState): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+export interface TrackerSaveOptions {
+  replaceExisting?: boolean;
+  preserveDataCleared?: boolean;
+  allowDuringClear?: boolean;
+}
+
+function writesBlocked(): boolean {
+  return isTrackerDataCleared() || isTrackerClearInProgress();
+}
+
+function isEmptyClearState(state: TrackerState): boolean {
+  const data = state as unknown as Record<string, unknown>;
+  return ['batches', 'trades', 'customers', 'suppliers', 'cashAccounts', 'cashLedger', 'cashHistory']
+    .every(key => Array.isArray(data[key]) && data[key].length === 0)
+    && ['customerLoans', 'usdtTransfers'].every(key => data[key] == null || (Array.isArray(data[key]) && data[key].length === 0))
+    && state.cashQAR === 0 && !state.cashOwner;
+}
+
+/** Save through the database generation fence; never fall back to a direct state upsert. */
+async function persistToCloud(state: TrackerState, options: TrackerSaveOptions = {}, generation = getTrackerWriteGeneration()): Promise<void> {
+  const epoch = _sessionEpoch;
+  const assertCurrent = () => {
+    if (epoch !== _sessionEpoch || generation !== getTrackerWriteGeneration() || (writesBlocked() && !options.allowDuringClear)) {
+      throw new Error('Tracker write cancelled by a clear or session change. Reload before saving.');
+    }
+  };
+  assertCurrent();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error('Sign in before saving tracker data.');
+  assertCurrent();
 
   // Strip foreign-origin ids so this user's row only ever contains rows
   // authored (or owned) by this user. Prevents merchant-wide cross-pollution.
@@ -310,16 +343,25 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   // resurrects it. See TrackerState.deletedTradeIds/deletedBatchIds/deletedLoanIds
   // for the identical pattern applied three times.
   let merged: TrackerState = stripped;
-  const { data: latestRow } = await supabase
+  const { data: latestRow, error: readError } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
-    .select('state')
+    .select('state, write_generation, is_cleared')
     .eq('user_id', user.id)
     .maybeSingle();
+  if (readError) throw new Error(`Tracker read failed: ${readError.message}`);
+  assertCurrent();
+  const serverGeneration = Number((latestRow as unknown as TrackerSnapshotRow | null)?.write_generation ?? 0);
+  if (options.replaceExisting) {
+    syncTrackerWriteGenerationToAtLeast(serverGeneration);
+    generation = bumpTrackerWriteGeneration();
+  } else if (serverGeneration > generation) {
+    throw new Error('Tracker changed on another device. Reload before saving.');
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
 
-  if (latestState && typeof latestState === 'object') {
+  if (!options.replaceExisting && latestState && typeof latestState === 'object') {
     const deletedLoanIds = guardTombstones(
       'customerLoans', latestState.deletedLoanIds, stripped.deletedLoanIds, (latestState.customerLoans || []).length,
     );
@@ -395,16 +437,23 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   }
 
   const json = stateToJson(merged);
-  if (!json || json === _lastSavedJson) return;
+  if (!json || (!options.replaceExisting && json === _lastSavedJson)) return;
 
-  const { error } = await supabase
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from('tracker_snapshots' as any)
-    .upsert(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user_id: user.id, state: merged as any, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    );
+  assertCurrent();
+  const { data: accepted, error } = await supabase.rpc('save_tracker_snapshot_if_newer', {
+    _user_id: user.id,
+    _state: merged as unknown as import('@/integrations/supabase/types').Json,
+    _updated_at: new Date().toISOString(),
+    _write_generation: generation,
+    _is_cleared: !!options.preserveDataCleared,
+  });
+  if (!error && accepted !== true) throw new Error('Tracker changed on another device. Reload before saving.');
+  assertCurrent();
+  if (!error && options.preserveDataCleared) await clearCashStateFromCloud(user.id);
+  else if (!error && options.replaceExisting) {
+    await saveCashToCloud(state.cashAccounts ?? [], state.cashLedger ?? [], true, user.id);
+  }
+  assertCurrent();
 
   if (!error) {
     _lastSavedJson = json;
@@ -443,65 +492,84 @@ async function persistToCloud(state: TrackerState): Promise<void> {
 
 /** Persist state to localStorage immediately and to cloud (debounced 2s) */
 export function saveTrackerState(state: TrackerState): void {
+  if (writesBlocked()) return;
+  const generation = getTrackerWriteGeneration();
   persistToLocal(state);
 
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    persistToCloud(state).catch((err) => {
+    persistToCloud(state, {}, generation).catch((err) => {
       console.warn('[tracker-sync] debounced cloud save failed:', err);
     });
   }, 2000);
 }
 
 /** Force an immediate cloud save (e.g. on import/restore) */
-export async function saveTrackerStateNow(state: TrackerState): Promise<void> {
+export async function saveTrackerStateNow(state: TrackerState, options: TrackerSaveOptions = {}): Promise<void> {
+  const epoch = _sessionEpoch;
+  if (options.preserveDataCleared && (!options.replaceExisting || !options.allowDuringClear || !isEmptyClearState(state))) {
+    throw new Error('A full clear requires a complete empty tracker state.');
+  }
   if (_saveTimer) clearTimeout(_saveTimer);
+  await persistToCloud(state, options);
+  if (epoch !== _sessionEpoch) throw new Error('Account changed during tracker save.');
   persistToLocal(state);
-  await persistToCloud(state);
+  if (options.allowDuringClear && !options.preserveDataCleared) {
+    liftTrackerClearBarrier();
+    clearTrackerClearGuard();
+  }
 }
 
 /** Load tracker state from cloud, returning null if none found */
-export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState> | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export interface TrackerCloudSnapshot {
+  state: Partial<TrackerState>;
+  cleared: boolean;
+}
 
-  // Mark cloud as loaded for this session so subsequent saves overwrite
-  // (deletes propagate) instead of read-merge-write (deletes resurrected).
-  // We set this even if the row turns out to be empty — what matters is
-  // that we successfully reached cloud, not that there was data there.
-  _cloudLoadedThisSession = true;
-
-  const { data: myMerchantProfile } = await supabase
+export async function loadTrackerStateFromCloud(): Promise<TrackerCloudSnapshot | null> {
+  const epoch = _sessionEpoch;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user || epoch !== _sessionEpoch) return null;
+  let ownRow: TrackerSnapshotRow | undefined;
+  const { data: myMerchantProfile, error: profileError } = await supabase
     .from('merchant_profiles')
     .select('merchant_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
+  if (profileError) throw new Error(profileError.message);
+  if (epoch !== _sessionEpoch) return null;
   let cloudState: Partial<TrackerState> | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const merchantId = (myMerchantProfile as any)?.merchant_id as string | undefined;
 
   if (merchantId) {
-    const { data: merchantUsers } = await supabase
+    const { data: merchantUsers, error: membersError } = await supabase
       .from('merchant_profiles')
       .select('user_id')
       .eq('merchant_id', merchantId);
+    if (membersError) throw new Error(membersError.message);
+    if (epoch !== _sessionEpoch) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const merchantUserIds = Array.from(new Set((merchantUsers || []).map((m: any) => m.user_id).filter(Boolean)));
 
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at, user_id')
+      .select('state, updated_at, user_id, write_generation, is_cleared')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
-    if (!error && data) {
+    if (error) throw new Error(error.message);
+    if (epoch !== _sessionEpoch) return null;
+    if (data) {
       // Reset foreign-id memory, then tag every id that came from OTHER
       // merchant members' rows. These are excluded on save so this user's
       // row never absorbs the merchant-wide merge.
       for (const set of Object.values(_foreignIds)) set.clear();
       const rows = data as unknown as TrackerSnapshotRow[];
+      ownRow = rows.find(row => row.user_id === user.id);
       for (const row of rows) {
-        if (!row.state || row.user_id === user.id) continue;
+        if (row.is_cleared || !row.state || row.user_id === user.id) continue;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const s = row.state as any;
         rememberForeignIds('batches', Array.isArray(s.batches) ? s.batches : []);
@@ -514,28 +582,34 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
         rememberForeignIds('cashHistory', Array.isArray(s.cashHistory) ? s.cashHistory : []);
       }
       cloudState = mergeTrackerStatesForMerchant(rows);
+      if (!cloudState && ownRow?.is_cleared) cloudState = {};
     }
   } else {
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at')
+      .select('state, updated_at, write_generation, is_cleared')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (!error && data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cloudState = (data as any).state as Partial<TrackerState> | null;
+    if (error) throw new Error(error.message);
+    if (epoch !== _sessionEpoch) return null;
+    if (data) {
+      ownRow = data as unknown as TrackerSnapshotRow;
+      cloudState = ownRow.is_cleared ? {} : ownRow.state;
     }
   }
 
+  if (epoch !== _sessionEpoch) return null;
+  if (ownRow) syncTrackerWriteGenerationToAtLeast(Number(ownRow.write_generation ?? 0));
   if (!cloudState || typeof cloudState !== 'object') return null;
 
   // Validate it looks like tracker state
-  if (!hasMeaningfulTrackerData(cloudState)) {
+  if (!ownRow?.is_cleared && !hasMeaningfulTrackerData(cloudState)) {
     return null;
   }
 
-  return cloudState;
+  _cloudLoadedThisSession = true;
+  return { state: cloudState, cleared: !!ownRow?.is_cleared && !hasMeaningfulTrackerData(cloudState) };
 }
 
 // ── Preferences sync ──

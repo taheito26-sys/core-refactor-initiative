@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
+import { isTrackerDataCleared, liftTrackerClearBarrier, clearTrackerClearGuard } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -79,6 +80,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cashCommitInFlightUntilRef = useRef<number>(0);
   const clearedAccountIds = useRef<Set<string>>(new Set());
+  const clearedStateLoadedRef = useRef(false);
+  const prepareTrackerWrite = useCallback(() => {
+    if (!isTrackerDataCleared()) return;
+    if (!clearedStateLoadedRef.current) throw new Error('Reload the cleared tracker before adding new data.');
+    liftTrackerClearBarrier();
+    clearTrackerClearGuard();
+    clearedStateLoadedRef.current = false;
+  }, []);
+
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
@@ -88,6 +98,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
+    const startingAfterClear = isTrackerDataCleared();
+    prepareTrackerWrite();
     const prev = stateRef.current;
     setState(next);
     stateRef.current = next;
@@ -113,10 +125,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // write and revert an edit that hadn't landed yet (e.g. a corrected
       // loaned order's amount reverting back to its old value). The guard
       // set above already expires on its own after 3s, which covers both writes.
-      saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false)
-        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
+      void (async () => {
+        if (startingAfterClear && !await loadCashFromCloud()) throw new Error('Could not reload cash after clearing.');
+        await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
+      })().catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
     }, 500);
-  }, [adminMode, options.preloadedState, options.isCashAuthority]);
+  }, [adminMode, options.preloadedState, options.isCashAuthority, prepareTrackerWrite]);
 
   /**
    * Commit-first variant: writes to the DB synchronously (tracker_snapshots
@@ -135,6 +149,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
+    const startingAfterClear = isTrackerDataCleared();
+    prepareTrackerWrite();
     const prev = stateRef.current;
 
     // Mark in-flight BEFORE either write starts — each write's own
@@ -145,6 +161,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     try {
       // Write to DB FIRST — if this throws, React state is not mutated.
       await saveTrackerStateNow(next);
+      if (startingAfterClear && !await loadCashFromCloud()) throw new Error('Could not reload cash after clearing.');
       // Reconcile (including empty, so deletes propagate) only for the
       // cash-authoritative instance — see saveCashToCloud's `reconcile` doc.
       await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
@@ -157,7 +174,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
     triggerVaultBackup(diffTrackerReason(prev, next));
-  }, [adminMode, options.preloadedState, options.isCashAuthority]);
+  }, [adminMode, options.preloadedState, options.isCashAuthority, prepareTrackerWrite]);
 
   // Handle preloaded state (admin view)
   useEffect(() => {
@@ -188,7 +205,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // the commit will call setState itself once both writes finish.
     if (cashCommitInFlightUntilRef.current > Date.now()) return;
     try {
-      const cloudState = await loadTrackerStateFromCloud();
+      const cloudSnapshot = await loadTrackerStateFromCloud();
+      const cloudState = cloudSnapshot?.state;
+      if (cloudSnapshot && isTrackerDataCleared()) clearedStateLoadedRef.current = true;
       if (cloudState) {
         // Cloud is AUTHORITATIVE for snapshot collections (batches, trades,
         // customers, suppliers). Do NOT union-merge with stateRef.current —
@@ -352,7 +371,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // needs before its own accounts/ledger can even start loading.
     applyCashFromCloud();
 
-    loadTrackerStateFromCloud().then((cloudState) => {
+    loadTrackerStateFromCloud().then((cloudSnapshot) => {
+      const cloudState = cloudSnapshot?.state;
+      if (cloudSnapshot && isTrackerDataCleared()) clearedStateLoadedRef.current = true;
       if (cancelled) return;
       setCloudLoaded(true);
 

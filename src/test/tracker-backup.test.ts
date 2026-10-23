@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import {
   clearTrackerClearGuard,
+  clearTrackerStorage,
   clearTrackerDataCleared,
   findTrackerStorageKey,
   getCurrentTrackerState,
@@ -15,6 +16,20 @@ import {
 import { mergeLocalAndCloud } from '@/lib/tracker-state';
 
 describe('tracker backup state detection', () => {
+  it('keeps the generation and owner during an explicit reset but removes them on account changes', () => {
+    localStorage.clear();
+    localStorage.setItem('tracker_storage_owner', 'user-1');
+    localStorage.setItem('tracker_write_generation', '12');
+    localStorage.setItem('tracker_state', '{"trades":[]}');
+    clearTrackerStorage(localStorage, true);
+    expect(localStorage.getItem('tracker_state')).toBeNull();
+    expect(localStorage.getItem('tracker_write_generation')).toBe('12');
+    expect(localStorage.getItem('tracker_storage_owner')).toBe('user-1');
+    clearTrackerStorage(localStorage);
+    expect(localStorage.getItem('tracker_write_generation')).toBeNull();
+    expect(localStorage.getItem('tracker_storage_owner')).toBeNull();
+  });
+
   it('tracks a short-lived clear guard during destructive resets', () => {
     sessionStorage.clear();
 

@@ -159,9 +159,9 @@ export function listTrackerKeysToClear(storage: Storage): string[] {
   return Array.from(keys);
 }
 
-export function clearTrackerStorage(storage: Storage): void {
+export function clearTrackerStorage(storage: Storage, preserveGeneration = false): void {
   for (const key of listTrackerKeysToClear(storage)) {
-    storage.removeItem(key);
+    if (!preserveGeneration || (key !== TRACKER_WRITE_GENERATION_KEY && key !== 'tracker_storage_owner')) storage.removeItem(key);
   }
 }
 
