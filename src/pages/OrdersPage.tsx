@@ -70,7 +70,7 @@ import {
   ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon,
 } from 'lucide-react';
 import {
-  BoltMark, OrdersV2Card, OrdersV2Export, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
+  BoltMark, OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { useOrdersDesign } from '@/features/orders/v2/design';
@@ -4303,26 +4303,12 @@ export default function OrdersPage() {
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
                 <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} side="sell" onRegister={applyExchangeOrderPrefill} />
-                {v2 ? (
-                  <OrdersV2Export
-                    dir={t.isRTL ? 'rtl' : 'ltr'}
-                    label={exportingXlsx || exportingPdf ? t('exporting') : t('ov2Export')}
-                    xlsxLabel={t('exportXlsx')}
-                    pdfLabel={t('exportPdf')}
-                    disabled={exportingXlsx || exportingPdf || subFilteredMy.length === 0}
-                    onXlsx={handleExportXlsx}
-                    onPdf={handleExportPdf}
-                  />
-                ) : (
-                  <>
                 <button className="rowBtn ov2-xlsx" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
                   {v2 && <FileSpreadsheet />}{exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>
                 <button className="rowBtn ov2-pdf" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}>
                   {v2 && <FileTextIcon />}{exportingPdf ? t('exporting') : t('exportPdf')}
                 </button>
-                  </>
-                )}
               </div>
 
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net, egpTotal: buyerFilter ? myKpi.egpTotal : null })}

@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  ArrowRight, ArrowUp, ArrowDown, CalendarDays, Clock, ChevronDown, Copy, Filter, LayoutGrid, List, MessageCircle,
-  MoreVertical, Plus, Search, X, Zap, Download, FileSpreadsheet, FileText, type LucideIcon,
+  ArrowRight, ArrowUp, ArrowDown, CalendarDays, Check, Clock, ChevronDown, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MessageCircle,
+  MoreVertical, Plus, Search, X, Zap, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Sparkline } from '@/features/dashboard/components/home/Sparkline';
 import { cn } from '@/lib/utils';
-import { ModernSelect } from '@/components/shared/ModernSelect';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { splitAmount } from './orders-v2-model';
 
 /** A figure with its unit drawn small beside it. */
@@ -98,7 +96,7 @@ export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll 
     <div className={cn('ov2-tabs', scroll && 'scroll')} role="tablist" style={scroll ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
       {tabs.map(tab => (
         <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={cn('ov2-tab', active === tab.id && 'on')} onClick={() => onSelect(tab.id)}>
-          <tab.Icon /><span>{tab.label}</span>
+          <tab.Icon />{tab.label}
         </button>
       ))}
     </div>
@@ -113,12 +111,12 @@ export function OrdersV2SearchBar({ value, onChange, placeholder, onFilter, filt
     <div className="ov2-search">
       <label className="ov2-search-box">
         <Search />
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} autoComplete="off" spellCheck={false} />
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} autoComplete="off" spellCheck={false} />
         {value && <button type="button" onClick={() => onChange('')} aria-label="Clear"><X /></button>}
       </label>
       {onFilter && (
         <button type="button" className={cn('ov2-filterbtn', filterActive && 'on')} onClick={onFilter} aria-label={filterLabel} title={filterLabel}>
-          <Filter /><span>{filterLabel}</span>{filterActive && <i />}
+          <Filter />{filterActive && <i />}
         </button>
       )}
     </div>
@@ -129,37 +127,36 @@ export function OrdersV2SearchBar({ value, onChange, placeholder, onFilter, filt
 export function OrdersV2Months({ months, selected, onSelect, allLabel }: {
   months: Array<{ key: string; label: string; long: string }>; selected: string; onSelect: (key: string) => void; allLabel: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClose(open, () => setOpen(false));
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const scroll = (dir: number) => chipsRef.current?.scrollBy({ left: dir * 160, behavior: 'smooth' });
   return (
     <div className="ov2-months">
-      <div className="ov2-period">
-        <CalendarDays aria-hidden="true" />
-        <ModernSelect compact value={selected} onChange={event => onSelect(event.target.value)} title={allLabel}>
-          <option value="all">{allLabel}</option>
-          {months.map(month => <option key={month.key} value={month.key}>{month.long}</option>)}
-        </ModernSelect>
+      <div className="ov2-mdrop" ref={ref}>
+        <button type="button" className="ov2-mbtn" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}>
+          <span className="ov2-mcal"><CalendarDays /></span><span className="ov2-mlabel">{allLabel}</span><ChevronDown className={open ? 'open' : ''} />
+        </button>
+        {open && (
+          <ul className="ov2-menu" role="listbox">
+            {[{ key: 'all', long: allLabel }, ...months].map(m => (
+              <li key={m.key}>
+                <button type="button" role="option" aria-selected={selected === m.key} className={selected === m.key ? 'on' : ''} onClick={() => { onSelect(m.key); setOpen(false); }}>
+                  {m.long}{selected === m.key && <Check />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <div className="ov2-chips">
-        {months.slice(0, 3).map(month => (
-          <button key={month.key} type="button" className={cn('ov2-chip', selected === month.key && 'on')} aria-pressed={selected === month.key} onClick={() => onSelect(month.key)}>{month.label}</button>
+      <div className="ov2-chips" ref={chipsRef}>
+        {months.map(m => (
+          <button key={m.key} type="button" className={cn('ov2-chip', selected === m.key && 'on')} onClick={() => onSelect(m.key)}>{m.label}</button>
         ))}
       </div>
+      <button type="button" className="ov2-mnext" onClick={() => scroll(1)} aria-label="Next"><ChevronRight className="rtl-flip" /></button>
+      <button type="button" className="ov2-mprev" onClick={() => scroll(-1)} aria-label="Previous"><ChevronLeft className="rtl-flip" /></button>
     </div>
-  );
-}
-
-export function OrdersV2Export({ label, xlsxLabel, pdfLabel, disabled, onXlsx, onPdf, dir }: {
-  label: string; xlsxLabel: string; pdfLabel: string; dir?: 'rtl' | 'ltr'; disabled: boolean; onXlsx: () => void; onPdf: () => void;
-}) {
-  return (
-    <DropdownMenu dir={dir}>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="rowBtn ov2-export" disabled={disabled}><Download />{label}<ChevronDown /></button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="ov2-export-menu">
-        <DropdownMenuItem onSelect={onXlsx}><FileSpreadsheet className="text-emerald-600" />{xlsxLabel}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onPdf}><FileText className="text-rose-500" />{pdfLabel}</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

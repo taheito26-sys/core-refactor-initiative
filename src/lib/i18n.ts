@@ -579,7 +579,6 @@ const translations = {
   ov2Copied: { en: 'Order number copied', ar: 'تم نسخ رقم الطلب' },
   ov2Chat: { en: 'Open chat', ar: 'فتح المحادثة' },
   ov2Menu: { en: 'More actions', ar: 'المزيد' },
-  ov2Export: { en: 'Export', ar: 'تصدير' },
   ov2Filters: { en: 'Filters', ar: 'التصفية' },
   ov2Done: { en: 'Done', ar: 'تم' },
   ov2Classic: { en: 'Switch to the classic layout', ar: 'التبديل إلى العرض الكلاسيكي' },
