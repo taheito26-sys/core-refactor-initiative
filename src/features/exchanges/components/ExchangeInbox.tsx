@@ -1,3 +1,4 @@
+import { summarizeTransferSelection } from '../transfer-selection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Inbox, X } from 'lucide-react';
@@ -258,12 +259,7 @@ export function ExchangeInbox({
   const selectedTransfers = allTransfers.filter(
     (tr) => selectedTransferIds.has(tr.id) && !isImported(tr.linked_at, tr.linked_entity_id, tr.reference),
   );
-  const selectedTotal = selectedTransfers.reduce((sum, tr) => sum + tr.amount, 0);
-  const sameSender = new Set(selectedTransfers.map((tr) => tr.counterparty ?? '')).size === 1;
-  const sameKind = new Set(selectedTransfers.map((tr) => tr.kind)).size === 1;
-  // One tick fills the form with that transfer; each further tick adds to
-  // the total, as long as they all came from the same sender the same way.
-  const canCombine = selectedTransfers.length >= 1 && sameSender && sameKind;
+  const { total: selectedTotal, sameSender, canCombine } = summarizeTransferSelection(selectedTransfers);
 
   const pickSelection = () => {
     if (!onPickTransfer || !canCombine) return;
@@ -280,7 +276,7 @@ export function ExchangeInbox({
       amountUSDT: selectedTotal,
       buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
       ts: latest.transfer_time ? new Date(latest.transfer_time).getTime() : Date.now(),
-      assigneeName: latest.counterparty ?? undefined,
+      assigneeName: sameSender ? latest.counterparty ?? undefined : 'Multiple senders',
     });
   };
 
@@ -348,7 +344,7 @@ export function ExchangeInbox({
         <div className="flex items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-2 py-1">
           <span className="min-w-0 truncate text-[10px]">
             {!canCombine ? (
-              <span className="font-semibold text-amber-500">Tick transfers from the same sender only</span>
+              <span className="font-semibold text-amber-500">Select USDT transfers of the same type</span>
             ) : (
               <>
                 <span className="text-muted-foreground">{selectedTransfers.length} combined — </span>
@@ -461,7 +457,7 @@ export function ExchangeInbox({
               {!imported && (
                 <button
                   type="button"
-                  title={selected ? 'Deselect' : 'Tick to combine with other transfers from the same sender'}
+                  title={selected ? 'Deselect' : 'Tick to add this transfer to the combined amount'}
                   onClick={() => toggleTransferSelected(tr.id)}
                   className={cn(
                     'flex shrink-0 items-center justify-center rounded border px-1.5',
