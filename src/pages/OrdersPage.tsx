@@ -4111,11 +4111,18 @@ export default function OrdersPage() {
       </>
     );
 
-    const status = tr.approvalStatus === 'pending_approval'
-      ? { label: t('ov2Pending'), kind: 'warn' as const }
-      : tr.approvalStatus === 'rejected'
-        ? { label: t('ov2Rejected'), kind: 'bad' as const }
-        : { label: t('ov2Completed'), kind: 'good' as const };
+    const status = (() => {
+      if (tr.voided || tr.approvalStatus === 'cancelled') return { label: t('ov2Cancelled'), kind: 'bad' as const };
+      if (tr.approvalStatus === 'pending_approval') return { label: t('ov2Pending'), kind: 'warn' as const };
+      if (tr.approvalStatus === 'rejected') return { label: t('ov2Rejected'), kind: 'bad' as const };
+      if (loan) {
+        const remaining = getLoanRemaining(loan);
+        return remaining > 0
+          ? { label: `${t('ov2Due')} ${fmtTotal(remaining)} ${localCur(loan.currency, t.lang)}`, kind: 'warn' as const }
+          : { label: t('ov2Repaid'), kind: 'good' as const };
+      }
+      return { label: t('ov2CashSale'), kind: 'good' as const };
+    })();
 
     return (
       <OrdersV2Card
