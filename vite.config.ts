@@ -6,6 +6,8 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const buildId = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA
+    || process.env.CF_PAGES_COMMIT_SHA || process.env.COMMIT_SHA || new Date().toISOString();
   const disablePwaBuild = process.env.DISABLE_PWA_BUILD === "1";
 
   // Absolute origin used by `related_applications` so the browser can answer
@@ -20,15 +22,7 @@ export default defineConfig(({ mode }) => {
   ).replace(/\/$/, "");
 
   return {
-    define: {
-      __APP_BUILD_ID__: JSON.stringify(
-        process.env.VERCEL_GIT_COMMIT_SHA ||
-          process.env.GITHUB_SHA ||
-          process.env.CF_PAGES_COMMIT_SHA ||
-          process.env.COMMIT_SHA ||
-          new Date().toISOString()
-      ),
-    },
+    define: { __APP_BUILD_ID__: JSON.stringify(buildId) },
     server: {
       host: "::",
       port: 5000,
@@ -41,12 +35,15 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: false,
     },
     plugins: [
+      { name: 'app-version', generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'app-version.json', source: JSON.stringify({ buildId }) });
+      } },
       react(),
       mode === "development" && componentTagger(),
       !disablePwaBuild &&
         VitePWA({
-          registerType: "autoUpdate",
-          injectRegister: "auto",
+          registerType: "prompt",
+          injectRegister: false,
           includeAssets: [
             "favicon.ico?v=2",
             "favicon.png?v=2",
@@ -56,6 +53,7 @@ export default defineConfig(({ mode }) => {
             "robots.txt",
           ],
           workbox: {
+            globIgnores: ["**/app-version.json"],
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
               /^\/auth\//,
@@ -66,7 +64,7 @@ export default defineConfig(({ mode }) => {
               /^\/verify-email/,
             ],
             clientsClaim: true,
-            skipWaiting: true,
+            skipWaiting: false,
             cleanupOutdatedCaches: true,
             runtimeCaching: [
               {

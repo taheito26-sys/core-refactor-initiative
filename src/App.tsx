@@ -228,45 +228,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// ── Register the PWA service worker unconditionally ──
-// This used to run only inside PwaDebugBadge, which bails out before its
-// hooks run unless `?pwa_debug=1` is in the URL — so the service worker
-// never registered for real users, no installable app criteria were ever
-// met, and "Add to Home Screen" on iOS/Android fell back to a plain
-// browser-chrome shortcut instead of a real standalone install.
-(async function registerPwaServiceWorker() {
-  try {
-    if (!('serviceWorker' in navigator)) return;
-    const mod = await import('virtual:pwa-register');
-    const registerSW: undefined | ((opts?: unknown) => void) = (mod as { registerSW?: (opts?: unknown) => void }).registerSW;
-    if (typeof registerSW === 'function') {
-      registerSW({ immediate: true });
-    }
-  } catch {
-    // vite-plugin-pwa virtual module is unavailable when DISABLE_PWA_BUILD=1
-  }
-})();
-
-// ── Aggressive SW cleanup on every app boot ──
-// This ensures stale service workers never block new deployments
-(async function cleanupStaleSW() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const reg of registrations) {
-        // Force the waiting SW to activate immediately
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-        // Check for updates
-        reg.update().catch(() => {});
-      }
-    }
-  } catch {
-    // Best effort
-  }
-})();
-
 class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; autoCleared: boolean }
