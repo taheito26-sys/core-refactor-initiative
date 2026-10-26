@@ -42,6 +42,7 @@ import { OrdersV2Card, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2
 import { avatarTone, initialOf } from '@/features/orders/v2/orders-v2-model';
 import { useCashDesign } from '@/features/orders/v2/design';
 import '@/styles/orders-v2.css';
+import { BankSmsBalancesPanel } from '@/features/bank-sms/BankSmsBalancesPanel';
 
 interface PublicStatementLink {
   id: string;
@@ -4170,6 +4171,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   return (
     <div className={`tracker-root${v2 ? ' ov2 cv2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
+
+      <BankSmsBalancesPanel />
 
       {v2 && (
         <>
