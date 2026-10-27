@@ -10,6 +10,7 @@ import {
   getLoanRepaid, getLoanRemaining, mergeCustomerRecords,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
+import { useOrderDateFilters } from '@/features/orders/useOrderDateFilters';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { comparePlacement, toLocalInputValue } from '@/lib/order-sequence';
@@ -480,15 +481,14 @@ export default function OrdersPage() {
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');
   const [v2FilterOpen, setV2FilterOpen] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const { selectedMonth, selectMonth, dayFilter, setDayFilter, dayFilterTo, setDayFilterTo } =
+    useOrderDateFilters(settings.range, update, currentMonthKey);
   // Backfills a connected exchange's P2P history for exactly the clicked
   // month, so months outside the auto-sync's rolling window still show up.
   useExchangeMonthSync(selectedMonth);
   const [ordersPage, setOrdersPage] = useState(1);
   const [buyerFilter, setBuyerFilter] = useState('');
-  const [dayFilter, setDayFilter] = useState(''); // 'YYYY-MM-DD', empty = no day filter
-  const [dayFilterTo, setDayFilterTo] = useState(''); // last day of a period, empty = just dayFilter
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
 
   // ── Dynamic rows per page: fit table to available viewport height ──
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -911,16 +911,7 @@ export default function OrdersPage() {
     applyState(next);
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
-  useEffect(() => {
-    if (selectedMonth === 'all' && settings.range !== 'all') {
-      setSelectedMonth(currentMonthKey);
-    }
-  }, [selectedMonth, settings.range, currentMonthKey]);
-
-  const selectAllMonths = useCallback(() => {
-    setSelectedMonth('all');
-    if (settings.range !== 'all') update({ range: 'all' });
-  }, [settings.range, update]);
+  const selectAllMonths = useCallback(() => selectMonth('all'), [selectMonth]);
 
   const wacop = getWACOP(derived);
   const averageStockPrice = wacop;
@@ -1022,7 +1013,7 @@ export default function OrdersPage() {
     [state.trades],
   );
   // A day or period picked in the date filter is looked up across all time, not inside the month or range chips.
-  const effectiveRange = selectedMonth === 'all' || dayFilter ? 'all' : state.range;
+  const effectiveRange = dayFilter ? 'all' : settings.range;
 
   const list = useMemo(() => allTrades.filter(t => {
     if (!inRange(t.ts, effectiveRange)) return false;
@@ -1107,7 +1098,7 @@ export default function OrdersPage() {
     setBuyerFilter('');
     setDayFilter('');
     setDayFilterTo('');
-  }, []);
+  }, [setDayFilter, setDayFilterTo]);
 
   const hasActiveOrderFilters = Boolean(buyerFilter || dayFilter);
 
@@ -4261,7 +4252,7 @@ export default function OrdersPage() {
           {activeTab === 'my' && (
             <>
               {v2 ? (
-                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
               ) : (
               <div className="month-filter-row">
                 <button
@@ -4276,7 +4267,7 @@ export default function OrdersPage() {
                   return (
                     <button
                       key={m}
-                      onClick={() => setSelectedMonth(m)}
+                      onClick={() => selectMonth(m)}
                       className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
@@ -4587,7 +4578,7 @@ export default function OrdersPage() {
           {activeTab === 'incoming' && (
             <>
               {v2 ? (
-                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
               ) : (
               <div className="month-filter-row">
                 <button
@@ -4602,7 +4593,7 @@ export default function OrdersPage() {
                   return (
                     <button
                       key={m}
-                      onClick={() => setSelectedMonth(m)}
+                      onClick={() => selectMonth(m)}
                       className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
@@ -4763,7 +4754,7 @@ export default function OrdersPage() {
           {activeTab === 'outgoing' && (
             <>
               {v2 ? (
-                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={key => (key === 'all' ? selectAllMonths() : setSelectedMonth(key))} allLabel={t('allMonths')} />
+                <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
               ) : (
               <div className="month-filter-row">
                 <button
@@ -4778,7 +4769,7 @@ export default function OrdersPage() {
                   return (
                     <button
                       key={m}
-                      onClick={() => setSelectedMonth(m)}
+                      onClick={() => selectMonth(m)}
                       className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
