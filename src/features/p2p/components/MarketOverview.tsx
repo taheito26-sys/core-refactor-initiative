@@ -52,12 +52,12 @@ export function MarketOverview({ snapshot, history, market, fetchedAt, refreshin
         </div>
         {points.length ? <div className="pm-chart-canvas" dir="ltr"><ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 10, right: 7, bottom: 0, left: -16 }}>
-            <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--pm-green)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--pm-green)" stopOpacity={0.01} /></linearGradient></defs>
+            <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--pm-accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--pm-accent)" stopOpacity={0.01} /></linearGradient></defs>
             <CartesianGrid stroke="var(--pm-line)" vertical={false} />
-            <XAxis dataKey="ts" type="number" domain={['dataMin', 'dataMax']} tickFormatter={ts => new Date(ts).toLocaleDateString(t.lang, { month: 'short', day: 'numeric' })} tick={{ fontSize: 8 }} minTickGap={35} axisLine={false} tickLine={false} />
-            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 8 }} tickFormatter={value => Number(value).toFixed(market.id === 'qatar' ? 2 : 1)} axisLine={false} tickLine={false} width={48} />
+            <XAxis dataKey="ts" type="number" domain={['dataMin', 'dataMax']} tickFormatter={ts => new Date(ts).toLocaleDateString(t.lang, { month: 'short', day: 'numeric' })} tick={{ fontSize: 8, fill: 'var(--pm-muted)' }} minTickGap={35} axisLine={false} tickLine={false} />
+            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 8, fill: 'var(--pm-muted)' }} tickFormatter={value => Number(value).toFixed(market.id === 'qatar' ? 2 : 1)} axisLine={false} tickLine={false} width={48} />
             <Tooltip labelFormatter={ts => new Date(Number(ts)).toLocaleString(t.lang)} formatter={(value: number) => [number(value), t(side === 'buy' ? 'p2pBuyAvgLabel' : 'p2pSellAvgLabel')]} contentStyle={{ borderRadius: 10, fontSize: 11, background: 'var(--pm-panel)', color: 'var(--pm-ink)', borderColor: 'var(--pm-line)' }} />
-            <Area type="monotone" dataKey={side === 'buy' ? 'buyAvg' : 'sellAvg'} stroke="var(--pm-green)" fill={`url(#${gradient})`} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+            <Area type="monotone" dataKey={side === 'buy' ? 'buyAvg' : 'sellAvg'} stroke="var(--pm-accent)" fill={`url(#${gradient})`} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer></div> : <div className="pm-chart-empty">{t('p2pNoData')}</div>}
       </section>
