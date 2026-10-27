@@ -434,3 +434,39 @@
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta { margin-top: 0; flex-wrap: nowrap; }
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta span { display: none; }
 .tracker-root.ov2 .orders-filter-row .rowBtn.cv2-add { background: var(--brand); border-color: var(--brand); color: var(--card-bg); font-weight: 700; }
+
+/* Stock cards share column tracks so supplier names and status text cannot move metadata. */
+.tracker-root.ov2.stock-mobile-root .ov2-c-top {
+  display: grid;
+  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(159 * var(--cpx)) calc(12 * var(--cpx));
+  grid-template-areas: "av main meta acts";
+  align-items: start;
+}
+.tracker-root.ov2.stock-mobile-root .ov2-c-meta {
+  display: grid;
+  grid-template-columns: calc(64 * var(--cpx)) minmax(0, 1fr);
+  gap: calc(9 * var(--cpx));
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.tracker-root.ov2.stock-mobile-root .ov2-status {
+  width: 100%;
+  justify-content: center;
+  padding-inline: calc(4 * var(--cpx));
+}
+.tracker-root.ov2.stock-mobile-root .ov2-c-when { min-width: 0; white-space: nowrap; }
+.tracker-root.ov2.stock-mobile-root .ov2-c-acts { justify-self: end; align-self: start; padding-top: calc(3 * var(--cpx)); }
+.tracker-root.ov2.stock-mobile-root .ov2-c-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(58 * var(--cpx));
+}
+.tracker-root.ov2.stock-mobile-root .ov2-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-top {
+  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(12 * var(--cpx));
+  grid-template-areas: "av main acts" "meta meta meta";
+}
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-bottom { grid-template-columns: minmax(0, 1fr); }
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-details { width: 100%; }
