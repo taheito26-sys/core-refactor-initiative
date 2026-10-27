@@ -435,38 +435,47 @@
 .tracker-root.ov2 .ov2-kpis.compact .ov2-kdelta span { display: none; }
 .tracker-root.ov2 .orders-filter-row .rowBtn.cv2-add { background: var(--brand); border-color: var(--brand); color: var(--card-bg); font-weight: 700; }
 
-/* Stock cards share column tracks so supplier names and status text cannot move metadata. */
-.tracker-root.ov2.stock-mobile-root .ov2-c-top {
+/* Keep metadata and figures on consistent tracks in the shared Orders and Stock cards. */
+.tracker-root.ov2 .ov2-c-top {
   display: grid;
-  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(159 * var(--cpx)) calc(12 * var(--cpx));
+  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(159 * var(--cpx)) calc(44 * var(--cpx));
   grid-template-areas: "av main meta acts";
   align-items: start;
 }
-.tracker-root.ov2.stock-mobile-root .ov2-c-meta {
+.tracker-root.ov2 .ov2-c-meta {
   display: grid;
   grid-template-columns: calc(64 * var(--cpx)) minmax(0, 1fr);
   gap: calc(9 * var(--cpx));
   width: 100%;
   min-width: 0;
   margin: 0;
+  align-items: start;
 }
-.tracker-root.ov2.stock-mobile-root .ov2-status {
+.tracker-root.ov2 .ov2-status {
   width: 100%;
   justify-content: center;
-  padding-inline: calc(4 * var(--cpx));
+  padding: calc(2 * var(--cpx)) calc(4 * var(--cpx));
+  height: auto;
+  min-height: calc(19 * var(--cpx));
+  margin-top: calc(2 * var(--cpx));
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-.tracker-root.ov2.stock-mobile-root .ov2-c-when { min-width: 0; white-space: nowrap; }
-.tracker-root.ov2.stock-mobile-root .ov2-c-acts { justify-self: end; align-self: start; padding-top: calc(3 * var(--cpx)); }
-.tracker-root.ov2.stock-mobile-root .ov2-c-bottom {
+.tracker-root.ov2 .ov2-c-when { min-width: 0; white-space: nowrap; }
+.tracker-root.ov2 .ov2-c-acts { width: 100%; justify-self: end; justify-content: flex-end; align-self: start; padding-top: calc(3 * var(--cpx)); }
+.tracker-root.ov2 .ov2-c-bottom {
   display: grid;
   grid-template-columns: minmax(0, 1fr) calc(58 * var(--cpx));
 }
-.tracker-root.ov2.stock-mobile-root .ov2-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-top {
-  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(12 * var(--cpx));
+.tracker-root.ov2 .ov2-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-c-top {
+  grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(44 * var(--cpx));
   grid-template-areas: "av main acts" "meta meta meta";
 }
-.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-bottom { grid-template-columns: minmax(0, 1fr); }
-.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-details { width: 100%; }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-c-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-c-bottom { grid-template-columns: minmax(0, 1fr); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-details { width: 100%; }
+
+.tracker-root.ov2.stock-mobile-root .ov2-c-top { grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(159 * var(--cpx)) calc(12 * var(--cpx)); }
+.tracker-root.ov2.stock-mobile-root .orders-cards-list.grid .ov2-c-top { grid-template-columns: calc(30 * var(--cpx)) minmax(0, 1fr) calc(12 * var(--cpx)); }

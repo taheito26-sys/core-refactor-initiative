@@ -10,16 +10,20 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
   let pathname = location.pathname;
   let targetVersion = 'worker';
   let activated = false;
+  let updateRequested = false;
   let registration: ServiceWorkerRegistration | undefined;
   let controlled = !!navigator.serviceWorker?.controller;
   const apply = () => {
     if (!pending || reloading || document.visibilityState === 'hidden') return;
-    if (dirty || document.activeElement?.matches('input,textarea,[contenteditable=true]')) {
+    const openEditor = Array.from(document.querySelectorAll('[role=dialog],dialog[open],[data-update-guard]'))
+      .some(editor => !editor.closest('[hidden],[aria-hidden=true],[data-state=closed]')
+        && editor.querySelector('input,textarea,select,[contenteditable=true]'));
+    if (!updateRequested && (dirty || openEditor || document.activeElement?.matches('input,textarea,[contenteditable=true]'))) {
       const ar = document.documentElement.lang === 'ar' || !!document.querySelector('[dir=rtl]');
       toast.info(ar ? 'يتوفر تحديث جديد' : 'A new version is ready', {
         id: 'app-update', duration: Infinity,
         description: ar ? 'احفظ التغييرات قبل التحديث. سيُطبق التحديث عند مغادرة هذه الصفحة أيضاً.' : 'Save your changes before updating. The update will also apply when you leave this page.',
-        action: { label: ar ? 'التحديث الآن' : 'Update now', onClick: () => { dirty = false; apply(); } },
+        action: { label: ar ? 'التحديث الآن' : 'Update now', onClick: () => { updateRequested = true; dirty = false; apply(); } },
       });
       return;
     }
@@ -37,7 +41,8 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
     if ((event.target as Element)?.matches('input,textarea,select,[contenteditable=true]')) dirty = true;
   };
   const interacted = (event: Event) => {
-    if ((event.target as Element)?.closest('button')) dirty = true;
+    const button = (event.target as Element)?.closest('button');
+    if (button?.closest('form,[data-update-guard]')) dirty = true;
   };
   const controllerChanged = () => {
     if (controlled || pending) { activated = true; pending = true; apply(); }

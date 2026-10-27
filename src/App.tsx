@@ -433,6 +433,7 @@ const App = () => (
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
                 {/* Legacy redirects */}
+                <Route path="/orders" element={<Navigate to="/trading/orders" replace />} />
                 <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/merchant" element={<Navigate to="/merchants" replace />} />
                 <Route path="/merchant/*" element={<Navigate to="/merchants" replace />} />

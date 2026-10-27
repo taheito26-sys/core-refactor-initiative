@@ -11,6 +11,48 @@ beforeEach(() => {
 });
 afterEach(() => { stop?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('automatic app updates', () => {
+  it('does not treat browsing controls as unsaved edits', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const button = document.createElement('button');
+    button.textContent = 'September'; document.body.append(button); button.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(notify).not.toHaveBeenCalled();
+  });
+  it('protects form actions before an input event is fired', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const form = document.createElement('form');
+    const button = document.createElement('button'); button.type = 'button';
+    form.append(button); document.body.append(form); button.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalled();
+  });
+  it('protects an open editor and applies the update after it closes', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
+    editor.append(document.createElement('input')); document.body.append(editor);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled();
+    editor.remove(); await vi.advanceTimersByTimeAsync(30_000);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('honors an explicit update request while an editor is open', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
+    editor.append(document.createElement('input')); document.body.append(editor);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled();
+    notify.mock.calls[0][1].action.onClick();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('does not block updates for a closed editor kept in the DOM', async () => {
+    const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
+    editor.setAttribute('data-state', 'closed'); editor.append(document.createElement('input'));
+    document.body.append(editor);
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
   it('automatically reloads a clean app when a new release is available', async () => {
     const reload = vi.fn(); stop = startAppUpdates('old', reload);
     await vi.advanceTimersByTimeAsync(0);
