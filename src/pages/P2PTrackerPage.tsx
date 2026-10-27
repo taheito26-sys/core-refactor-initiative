@@ -1,13 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Search, Loader2, Zap, AlertTriangle, SlidersHorizontal, X } from 'lucide-react';
+import { RefreshCw, Search, Loader2, Zap, SlidersHorizontal, X, ScanLine, ChevronRight } from 'lucide-react';
 import { MarketId, MARKETS, P2POffer } from '@/features/p2p/types';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { computeFIFO, totalStock, getWACOP, stockCostQAR, fmtU } from '@/lib/tracker-helpers';
@@ -16,7 +14,9 @@ import type { TrackerState } from '@/lib/tracker-helpers';
 import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
-import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
+import { MarketOffers } from '@/features/p2p/components/MarketOffers';
+import { MarketOverview } from '@/features/p2p/components/MarketOverview';
+import '@/features/p2p/p2p-market.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { DeepScanResults } from '@/features/p2p/components/DeepScanResults';
@@ -27,8 +27,12 @@ import { MerchantWatchCard } from '@/features/p2p/merchant-watch/MerchantWatchCa
 export default function P2PTrackerPage() {
   const t = useT();
   const [market, setMarket] = useState<MarketId>('qatar');
-  const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
+  const { snapshot, history, merchantStats, loading, error, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
   const currentMarket = MARKETS.find(m => m.id === market)!;
+  const [side, setSide] = useState<'buy' | 'sell'>('buy');
+  const scanRef = useRef<HTMLElement>(null);
+  const changeMarket = (value: MarketId) => { setMarket(value); setScanResults(null); };
+  const marketLabel = t(market === 'qatar' ? 'pmQatar' : 'pmEgypt');
 
   // ── Egypt QA Sell Override ──
   // When set, both qaSellAvg and qaBuyAvg use this value for KPI calculations.
@@ -154,7 +158,7 @@ export default function P2PTrackerPage() {
     setScanError(null);
     const amount = parseFloat(scanAmount);
     if (isNaN(amount) || amount <= 0) {
-      setScanError('Required USDT must be a positive number');
+      setScanError(t('pmPositiveAmount'));
       return;
     }
 
@@ -191,7 +195,7 @@ export default function P2PTrackerPage() {
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
-      if (!stateRaw || !Array.isArray((stateRaw as any).batches) || !(stateRaw as any).batches.length) return null;
+      if (!stateRaw || !Array.isArray(stateRaw.batches) || !stateRaw.batches.length) return null;
       const st = stateRaw as unknown as TrackerState;
       const derived = computeFIFO(st.batches, st.trades || [], st.usdtTransfers);
       const stock = totalStock(derived);
@@ -250,116 +254,40 @@ export default function P2PTrackerPage() {
     };
   }, [profitIfSold, sellAvg, buyAvg]);
 
-  if (loading && (!snapshot || snapshot.sellAvg === null)) {
-    return <div className="p-8 text-center text-muted-foreground">{t('loading')}</div>;
-  }
-
   const hasNoData = !snapshot || (snapshot.sellAvg === null && snapshot.buyAvg === null && !history.length);
 
   return (
-    <div className="space-y-4 p-3 md:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={market} onValueChange={(v) => { setMarket(v as MarketId); setScanResults(null); }}>
-            <TabsList className="bg-muted/50 border border-border/50">
-              {MARKETS.map(m => (
-                <TabsTrigger key={m.id} value={m.id} className="text-[11px] px-3">{m.label}</TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5 h-8 text-[11px] border-border/50">
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-              {t('p2pRefresh')}
-            </Button>
-            <Button variant="outline" size="sm" onClick={triggerManualRefresh} disabled={loading || isManualRefresh} className="gap-1.5 h-8 text-[11px] border-border/50">
-              <Zap className={`h-3.5 w-3.5 ${isManualRefresh ? 'animate-pulse' : ''}`} />
-              {isManualRefresh ? t('p2pRefreshing') : t('p2pForceRefresh')}
-            </Button>
-          </div>
-
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md border border-border/20">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            {hasNoData ? t('p2pWaitingFirstSync') : t('p2pSync5Min')}
-          </span>
+    <div className="pm-page" dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <header className="pm-header">
+        <div><h1>{t('p2pTracker')}</h1><p>{t('pmSubtitle')}</p></div>
+        <label className="pm-market-select"><span aria-hidden="true">{market === 'qatar' ? '🇶🇦' : '🇪🇬'}</span><select aria-label={t('pmMarket')} value={market} onChange={event => changeMarket(event.target.value as MarketId)}>{MARKETS.map(item => <option key={item.id} value={item.id}>{t(item.id === 'qatar' ? 'pmQatar' : 'pmEgypt')}</option>)}</select></label>
+      </header>
+      <div className="pm-trade-tabs">
+        <div className="pm-side-tabs" role="group" aria-label={t('pmTradeSide')}>
+          <button type="button" aria-pressed={side === 'buy'} onClick={() => setSide('buy')}>{t('pmBuy')}</button>
+          <button type="button" aria-pressed={side === 'sell'} onClick={() => setSide('sell')}>{t('pmSell')}</button>
         </div>
-
-        <Badge variant="outline" className="font-mono text-[11px] bg-background border-border/50">{currentMarket.pair}</Badge>
+        <button type="button" className="pm-scan-shortcut" onClick={() => scanRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><ScanLine size={14} />{t('pmDeepScan')}<ChevronRight size={12} /></button>
       </div>
-
-      <MerchantWatchCard />
-
-      {hasNoData ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-muted/50 flex items-center justify-center">
-             <RefreshCw className="h-6 w-6 text-muted-foreground/30 animate-spin" />
-          </div>
-          <p className="text-sm font-semibold text-muted-foreground">{t('p2pCollectingData').replace('{market}', currentMarket.label)}</p>
-          <p className="text-xs text-muted-foreground/60 max-w-xs leading-relaxed">
-            {t('p2pSyncHint')}
-          </p>
-        </div>
-      ) : snapshot && (
-        <>
-          <MarketKpiGrid
-            snapshot={snapshot}
-            market={market}
-            todaySummary={todaySummary}
-            profitIfSold={profitIfSold}
-            roundTripSim={roundTripSim}
-            egyptKpis={egyptKpis}
-            t={t}
-          />
-
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-            <div className="xl:col-span-1 space-y-4">
-               {/* Simplified Deep Scan Tool */}
-               <Card className="border-primary/20 shadow-lg shadow-primary/5 bg-gradient-to-br from-card to-background">
-                 <CardHeader className="pb-3 pt-4 px-4">
-                   <CardTitle className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-                     <Zap className="h-3.5 w-3.5 text-primary fill-primary/20" />
-                     Deep Market Scan
-                   </CardTitle>
-                 </CardHeader>
-                 <CardContent className="px-4 pb-4 space-y-4">
-                   <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Required {localCur('USDT', t.lang)}</Label>
-                     <div className="relative">
-                       <Input 
-                         type="number" 
-                         value={scanAmount} 
-                         onChange={e => setScanAmount(e.target.value)}
-                         className={cn("h-9 font-black font-mono bg-muted/20 border-border/50", scanError && "border-destructive focus-visible:ring-destructive")}
-                       />
-                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">{localCur('USDT', t.lang)}</span>
-                     </div>
-                     {scanError && <p className="text-[10px] text-destructive font-bold flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {scanError}</p>}
-                   </div>
-
-                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30">
-                     <div className="space-y-0.5">
-                       <Label className="text-[10px] font-black uppercase tracking-widest cursor-pointer" htmlFor="single-merch">Single Merchant</Label>
-                       <p className="text-[9px] text-muted-foreground leading-tight">Must fulfill full amount alone</p>
-                     </div>
-                     <Switch 
-                       id="single-merch"
-                       checked={singleMerchantOnly} 
-                       onCheckedChange={setSingleMerchantOnly} 
-                     />
-                   </div>
-
-                   <Button 
-                     onClick={runDeepScan} 
-                     disabled={isScanning} 
-                     className="w-full h-10 font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg shadow-primary/20"
-                   >
-                     {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                     Run Deep Scan
-                   </Button>
-                 </CardContent>
-               </Card>
-
+      {error && <div role="alert" className="pm-panel text-destructive">{t('pmLoadError')} <button type="button" onClick={refresh}>{t('p2pRefresh')}</button></div>}
+      {loading ? <div className="pm-panel pm-empty" role="status"><Loader2 className="animate-spin" />{t('loading')}</div> : hasNoData ? <div className="pm-panel pm-empty"><RefreshCw size={24} /><h2>{t('p2pCollectingData').replace('{market}', marketLabel)}</h2><p>{t('p2pSyncHint')}</p></div> : snapshot && <>
+        <MarketOverview snapshot={snapshot} history={history} market={currentMarket} fetchedAt={latestFetchedAt} refreshing={loading} refresh={refresh} side={side} />
+        <section ref={scanRef} className="pm-panel pm-deep-scan" aria-label={t('pmDeepScan')}>
+          <div className="pm-scan-title"><span className="pm-scan-icon"><ScanLine size={21} /></span><div><h2>{t('pmDeepScan')}</h2><p>{t('pmScanSubtitle')}</p></div></div>
+          <label className="pm-scan-amount" htmlFor="pm-scan-amount">{t('pmWantBuy')}<span className="pm-scan-input"><input id="pm-scan-amount" aria-label={t('pmWantBuy')} type="number" min="0" step="any" value={scanAmount} onChange={event => setScanAmount(event.target.value)} aria-invalid={Boolean(scanError)} /><span>USDT</span></span></label>
+          <button type="button" className="pm-scan-submit" onClick={runDeepScan} disabled={isScanning}>{isScanning ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}{t('pmFindOffers')}</button>
+          <div className="pm-scan-settings"><Switch dir="ltr" id="single-merch" checked={singleMerchantOnly} onCheckedChange={setSingleMerchantOnly} /><Label htmlFor="single-merch">{t('pmSingleMerchant')}</Label></div>
+          {scanError && <p role="alert" className="pm-scan-error">{scanError}</p>}
+        </section>
+        {scanResults && <section className="pm-panel"><div className="pm-section-head"><h2>{t('pmScanResults')} · {fmtU(parseFloat(scanAmount))} USDT · {scanResults.length}</h2><button type="button" className="pm-outline" onClick={() => setScanResults(null)}>{t('pmClearResults')}</button></div><DeepScanResults results={scanResults} amount={parseFloat(scanAmount)} currency={currentMarket.currency} /></section>}
+      </>}
+      <div className="pm-market-row"><div className="pm-country-tabs">{MARKETS.map(item => <button type="button" key={item.id} aria-pressed={market === item.id} onClick={() => changeMarket(item.id)}><span aria-hidden="true">{item.id === 'qatar' ? '🇶🇦' : '🇪🇬'}</span>{t(item.id === 'qatar' ? 'pmQatar' : 'pmEgypt')}</button>)}</div>
+        <div className="pm-refresh-tools"><span>{hasNoData ? t('p2pWaitingFirstSync') : t('p2pSync5Min')}</span><button type="button" className="pm-outline" disabled={loading || isManualRefresh} onClick={triggerManualRefresh}><Zap size={12} className={isManualRefresh ? 'animate-pulse' : ''} />{isManualRefresh ? t('p2pRefreshing') : t('p2pForceRefresh')}</button></div>
+      </div>
+      {!loading && snapshot && !hasNoData && <MarketOffers key={`${market}-${side}`} offers={side === 'buy' ? snapshot.buyOffers : snapshot.sellOffers} side={side} market={currentMarket} />}
+      <details className="pm-extras"><summary>{t('pmWatchlist')}</summary><div className="pm-extras-content"><MerchantWatchCard /></div></details>
+      {!loading && snapshot && !hasNoData && <details className="pm-extras"><summary>{t('pmAnalytics')}</summary><div className="pm-extras-content">
+        <MarketKpiGrid snapshot={snapshot} market={market} todaySummary={todaySummary} profitIfSold={profitIfSold} roundTripSim={roundTripSim} egyptKpis={egyptKpis} t={t} />
                {/* Egypt QA Sell Override — Egypt market only */}
                {market === 'egypt' && (
                  <Card className={cn(
@@ -369,18 +297,17 @@ export default function P2PTrackerPage() {
                    <CardHeader className="pb-2 pt-3 px-4">
                      <CardTitle className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
                        <SlidersHorizontal className="h-3.5 w-3.5 text-primary/70" />
-                       QA Sell Override
+                       {t('pmOverride')}
                        {qaSellOverride !== null && (
                          <span className="ml-auto text-[9px] font-black text-primary bg-primary/15 px-1.5 py-0.5 rounded">
-                           ACTIVE
+                           {t('pmActive')}
                          </span>
                        )}
                      </CardTitle>
                    </CardHeader>
                    <CardContent className="px-4 pb-4 space-y-3">
                      <p className="text-[9px] text-muted-foreground leading-relaxed">
-                       Override the live QA Sell rate for EGP KPI calculations.
-                       When set, both V1 and V2 use this rate. Clear to restore live values.
+                       {t('pmOverrideHint')}
                      </p>
                      <div className="flex gap-2">
                        <div className="relative flex-1">
@@ -398,6 +325,7 @@ export default function P2PTrackerPage() {
                            variant="outline"
                            size="sm"
                            className="h-9 px-3 border-destructive/40 text-destructive hover:bg-destructive/10"
+                           aria-label={t('pmClearOverride')}
                            onClick={() => setQaSellOverrideText('')}
                          >
                            <X className="h-3.5 w-3.5" />
@@ -406,47 +334,17 @@ export default function P2PTrackerPage() {
                      </div>
                      {qaSellOverride !== null && (
                        <p className="text-[9px] text-primary font-bold">
-                         Using {qaSellOverride.toFixed(4)} {localCur('QAR', t.lang)} for all {localCur('EGP', t.lang)} KPIs (sell = buy)
+                         {t('pmUsingOverride').replace('{rate}', qaSellOverride.toFixed(4))}
                        </p>
                      )}
                    </CardContent>
                  </Card>
                )}
 
-               <MerchantDepthStats merchantStats={merchantStats} t={t} />
-            </div>
 
-            <div className="xl:col-span-3 space-y-4">
-              {/* Scan Results Display */}
-              {scanResults && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                      Scan Results for {fmtU(parseFloat(scanAmount))} {localCur('USDT', t.lang)}
-                      <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                      {scanResults.length} Matches Found
-                    </h3>
-                    <button onClick={() => setScanResults(null)} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Clear Results</button>
-                  </div>
-                  
-                  <DeepScanResults
-                    results={scanResults}
-                    amount={parseFloat(scanAmount)}
-                    currency={currentMarket.currency}
-                  />
-                </div>
-              )}
-
-              <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
-              
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <P2POfferTable offers={snapshot.sellOffers} type="sell" t={t} />
-                <P2POfferTable offers={snapshot.buyOffers} type="buy" t={t} />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+        <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
+        <MerchantDepthStats merchantStats={merchantStats} t={t} />
+      </div></details>}
     </div>
   );
 }
