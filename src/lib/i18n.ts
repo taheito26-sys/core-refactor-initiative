@@ -8,6 +8,14 @@ import { useMemo } from 'react';
 export type Lang = 'en' | 'ar';
 
 const translations = {
+  pmMinAmount: { en: 'Amount (USDT)', ar: 'المبلغ (USDT)' },
+  pmMenu: { en: 'Menu', ar: 'القائمة' },
+  pmWallet: { en: 'Wallet', ar: 'المحفظة' },
+  pmAllMerchants: { en: 'All Merchants', ar: 'كل التجار' },
+  pmScanOptions: { en: 'Scan options', ar: 'خيارات الفحص' },
+  pmMarketTools: { en: 'Refresh & display tools', ar: 'أدوات التحديث والعرض' },
+  pmBuyShort: { en: 'Buy', ar: 'شراء' },
+  pmSellShort: { en: 'Sell', ar: 'بيع' },
   pmOverride: { en: 'QA Sell Override', ar: 'تعديل سعر البيع القطري' },
   pmActive: { en: 'Active', ar: 'مفعل' },
   pmClearOverride: { en: 'Restore live Qatar rate', ar: 'استعادة السعر القطري المباشر' },

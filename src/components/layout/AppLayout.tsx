@@ -27,7 +27,7 @@ export function AppLayout() {
 
   return (
     <div
-      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`)}
+      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, location.pathname === '/trading/p2p' && 'pm-shell')}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}

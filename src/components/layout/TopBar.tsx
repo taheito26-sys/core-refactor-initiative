@@ -12,6 +12,7 @@ import { UserProfileModal } from '@/features/profile/UserProfileModal';
 import { useHomeDesign } from '@/features/orders/v2/design';
 import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import { ThemeColorPicker } from './ThemeColorPicker';
+import { P2PTopBar } from '@/features/p2p/components/P2PTopBar';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
   if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
@@ -85,6 +86,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
     ro.observe(row);
     return () => ro.disconnect();
   }, [isMobile, location.pathname, settings.language, settings.currency, design]);
+
+  if (isMobile && location.pathname === '/trading/p2p') return <P2PTopBar onMenuClick={onMenuClick} />;
 
   return (
     <header

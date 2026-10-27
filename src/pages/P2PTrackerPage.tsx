@@ -15,6 +15,8 @@ import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
 import { MarketOffers } from '@/features/p2p/components/MarketOffers';
+import { ZoomControls } from '@/components/shared/ZoomControls';
+import { ThemeColorPicker } from '@/components/layout/ThemeColorPicker';
 import { MarketOverview } from '@/features/p2p/components/MarketOverview';
 import '@/features/p2p/p2p-market.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -276,15 +278,13 @@ export default function P2PTrackerPage() {
           <div className="pm-scan-title"><span className="pm-scan-icon"><ScanLine size={21} /></span><div><h2>{t('pmDeepScan')}</h2><p>{t('pmScanSubtitle')}</p></div></div>
           <label className="pm-scan-amount" htmlFor="pm-scan-amount">{t('pmWantBuy')}<span className="pm-scan-input"><input id="pm-scan-amount" aria-label={t('pmWantBuy')} type="number" min="0" step="any" value={scanAmount} onChange={event => setScanAmount(event.target.value)} aria-invalid={Boolean(scanError)} /><span>USDT</span></span></label>
           <button type="button" className="pm-scan-submit" onClick={runDeepScan} disabled={isScanning}>{isScanning ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}{t('pmFindOffers')}</button>
-          <div className="pm-scan-settings"><Switch dir="ltr" id="single-merch" checked={singleMerchantOnly} onCheckedChange={setSingleMerchantOnly} /><Label htmlFor="single-merch">{t('pmSingleMerchant')}</Label></div>
+
           {scanError && <p role="alert" className="pm-scan-error">{scanError}</p>}
         </section>
         {scanResults && <section className="pm-panel"><div className="pm-section-head"><h2>{t('pmScanResults')} · {fmtU(parseFloat(scanAmount))} USDT · {scanResults.length}</h2><button type="button" className="pm-outline" onClick={() => setScanResults(null)}>{t('pmClearResults')}</button></div><DeepScanResults results={scanResults} amount={parseFloat(scanAmount)} currency={currentMarket.currency} /></section>}
       </>}
-      <div className="pm-market-row"><div className="pm-country-tabs">{MARKETS.map(item => <button type="button" key={item.id} aria-pressed={market === item.id} onClick={() => changeMarket(item.id)}><span aria-hidden="true">{item.id === 'qatar' ? '🇶🇦' : '🇪🇬'}</span>{t(item.id === 'qatar' ? 'pmQatar' : 'pmEgypt')}</button>)}</div>
-        <div className="pm-refresh-tools"><span>{hasNoData ? t('p2pWaitingFirstSync') : t('p2pSync5Min')}</span><button type="button" className="pm-outline" disabled={loading || isManualRefresh} onClick={triggerManualRefresh}><Zap size={12} className={isManualRefresh ? 'animate-pulse' : ''} />{isManualRefresh ? t('p2pRefreshing') : t('p2pForceRefresh')}</button></div>
-      </div>
-      {!loading && snapshot && !hasNoData && <MarketOffers key={`${market}-${side}`} offers={side === 'buy' ? snapshot.buyOffers : snapshot.sellOffers} side={side} market={currentMarket} />}
+      {!loading && snapshot && !hasNoData && <MarketOffers key={market} offers={side === 'buy' ? snapshot.buyOffers : snapshot.sellOffers} side={side} market={currentMarket} onMarketChange={changeMarket} />}
+      <details className="pm-extras"><summary>{t('pmMarketTools')}</summary><div className="pm-refresh-tools"><button type="button" className="pm-outline" disabled={loading} onClick={refresh}><RefreshCw size={12} />{t('p2pRefresh')}</button><button type="button" className="pm-outline" disabled={loading || isManualRefresh} onClick={triggerManualRefresh}><Zap size={12} />{isManualRefresh ? t('p2pRefreshing') : t('p2pForceRefresh')}</button><span>{t('p2pSync5Min')}</span><ZoomControls showPercent="always" /><ThemeColorPicker /><details className="pm-scan-settings"><summary>{t('pmScanOptions')}</summary><div><Switch dir="ltr" id="single-merch" checked={singleMerchantOnly} onCheckedChange={setSingleMerchantOnly} /><Label htmlFor="single-merch">{t('pmSingleMerchant')}</Label></div></details></div></details>
       <details className="pm-extras"><summary>{t('pmWatchlist')}</summary><div className="pm-extras-content"><MerchantWatchCard /></div></details>
       {!loading && snapshot && !hasNoData && <details className="pm-extras"><summary>{t('pmAnalytics')}</summary><div className="pm-extras-content">
         <MarketKpiGrid snapshot={snapshot} market={market} todaySummary={todaySummary} profitIfSold={profitIfSold} roundTripSim={roundTripSim} egyptKpis={egyptKpis} t={t} />

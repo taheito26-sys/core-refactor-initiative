@@ -19,7 +19,7 @@ export function MarketOverview({ snapshot, history, market, fetchedAt, refreshin
   const [range, setRange] = useState('7d');
   const gradient = useId().replace(/:/g, '');
   const points = useMemo(() => {
-    const cutoff = range === 'all' ? 0 : Date.now() - (range === '1d' ? 1 : 7) * 864e5;
+    const cutoff = range === 'all' ? 0 : Date.now() - (range === '1d' ? 1 : range === '7d' ? 7 : 30) * 864e5;
     return history.filter(point => point.ts >= cutoff);
   }, [history, range]);
   const prices = points.flatMap(point => [point.buyAvg, point.sellAvg]).filter((price): price is number => price != null && price > 0);
@@ -27,11 +27,12 @@ export function MarketOverview({ snapshot, history, market, fetchedAt, refreshin
   const merchants = new Set(offers.map(offer => offer.nick)).size;
   const listed = offers.reduce((total, offer) => total + offer.available, 0);
   const number = (value: number | null, digits = 4) => value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  const dayAgo = history.filter(point => point.ts <= Date.now() - 864e5).at(-1);
   const kpis = [
-    { label: t('p2pBestRestock'), value: snapshot.bestBuy },
-    { label: t('p2pBuyAvgLabel'), value: snapshot.buyAvg },
-    { label: t('p2pSellAvgLabel'), value: snapshot.sellAvg },
-    { label: t('p2pBestSell'), value: snapshot.bestSell },
+    { label: t('p2pBestRestock'), value: snapshot.bestBuy, previous: dayAgo?.bestBuy },
+    { label: t('p2pBuyAvgLabel'), value: snapshot.buyAvg, previous: dayAgo?.buyAvg },
+    { label: t('p2pSellAvgLabel'), value: snapshot.sellAvg, previous: dayAgo?.sellAvg },
+    { label: t('p2pBestSell'), value: snapshot.bestSell, previous: dayAgo?.bestSell },
   ];
   return <>
     <section className="pm-overview pm-panel" aria-label={t('pmOverview')}>
@@ -41,13 +42,13 @@ export function MarketOverview({ snapshot, history, market, fetchedAt, refreshin
         </span>
       </div>
       <div className="pm-overview-grid">{kpis.map((kpi, index) => <div className="pm-metric" key={kpi.label}>
-        <span>{kpi.label}</span><strong className={index === 0 || index === 3 ? 'pm-positive' : ''}>{number(kpi.value)}</strong><small>{market.currency}/USDT</small>
+        <span>{kpi.label}</span><strong className={index === 0 || index === 3 ? 'pm-positive' : ''}>{number(kpi.value)}</strong><small>{market.currency}/USDT</small>{kpi.value != null && kpi.previous != null && kpi.previous > 0 ? <small className={kpi.value > kpi.previous ? 'pm-rate-up' : 'pm-positive'}>{kpi.value > kpi.previous ? '↗ +' : '↘ '}{(((kpi.value - kpi.previous) / kpi.previous) * 100).toFixed(2)}%</small> : <small className="pm-rate-empty">—</small>}
       </div>)}</div>
     </section>
     <div className="pm-analysis">
       <section className="pm-panel pm-chart">
         <div className="pm-section-head"><h2><ChartNoAxesCombined size={14} />{t('pmTrend')} <small>({market.currency}/USDT)</small></h2>
-          <div className="pm-chart-ranges">{['1d', '7d', 'all'].map(value => <button type="button" key={value} aria-pressed={range === value} onClick={() => setRange(value)}>{value === 'all' ? t('all') : value.toUpperCase()}</button>)}</div>
+          <div className="pm-chart-ranges">{['1d', '7d', '30d', 'all'].map(value => <button type="button" key={value} aria-pressed={range === value} onClick={() => setRange(value)}>{value === 'all' ? t('all') : value.toUpperCase()}</button>)}</div>
         </div>
         {points.length ? <div className="pm-chart-canvas" dir="ltr"><ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 10, right: 7, bottom: 0, left: -16 }}>
