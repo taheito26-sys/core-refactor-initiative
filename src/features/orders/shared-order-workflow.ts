@@ -209,6 +209,38 @@ export async function respondSharedOrder({
   return data as WorkflowOrder;
 }
 
+export type RetractMode = 'unsend' | 'reject';
+
+/**
+ * Unsend (placer withdraws) or reject-after-approval (receiver backs out).
+ * Refused server-side when the order has cash links or live executions.
+ */
+export async function retractSharedOrder({
+  orderId,
+  actorRole,
+  mode,
+  reason,
+}: {
+  orderId: string;
+  actorRole: ActorRole;
+  mode: RetractMode;
+  reason?: string | null;
+}): Promise<WorkflowOrder> {
+  // The generated Supabase types predate this RPC; drop the cast once they are regenerated.
+  const untypedClient = supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+  };
+  const { data, error } = await untypedClient.rpc('retract_customer_order_request', {
+    p_order_id: orderId,
+    p_actor_role: actorRole,
+    p_mode: mode,
+    p_reason: reason ?? null,
+  });
+
+  if (error) throw error;
+  return data as WorkflowOrder;
+}
+
 /**
  * Edit an approved order.
  * - Increments revision number
@@ -600,4 +632,19 @@ export function canApproveOrder(order: WorkflowOrder, role: ActorRole): boolean 
  */
 export function canRejectOrder(order: WorkflowOrder, role: ActorRole): boolean {
   return isAwaitingApprovalFrom(order, role);
+}
+
+/** Orders from before the workflow redesign have no placer and were all customer-placed. */
+function placerOf(order: WorkflowOrder): ActorRole {
+  return order.placed_by_role ?? 'customer';
+}
+
+/** The placing side can withdraw an order while it is pending or approved. */
+export function canUnsendOrder(order: WorkflowOrder, role: ActorRole): boolean {
+  return placerOf(order) === role && (isAwaitingApproval(order) || isApproved(order));
+}
+
+/** The receiving side can still reject an order it already approved. */
+export function canRejectApprovedOrder(order: WorkflowOrder, role: ActorRole): boolean {
+  return isApproved(order) && placerOf(order) !== role;
 }

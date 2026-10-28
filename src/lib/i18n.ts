@@ -2889,6 +2889,14 @@ const translations = {
   currencyUSDT:                 { en: 'USDT',                                             ar: 'USDT' },
   currencyUSD:                  { en: 'USD',                                              ar: 'دولار أمريكي' },
   fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 ريال = {rate} جنيه' },
+  smsBalTitle:                  { en: 'Bank balances from SMS',                           ar: 'أرصدة البنوك من الرسائل' },
+  smsBalEnableDesc:             { en: 'Allow SMS access so the app can read the remaining balance your banks text you and keep it up to date.', ar: 'اسمح بالوصول إلى الرسائل ليقرأ التطبيق الرصيد المتبقي الذي ترسله بنوكك ويحدّثه تلقائياً.' },
+  smsBalEnable:                 { en: 'Enable SMS balances',                              ar: 'تفعيل أرصدة الرسائل' },
+  smsBalDenied:                 { en: 'SMS access is blocked. Enable it from the app permissions in Android settings.', ar: 'تم حظر الوصول إلى الرسائل. فعّله من أذونات التطبيق في إعدادات أندرويد.' },
+  smsBalEmpty:                  { en: 'No bank balance messages found yet.',              ar: 'لم يتم العثور على رسائل رصيد من البنوك بعد.' },
+  smsBalRefresh:                { en: 'Refresh',                                          ar: 'تحديث' },
+  smsBalAsOf:                   { en: 'as of',                                            ar: 'بتاريخ' },
+  smsBalAccount:                { en: 'Account',                                          ar: 'حساب' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

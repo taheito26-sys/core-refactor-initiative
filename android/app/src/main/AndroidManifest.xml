@@ -32,6 +32,16 @@
 
         </activity>
 
+        <!-- Incoming bank SMS: queues balance notices for the web layer -->
+        <receiver
+            android:name=".SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter android:priority="500">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -50,6 +60,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Android 13+ push notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Bank balance SMS (optional, requested at runtime) -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Voice / video calls -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
