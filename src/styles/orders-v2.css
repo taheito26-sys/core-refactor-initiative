@@ -538,3 +538,9 @@
 .tracker-root.ov2 .ov2-stats dd small { margin: 0; justify-self: end; white-space: nowrap; }
 .tracker-root.ov2 .ov2-details { display: grid; grid-template-columns: minmax(0, 1fr) calc(9 * var(--cpx)); align-items: center; column-gap: calc(3 * var(--cpx)); padding-inline: calc(5 * var(--cpx)); text-align: center; }
 .tracker-root.ov2 .ov2-details svg { justify-self: end; }
+
+/* Keep the timestamp inside the identity header without a serial-number row. */
+.tracker-root.ov2 .ov2-compact-header .ov2-c-top { grid-template-areas: "av main acts"; row-gap: 0; }
+.tracker-root.ov2 .ov2-compact-header .ov2-c-when { display: grid; grid-template-columns: calc(86 * var(--cpx)) minmax(0, 1fr); column-gap: calc(10 * var(--cpx)); margin-top: calc(1 * var(--cpx)); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-compact-header .ov2-c-top { grid-template-areas: "av main" "acts acts"; }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-compact-header .ov2-c-when { grid-template-columns: minmax(0, 1fr); }

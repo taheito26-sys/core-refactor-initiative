@@ -205,6 +205,7 @@ export interface V2CardProps {
   /** What sits next to the name: a source mark, a partner mark and loan badges. */
   marks?: ReactNode;
   alignedMarks?: boolean;
+  compactHeader?: boolean;
   /** The copyable number under the name; without one, `subtitle` is shown there instead. */
   reference?: string;
   subtitle?: ReactNode;
@@ -244,21 +245,23 @@ export function OrdersV2Card(p: V2CardProps) {
   const copy = async () => {
     try { await navigator.clipboard.writeText(p.reference); toast.success(p.copiedLabel); } catch { toast.error(p.reference); }
   };
+  const timestamp = <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>;
   return (
-    <article ref={cardRef} className={cn('ov2-card', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
+    <article ref={cardRef} className={cn('ov2-card', p.compactHeader && 'ov2-compact-header', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
       <div className="ov2-c-top">
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
           <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span><span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span></div>
+          {p.compactHeader && timestamp}
         </div>
-        <div className="ov2-c-secondary">
+        {!p.compactHeader && <div className="ov2-c-secondary">
           {p.reference
             ? <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}><span className="ov2-reference-text">#{p.reference}</span><Copy /></button>
             : <span className="ov2-c-ref"><span className="ov2-reference-text">{p.subtitle}</span></span>}
           <div className="ov2-c-meta">
-            <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>
+            {timestamp}
           </div>
-        </div>
+        </div>}
         <div className="ov2-c-acts">
           {p.onChat && <button type="button" className="ov2-icbtn" onClick={p.onChat} aria-label={p.chatLabel} title={p.chatLabel}><MessageCircle /></button>}
           <div className="ov2-kebab" ref={ref}>
