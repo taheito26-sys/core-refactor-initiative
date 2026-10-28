@@ -206,6 +206,7 @@ export interface V2CardProps {
   marks?: ReactNode;
   alignedMarks?: boolean;
   compactHeader?: boolean;
+  secondaryMarks?: ReactNode;
   /** The copyable number under the name; without one, `subtitle` is shown there instead. */
   reference?: string;
   subtitle?: ReactNode;
@@ -252,7 +253,7 @@ export function OrdersV2Card(p: V2CardProps) {
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
           <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span><span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span></div>
-          {p.compactHeader && timestamp}
+          {p.compactHeader && <div className="ov2-c-context">{timestamp}<span className="ov2-context-marks">{p.secondaryMarks}</span></div>}
         </div>
         {!p.compactHeader && <div className="ov2-c-secondary">
           {p.reference

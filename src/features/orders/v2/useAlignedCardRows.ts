@@ -37,7 +37,7 @@ function register(list: HTMLElement) {
         if (list.style.getPropertyValue('--ov2-name-width') !== width) list.style.setProperty('--ov2-name-width', width);
       }
     }
-    let name = 0, marks = 0, avatar = 0, reference = 0, metadata = 0, stat = 0, statusHeight = 0;
+    let name = 0, marks = 0, avatar = 0, reference = 0, metadata = 0, stat = 0, statusHeight = 0, context = 0;
     for (const card of cards) {
       name = Math.max(name, height(card.querySelector('.ov2-name-content')));
       avatar = Math.max(avatar, height(card.querySelector('.ov2-avatar')));
@@ -50,10 +50,11 @@ function register(list: HTMLElement) {
       const statusPadding = statusStyle ? (parseFloat(statusStyle.paddingTop) || 0) + (parseFloat(statusStyle.paddingBottom) || 0) : 0;
       statusHeight = Math.max(statusHeight, height(card.querySelector('.ov2-status-text')) + statusPadding);
       metadata = Math.max(metadata, height(card.querySelector('.ov2-c-when')));
+      context = Math.max(context, height(card.querySelector('.ov2-c-when')), height(card.querySelector('.ov2-context-marks')));
       for (const cell of card.querySelectorAll('.ov2-stats > div')) stat = Math.max(stat, height(cell));
     }
     const identity = list.classList.contains('grid') ? name + Math.max(marks, statusHeight) + 4 : Math.max(name, marks, avatar, statusHeight);
-    for (const [part, value] of [['name', name], ['marks', marks], ['identity', identity], ['reference', reference], ['metadata', metadata], ['stat', stat]] as const) {
+    for (const [part, value] of [['name', name], ['marks', marks], ['identity', identity], ['reference', reference], ['metadata', metadata], ['status', statusHeight], ['context', context], ['stat', stat]] as const) {
       const key = `--ov2-${part}-height`;
       const next = `${Math.ceil(value)}px`;
       if (list.style.getPropertyValue(key) !== next) list.style.setProperty(key, next);
@@ -72,7 +73,7 @@ function register(list: HTMLElement) {
     stopped = true; cancelAnimationFrame(frame); resize.disconnect(); content.disconnect(); theme.disconnect();
     document.fonts?.removeEventListener('loadingdone', schedule);
     list.style.removeProperty('--ov2-name-width');
-    for (const part of ['name', 'marks', 'identity', 'reference', 'metadata', 'stat']) list.style.removeProperty(`--ov2-${part}-height`);
+    for (const part of ['name', 'marks', 'identity', 'reference', 'metadata', 'status', 'context', 'stat']) list.style.removeProperty(`--ov2-${part}-height`);
   } });
   measure();
 }

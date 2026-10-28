@@ -1072,12 +1072,8 @@ export default function StockPage() {
         name={name}
         initial={initialOf(name)}
         tone={avatarTone(name, 5)}
-        marks={(
-          <>
-            <span className="ov2-mark-source">{b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}</span>
-            <span className="ov2-mark-loan">{borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 'calc(7.5 * var(--cpx))' }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}</span>
-          </>
-        )}
+        marks={<span className="ov2-mark-source">{b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}</span>}
+        secondaryMarks={<span className="ov2-mark-loan">{borrowTagByBatchId.has(b.id) && <span className="pill" style={{ fontSize: 'calc(7.5 * var(--cpx))' }}>🤝 {borrowTagByBatchId.get(b.id)}</span>}</span>}
         reference={reference}
         statusLabel={status.label}
         statusKind={status.kind}

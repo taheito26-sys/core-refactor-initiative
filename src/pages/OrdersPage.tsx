@@ -4085,10 +4085,9 @@ export default function OrdersPage() {
       { key: 'copy', label: t('ov2Copy'), onClick: () => { void navigator.clipboard?.writeText(reference); toast.success(t('ov2Copied')); } },
     ];
 
-    const marks = (
+    const secondaryMarks = (
       <>
         <span className="ov2-mark-relation">{isMerchantLinked && <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🤝</span>}</span>
-        <span className="ov2-mark-source">{tr.importedFrom ? <ImportedBadge exchange={tr.importedFrom} /> : <ManualBadge />}</span>
         <span className="ov2-mark-loan">{loan && (
           <span
             className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
@@ -4124,7 +4123,8 @@ export default function OrdersPage() {
         name={name}
         initial={initialOf(name)}
         tone={avatarTone(name, 5)}
-        marks={marks}
+        marks={<span className="ov2-mark-source">{tr.importedFrom ? <ImportedBadge exchange={tr.importedFrom} /> : <ManualBadge />}</span>}
+        secondaryMarks={secondaryMarks}
         reference={reference}
         statusLabel={status.label}
         statusKind={status.kind}

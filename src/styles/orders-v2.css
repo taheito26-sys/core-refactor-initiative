@@ -539,8 +539,19 @@
 .tracker-root.ov2 .ov2-details { display: grid; grid-template-columns: minmax(0, 1fr) calc(9 * var(--cpx)); align-items: center; column-gap: calc(3 * var(--cpx)); padding-inline: calc(5 * var(--cpx)); text-align: center; }
 .tracker-root.ov2 .ov2-details svg { justify-self: end; }
 
-/* Keep the timestamp inside the identity header without a serial-number row. */
+/* Two compact header rows keep identity and transaction context separate. */
 .tracker-root.ov2 .ov2-compact-header .ov2-c-top { grid-template-areas: "av main acts"; row-gap: 0; }
-.tracker-root.ov2 .ov2-compact-header .ov2-c-when { display: grid; grid-template-columns: calc(86 * var(--cpx)) minmax(0, 1fr); column-gap: calc(10 * var(--cpx)); margin-top: calc(1 * var(--cpx)); }
+.tracker-root.ov2 .ov2-compact-header .ov2-c-name { min-height: max(var(--ov2-name-height, 0px), var(--ov2-status-height, 0px), calc(18 * var(--cpx))); }
+.tracker-root.ov2 .ov2-compact-header .ov2-c-marks { display: flex; min-height: 0; }
+.tracker-root.ov2 .ov2-compact-header .ov2-mark-source { width: 100%; }
+.tracker-root.ov2 .ov2-c-context { display: grid; grid-template-columns: minmax(0, 1fr) calc(85 * var(--cpx)); gap: calc(5 * var(--cpx)); align-items: center; margin-top: calc(2 * var(--cpx)); min-height: max(var(--ov2-context-height, 0px), calc(16 * var(--cpx))); }
+.tracker-root.ov2 .ov2-compact-header .ov2-c-when { display: grid; grid-template-columns: calc(86 * var(--cpx)) minmax(0, 1fr); column-gap: calc(5 * var(--cpx)); }
+.tracker-root.ov2 .ov2-context-marks { display: grid; grid-template-columns: calc(12 * var(--cpx)) minmax(0, 1fr) calc(12 * var(--cpx)); grid-template-areas: "relation loan alert"; gap: calc(2 * var(--cpx)); align-items: center; min-width: 0; }
+.tracker-root.ov2 .ov2-compact-header .ov2-c-bottom { margin-inline-start: calc(11 * var(--cpx)); border-top: 1px solid color-mix(in srgb, var(--line) 45%, transparent); padding-top: calc(2 * var(--cpx)); align-items: center; }
+.tracker-root.ov2 .ov2-compact-header .ov2-stats { background: transparent; padding: calc(4 * var(--cpx)) 0 calc(2 * var(--cpx)); border-radius: 0; min-height: 0; }
+.tracker-root.ov2 .ov2-compact-header .ov2-details { align-self: center; margin-top: 0; }
 .tracker-root.ov2 .orders-cards-list.grid .ov2-compact-header .ov2-c-top { grid-template-areas: "av main" "acts acts"; }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-compact-header .ov2-c-name { min-height: 0; }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-c-context { grid-template-columns: minmax(0, 1fr); }
 .tracker-root.ov2 .orders-cards-list.grid .ov2-compact-header .ov2-c-when { grid-template-columns: minmax(0, 1fr); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-context-marks { min-height: calc(16 * var(--cpx)); }
