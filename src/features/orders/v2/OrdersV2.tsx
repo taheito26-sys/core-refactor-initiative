@@ -204,6 +204,7 @@ export interface V2CardProps {
   initial: string;
   /** What sits next to the name: a source mark, a partner mark and loan badges. */
   marks?: ReactNode;
+  alignedMarks?: boolean;
   /** The copyable number under the name; without one, `subtitle` is shown there instead. */
   reference?: string;
   subtitle?: ReactNode;
@@ -248,7 +249,7 @@ export function OrdersV2Card(p: V2CardProps) {
       <div className="ov2-c-top">
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
-          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.marks}</span></div>
+          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span></div>
         </div>
         <div className="ov2-c-secondary">
           {p.reference

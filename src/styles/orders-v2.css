@@ -535,3 +535,5 @@
 .tracker-root.ov2 .ov2-stats dd { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: calc(2 * var(--cpx)); }
 .tracker-root.ov2 .ov2-amount-number { min-width: 0; overflow-wrap: anywhere; }
 .tracker-root.ov2 .ov2-stats dd small { margin: 0; justify-self: end; white-space: nowrap; }
+.tracker-root.ov2 .ov2-details { display: grid; grid-template-columns: minmax(0, 1fr) calc(9 * var(--cpx)); align-items: center; column-gap: calc(3 * var(--cpx)); padding-inline: calc(5 * var(--cpx)); text-align: center; }
+.tracker-root.ov2 .ov2-details svg { justify-self: end; }

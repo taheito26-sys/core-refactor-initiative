@@ -4117,6 +4117,7 @@ export default function OrdersPage() {
 
     return (
       <OrdersV2Card
+        alignedMarks
         key={`v2-trade-${tr.id}`}
         id={tr.id}
         name={name}

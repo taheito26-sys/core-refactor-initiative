@@ -1065,6 +1065,7 @@ export default function StockPage() {
     ];
     return (
       <OrdersV2Card
+        alignedMarks
         key={`v2-batch-${b.id}`}
         id={b.id}
         name={name}
