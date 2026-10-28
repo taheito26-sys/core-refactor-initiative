@@ -1,4 +1,5 @@
 import { displayQarEgpRate } from '@/features/customer/display-rate';
+import { OrderRetractControls } from '@/features/orders/components/OrderRetractControls';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1819,6 +1820,7 @@ export default function CustomerOrdersPage() {
                               💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
                             </button>
                           )}
+                          <OrderRetractControls order={order} role="customer" variant="co" onDone={() => qc.invalidateQueries({ queryKey: ['c-orders', userId] })} />
                         </div>
                       )}
                     </div>

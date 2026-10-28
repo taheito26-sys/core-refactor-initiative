@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { OrderRetractControls } from '@/features/orders/components/OrderRetractControls';
 import { useAuth } from '@/features/auth/auth-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,8 @@ import {
   getWorkflowStatusLabel,
   canApproveOrder,
   canRejectOrder,
+  canUnsendOrder,
+  canRejectApprovedOrder,
   canEditOrder,
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
@@ -765,6 +768,17 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {(canUnsendOrder(order, 'merchant') || canRejectApprovedOrder(order, 'merchant')) && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <OrderRetractControls
+                      order={order}
+                      role="merchant"
+                      variant="pill"
+                      onDone={() => queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] })}
+                    />
                   </div>
                 )}
 
