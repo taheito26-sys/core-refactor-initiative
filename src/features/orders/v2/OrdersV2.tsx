@@ -249,14 +249,13 @@ export function OrdersV2Card(p: V2CardProps) {
       <div className="ov2-c-top">
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
-          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span></div>
+          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span><span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span></div>
         </div>
         <div className="ov2-c-secondary">
           {p.reference
             ? <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}><span className="ov2-reference-text">#{p.reference}</span><Copy /></button>
             : <span className="ov2-c-ref"><span className="ov2-reference-text">{p.subtitle}</span></span>}
           <div className="ov2-c-meta">
-            <span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span>
             <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>
           </div>
         </div>

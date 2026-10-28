@@ -21,6 +21,7 @@ function register(list: HTMLElement) {
         const content = card.querySelector<HTMLElement>('.ov2-name-content');
         const row = card.querySelector<HTMLElement>('.ov2-c-name');
         const badges = card.querySelector<HTMLElement>('.ov2-c-marks');
+        const status = card.querySelector<HTMLElement>('.ov2-status');
         if (!content || !row || !badges) continue;
         const font = getComputedStyle(content);
         if (textMeasure) {
@@ -29,14 +30,14 @@ function register(list: HTMLElement) {
         } else widest = Math.max(widest, content.scrollWidth);
         const scale = parseFloat(getComputedStyle(card.querySelector('.ov2-avatar')!).width) / 30;
         const cap = Number.isFinite(scale) ? 140 * scale : 140;
-        available = Math.min(available, row.clientWidth - badges.offsetWidth - (parseFloat(getComputedStyle(row).columnGap) || 0), cap);
+        available = Math.min(available, row.clientWidth - badges.offsetWidth - (status?.offsetWidth || 0) - 2 * (parseFloat(getComputedStyle(row).columnGap) || 0), cap);
       }
       if (Number.isFinite(available)) {
         const width = `${Math.max(0, Math.min(Math.ceil(widest) + 1, available))}px`;
         if (list.style.getPropertyValue('--ov2-name-width') !== width) list.style.setProperty('--ov2-name-width', width);
       }
     }
-    let name = 0, marks = 0, avatar = 0, reference = 0, metadata = 0, stat = 0;
+    let name = 0, marks = 0, avatar = 0, reference = 0, metadata = 0, stat = 0, statusHeight = 0;
     for (const card of cards) {
       name = Math.max(name, height(card.querySelector('.ov2-name-content')));
       avatar = Math.max(avatar, height(card.querySelector('.ov2-avatar')));
@@ -47,10 +48,11 @@ function register(list: HTMLElement) {
       const status = card.querySelector<HTMLElement>('.ov2-status');
       const statusStyle = status ? getComputedStyle(status) : null;
       const statusPadding = statusStyle ? (parseFloat(statusStyle.paddingTop) || 0) + (parseFloat(statusStyle.paddingBottom) || 0) : 0;
-      metadata = Math.max(metadata, height(card.querySelector('.ov2-status-text')) + statusPadding, height(card.querySelector('.ov2-c-when')));
+      statusHeight = Math.max(statusHeight, height(card.querySelector('.ov2-status-text')) + statusPadding);
+      metadata = Math.max(metadata, height(card.querySelector('.ov2-c-when')));
       for (const cell of card.querySelectorAll('.ov2-stats > div')) stat = Math.max(stat, height(cell));
     }
-    const identity = list.classList.contains('grid') ? name + marks + 4 : Math.max(name, marks, avatar);
+    const identity = list.classList.contains('grid') ? name + Math.max(marks, statusHeight) + 4 : Math.max(name, marks, avatar, statusHeight);
     for (const [part, value] of [['name', name], ['marks', marks], ['identity', identity], ['reference', reference], ['metadata', metadata], ['stat', stat]] as const) {
       const key = `--ov2-${part}-height`;
       const next = `${Math.ceil(value)}px`;
