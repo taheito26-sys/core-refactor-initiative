@@ -7,9 +7,10 @@ import { toast } from 'sonner';
 import { Sparkline } from '@/features/dashboard/components/home/Sparkline';
 import { cn } from '@/lib/utils';
 import { splitAmount } from './orders-v2-model';
+import { useAlignedCardRows } from './useAlignedCardRows';
 
 /** A figure with its unit drawn small beside it. */
-const Amount = ({ text }: { text: string }) => { const { n, u } = splitAmount(text); return <>{n}{u && <small>{u}</small>}</>; };
+const Amount = ({ text }: { text: string }) => { const { n, u } = splitAmount(text); return <><span className="ov2-amount-number">{n}</span>{u && <small>{u}</small>}</>; };
 
 export type V2Tone = 'good' | 'brand' | 'brand2' | 't5' | 'warn' | 'bad';
 const toneVar = (tone: V2Tone) => `var(--${tone})`;
@@ -235,24 +236,28 @@ export interface V2CardProps {
 const AVATARS = ['brand', 'good', 'brand2', 'warn', 'bad'] as const;
 
 export function OrdersV2Card(p: V2CardProps) {
+  const cardRef = useRef<HTMLElement>(null);
+  useAlignedCardRows(cardRef);
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useOutsideClose(menuOpen, () => setMenuOpen(false));
   const copy = async () => {
     try { await navigator.clipboard.writeText(p.reference); toast.success(p.copiedLabel); } catch { toast.error(p.reference); }
   };
   return (
-    <article className={cn('ov2-card', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
+    <article ref={cardRef} className={cn('ov2-card', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
       <div className="ov2-c-top">
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
-          <div className="ov2-c-name"><span title={p.name}>{p.name}</span>{p.marks}</div>
-          {p.reference
-            ? <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}>#{p.reference}<Copy /></button>
-            : p.subtitle != null && <span className="ov2-c-ref">{p.subtitle}</span>}
+          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.marks}</span></div>
         </div>
-        <div className="ov2-c-meta">
-          <span className={cn('ov2-status', p.statusKind)}>{p.statusLabel}</span>
-          <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>
+        <div className="ov2-c-secondary">
+          {p.reference
+            ? <button type="button" className="ov2-c-ref" onClick={copy} title={p.copyLabel} aria-label={p.copyLabel}><span className="ov2-reference-text">#{p.reference}</span><Copy /></button>
+            : <span className="ov2-c-ref"><span className="ov2-reference-text">{p.subtitle}</span></span>}
+          <div className="ov2-c-meta">
+            <span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span>
+            <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>
+          </div>
         </div>
         <div className="ov2-c-acts">
           {p.onChat && <button type="button" className="ov2-icbtn" onClick={p.onChat} aria-label={p.chatLabel} title={p.chatLabel}><MessageCircle /></button>}

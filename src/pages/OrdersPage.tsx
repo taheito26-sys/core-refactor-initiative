@@ -4087,9 +4087,9 @@ export default function OrdersPage() {
 
     const marks = (
       <>
-        {isMerchantLinked && <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🤝</span>}
-        {tr.importedFrom === 'binance' ? <BoltMark /> : tr.importedFrom ? <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🔶</span> : <ManualBadge iconOnly className="ov2-manual" />}
-        {loan && (
+        <span className="ov2-mark-relation">{isMerchantLinked && <span style={{ fontSize: 'calc(9 * var(--cpx))' }}>🤝</span>}</span>
+        <span className="ov2-mark-source">{tr.importedFrom ? <ImportedBadge exchange={tr.importedFrom} /> : <ManualBadge />}</span>
+        <span className="ov2-mark-loan">{loan && (
           <span
             className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
             title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
@@ -4097,8 +4097,8 @@ export default function OrdersPage() {
           >
             🤝 {loan.status === 'closed' ? `✅ ${t('loanStatusClosed')}` : `${loanPct}%`}
           </span>
-        )}
-        {loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 'calc(7.5 * var(--cpx))' }}>🚨</span>}
+        )}</span>
+        <span className="ov2-mark-alert">{loan?.emergency && <span className="pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')} style={{ fontSize: 'calc(7.5 * var(--cpx))' }}>🚨</span>}</span>
       </>
     );
 
