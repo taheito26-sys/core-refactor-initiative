@@ -85,7 +85,7 @@ export function OrderRetractControls({ order, role, variant, onDone }: Props) {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {mode === 'unsend'
-                ? L('The other side will no longer see it as an active order.', 'لن يظهر الطرف الآخر هذا الطلب كطلب نشط.')
+                ? L('The order is deleted completely, for both sides.', 'سيتم حذف الطلب نهائياً لدى الطرفين.')
                 : L('The order was already approved. Rejecting cancels it for both sides.', 'تمت الموافقة على الطلب مسبقاً. الرفض يلغيه للطرفين.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
