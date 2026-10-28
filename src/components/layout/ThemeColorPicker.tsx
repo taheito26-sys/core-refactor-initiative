@@ -68,7 +68,7 @@ export function ThemeColorPicker({ compact = false }: { compact?: boolean }) {
           <Swatch theme={currentTheme} size={compact ? 14 : 16} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} className="w-[264px] p-2.5">
+      <PopoverContent align="end" sideOffset={6} className="max-h-[var(--radix-popover-content-available-height)] w-[264px] overflow-y-auto overscroll-contain p-2.5">
         {entries.length > 1 && (
           <>
             <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{label} · {currentLayout.name}</div>

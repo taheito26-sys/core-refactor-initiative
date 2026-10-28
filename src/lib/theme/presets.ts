@@ -1,7 +1,7 @@
 import type { ThemeDef } from './types';
 
 // ─── Featured colour sets ───
-// Seven palettes offered with every layout, from the colour button in the top bar, next to the layout's own sets.
+// Shared palettes offered with every layout, from the colour button in the top bar, next to the layout's own sets.
 // They change colours only; the layout keeps its fonts, shapes and spacing. Ids start with `p_` so they never
 // collide with a layout's own t1…t5.
 
@@ -55,6 +55,45 @@ export const PRESET_THEMES: Record<string, ThemeDef> = {
     hoverCard: 'rgba(233,184,114,.05)', glow: 'rgba(233,184,114,.18)',
     chartBar: '#D9B57E', chartLine: '#E9B872', cashTone: '#E9B872',
   },
+  p_lavender: { ...light({
+    bg: '#F7F3FC', panel2: '#EDE4F7', panel3: '#DAC8EF', text: '#30213F', muted: '#756480', muted2: '#9C8BA8',
+    brand: '#8B5FC0', brand2: '#684194', line: '48,33,63', tint: '139,95,192',
+  }), chartBar: '#B69AD7', chartLine: '#684194', cashTone: '#8050B4' },
+  p_rose: { ...light({
+    bg: '#FFF5F9', panel2: '#FCE3EE', panel3: '#F4BFD5', text: '#402333', muted: '#856575', muted2: '#AD8A9B',
+    brand: '#C7357B', brand2: '#922354', line: '64,35,51', tint: '199,53,123',
+  }), chartBar: '#E78DB5', chartLine: '#922354', cashTone: '#B72C6D' },
+  p_coral: { ...light({
+    bg: '#FFF6F3', panel2: '#FCE5DD', panel3: '#F6C6B6', text: '#422A24', muted: '#856B62', muted2: '#B08C7E',
+    brand: '#C75137', brand2: '#943D2B', line: '66,42,36', tint: '199,81,55',
+  }), chartBar: '#EC9A82', chartLine: '#943D2B', cashTone: '#B54730' },
+  p_mint: { ...light({
+    bg: '#F0FBF7', panel2: '#DAF3E8', panel3: '#B3E4D1', text: '#19392D', muted: '#5C7A6D', muted2: '#85A697',
+    brand: '#17835F', brand2: '#116247', line: '25,57,45', tint: '23,131,95',
+  }), chartBar: '#77CCAA', chartLine: '#116247', cashTone: '#17835F' },
+  p_ocean: { ...light({
+    bg: '#F0FAFB', panel2: '#D9F0F2', panel3: '#AEE0E4', text: '#19363D', muted: '#5D7980', muted2: '#86A4AB',
+    brand: '#087F8C', brand2: '#065B66', line: '25,54,61', tint: '8,127,140',
+  }), chartBar: '#61BFC9', chartLine: '#065B66', cashTone: '#087F8C' },
+  p_sunset: { ...light({
+    bg: '#FFF8EF', panel2: '#FFEDD5', panel3: '#FED4AA', text: '#432D20', muted: '#866E5B', muted2: '#AD9075',
+    brand: '#B85C09', brand2: '#C44450', line: '67,45,32', tint: '184,92,9',
+  }), chartBar: '#F4AD56', chartLine: '#C44450', cashTone: '#B85C09' },
+  p_amethyst: { ...light({
+    bg: '#F7F0FC', panel2: '#EDDEF7', panel3: '#D9B8EC', text: '#352043', muted: '#796386', muted2: '#A088AF',
+    brand: '#9238B5', brand2: '#64277E', line: '53,32,67', tint: '146,56,181',
+  }), chartBar: '#BC80D5', chartLine: '#64277E', cashTone: '#9238B5' },
+  p_graphite: {
+    bg: '#16191E', panel: '#22262D', panel2: '#2C313A', panel3: '#3B424D',
+    text: '#F3F4F6', muted: '#B0B7C2', muted2: '#87919F',
+    line: 'rgba(255,255,255,.12)', line2: 'rgba(255,255,255,.06)',
+    brand: '#B8C5D6', brand2: '#879BB5', brand3: 'rgba(184,197,214,.12)',
+    good: '#4ADE80', bad: '#FB7185', warn: '#FBBF24',
+    sidebarBg: '#16191E', topbarBg: 'rgba(22,25,30,.96)',
+    cardBg: '#22262D', inputBg: 'rgba(184,197,214,.06)',
+    hoverCard: 'rgba(184,197,214,.06)', glow: 'rgba(184,197,214,.16)',
+    chartBar: '#879BB5', chartLine: '#B8C5D6', cashTone: '#D1DAE6',
+  },
 };
 
 export const PRESET_NAMES: Record<string, { en: string; ar: string }> = {
@@ -65,4 +104,12 @@ export const PRESET_NAMES: Record<string, { en: string; ar: string }> = {
   p_softblue: { en: 'Soft Blue', ar: 'أزرق ناعم' },
   p_slate: { en: 'Neutral Slate', ar: 'رمادي محايد' },
   p_dark: { en: 'Dark (Premium)', ar: 'داكن فاخر' },
+  p_lavender: { en: 'Lavender', ar: 'لافندر' },
+  p_rose: { en: 'Rose Pink', ar: 'وردي' },
+  p_coral: { en: 'Coral', ar: 'مرجاني' },
+  p_mint: { en: 'Mint', ar: 'نعناعي' },
+  p_ocean: { en: 'Ocean Teal', ar: 'فيروزي المحيط' },
+  p_sunset: { en: 'Sunset', ar: 'غروب الشمس' },
+  p_amethyst: { en: 'Amethyst', ar: 'جمشت' },
+  p_graphite: { en: 'Graphite', ar: 'جرافيت' },
 };

@@ -22,10 +22,10 @@ describe('theme colour sets', () => {
 });
 
 describe('featured colour sets', () => {
-  it('offers the seven featured sets with every layout, complete and picked by id', async () => {
+  it('offers all fifteen featured sets with every layout, complete and picked by id', async () => {
     const { PRESET_THEMES, PRESET_NAMES } = await import('@/lib/theme/presets');
     const { getTheme, resolveThemeForLayout } = await import('@/lib/theme/utils');
-    expect(Object.keys(PRESET_THEMES)).toHaveLength(7);
+    expect(Object.keys(PRESET_THEMES)).toHaveLength(15);
     for (const [id, theme] of Object.entries(PRESET_THEMES)) {
       expect(PRESET_NAMES[id]?.en && PRESET_NAMES[id]?.ar, id).toBeTruthy();
       for (const key of KEYS) expect(theme[key as keyof typeof theme], `${id}.${key}`).toBeTruthy();
