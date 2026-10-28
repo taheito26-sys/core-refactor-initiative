@@ -10,10 +10,32 @@ function register(list: HTMLElement) {
   if (existing) { existing.count++; return; }
   let frame = 0;
   let stopped = false;
+  const textMeasure = document.createElement('canvas').getContext('2d');
   const measure = () => {
     if (stopped) return;
     const cards = Array.from(list.querySelectorAll<HTMLElement>('.ov2-card'));
     if (!cards.length) return;
+    if (!list.classList.contains('grid')) {
+      let widest = 0, available = Infinity;
+      for (const card of cards) {
+        const content = card.querySelector<HTMLElement>('.ov2-name-content');
+        const row = card.querySelector<HTMLElement>('.ov2-c-name');
+        const badges = card.querySelector<HTMLElement>('.ov2-c-marks');
+        if (!content || !row || !badges) continue;
+        const font = getComputedStyle(content);
+        if (textMeasure) {
+          textMeasure.font = `${font.fontStyle} ${font.fontWeight} ${font.fontSize} ${font.fontFamily}`;
+          widest = Math.max(widest, textMeasure.measureText(content.textContent || '').width);
+        } else widest = Math.max(widest, content.scrollWidth);
+        const scale = parseFloat(getComputedStyle(card.querySelector('.ov2-avatar')!).width) / 30;
+        const cap = Number.isFinite(scale) ? 140 * scale : 140;
+        available = Math.min(available, row.clientWidth - badges.offsetWidth - (parseFloat(getComputedStyle(row).columnGap) || 0), cap);
+      }
+      if (Number.isFinite(available)) {
+        const width = `${Math.max(0, Math.min(Math.ceil(widest) + 1, available))}px`;
+        if (list.style.getPropertyValue('--ov2-name-width') !== width) list.style.setProperty('--ov2-name-width', width);
+      }
+    }
     let name = 0, marks = 0, avatar = 0, reference = 0, metadata = 0, stat = 0;
     for (const card of cards) {
       name = Math.max(name, height(card.querySelector('.ov2-name-content')));
@@ -47,6 +69,7 @@ function register(list: HTMLElement) {
   lists.set(list, { count: 1, stop: () => {
     stopped = true; cancelAnimationFrame(frame); resize.disconnect(); content.disconnect(); theme.disconnect();
     document.fonts?.removeEventListener('loadingdone', schedule);
+    list.style.removeProperty('--ov2-name-width');
     for (const part of ['name', 'marks', 'identity', 'reference', 'metadata', 'stat']) list.style.removeProperty(`--ov2-${part}-height`);
   } });
   measure();

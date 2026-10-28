@@ -446,7 +446,8 @@
 .tracker-root.ov2 .ov2-c-main { min-width: 0; }
 .tracker-root.ov2 .ov2-c-name {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) calc(85 * var(--cpx));
+  grid-template-columns: minmax(0, var(--ov2-name-width, calc(140 * var(--cpx)))) calc(85 * var(--cpx));
+  justify-content: start;
   align-items: start;
   min-height: var(--ov2-identity-height, calc(30 * var(--cpx)));
   column-gap: calc(5 * var(--cpx));
