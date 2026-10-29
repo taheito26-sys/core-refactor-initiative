@@ -211,6 +211,8 @@ export interface V2CardProps {
   reference?: string;
   subtitle?: ReactNode;
   statusLabel: string;
+  /** Optional compact information beside the status, used by stock batches. */
+  statusAside?: ReactNode;
   statusKind: 'good' | 'warn' | 'bad';
   dateText: string;
   timeText?: string;
@@ -248,11 +250,11 @@ export function OrdersV2Card(p: V2CardProps) {
   };
   const timestamp = <div className="ov2-c-when"><span><CalendarDays />{p.dateText}</span>{p.timeText && <span><Clock />{p.timeText}</span>}</div>;
   return (
-    <article ref={cardRef} className={cn('ov2-card', p.compactHeader && 'ov2-compact-header', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
+    <article ref={cardRef} className={cn('ov2-card', p.compactHeader && 'ov2-compact-header', p.statusAside && 'ov2-has-status-aside', p.highlight === 'loan' && 'loan')} data-trade-id={p.id} style={{ ['--tone' as string]: toneVar(AVATARS[p.tone % AVATARS.length]) }}>
       <div className="ov2-c-top">
         <span className="ov2-avatar">{p.initial}</span>
         <div className="ov2-c-main">
-          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span><span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span></div>
+          <div className="ov2-c-name"><span className="ov2-name-text" title={p.name}><span className="ov2-name-content">{p.name}</span></span><span className="ov2-c-marks">{p.alignedMarks ? p.marks : <span className="ov2-mark-source">{p.marks}</span>}</span>{p.statusAside ? <span className="ov2-status-group"><span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span>{p.statusAside}</span> : <span className={cn('ov2-status', p.statusKind)}><span className="ov2-status-text">{p.statusLabel}</span></span>}</div>
           {p.compactHeader && <div className="ov2-c-context">{timestamp}<span className="ov2-context-marks">{p.secondaryMarks}</span></div>}
         </div>
         {!p.compactHeader && <div className="ov2-c-secondary">

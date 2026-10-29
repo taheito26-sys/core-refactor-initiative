@@ -1,3 +1,4 @@
+import { BatchConsumption } from '@/features/stock/components/BatchConsumption';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
@@ -1077,6 +1078,7 @@ export default function StockPage() {
         reference={reference}
         statusLabel={status.label}
         statusKind={status.kind}
+        statusAside={<BatchConsumption initial={b.initialUSDT} remaining={rem} />}
         dateText={when.toLocaleDateString(locale)}
         timeText={when.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })}
         qty={`${fmtU(b.initialUSDT)} USDT`}
@@ -1600,6 +1602,7 @@ export default function StockPage() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             <span className={`pill ${stCls}`}>{st}</span>
+                            <BatchConsumption initial={b.initialUSDT} remaining={rem} />
                             {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
                             <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
                             {batchUntaggedUSDT(state, b.id) > 1e-6 && (

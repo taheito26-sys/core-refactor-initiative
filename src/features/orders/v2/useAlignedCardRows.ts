@@ -21,7 +21,7 @@ function register(list: HTMLElement) {
         const content = card.querySelector<HTMLElement>('.ov2-name-content');
         const row = card.querySelector<HTMLElement>('.ov2-c-name');
         const badges = card.querySelector<HTMLElement>('.ov2-c-marks');
-        const status = card.querySelector<HTMLElement>('.ov2-status');
+        const status = card.querySelector<HTMLElement>('.ov2-status-group') || card.querySelector<HTMLElement>('.ov2-status');
         if (!content || !row || !badges) continue;
         const font = getComputedStyle(content);
         if (textMeasure) {

@@ -1,0 +1,22 @@
+/* Both segments and captions inherit the active tracker palette. */
+.batch-consumption { display: inline-flex; flex-direction: column; gap: 3px; width: 84px; max-width: 100%; min-width: 0; vertical-align: middle; flex-shrink: 0; line-height: 1.1; }
+.batch-consumption-values { display: flex; flex-direction: column; gap: 2px; font-size: 8px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.batch-consumption-values > span { display: flex; justify-content: space-between; gap: 3px; }
+.batch-consumption-used { color: var(--brand2); }
+.batch-consumption-left { color: var(--good); }
+.batch-consumption-values b { font-weight: 700; }
+.batch-consumption-track { display: block; width: 100%; height: 4px; overflow: hidden; border-radius: 4px; background: var(--good); }
+.batch-consumption-fill { display: block; height: 100%; background: var(--brand2); border-radius: inherit; }
+.batch-consumption-track[data-empty="true"] { background: var(--panel3); }
+.ov2-status-group { display: inline-flex; align-items: center; gap: 6px; min-width: 0; width: max-content; }
+.tracker-root.ov2 .ov2-has-status-aside .ov2-c-name { grid-template-columns: minmax(0, var(--ov2-name-width, calc(90 * var(--cpx)))) calc(70 * var(--cpx)) max-content; }
+.tracker-root.ov2 .ov2-status-group .ov2-status { width: auto; min-width: calc(45 * var(--cpx)); padding-inline: calc(4 * var(--cpx)); flex-shrink: 0; }
+.tracker-root.ov2 .ov2-status-group .batch-consumption { width: clamp(58px, 14vw, 84px); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-has-status-aside .ov2-c-name { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.tracker-root.ov2 .orders-cards-list.grid .ov2-status-group { flex-wrap: wrap; width: 100%; gap: 4px; }
+@media (max-width: 360px) {
+  .tracker-root.ov2 .ov2-has-status-aside .ov2-c-name { grid-template-columns: minmax(0, var(--ov2-name-width, 50px)) calc(60 * var(--cpx)) max-content; }
+  .ov2-status-group { gap: 4px; }
+  .tracker-root.ov2 .ov2-status-group .batch-consumption { width: 52px; }
+  .batch-consumption-values { font-size: 7px; }
+}
