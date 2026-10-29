@@ -38,7 +38,9 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
     reload();
   };
   const edited = (event: Event) => {
-    if ((event.target as Element)?.matches('input,textarea,select,[contenteditable=true]')) dirty = true;
+    const target = event.target as Element;
+    if (target?.closest('[data-update-passive]')) return;
+    if (target?.matches('input,textarea,select,[contenteditable=true]')) dirty = true;
   };
   const interacted = (event: Event) => {
     const button = (event.target as Element)?.closest('button');
@@ -52,7 +54,8 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
     if (stopped || checking || reloading || document.visibilityState === 'hidden') return;
     checking = true;
     try {
-      await registration?.update().catch(() => undefined);
+      // An offline or stalled worker request must not block the independent version check.
+      void registration?.update().catch(() => undefined);
       const response = await fetch('/app-version.json', { cache: 'no-store' });
       if (!response.ok) return;
       const version: unknown = await response.json();

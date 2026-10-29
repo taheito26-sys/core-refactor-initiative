@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
             "robots.txt",
           ],
           workbox: {
-            globIgnores: ["**/app-version.json"],
+            globIgnores: ["**/app-version.json", "**/auth/refresh.html"],
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
               /^\/auth\//,

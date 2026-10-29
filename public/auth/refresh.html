@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="light dark">
+  <title>Update The Tracker</title>
+  <style>
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; font: 15px/1.5 system-ui, sans-serif; background: Canvas; color: CanvasText; }
+    main { max-width: 340px; padding: 24px; text-align: center; }
+    h1 { font-size: 21px; margin: 0 0 8px; }
+    p { margin: 8px 0; opacity: .8; }
+    button { padding: 10px 18px; margin-top: 12px; border: 1px solid currentColor; border-radius: 8px; font: inherit; background: Canvas; color: CanvasText; cursor: pointer; }
+  </style>
+</head>
+<body>
+<main aria-live="polite">
+  <h1 id="title">Updating The Tracker…</h1>
+  <p id="status">Loading the latest version. Your login and saved data will be kept.</p>
+  <button id="retry" type="button" hidden>Try again</button>
+</main>
+<script>
+(async function () {
+  let ar = false;
+  try { ar = JSON.parse(localStorage.getItem('tracker_settings') || '{}').language === 'ar'; } catch (_) {}
+  document.documentElement.lang = ar ? 'ar' : 'en';
+  document.documentElement.dir = ar ? 'rtl' : 'ltr';
+  const title = document.getElementById('title');
+  const status = document.getElementById('status');
+  const retry = document.getElementById('retry');
+  if (ar) {
+    title.textContent = 'جارٍ تحديث المتتبّع…';
+    status.textContent = 'جارٍ تحميل أحدث إصدار. سيُحتفظ بتسجيل الدخول وبياناتك المحفوظة.';
+    retry.textContent = 'إعادة المحاولة';
+  }
+  let loading = false;
+  async function refresh() {
+    if (loading) return;
+    loading = true;
+    retry.hidden = true;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let response;
+      try { response = await fetch('/app-version.json?refresh=' + Date.now(), { cache: 'no-store', signal: controller.signal }); }
+      finally { clearTimeout(timer); }
+      if (!response.ok) throw new Error('Version unavailable');
+      const version = await response.json();
+      if (typeof version.buildId !== 'string' || !version.buildId) throw new Error('Invalid version');
+      if ('serviceWorker' in navigator) {
+        const scope = new URL('/', location.origin).href;
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          if (registration.scope === scope && !await registration.unregister()) throw new Error('Update unavailable');
+        }
+      }
+      // Never clear caches, localStorage, IndexedDB or authentication state.
+      const target = new URL('/trading/calendar', location.origin);
+      target.searchParams.set('release', version.buildId);
+      location.replace(target.href);
+    } catch (_) {
+      title.textContent = ar ? 'تعذّر تحميل التحديث' : 'Couldn’t load the update';
+      status.textContent = ar ? 'تحقق من اتصالك ثم أعد المحاولة. بياناتك لم تتغير.' : 'Check your connection and try again. Your data has not changed.';
+      retry.hidden = false;
+    } finally { loading = false; }
+  }
+  retry.addEventListener('click', refresh);
+  await refresh();
+})();
+</script>
+</body>
+</html>

@@ -84,7 +84,7 @@ export default function CalendarPage() {
 
   return <main className="trading-calendar" dir={t.isRTL ? 'rtl' : 'ltr'}>
     <header className="tc-heading"><div><h1>{t('tcTitle')}</h1><p>{t('tcSubtitle')}</p></div><div className="tc-heading-tools">
-      <label className="tc-month-picker"><CalendarDays size={19} /><span>{monthLabel}</span><ChevronDown size={14} /><input type="month" aria-label={t('tcChooseMonth')} value={`${year}-${String(month + 1).padStart(2, '0')}`} onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) { setCal({ year: y, month: m - 1, day: 1 }); setShowAll(false); } }} /></label>
+      <label className="tc-month-picker"><CalendarDays size={19} /><span>{monthLabel}</span><ChevronDown size={14} /><input data-update-passive type="month" aria-label={t('tcChooseMonth')} value={`${year}-${String(month + 1).padStart(2, '0')}`} onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) { setCal({ year: y, month: m - 1, day: 1 }); setShowAll(false); } }} /></label>
       <span className="tc-monthly"><TrendingUp size={19} />{t('tcMonthly')}</span>
     </div></header>
 

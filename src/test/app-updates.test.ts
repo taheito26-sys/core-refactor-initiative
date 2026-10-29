@@ -124,3 +124,28 @@ describe('automatic app updates', () => {
   });
 
 });
+
+describe('update checks while browsing the calendar', () => {
+  it('does not treat changing the viewed month as an unsaved record', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const input = document.createElement('input'); input.type = 'month'; input.dataset.updatePassive = '';
+    document.body.append(input); input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('still checks the version when the service worker update never resolves', async () => {
+    const worker = new EventTarget();
+    const registration = { update: vi.fn(() => new Promise<void>(() => {})) };
+    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) });
+    vi.stubGlobal('navigator', { serviceWorker: worker });
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ buildId: 'old' }) } as Response);
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    await vi.advanceTimersByTimeAsync(0);
+    const initialChecks = vi.mocked(fetch).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(registration.update).toHaveBeenCalled();
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(initialChecks);
+  });
+});
