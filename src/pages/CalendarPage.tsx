@@ -1,342 +1,151 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { ArrowDown, ArrowLeftRight, ArrowUp, BarChart3, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Coins, CreditCard, Network, Percent, Target, TrendingUp, Trophy, type LucideIcon } from 'lucide-react';
 import { useTrackerState } from '@/lib/useTrackerState';
-import {
-  fmtQ, fmtQRaw, fmtU, fmtP, fmtPct, fmtQWithUnit,
-  getMonthlyLoanPayments, resolveCustomerName, type DayPayment,
-} from '@/lib/tracker-helpers';
+import { fmtQRaw, fmtU, fmtP } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
-import '@/styles/tracker.css';
+import { buildCalendarMonth, leadPayment } from '@/features/calendar/calendar-model';
+import '@/styles/trading-calendar.css';
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'] as const;
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayFilter = 'all' | 'profit' | 'loss' | 'inactive';
+const signed = (n: number) => `${n >= 0 ? '+' : ''}${fmtQRaw(n)}`;
+const percent = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+
+function IconBadge({ icon: Icon, tone = 'green' }: { icon: LucideIcon; tone?: string }) {
+  return <span className={`tc-icon tc-icon-${tone}`}><Icon size={19} strokeWidth={2.1} /></span>;
+}
+
+function MiniTrend({ values, bars = false, tone = 'green' }: { values: number[]; bars?: boolean; tone?: string }) {
+  const id = useId().replace(/:/g, '');
+  const max = Math.max(...values.map(Math.abs), 1);
+  const min = Math.min(...values, 0);
+  const span = max - min || 1;
+  const points = values.map((n, i) => `${i * 100 / Math.max(values.length - 1, 1)},${54 - (n - min) / span * 48}`).join(' ');
+  return <svg className={`tc-mini tc-mini-${tone}`} viewBox="0 0 100 60" aria-hidden="true" preserveAspectRatio="none">
+    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="currentColor" stopOpacity=".55" /><stop offset="100%" stopColor="currentColor" stopOpacity=".03" /></linearGradient></defs>
+    {bars ? values.map((n, i) => <rect key={i} x={i * 100 / values.length + 3} y={58 - Math.abs(n) / max * 52} width={Math.max(3, 65 / values.length)} height={Math.max(2, Math.abs(n) / max * 52)} rx="2" fill={`url(#${id})`} />) : <><polygon points={`0,60 ${points} 100,60`} fill={`url(#${id})`} /><polyline points={points} fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" /></>}
+  </svg>;
+}
+
+function Metric({ icon, tone, label, children, className = '' }: { icon: LucideIcon; tone?: string; label: string; children: ReactNode; className?: string }) {
+  return <article className={`tc-card tc-metric ${className}`}><IconBadge icon={icon} tone={tone} /><div className="tc-metric-body"><h2>{label}</h2>{children}</div></article>;
+}
 
 export default function CalendarPage() {
   const { settings } = useTheme();
   const t = useT();
-  const { state, derived } = useTrackerState({
-    lowStockThreshold: settings.lowStockThreshold,
-    priceAlertThreshold: settings.priceAlertThreshold,
-    range: settings.range,
-    currency: settings.currency,
-  });
-  const now = new Date();
-  // Always opens on the current month -- state.cal is persisted tracker
-  // state (synced across devices), so seeding from it here would leave the
-  // page stuck on whatever month was last viewed instead of today's.
-  const [cal, setCal] = useState({ year: now.getFullYear(), month: now.getMonth(), selectedDay: null as number | null });
-
-  const mnKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'] as const;
-  const dnKeys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
-  const mn = mnKeys.map(k => t(k));
-  const dn = dnKeys.map(k => t(k));
-
-  const curY = now.getFullYear(), curM = now.getMonth(), curD = now.getDate();
-  const { year, month, selectedDay } = cal;
-  const daysInM = new Date(year, month + 1, 0).getDate();
+  const { state, derived } = useTrackerState({ lowStockThreshold: settings.lowStockThreshold, priceAlertThreshold: settings.priceAlertThreshold, range: settings.range, currency: settings.currency });
+  const [today] = useState(() => new Date());
+  const [cal, setCal] = useState(() => ({ year: today.getFullYear(), month: today.getMonth(), day: today.getDate() }));
+  const [filter, setFilter] = useState<DayFilter>('all');
+  const [showVolume, setShowVolume] = useState(true);
+  const [showTrades, setShowTrades] = useState(true);
+  const [cumulative, setCumulative] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const { year, month, day } = cal;
+  const data = useMemo(() => buildCalendarMonth(state, derived, year, month, t.lang), [state, derived, year, month, t.lang]);
+  const previousDate = new Date(year, month - 1, 1);
+  const previous = useMemo(() => buildCalendarMonth(state, derived, year, month - 1, t.lang), [state, derived, year, month, t.lang]);
+  const { mData, totalP, totalT, totalV, monthPayLead, totalPayCount, wins, tradeDays, bestDay, worstDay, avgMargin, winRate } = data;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
-
-  /** A day's payment plus the resolved customer name for display. */
-  type DayPaymentRow = DayPayment & { customer: string };
-
-  /**
-   * Loans can be held in different currencies, so payments are totalled per
-   * currency and never added across them. QAR leads wherever a single figure
-   * has to be shown; the rest are listed beside it.
-   */
-  const leadPayment = (totals: Record<string, number>) => {
-    const currencies = Object.keys(totals);
-    if (!currencies.length) return null;
-    const lead = currencies.includes('QAR')
-      ? 'QAR'
-      : [...currencies].sort((a, b) => totals[b] - totals[a])[0];
-    return {
-      currency: lead,
-      amount: totals[lead],
-      others: currencies.filter(c => c !== lead).map(c => ({ currency: c, amount: totals[c] })),
-    };
+  const monthLabel = `${t(MONTHS[month])} ${year}`;
+  const dateLabel = (d: number) => new Date(year, month, d).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const selected = mData[day];
+  const chartData = Object.entries(mData).map(([d, value]) => ({ day: Number(d), profit: value.profit, cumulative: 0 }));
+  let running = 0;
+  chartData.forEach(d => { running += d.profit; d.cumulative = running; });
+  const profitTrend = chartData.map(d => d.cumulative);
+  const tradeTrend = Object.values(mData).filter(d => d.trades > 0).map(d => d.trades);
+  const volumeTrend = Object.values(mData).filter(d => d.volumeQAR > 0).map(d => d.volumeQAR);
+  const monthUSDT = Object.values(mData).flatMap(d => d.tradeList).reduce((sum, tr) => sum + tr.amountUSDT, 0);
+  const profitChange = previous.totalP !== 0 ? (totalP - previous.totalP) / Math.abs(previous.totalP) * 100 : null;
+  const changeLabel = profitChange === null ? t('tcNoPrevious') : `${percent(profitChange)} ${t('tcVs')} ${t(MONTHS[previousDate.getMonth()])} ${previousDate.getFullYear()}`;
+  const moveMonth = (delta: number) => {
+    const next = new Date(year, month + delta, 1);
+    setCal({ year: next.getFullYear(), month: next.getMonth(), day: 1 });
+    setShowAll(false);
   };
-
-  // Build month data
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[]; paymentTotals: Record<string, number>; paymentCount: number; paymentList: DayPaymentRow[] }> = {};
-  for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [], paymentTotals: {}, paymentCount: 0, paymentList: [] };
-
-  const seenTradeIds = new Set<string>();
-  for (const tr of state.trades.filter(tr => !tr.voided)) {
-    if (seenTradeIds.has(tr.id)) continue;
-    seenTradeIds.add(tr.id);
-    const dt = new Date(tr.ts);
-    if (dt.getFullYear() === year && dt.getMonth() === month) {
-      const c = derived.tradeCalc.get(tr.id);
-      const d2 = dt.getDate();
-      const rev = tr.amountUSDT * tr.sellPriceQAR;
-      // Use FIFO result if available, otherwise compute from manual buy price
-      let netQAR = 0;
-      let margin = 0;
-      let avgBuy = 0;
-      if (c?.ok) {
-        netQAR = c.netQAR;
-        margin = c.margin;
-        avgBuy = c.avgBuyQAR;
-      } else if (tr.manualBuyPrice) {
-        const cost = tr.amountUSDT * tr.manualBuyPrice;
-        netQAR = rev - cost - tr.feeQAR;
-        margin = rev > 0 ? (netQAR / rev) * 100 : 0;
-        avgBuy = tr.manualBuyPrice;
-      }
-      // For linked/partner trades, show only my share of the profit
-      if (tr.linkedDealId || tr.linkedRelId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const myPct = (tr as any).merchantPct ?? 100;
-        netQAR = netQAR * myPct / 100;
-        margin = rev > 0 ? (netQAR / rev) * 100 : 0;
-      }
-      if (rev > 0 || netQAR !== 0) {
-        mData[d2].profit += netQAR;
-        mData[d2].volumeQAR += rev;
-        mData[d2].trades++;
-        mData[d2].marginSum += Number.isFinite(margin) ? margin : 0;
-        void (netQAR >= 0 ? mData[d2].wins++ : mData[d2].losses++);
-        mData[d2].tradeList.push({
-          ...tr, net: netQAR, margin, avgBuy, rev,
-          isLinked: !!tr.linkedDealId || !!tr.linkedRelId,
-        });
-      }
-    }
-  }
-
-  // Customer payments — loan repayments bucketed by the day the money came in.
-  const paymentsByDay = getMonthlyLoanPayments(state.customerLoans, state.deletedLoanIds, year, month);
-  for (const [day, payments] of Object.entries(paymentsByDay)) {
-    const d2 = Number(day);
-    if (!mData[d2]) continue;
-    for (const p of payments) {
-      mData[d2].paymentTotals[p.currency] = (mData[d2].paymentTotals[p.currency] || 0) + p.amount;
-      mData[d2].paymentCount++;
-      mData[d2].paymentList.push({
-        ...p,
-        customer: (() => { const cu = state.customers.find(c => c.id === p.customerId); return cu ? resolveCustomerName(cu, t.lang) : p.customerId; })(),
-      });
-    }
-  }
-
-  const totalP = Object.values(mData).reduce((s, d) => s + d.profit, 0);
-  const totalT = Object.values(mData).reduce((s, d) => s + d.trades, 0);
-  const totalV = Object.values(mData).reduce((s, d) => s + d.volumeQAR, 0);
-  const monthPaymentTotals: Record<string, number> = {};
-  for (const d of Object.values(mData)) {
-    for (const [cur, amt] of Object.entries(d.paymentTotals)) {
-      monthPaymentTotals[cur] = (monthPaymentTotals[cur] || 0) + amt;
-    }
-  }
-  const monthPayLead = leadPayment(monthPaymentTotals);
-  const totalPayCount = Object.values(mData).reduce((s, d) => s + d.paymentCount, 0);
-  const wins = Object.values(mData).reduce((s, d) => s + d.wins, 0);
-  const tradeDays = Object.values(mData).filter(d => d.trades > 0).length;
-  const bestDay = Object.entries(mData).filter(([, d]) => d.trades > 0).sort((a, b) => b[1].profit - a[1].profit)[0];
-  const worstDay = Object.entries(mData).filter(([, d]) => d.trades > 0).sort((a, b) => a[1].profit - b[1].profit)[0];
-  const avgMargin = totalT ? Object.values(mData).reduce((s, d) => s + d.marginSum, 0) / totalT : 0;
-  const winRate = totalT ? (wins / totalT) : 0;
-
-  const selData = selectedDay ? mData[selectedDay] : null;
-
-  const prevMonth = () => {
-    let y = year, m = month - 1;
-    if (m < 0) { m = 11; y--; }
-    setCal({ year: y, month: m, selectedDay: null });
+  const moveDay = (delta: number) => {
+    const next = new Date(year, month, day + delta);
+    setCal({ year: next.getFullYear(), month: next.getMonth(), day: next.getDate() });
+    setShowAll(false);
   };
-  const nextMonth = () => {
-    let y = year, m = month + 1;
-    if (m > 11) { m = 0; y++; }
-    setCal({ year: y, month: m, selectedDay: null });
-  };
-  const goToday = () => setCal({ year: now.getFullYear(), month: now.getMonth(), selectedDay: null });
-  const selectDay = (d: number) => setCal(prev => ({ ...prev, selectedDay: prev.selectedDay === d ? null : d }));
+  const active = selected.trades > 0 || selected.paymentCount > 0;
+  const visibleTrades = showAll ? selected.tradeList : selected.tradeList.slice(0, 4);
+  const detailMargin = selected.trades ? selected.marginSum / selected.trades : 0;
+  const detailRate = selected.trades ? selected.wins / selected.trades * 100 : 0;
+  const previousDay = mData[day - 1];
+  const dailyChange = previousDay?.profit ? (selected.profit - previousDay.profit) / Math.abs(previousDay.profit) * 100 : null;
+  const filters = [{ id: 'all', label: t('all') }, { id: 'profit', label: t('tcProfitDays') }, { id: 'loss', label: t('tcLossDays') }, { id: 'inactive', label: t('tcNoActivity') }] as const;
 
-  return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
-      {/* Stats */}
-      <div className="cal-stats">
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('monthlyProfit')}</div>
-          <div className={`kpi-val ${totalP >= 0 ? 'good' : 'bad'}`}>{(totalP >= 0 ? '+' : '') + fmtQ(totalP)}</div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('totalTrades')}</div>
-          <div className="kpi-val">{totalT}</div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('tradingDays')}</div>
-          <div className="kpi-val">
-            {tradeDays}
-            {bestDay && <span className="cycle-badge" style={{ marginLeft: 4 }}>{t('best')}: {mn[month].slice(0, 3)} {bestDay[0]}</span>}
-            {worstDay && <span className="cycle-badge" style={{ marginLeft: 4 }}>{t('worst')}: {mn[month].slice(0, 3)} {worstDay[0]}</span>}
-          </div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('monthlyVolume')}</div>
-          <div className="kpi-val">{fmtQWithUnit(totalV, 'QAR', null, 'QAR', t.lang)}</div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('winRate')}</div>
-          <div className="kpi-val">{(winRate * 100).toFixed(0)}%</div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('avgMargin')}</div>
-          <div className="kpi-val">{fmtPct(avgMargin)}</div>
-        </div>
-        <div className="cal-stat">
-          <div className="kpi-lbl">{t('calPayments')}</div>
-          <div className="kpi-val" style={{ color: 'var(--t2)' }}>
-            {monthPayLead ? `${fmtQRaw(monthPayLead.amount)} ${monthPayLead.currency}` : fmtQ(0)}
-          </div>
-          <div className="cal-stat-sub">
-            {totalPayCount} {t('calPaymentsReceived')}
-            {monthPayLead?.others.map(o => ` · ${fmtQRaw(o.amount)} ${o.currency}`).join('')}
-          </div>
-        </div>
-      </div>
+  return <main className="trading-calendar" dir={t.isRTL ? 'rtl' : 'ltr'}>
+    <header className="tc-heading"><div><h1>{t('tcTitle')}</h1><p>{t('tcSubtitle')}</p></div><div className="tc-heading-tools">
+      <label className="tc-month-picker"><CalendarDays size={19} /><span>{monthLabel}</span><ChevronDown size={14} /><input type="month" aria-label={t('tcChooseMonth')} value={`${year}-${String(month + 1).padStart(2, '0')}`} onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) { setCal({ year: y, month: m - 1, day: 1 }); setShowAll(false); } }} /></label>
+      <span className="tc-monthly"><TrendingUp size={19} />{t('tcMonthly')}</span>
+    </div></header>
 
-      {/* Calendar */}
-      <div className="panel">
-        <div className="panel-head">
-          <h2>{mn[month]} {year}</h2>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn secondary" onClick={prevMonth}>{t('prev')}</button>
-            <button className="btn secondary" onClick={goToday}>{t('today')}</button>
-            <button className="btn secondary" onClick={nextMonth}>{t('next')}</button>
-          </div>
-        </div>
-        <div className="panel-body">
-          <div className="cal-grid">
-            {dn.map(d => <div key={d} className="cal-hdr">{d}</div>)}
-            {Array.from({ length: firstDay }, (_, i) => (
-              <div key={`e-${i}`} className="cal-day empty-day" />
-            ))}
-            {Array.from({ length: daysInM }, (_, i) => {
-              const d = i + 1;
-              const data = mData[d];
-              const hasP = data.profit > 0;
-              const hasL = data.profit < 0;
-              const hasPay = data.paymentCount > 0;
-              const isTdy = d === curD && year === curY && month === curM;
-              const isSel = d === selectedDay;
-              // A day with payments but no trades still gets a tint, so it
-              // reads as an active day rather than an empty one.
-              const tone = hasP ? ' has-profit' : hasL ? ' has-loss' : hasPay ? ' has-payment' : '';
+    <section className="tc-metrics-top" aria-label={t('tcSummary')}>
+      <Metric icon={BarChart3} label={t('monthlyProfit')} className="tc-profit-card"><strong className={`tc-value tc-value-xl ${totalP < 0 ? 'tc-negative' : 'tc-positive'}`}>{signed(totalP)} <small>QAR</small></strong><p className={profitChange !== null && profitChange < 0 ? 'tc-negative' : 'tc-positive'}>{profitChange !== null && (profitChange < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}{changeLabel}</p><MiniTrend values={profitTrend} /></Metric>
+      <Metric icon={Network} tone="blue" label={t('totalTrades')}><strong className="tc-value tc-value-xl">{totalT}</strong><p>{signed(totalT - previous.totalT)} {t('tcLastMonth')}</p><MiniTrend values={tradeTrend.length ? tradeTrend : [0]} bars tone="blue" /></Metric>
+      <Metric icon={CalendarDays} tone="orange" label={t('tradingDays')} className="tc-trading-days"><strong className="tc-value">{tradeDays} <small className="tc-muted">/ {daysInMonth}</small></strong><div className="tc-extremes"><div><span>{t('tcBestDay')}</span><b className="tc-positive">{bestDay ? signed(bestDay[1].profit) : '—'}</b><small>{bestDay ? `${t(MONTHS[month]).slice(0, 3)} ${bestDay[0]}` : '—'}</small></div><div><span>{t('tcWorstDay')}</span><b className="tc-negative">{worstDay ? signed(worstDay[1].profit) : '—'}</b><small>{worstDay ? `${t(MONTHS[month]).slice(0, 3)} ${worstDay[0]}` : '—'}</small></div></div></Metric>
+    </section>
+    <section className="tc-metrics-bottom" aria-label={t('monthlyVolume')}>
+      <Metric icon={Coins} tone="purple" label={t('monthlyVolume')}><strong className="tc-value">{fmtQRaw(totalV)} <small>QAR</small></strong><p>{fmtU(monthUSDT)} USDT</p><MiniTrend values={volumeTrend.length ? volumeTrend : [0]} bars tone="purple" /></Metric>
+      <Metric icon={Target} label={t('winRate')} className="tc-win-card"><div className="tc-ring" style={{ background: `conic-gradient(var(--tc-green) ${winRate * 360}deg, #e6edf0 0deg)` }}><strong>{(winRate * 100).toFixed(0)}%</strong></div><p>{wins} / {totalT} {t('trades')}</p></Metric>
+      <Metric icon={Percent} label={t('avgMargin')}><strong className="tc-value">{percent(avgMargin)}</strong><p className="tc-positive">{t('tcLastMonth')} {percent(avgMargin - previous.avgMargin)}</p><MiniTrend values={Object.values(mData).map(d => d.trades ? d.marginSum / d.trades : 0)} /></Metric>
+      <Metric icon={CreditCard} tone="purple" label={t('calPayments')}><strong className="tc-value">{fmtQRaw(monthPayLead?.amount ?? 0)} <small>{monthPayLead?.currency ?? 'QAR'}</small></strong><p>{totalPayCount} {t('calPaymentsReceived')}</p>{monthPayLead?.others.map(p => <p key={p.currency}>{fmtQRaw(p.amount)} {p.currency}</p>)}</Metric>
+    </section>
 
-              return (
-                <div
-                  key={d}
-                  className={`cal-day${tone}${isTdy ? ' today' : ''}${isSel ? ' selected' : ''}`}
-                  onClick={() => selectDay(d)}
-                >
-                  <div className="cal-num">{d}</div>
-                  {data.trades > 0 && (
-                    <div className={`cal-amt cal-profit ${hasP ? 'good' : 'bad'}`}>
-                      {(data.profit >= 0 ? '+' : '') + fmtQRaw(data.profit)}
-                    </div>
-                  )}
-                  {hasPay && (() => {
-                    const lead = leadPayment(data.paymentTotals);
-                    return lead && (
-                      <div className="cal-amt cal-pay">
-                        {fmtQRaw(lead.amount)}{lead.others.length > 0 && '…'}
-                      </div>
-                    );
-                  })()}
-                  {(data.trades > 0 || hasPay) && (
-                    <div className="cal-count">
-                      {data.trades > 0 && `${data.trades}t`}
-                      {data.trades > 0 && hasPay && ' · '}
-                      {hasPay && `${data.paymentCount}p`}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+    <div className="tc-workspace">
+      <section className="tc-card tc-calendar-panel" aria-label={monthLabel}>
+        <div className="tc-section-heading"><h2>{monthLabel}</h2><div className="tc-navigation"><button type="button" onClick={() => moveMonth(-1)} aria-label={t('prev')}><ChevronLeft size={16} /></button><button type="button" onClick={() => { setCal({ year: today.getFullYear(), month: today.getMonth(), day: today.getDate() }); setShowAll(false); }}>{t('today')}</button><button type="button" onClick={() => moveMonth(1)} aria-label={t('next')}><ChevronRight size={16} /></button></div></div>
+        <div className="tc-toolbar"><div className="tc-filters" aria-label={t('tcFilters')}>{filters.map(f => <button key={f.id} type="button" className={`${filter === f.id ? 'is-active' : ''} ${f.id === 'loss' ? 'tc-loss-filter' : ''}`} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</button>)}</div><div className="tc-display-options"><button type="button" aria-pressed={showVolume} onClick={() => setShowVolume(v => !v)}>{t('tcShowVolume')}</button><button type="button" aria-pressed={showTrades} onClick={() => setShowTrades(v => !v)}>{t('tcShowTrades')}</button></div></div>
+        <div className="tc-weekdays">{DAYS.map(d => <span key={d}>{t(d)}</span>)}</div>
+        <div className="tc-days">
+          {Array.from({ length: firstDay }, (_, i) => <div key={`empty-${i}`} className="tc-day tc-day-empty" aria-hidden="true" />)}
+          {Object.entries(mData).map(([key, d]) => {
+            const n = Number(key);
+            const hasActivity = d.trades > 0 || d.paymentCount > 0;
+            const matches = filter === 'all' || (filter === 'profit' && d.profit > 0) || (filter === 'loss' && d.profit < 0) || (filter === 'inactive' && !hasActivity);
+            const isToday = n === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+            const payment = leadPayment(d.paymentTotals);
+            return <button key={n} type="button" aria-label={`${dateLabel(n)} · ${t('tcDailyProfit')} ${signed(d.profit)} QAR · ${d.trades} ${t('trades')} · ${d.paymentCount} ${t('calPayments')}`} aria-pressed={day === n} aria-current={isToday ? 'date' : undefined} onClick={() => { setCal(c => ({ ...c, day: n })); setShowAll(false); }} className={`tc-day ${d.profit > 0 ? 'tc-day-profit' : d.profit < 0 ? 'tc-day-loss' : d.paymentCount > 0 ? 'tc-day-payment' : ''} ${day === n ? 'is-selected' : ''} ${isToday ? 'is-today' : ''} ${!matches ? 'is-filtered' : ''}`}>
+              <span className="tc-day-number">{n}</span>{d.trades > 0 && <strong className={d.profit < 0 ? 'tc-negative' : 'tc-positive'}>{signed(d.profit)}</strong>}
+              {showVolume && d.trades > 0 && <span className="tc-day-volume">{fmtQRaw(d.volumeQAR)}</span>}
+              {d.paymentCount > 0 && d.trades === 0 && <span className="tc-day-volume tc-positive">{fmtQRaw(payment?.amount ?? 0)} <small>{payment?.currency}</small></span>}
+              {showTrades && hasActivity && <span className="tc-day-count">{d.trades > 0 && `${d.trades}${t('tcTradeShort')}`}{d.trades > 0 && d.paymentCount > 0 && ' · '}{d.paymentCount > 0 && `${d.paymentCount}${t('tcPaymentShort')}`}</span>}
+            </button>;
+          })}
+          {Array.from({ length: (7 - (firstDay + daysInMonth) % 7) % 7 }, (_, i) => <div key={`end-${i}`} className="tc-day tc-day-empty" aria-hidden="true" />)}
         </div>
-      </div>
+      </section>
 
-      {/* Selected day detail */}
-      {selectedDay && selData && (selData.trades > 0 || selData.paymentCount > 0) && (
-        <div className="cal-detail">
-          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-            📅 {mn[month]} {selectedDay}, {year}
-            {selData.trades > 0 && (
-              <> — {selData.trades} {t('trades')} · Vol {fmtQWithUnit(selData.volumeQAR, 'QAR', null, 'QAR', t.lang)} · {t('net')} {(selData.profit >= 0 ? '+' : '') + fmtQ(selData.profit)} · {t('winRate')} {((selData.wins / selData.trades) * 100).toFixed(0)}%</>
-            )}
-            {selData.paymentCount > 0 && (
-              <span style={{ color: 'var(--t2)' }}>
-                {selData.trades > 0 ? ' · ' : ' — '}{t('calPayments')}{' '}
-                {Object.entries(selData.paymentTotals).map(([cur, amt]) => `${fmtQRaw(amt)} ${cur}`).join(' · ')}
-                {' '}({selData.paymentCount})
-              </span>
-            )}
-          </div>
-
-          {selData.paymentCount > 0 && (
-            <div className="cal-pay-list">
-              {[...selData.paymentList].sort((a, b) => a.ts - b.ts).map(p => (
-                <div key={p.id} className="cal-pay-row">
-                  <span className="mono" style={{ color: 'var(--muted)' }}>
-                    {new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <span className="cal-pay-who">{p.customer}{p.note ? ` · ${p.note}` : ''}</span>
-                  <span className="mono" style={{ color: 'var(--t2)', fontWeight: 700 }}>
-                    +{fmtQRaw(p.amount)} {p.currency}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {selData.trades > 0 && (
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('time')}</th>
-                  <th className="r">{t('qty')}</th>
-                  <th className="r">{t('avgBuy')}</th>
-                  <th className="r">{t('sell')}</th>
-                  <th className="r">{t('volume')}</th>
-                  <th className="r">{t('net')}</th>
-                  <th className="r">{t('margin')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {selData.tradeList.map((tr: any) => (
-                  <tr key={tr.id}>
-                    <td className="mono">
-                      {tr.isLinked && <span title="Partner deal" style={{ marginRight: 3 }}>🤝</span>}
-                      {new Date(tr.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="mono r">{fmtU(tr.amountUSDT)}</td>
-                    <td className="mono r" style={{ color: 'var(--bad)' }}>{fmtP(tr.avgBuy)}</td>
-                    <td className="mono r" style={{ color: 'var(--good)' }}>{fmtP(tr.sellPriceQAR)}</td>
-                    <td className="mono r">{fmtQ(tr.rev)}</td>
-                    <td className="mono r" style={{ color: tr.net >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                      {(tr.net >= 0 ? '+' : '') + fmtQ(tr.net)}
-                    </td>
-                    <td className="mono r" style={{ color: tr.margin >= 1 ? 'var(--good)' : tr.margin < 0 ? 'var(--bad)' : 'var(--warn)' }}>
-                      {fmtPct(tr.margin)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )}
+      <aside className="tc-card tc-day-panel" aria-label={dateLabel(day)}>
+        <div className="tc-section-heading"><h2>{dateLabel(day)}</h2><div className="tc-navigation"><button type="button" aria-label={t('tcPreviousDay')} onClick={() => moveDay(-1)}><ChevronLeft size={15} /></button><button type="button" aria-label={t('tcNextDay')} onClick={() => moveDay(1)}><ChevronRight size={15} /></button></div></div>
+        <div className={`tc-daily-profit ${selected.profit < 0 ? 'is-loss' : ''}`}><IconBadge icon={TrendingUp} /><div><span>{t('tcDailyProfit')}</span><strong className={selected.profit < 0 ? 'tc-negative' : 'tc-positive'}>{signed(selected.profit)} <small>QAR</small></strong>{dailyChange !== null && <p>{percent(dailyChange)} {t('tcVs')} {new Date(year, month, day - 1).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-US', { month: 'short', day: 'numeric' })}</p>}</div>{bestDay && Number(bestDay[0]) === day && <Trophy className="tc-trophy" size={17} aria-label={t('tcBestDay')} />}<MiniTrend values={selected.tradeList.length ? selected.tradeList.map(tr => tr.net) : [0]} bars /></div>
+        <div className="tc-day-metrics">
+          <div><IconBadge icon={Coins} tone="purple" /><div><span>{t('volume')}</span><strong>{fmtQRaw(selected.volumeQAR)} <small>QAR</small></strong><small>{fmtU(selected.tradeList.reduce((s, tr) => s + tr.amountUSDT, 0))} USDT</small></div></div>
+          <div><IconBadge icon={ArrowLeftRight} tone="blue" /><div><span>{t('trades')}</span><strong>{selected.trades}</strong></div></div>
+          <div><IconBadge icon={Percent} tone="slate" /><div><span>{t('avgMargin')}</span><strong>{percent(detailMargin)}</strong></div></div>
+          <div><IconBadge icon={Target} tone="slate" /><div><span>{t('winRate')}</span><strong>{detailRate.toFixed(0)}%</strong><small>{selected.wins} / {selected.trades} {t('trades')}</small></div></div>
         </div>
-      )}
-      {selectedDay && selData && selData.trades === 0 && selData.paymentCount === 0 && (
-        <div className="cal-detail">
-          <div className="muted" style={{ fontSize: 11, padding: '8px 0' }}>
-            {t('noTradesOnDay')} {mn[month]} {selectedDay}. <button className="rowBtn">{t('logATrade')}</button>
-          </div>
-        </div>
-      )}
+        <div className="tc-trades-heading"><h3>{t('tcTradesOnDay')} ({selected.trades})</h3>{selected.trades > 4 && <button type="button" onClick={() => setShowAll(v => !v)}>{showAll ? t('tcShowLess') : t('tcViewAll')} <span aria-hidden="true">→</span></button>}</div>
+        {!selected.trades && <p className="tc-empty-state">{t('tcNoTrades')}</p>}
+        <div className="tc-trade-list">{visibleTrades.map(tr => <details key={tr.id} className="tc-trade"><summary><IconBadge icon={ArrowDown} tone="red" /><span className="tc-trade-name"><b>{t('sell')} USDT</b><small>{fmtU(tr.amountUSDT)} USDT</small></span><span className="tc-trade-price"><b>{fmtP(tr.sellPriceQAR)}</b><small>{fmtQRaw(tr.rev)} QAR</small></span></summary><div className="tc-trade-expanded"><span>{t('time')}<b>{new Date(tr.ts).toLocaleTimeString(t.lang, { hour: '2-digit', minute: '2-digit' })}</b></span><span>{t('avgBuy')}<b>{fmtP(tr.avgBuy)}</b></span><span>{t('net')}<b className={tr.net < 0 ? 'tc-negative' : 'tc-positive'}>{signed(tr.net)} QAR</b></span><span>{t('margin')}<b>{percent(tr.margin)}</b></span></div></details>)}</div>
+        {!showAll && selected.trades > 4 && <button type="button" className="tc-more-trades" onClick={() => setShowAll(true)}>+{selected.trades - 4} {t('tcMoreTrades')}<ChevronRight size={15} /></button>}
+        {selected.paymentCount > 0 && <section className="tc-payments"><h3>{t('calPayments')} ({selected.paymentCount})</h3>{[...selected.paymentList].sort((a, b) => a.ts - b.ts).map(p => <div className="tc-payment" key={p.id}><IconBadge icon={CreditCard} tone="purple" /><span><b>{p.customer}</b><small>{p.note || t('tcReceived')}</small></span><strong>{fmtQRaw(p.amount)} {p.currency}</strong></div>)}</section>}
+        {!active && <div className="tc-no-activity"><CalendarDays size={30} /><span>{t('tcNoActivity')}</span></div>}
+      </aside>
     </div>
-  );
+
+    <section className="tc-card tc-summary"><div className="tc-section-heading"><h2>{t('tcSummary')} <span>— {monthLabel}</span></h2><div className="tc-chart-tabs"><button type="button" aria-pressed={!cumulative} onClick={() => setCumulative(false)}>{t('tcDailyChart')}</button><button type="button" aria-pressed={cumulative} onClick={() => setCumulative(true)}>{t('tcCumulative')}</button></div></div><div className="tc-summary-body"><div className="tc-chart" role="img" aria-label={`${cumulative ? t('tcCumulative') : t('tcDailyChart')} · ${monthLabel} · ${signed(totalP)} QAR`}>
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        {cumulative ? <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}><CartesianGrid vertical={false} stroke="#edf1f5" /><XAxis dataKey="day" axisLine={false} tickLine={false} minTickGap={28} tick={{ fontSize: 10, fill: '#738198' }} /><YAxis axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${v / 1000}K` : String(v)} tick={{ fontSize: 10, fill: '#738198' }} /><Tooltip formatter={(v: number) => [`${signed(v)} QAR`, t('tcCumulative')]} labelFormatter={d => dateLabel(Number(d))} /><ReferenceLine y={0} stroke="#ced8e0" /><Area dataKey="cumulative" stroke="#08a773" fill="#c9f1e1" strokeWidth={2} isAnimationActive={false} /></AreaChart> : <BarChart data={chartData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}><CartesianGrid vertical={false} stroke="#edf1f5" /><XAxis dataKey="day" axisLine={false} tickLine={false} minTickGap={28} tick={{ fontSize: 10, fill: '#738198' }} /><YAxis axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${v / 1000}K` : String(v)} tick={{ fontSize: 10, fill: '#738198' }} /><Tooltip formatter={(v: number) => [`${signed(v)} QAR`, t('tcDailyProfit')]} labelFormatter={d => dateLabel(Number(d))} cursor={{ fill: '#f0f6f5' }} /><ReferenceLine y={0} stroke="#ced8e0" /><Bar dataKey="profit" maxBarSize={9} radius={[2, 2, 0, 0]} isAnimationActive={false}>{chartData.map(d => <Cell key={d.day} fill={d.profit < 0 ? '#f04465' : '#13b77f'} />)}</Bar></BarChart>}
+      </ResponsiveContainer>{!totalT && <span className="tc-chart-empty">{t('tcNoMonth')}</span>}
+    </div><div className="tc-summary-totals"><div><span>{t('tcTotalProfit')}</span><strong className={totalP < 0 ? 'tc-negative' : 'tc-positive'}>{signed(totalP)} QAR</strong></div><div><span>{t('tcTotalVolume')}</span><strong>{fmtQRaw(totalV)} QAR</strong></div><div><span>{t('totalTrades')}</span><strong>{totalT}</strong></div><div><span>{t('tradingDays')}</span><strong>{tradeDays} / {daysInMonth}</strong></div></div></div></section>
+  </main>;
 }
