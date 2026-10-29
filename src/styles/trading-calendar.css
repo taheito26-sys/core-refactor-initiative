@@ -2,7 +2,7 @@
 .trading-calendar {
   --tc-green: #00a773; --tc-positive: #128447; --tc-red: #ee4265; --tc-text: #10172d; --tc-muted: #64748b;
   color: var(--tc-text); background: #f5f8fc; font-family: 'Inter', sans-serif; font-size: 12px;
-  padding: 18px; min-height: 100%; display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums;
+  padding: 10px; min-height: 100%; display: flex; flex-direction: column; gap: 8px; font-variant-numeric: tabular-nums;
 }
 .trading-calendar * { box-sizing: border-box; }
 .trading-calendar h1, .trading-calendar h2, .trading-calendar h3, .trading-calendar p { margin: 0; }
@@ -10,21 +10,21 @@
 .trading-calendar button:focus-visible, .tc-month-picker:focus-within, .tc-trade summary:focus-visible { outline: 2px solid var(--tc-green); outline-offset: 3px; }
 .trading-calendar button, .tc-card, .tc-month-picker, .tc-monthly { -webkit-tap-highlight-color: transparent; }
 .trading-calendar button:hover { filter: brightness(.97); }
-.tc-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 4px 4px; }
-.tc-heading h1 { font-size: clamp(23px, 3.5vw, 30px); font-weight: 800; line-height: 1.2; letter-spacing: -.9px; }
-.tc-heading p { color: var(--tc-muted); margin-top: 4px; font-size: 14px; }
-.tc-heading-tools { display: flex; gap: 12px; flex-shrink: 0; }
-.tc-month-picker, .tc-monthly { display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: 12px; padding: 13px 16px; font-weight: 700; background: #fff; border: 1px solid #eef2f6; box-shadow: 0 3px 8px #233a4e03; }
+.tc-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin: 0 2px 2px; }
+.tc-heading h1 { font-size: clamp(20px, 2.7vw, 24px); font-weight: 800; line-height: 1.2; letter-spacing: -.9px; }
+.tc-heading p { color: var(--tc-muted); margin-top: 3px; font-size: 11px; }
+.tc-heading-tools { display: flex; gap: 7px; flex-shrink: 0; }
+.tc-month-picker, .tc-monthly { display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 9px; padding: 8px 11px; font-weight: 700; background: #fff; border: 1px solid #eef2f6; box-shadow: 0 3px 8px #233a4e03; }
 .tc-month-picker { position: relative; cursor: pointer; }
 .tc-month-picker svg { color: #425873; }
 .tc-month-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .tc-month-picker input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
 .tc-monthly { background: #e4f7ef; color: #185c49; }
-.tc-card { background: #fff; border: 1px solid #edf1f6; border-radius: 12px; box-shadow: 0 2px 6px #27374b02; min-width: 0; }
+.tc-card { background: #fff; border: 1px solid #edf1f6; border-radius: 9px; box-shadow: 0 2px 6px #27374b02; min-width: 0; }
 .tc-metrics-top { display: grid; grid-template-columns: 1.42fr .96fr 1fr; gap: 10px; }
 .tc-metrics-bottom { display: grid; grid-template-columns: 1.18fr .88fr 1fr 1fr; gap: 10px; }
-.tc-metric { display: flex; align-items: flex-start; gap: 9px; padding: 10px; min-height: 102px; position: relative; overflow: hidden; }
-.tc-icon { height: 32px; width: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: #e1f8ed; color: #08a873; }
+.tc-metric { display: flex; align-items: flex-start; gap: 7px; padding: 8px; min-height: 85px; position: relative; overflow: hidden; }
+.tc-icon { height: 26px; width: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: #e1f8ed; color: #08a873; }
 .tc-icon-blue { background: #edf2ff; color: #4289ef; }
 .tc-icon-purple { background: #f2eaff; color: #8739e5; }
 .tc-icon-orange { background: #fff2e5; color: #f09736; }
@@ -32,10 +32,10 @@
 .tc-icon-red { background: #ffedf1; color: #f04465; }
 .tc-metric > .tc-icon { width: 27px; height: 27px; border-radius: 8px; }
 .tc-metric > .tc-icon svg { width: 16px; height: 16px; }
-.tc-metric-body { min-width: 0; flex: 1; padding-top: 3px; }
-.tc-metric h2 { color: #465772; font-size: 11px; line-height: 1.3; font-weight: 600; margin-bottom: 6px; }
-.tc-value { display: block; font-size: clamp(18px, 2.1vw, 22px); letter-spacing: -.65px; font-weight: 800; line-height: 1.2; white-space: nowrap; position: relative; z-index: 1; }
-.tc-value-xl { font-size: clamp(21px, 2.7vw, 26px); }
+.tc-metric-body { min-width: 0; flex: 1; padding-top: 1px; }
+.tc-metric h2 { color: #465772; font-size: 10px; line-height: 1.3; font-weight: 600; margin-bottom: 4px; }
+.tc-value { display: block; font-size: clamp(16px, 1.8vw, 20px); letter-spacing: -.65px; font-weight: 800; line-height: 1.2; white-space: nowrap; position: relative; z-index: 1; }
+.tc-value-xl { font-size: clamp(19px, 2.2vw, 23px); }
 .tc-value small { font-size: .56em; letter-spacing: -.2px; color: var(--tc-text); }
 .tc-positive { color: var(--tc-positive); }
 .tc-negative { color: var(--tc-red); }
@@ -61,29 +61,29 @@
 .tc-extremes small { font-size: 9px; color: #7f8d9c; }
 .tc-win-card .tc-metric-body { text-align: center; }
 .tc-win-card h2 { text-align: start; }
-.tc-ring { height: 49px; width: 49px; border-radius: 50%; padding: 5px; margin: -3px auto 0; }
+.tc-ring { height: 42px; width: 42px; border-radius: 50%; padding: 5px; margin: -3px auto 0; }
 .tc-ring strong { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; height: 100%; width: 100%; font-size: 14px; letter-spacing: -.4px; }
 .tc-win-card p { justify-content: center; margin-top: 4px; }
 .tc-workspace { display: grid; grid-template-columns: minmax(0, 2.22fr) minmax(235px, 1fr); gap: 10px; align-items: stretch; }
-.tc-calendar-panel { padding: 12px 10px 14px; }
+.tc-calendar-panel { padding: 9px 8px 10px; }
 .tc-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.tc-section-heading h2 { font-size: 17px; line-height: 1.35; font-weight: 750; letter-spacing: -.4px; }
+.tc-section-heading h2 { font-size: 14px; line-height: 1.35; font-weight: 750; letter-spacing: -.4px; }
 .tc-calendar-panel > .tc-section-heading { padding: 0 5px; }
 .tc-navigation { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
-.tc-navigation button { min-width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e9edf2; border-radius: 7px; background: #fff; color: #26364e; padding: 0 9px; font-size: 10px; font-weight: 650; }
+.tc-navigation button { min-width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e9edf2; border-radius: 7px; background: #fff; color: #26364e; padding: 0 9px; font-size: 10px; font-weight: 650; }
 .tc-navigation button:has(svg) { padding: 0; }
-.tc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 11px 5px 13px; }
+.tc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 3px 9px; }
 .tc-filters, .tc-display-options, .tc-chart-tabs { display: flex; gap: 5px; align-items: center; }
-.tc-filters button, .tc-display-options button, .tc-chart-tabs button { border: 0; border-radius: 7px; padding: 8px 10px; background: #f2f4f8; color: #4d5b72; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.tc-filters button, .tc-display-options button, .tc-chart-tabs button { border: 0; border-radius: 7px; padding: 6px 8px; background: #f2f4f8; color: #4d5b72; font-size: 10px; font-weight: 650; white-space: nowrap; }
 .tc-filters button.is-active { color: #fff; background: linear-gradient(115deg, #08bd83, #009a6a); }
 .tc-filters .tc-loss-filter:not(.is-active) { background: #ffedf1; color: #e94364; }
 .tc-display-options { gap: 4px; }
 .tc-display-options button { font-size: 8px; padding: 7px 6px; }
 .tc-display-options button[aria-pressed='true'], .tc-chart-tabs button[aria-pressed='true'] { background: #e7f9f0; color: #128958; }
-.tc-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-bottom: 9px; text-align: center; font-size: 10px; font-weight: 600; color: #5a6a80; }
+.tc-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-bottom: 6px; text-align: center; font-size: 10px; font-weight: 600; color: #5a6a80; }
 .tc-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
-.tc-day { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 81px; padding: 6px 3px 5px; border-radius: 8px; border: 1px solid transparent; background: #f4f6f8; text-align: center; color: var(--tc-text); transition: opacity .15s ease, box-shadow .15s ease; overflow: hidden; }
-.tc-day-number { align-self: flex-start; margin-inline-start: 6px; margin-bottom: 5px; font-size: 10px; font-weight: 750; }
+.tc-day { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 62px; padding: 4px 3px; border-radius: 8px; border: 1px solid transparent; background: #f4f6f8; text-align: center; color: var(--tc-text); transition: opacity .15s ease, box-shadow .15s ease; overflow: hidden; }
+.tc-day-number { align-self: flex-start; margin-inline-start: 4px; margin-bottom: 3px; font-size: 10px; font-weight: 750; }
 .tc-day strong { font-size: clamp(10px, 1.45vw, 13px); line-height: 1.3; letter-spacing: -.3px; }
 .tc-day-volume { color: #667a88; font-size: 9px; margin-top: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .tc-day-volume small { font-size: 7px; }
@@ -98,18 +98,18 @@
 .tc-day.is-filtered { opacity: .24; }
 .tc-day.is-filtered.is-selected { opacity: .65; }
 .tc-day-empty { opacity: .7; }
-.tc-day-panel { padding: 12px 10px; }
+.tc-day-panel { padding: 9px 8px; }
 .tc-day-panel .tc-section-heading h2 { font-size: 14px; }
 .tc-day-panel .tc-navigation { gap: 5px; }
-.tc-daily-profit { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px; margin: 12px 0; min-height: 88px; background: linear-gradient(110deg, #effcf4, #f3fff9); border: 1px solid #e3f5e9; border-radius: 9px; position: relative; overflow: hidden; }
+.tc-daily-profit { display: flex; align-items: flex-start; gap: 6px; padding: 8px 6px; margin: 8px 0; min-height: 65px; background: linear-gradient(110deg, #effcf4, #f3fff9); border: 1px solid #e3f5e9; border-radius: 9px; position: relative; overflow: hidden; }
 .tc-daily-profit.is-loss { background: #fff2f4; border-color: #ffe4e9; }
 .tc-daily-profit span { font-size: 10px; color: #506077; }
-.tc-daily-profit strong { display: block; font-size: 21px; white-space: nowrap; line-height: 1.4; position: relative; z-index: 1; letter-spacing: -.5px; }
+.tc-daily-profit strong { display: block; font-size: 18px; white-space: nowrap; line-height: 1.3; position: relative; z-index: 1; letter-spacing: -.5px; }
 .tc-daily-profit strong small { font-size: 16px; }
 .tc-daily-profit p { font-size: 9px; color: #448570; margin-top: 4px; position: relative; z-index: 1; }
 .tc-daily-profit .tc-mini { width: 66px; height: 42px; bottom: 0; inset-inline-end: 5px; opacity: .6; }
 .tc-trophy { position: absolute; top: 10px; inset-inline-end: 10px; color: #e7ad17; }
-.tc-day-metrics { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px 10px; padding: 0 2px 17px; border-bottom: 1px solid #f1f3f6; }
+.tc-day-metrics { display: grid; grid-template-columns: 1.15fr 1fr; gap: 11px 8px; padding: 0 2px 11px; border-bottom: 1px solid #f1f3f6; }
 .tc-day-metrics > div { display: flex; gap: 8px; min-width: 0; }
 .tc-day-metrics .tc-icon { width: 27px; height: 27px; border-radius: 9px; }
 .tc-day-metrics .tc-icon svg { width: 17px; }
@@ -117,13 +117,13 @@
 .tc-day-metrics strong { display: block; font-size: 13px; white-space: nowrap; }
 .tc-day-metrics small { display: block; font-size: 8px; color: #748398; margin-top: 4px; }
 .tc-day-metrics strong small { display: inline; margin: 0; }
-.tc-trades-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 13px 0 5px; }
+.tc-trades-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 9px 0 4px; }
 .tc-trades-heading h3, .tc-payments h3 { font-size: 11px; font-weight: 700; }
 .tc-trades-heading button { border: 1px solid #e9edf2; border-radius: 7px; padding: 5px 7px; background: #fff; font-size: 9px; color: #465875; }
 .tc-trade { border-bottom: 1px solid #f0f3f5; }
-.tc-trade summary { display: flex; align-items: center; gap: 8px; padding: 9px 0; list-style: none; cursor: pointer; }
+.tc-trade summary { display: flex; align-items: center; gap: 6px; padding: 6px 0; list-style: none; cursor: pointer; }
 .tc-trade summary::-webkit-details-marker { display: none; }
-.tc-trade .tc-icon { width: 29px; height: 29px; }
+.tc-trade .tc-icon { width: 25px; height: 25px; }
 .tc-trade-name { min-width: 0; flex: 1; }
 .tc-trade-name b, .tc-trade-price b { display: block; font-size: 10px; font-weight: 650; }
 .tc-trade-name small, .tc-trade-price small { display: block; font-size: 9px; margin-top: 5px; color: #64748b; }
@@ -132,23 +132,23 @@
 .tc-trade-expanded { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 6px; background: #f7f9fc; border-radius: 7px; }
 .tc-trade-expanded span { font-size: 9px; color: #64748b; }
 .tc-trade-expanded b { display: block; margin-top: 4px; }
-.tc-more-trades { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; color: #476ba4; padding: 12px 4px 0; text-align: start; font-size: 10px !important; }
-.tc-empty-state { font-size: 11px; color: #7a889b; padding: 18px 0; text-align: center; }
-.tc-no-activity { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9aaabc; min-height: 90px; }
-.tc-payments { margin-top: 15px; }
-.tc-payment { display: flex; align-items: center; gap: 7px; padding: 10px 0; border-bottom: 1px solid #f0f3f5; }
+.tc-more-trades { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; color: #476ba4; padding: 8px 3px 0; text-align: start; font-size: 10px !important; }
+.tc-empty-state { font-size: 11px; color: #7a889b; padding: 11px 0; text-align: center; }
+.tc-no-activity { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #9aaabc; min-height: 55px; }
+.tc-payments { margin-top: 10px; }
+.tc-payment { display: flex; align-items: center; gap: 6px; padding: 7px 0; border-bottom: 1px solid #f0f3f5; }
 .tc-payment > span { flex: 1; min-width: 0; }
 .tc-payment b, .tc-payment strong { font-size: 10px; overflow-wrap: anywhere; }
 .tc-payment small { display: block; font-size: 9px; color: #748398; margin-top: 4px; }
-.tc-summary { padding: 13px 15px; }
-.tc-summary .tc-section-heading h2 { font-size: 15px; }
+.tc-summary { padding: 9px 10px; }
+.tc-summary .tc-section-heading h2 { font-size: 13px; }
 .tc-chart-tabs button { font-size: 9px; padding: 7px 11px; }
 .tc-chart-tabs button[aria-pressed='true']::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981; margin-inline-end: 5px; }
-.tc-summary-body { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(205px, 1fr); gap: 15px; margin-top: 10px; }
-.tc-chart { height: 118px; min-width: 0; position: relative; direction: ltr; }
+.tc-summary-body { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(205px, 1fr); gap: 10px; margin-top: 7px; }
+.tc-chart { height: 100px; min-width: 0; position: relative; direction: ltr; }
 .tc-chart-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #7a889b; pointer-events: none; }
 .tc-summary-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.tc-summary-totals > div { padding: 9px; background: #f6f8fb; border-radius: 7px; }
+.tc-summary-totals > div { padding: 6px; background: #f6f8fb; border-radius: 7px; }
 .tc-summary-totals span { display: block; font-size: 9px; color: #6c7c91; margin-bottom: 5px; }
 .tc-summary-totals strong { display: block; font-size: 11px; white-space: nowrap; }
 .trading-calendar[dir='rtl'] .tc-navigation svg { transform: rotate(180deg); }
@@ -159,75 +159,75 @@
 .app-shell:has(.trading-calendar) .mobile-bottom-nav__item { color: #63738b; }
 .app-shell:has(.trading-calendar) .mobile-bottom-nav__item.is-active { background: #e6f9f0; color: #049767; border-radius: 14px; }
 @media (min-width: 1100px) {
-  .trading-calendar { padding: 24px; gap: 16px; }
-  .tc-metric { min-height: 110px; padding: 12px; }
-  .tc-day { min-height: 99px; }
-  .tc-day strong { font-size: 15px; }
-  .tc-day-volume { font-size: 11px; }
-  .tc-day-count { font-size: 10px; }
-  .tc-workspace { grid-template-columns: minmax(0, 2.3fr) minmax(275px, 1fr); gap: 14px; }
-  .tc-toolbar { margin-top: 15px; margin-bottom: 18px; }
+  .trading-calendar { padding: 14px; gap: 9px; }
+  .tc-metric { min-height: 90px; padding: 9px; }
+  .tc-day { min-height: 70px; }
+  .tc-day strong { font-size: 12px; }
+  .tc-day-volume { font-size: 9px; }
+  .tc-day-count { font-size: 8px; }
+  .tc-workspace { grid-template-columns: minmax(0, 2.3fr) minmax(275px, 1fr); gap: 9px; }
+  .tc-toolbar { margin-top: 9px; margin-bottom: 10px; }
   .tc-filters button { font-size: 11px; }
   .tc-display-options button { font-size: 10px; }
-  .tc-trade summary { padding: 13px 0; }
-  .tc-day-panel { padding: 16px; }
-  .tc-chart { height: 150px; }
+  .tc-trade summary { padding: 8px 0; }
+  .tc-day-panel { padding: 10px; }
+  .tc-chart { height: 105px; }
 }
 @media (max-width: 900px) {
   .tc-heading { flex-wrap: wrap; }
   .tc-heading-tools { margin-inline-start: auto; }
-  .tc-heading h1 { font-size: 26px; }
+  .tc-heading h1 { font-size: 22px; }
 }
 @media (min-width: 740px) and (max-width: 1020px) {
   .tc-toolbar { flex-wrap: wrap; }
   .tc-display-options { margin-inline-start: auto; }
 }
 @media (max-width: 739px) {
-  .trading-calendar { padding: 12px; gap: 10px; }
-  .tc-heading { margin: 3px 1px; gap: 12px; }
-  .tc-heading h1 { font-size: 25px; }
-  .tc-heading p { font-size: 11px; }
+  .trading-calendar { padding: 8px; gap: 7px; }
+  .tc-heading { margin: 2px 1px; gap: 7px; }
+  .tc-heading h1 { font-size: 21px; }
+  .tc-heading p { font-size: 10px; }
   .tc-heading-tools { width: 100%; justify-content: space-between; }
-  .tc-month-picker, .tc-monthly { padding: 10px 13px; font-size: 11px; }
+  .tc-month-picker, .tc-monthly { padding: 7px 10px; font-size: 10px; }
   .tc-metrics-top { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metrics-top > :first-child { grid-column: 1 / -1; min-height: 86px; }
+  .tc-metrics-top > :first-child { grid-column: 1 / -1; min-height: 68px; }
   .tc-metrics-bottom { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metric { padding: 8px; gap: 7px; min-height: 92px; }
+  .tc-metric { padding: 7px; gap: 6px; min-height: 78px; }
   .tc-metric h2 { font-size: 10px; }
   .tc-metric .tc-icon { width: 27px; height: 27px; }
-  .tc-value { font-size: 19px; }
-  .tc-value-xl { font-size: 24px; }
+  .tc-value { font-size: 17px; }
+  .tc-value-xl { font-size: 21px; }
   .tc-metric p { font-size: 9px; }
   .tc-metric .tc-mini { width: 54px; height: 30px; opacity: .4; }
   .tc-profit-card .tc-mini { width: 90px; height: 47px; opacity: .8; }
   .tc-extremes { margin-inline-start: -35px; }
   .tc-workspace { grid-template-columns: 1fr; }
-  .tc-toolbar { flex-wrap: wrap; margin: 12px 0; }
+  .tc-toolbar { flex-wrap: wrap; margin: 8px 0; }
   .tc-filters { gap: 4px; width: 100%; }
-  .tc-filters button { padding: 8px 9px; flex: 1; font-size: 9px; }
+  .tc-filters button { padding: 6px 7px; flex: 1; font-size: 9px; }
   .tc-display-options { margin-inline-start: auto; }
   .tc-display-options button { font-size: 9px; }
-  .tc-section-heading h2 { font-size: 16px; }
+  .tc-section-heading h2 { font-size: 14px; }
   .tc-days { gap: 4px; }
-  .tc-day { min-height: 77px; padding: 5px 2px; }
+  .tc-day { min-height: 59px; padding: 4px 2px; }
   .tc-day strong { font-size: 10px; }
   .tc-day-number { margin-inline-start: 3px; font-size: 10px; }
   .tc-day-volume { font-size: 8px; }
   .tc-day-count { font-size: 7px; }
-  .tc-day-panel { padding: 14px; }
-  .tc-day-panel .tc-section-heading h2 { font-size: 16px; }
-  .tc-daily-profit strong { font-size: 25px; }
-  .tc-day-metrics { gap: 18px; padding-top: 5px; }
-  .tc-day-metrics strong { font-size: 16px; }
-  .tc-day-metrics span:not(.tc-icon) { font-size: 11px; }
-  .tc-trade summary { padding: 12px 0; }
-  .tc-trade-name b, .tc-trade-price b { font-size: 12px; }
+  .tc-day-panel { padding: 10px; }
+  .tc-day-panel .tc-section-heading h2 { font-size: 14px; }
+  .tc-daily-profit strong { font-size: 19px; }
+  .tc-day-metrics { gap: 11px; padding-top: 3px; }
+  .tc-day-metrics strong { font-size: 13px; }
+  .tc-day-metrics span:not(.tc-icon) { font-size: 10px; }
+  .tc-trade summary { padding: 7px 0; }
+  .tc-trade-name b, .tc-trade-price b { font-size: 11px; }
   .tc-trade-name small, .tc-trade-price small { font-size: 10px; }
-  .tc-summary { padding: 12px; }
-  .tc-summary > .tc-section-heading { flex-wrap: wrap; gap: 10px; }
+  .tc-summary { padding: 9px; }
+  .tc-summary > .tc-section-heading { flex-wrap: wrap; gap: 7px; }
   .tc-summary .tc-section-heading h2 { font-size: 14px; }
   .tc-summary-body { grid-template-columns: 1fr; }
-  .tc-chart { height: 150px; }
+  .tc-chart { height: 105px; }
   .tc-summary-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .tc-day { transition: none; } }
