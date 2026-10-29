@@ -23,43 +23,46 @@
 .tc-card { background: #fff; border: 1px solid #edf1f6; border-radius: 12px; box-shadow: 0 2px 6px #27374b02; min-width: 0; }
 .tc-metrics-top { display: grid; grid-template-columns: 1.42fr .96fr 1fr; gap: 10px; }
 .tc-metrics-bottom { display: grid; grid-template-columns: 1.18fr .88fr 1fr 1fr; gap: 10px; }
-.tc-metric { display: flex; align-items: flex-start; gap: 12px; padding: 13px; min-height: 125px; position: relative; overflow: hidden; }
+.tc-metric { display: flex; align-items: flex-start; gap: 9px; padding: 10px; min-height: 102px; position: relative; overflow: hidden; }
 .tc-icon { height: 32px; width: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: #e1f8ed; color: #08a873; }
 .tc-icon-blue { background: #edf2ff; color: #4289ef; }
 .tc-icon-purple { background: #f2eaff; color: #8739e5; }
 .tc-icon-orange { background: #fff2e5; color: #f09736; }
 .tc-icon-slate { background: #edf1f5; color: #526780; }
 .tc-icon-red { background: #ffedf1; color: #f04465; }
-.tc-metric-body { min-width: 0; flex: 1; padding-top: 6px; }
-.tc-metric h2 { color: #465772; font-size: 11px; line-height: 1.3; font-weight: 600; margin-bottom: 10px; }
-.tc-value { display: block; font-size: clamp(19px, 2.4vw, 25px); letter-spacing: -.65px; font-weight: 800; line-height: 1.2; white-space: nowrap; position: relative; z-index: 1; }
-.tc-value-xl { font-size: clamp(24px, 3.2vw, 30px); }
+.tc-metric > .tc-icon { width: 27px; height: 27px; border-radius: 8px; }
+.tc-metric > .tc-icon svg { width: 16px; height: 16px; }
+.tc-metric-body { min-width: 0; flex: 1; padding-top: 3px; }
+.tc-metric h2 { color: #465772; font-size: 11px; line-height: 1.3; font-weight: 600; margin-bottom: 6px; }
+.tc-value { display: block; font-size: clamp(18px, 2.1vw, 22px); letter-spacing: -.65px; font-weight: 800; line-height: 1.2; white-space: nowrap; position: relative; z-index: 1; }
+.tc-value-xl { font-size: clamp(21px, 2.7vw, 26px); }
 .tc-value small { font-size: .56em; letter-spacing: -.2px; color: var(--tc-text); }
 .tc-positive { color: var(--tc-positive); }
 .tc-negative { color: var(--tc-red); }
 .tc-muted { color: var(--tc-muted) !important; }
-.tc-metric p { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; margin-top: 8px; color: var(--tc-muted); font-size: 10px; position: relative; z-index: 1; }
+.tc-metric p { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; margin-top: 5px; color: var(--tc-muted); font-size: 10px; position: relative; z-index: 1; }
 .tc-metric p.tc-positive { color: var(--tc-positive); }
 .tc-metric p.tc-negative { color: var(--tc-red); }
 .tc-profit-card { background: linear-gradient(110deg, #f3fdf8, #f7fffc); }
 .tc-mini { position: absolute; bottom: 9px; inset-inline-end: 12px; width: 90px; height: 56px; color: #09ab77; pointer-events: none; opacity: .8; }
 .tc-mini-blue { color: #4f83f4; }
 .tc-mini-purple { color: #8d47ef; }
-.tc-profit-card .tc-mini { width: 106px; height: 66px; }
+.tc-metric .tc-mini { width: 72px; height: 42px; }
+.tc-profit-card .tc-mini { width: 88px; height: 50px; }
 .tc-profit-card p { max-width: 75%; }
 .tc-trading-days { gap: 10px; }
 .tc-trading-days .tc-metric-body { padding-top: 0; }
 .tc-trading-days h2 { margin-bottom: 5px; }
-.tc-extremes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; margin-inline-start: -42px; }
-.tc-extremes > div { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; border-radius: 7px; background: #f1fbf6; }
+.tc-extremes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; margin-inline-start: -37px; }
+.tc-extremes > div { display: flex; flex-direction: column; gap: 1px; padding: 4px 7px; border-radius: 7px; background: #f1fbf6; }
 .tc-extremes > div + div { background: #fff5f6; }
 .tc-extremes span { font-size: 9px; color: #50607a; }
 .tc-extremes b { font-size: 12px; }
 .tc-extremes small { font-size: 9px; color: #7f8d9c; }
 .tc-win-card .tc-metric-body { text-align: center; }
 .tc-win-card h2 { text-align: start; }
-.tc-ring { height: 67px; width: 67px; border-radius: 50%; padding: 6px; margin: -3px auto 0; }
-.tc-ring strong { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; height: 100%; width: 100%; font-size: 18px; letter-spacing: -.6px; }
+.tc-ring { height: 49px; width: 49px; border-radius: 50%; padding: 5px; margin: -3px auto 0; }
+.tc-ring strong { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; height: 100%; width: 100%; font-size: 14px; letter-spacing: -.4px; }
 .tc-win-card p { justify-content: center; margin-top: 4px; }
 .tc-workspace { display: grid; grid-template-columns: minmax(0, 2.22fr) minmax(235px, 1fr); gap: 10px; align-items: stretch; }
 .tc-calendar-panel { padding: 12px 10px 14px; }
@@ -157,7 +160,7 @@
 .app-shell:has(.trading-calendar) .mobile-bottom-nav__item.is-active { background: #e6f9f0; color: #049767; border-radius: 14px; }
 @media (min-width: 1100px) {
   .trading-calendar { padding: 24px; gap: 16px; }
-  .tc-metric { min-height: 140px; padding: 17px; }
+  .tc-metric { min-height: 110px; padding: 12px; }
   .tc-day { min-height: 99px; }
   .tc-day strong { font-size: 15px; }
   .tc-day-volume { font-size: 11px; }
@@ -187,16 +190,16 @@
   .tc-heading-tools { width: 100%; justify-content: space-between; }
   .tc-month-picker, .tc-monthly { padding: 10px 13px; font-size: 11px; }
   .tc-metrics-top { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metrics-top > :first-child { grid-column: 1 / -1; min-height: 112px; }
+  .tc-metrics-top > :first-child { grid-column: 1 / -1; min-height: 86px; }
   .tc-metrics-bottom { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metric { padding: 10px; gap: 8px; min-height: 116px; }
+  .tc-metric { padding: 8px; gap: 7px; min-height: 92px; }
   .tc-metric h2 { font-size: 10px; }
   .tc-metric .tc-icon { width: 27px; height: 27px; }
-  .tc-value { font-size: 21px; }
-  .tc-value-xl { font-size: 28px; }
+  .tc-value { font-size: 19px; }
+  .tc-value-xl { font-size: 24px; }
   .tc-metric p { font-size: 9px; }
-  .tc-metric .tc-mini { width: 65px; height: 40px; opacity: .45; }
-  .tc-profit-card .tc-mini { width: 120px; height: 66px; opacity: .85; }
+  .tc-metric .tc-mini { width: 54px; height: 30px; opacity: .4; }
+  .tc-profit-card .tc-mini { width: 90px; height: 47px; opacity: .8; }
   .tc-extremes { margin-inline-start: -35px; }
   .tc-workspace { grid-template-columns: 1fr; }
   .tc-toolbar { flex-wrap: wrap; margin: 12px 0; }
