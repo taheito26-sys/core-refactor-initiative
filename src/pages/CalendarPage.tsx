@@ -88,6 +88,7 @@ export default function CalendarPage() {
       <span className="tc-monthly"><TrendingUp size={19} />{t('tcMonthly')}</span>
     </div></header>
 
+    <div className="tc-metrics">
     <section className="tc-metrics-top" aria-label={t('tcSummary')}>
       <Metric icon={BarChart3} label={t('monthlyProfit')} className="tc-profit-card"><strong className={`tc-value tc-value-xl ${totalP < 0 ? 'tc-negative' : 'tc-positive'}`}>{signed(totalP)} <small>QAR</small></strong><p className={profitChange !== null && profitChange < 0 ? 'tc-negative' : 'tc-positive'}>{profitChange !== null && (profitChange < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}{changeLabel}</p><MiniTrend values={profitTrend} /></Metric>
       <Metric icon={Network} tone="blue" label={t('totalTrades')}><strong className="tc-value tc-value-xl">{totalT}</strong><p>{signed(totalT - previous.totalT)} {t('tcLastMonth')}</p><MiniTrend values={tradeTrend.length ? tradeTrend : [0]} bars tone="blue" /></Metric>
@@ -99,6 +100,8 @@ export default function CalendarPage() {
       <Metric icon={Percent} label={t('avgMargin')}><strong className="tc-value">{percent(avgMargin)}</strong><p className="tc-positive">{t('tcLastMonth')} {percent(avgMargin - previous.avgMargin)}</p><MiniTrend values={Object.values(mData).map(d => d.trades ? d.marginSum / d.trades : 0)} /></Metric>
       <Metric icon={CreditCard} tone="purple" label={t('calPayments')}><strong className="tc-value">{fmtQRaw(monthPayLead?.amount ?? 0)} <small>{monthPayLead?.currency ?? 'QAR'}</small></strong><p>{totalPayCount} {t('calPaymentsReceived')}</p>{monthPayLead?.others.map(p => <p key={p.currency}>{fmtQRaw(p.amount)} {p.currency}</p>)}</Metric>
     </section>
+
+    </div>
 
     <div className="tc-workspace">
       <section className="tc-card tc-calendar-panel" aria-label={monthLabel}>

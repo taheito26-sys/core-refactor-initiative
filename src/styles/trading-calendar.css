@@ -175,76 +175,124 @@
 .app-shell:has(.trading-calendar) .mobile-bottom-nav { background: var(--tracker-card-bg); border-color: var(--tracker-line); }
 .app-shell:has(.trading-calendar) .mobile-bottom-nav__item { color: var(--tracker-muted); }
 .app-shell:has(.trading-calendar) .mobile-bottom-nav__item.is-active { background: var(--tracker-brand3); color: var(--tracker-brand); border-radius: 14px; }
-@media (min-width: 1100px) {
-  .trading-calendar { padding: 14px; gap: 9px; }
-  .tc-metric { min-height: 90px; padding: 9px; }
-  .tc-day { min-height: 70px; }
-  .tc-day strong { font-size: 12px; }
-  .tc-day-volume { font-size: 9px; }
-  .tc-day-count { font-size: 8px; }
-  .tc-workspace { grid-template-columns: minmax(0, 2.3fr) minmax(275px, 1fr); gap: 9px; }
-  .tc-toolbar { margin-top: 9px; margin-bottom: 10px; }
-  .tc-filters button { font-size: 11px; }
-  .tc-display-options button { font-size: 10px; }
-  .tc-trade summary { padding: 8px 0; }
-  .tc-day-panel { padding: 10px; }
-  .tc-chart { height: 105px; }
-}
-@media (max-width: 900px) {
-  .tc-heading { flex-wrap: wrap; }
-  .tc-heading-tools { margin-inline-start: auto; }
-  .tc-heading h1 { font-size: 22px; }
-}
-@media (min-width: 740px) and (max-width: 1020px) {
-  .tc-toolbar { flex-wrap: wrap; }
-  .tc-display-options { margin-inline-start: auto; }
+/* Dense layout: keep information together instead of stacking oversized cards. */
+.trading-calendar { padding: 6px; gap: 5px; font-size: 11px; line-height: 1.2; }
+.tc-heading { gap: 6px; margin: 0; }
+.tc-heading h1 { font-size: 17px; letter-spacing: -.4px; }
+.tc-heading p { font-size: 10px; margin-top: 2px; }
+.tc-heading-tools { gap: 4px; }
+.tc-month-picker, .tc-monthly { padding: 5px 7px; font-size: 10px; gap: 5px; border-radius: 6px; }
+.tc-heading-tools svg { width: 14px; height: 14px; }
+.tc-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.tc-metrics-top, .tc-metrics-bottom { display: contents; }
+.tc-metric { min-height: 0; padding: 6px; gap: 5px; border-radius: 6px; align-items: flex-start; }
+.tc-metric > .tc-icon { width: 18px; height: 18px; border-radius: 5px; }
+.tc-metric > .tc-icon svg { width: 12px; height: 12px; }
+.tc-metric-body { padding: 0; }
+.tc-metric h2 { font-size: 9px; margin-bottom: 3px; line-height: 1.15; }
+.tc-value, .tc-value-xl { font-size: 16px; line-height: 1.1; letter-spacing: -.4px; }
+.tc-value small { font-size: 8px; }
+.tc-metric p { font-size: 8px; line-height: 1.15; margin-top: 3px; gap: 2px; }
+.tc-profit-card p { max-width: none; }
+.tc-metric .tc-mini { display: none; }
+.tc-extremes { margin: 4px 0 0; gap: 4px; }
+.tc-extremes > div { padding: 2px 3px; gap: 0; }
+.tc-extremes span, .tc-extremes small { font-size: 8px; line-height: 1.1; }
+.tc-extremes b { font-size: 10px; line-height: 1.1; }
+.tc-win-card .tc-metric-body, .tc-win-card h2 { text-align: start; }
+.tc-ring { width: auto; height: auto; padding: 0; margin: 0; background: none !important; }
+.tc-ring strong { display: block; background: none; font-size: 16px; line-height: 1.1; }
+.tc-win-card p { justify-content: flex-start; }
+.tc-workspace { gap: 5px; align-items: start; grid-template-columns: minmax(0, 2.3fr) minmax(210px, 1fr); }
+.tc-card { border-radius: 6px; }
+.tc-calendar-panel, .tc-day-panel, .tc-summary { padding: 6px; }
+.tc-section-heading h2, .tc-day-panel .tc-section-heading h2, .tc-summary .tc-section-heading h2 { font-size: 12px; }
+.tc-calendar-panel > .tc-section-heading { padding: 0; }
+.tc-navigation { gap: 3px; }
+.tc-navigation button { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 5px; font-size: 9px; }
+.tc-toolbar { margin: 5px 0; gap: 4px; flex-wrap: wrap; }
+.tc-filters, .tc-display-options, .tc-chart-tabs { gap: 3px; }
+.tc-filters button, .tc-display-options button, .tc-chart-tabs button { font-size: 9px; line-height: 1.15; padding: 5px 6px; border-radius: 4px; }
+.tc-display-options { margin-inline-start: auto; }
+.tc-weekdays { font-size: 9px; margin-bottom: 4px; }
+.tc-days { gap: 3px; }
+.tc-day { height: 51px; min-height: 0; padding: 3px 2px; border-radius: 5px; gap: 1px; }
+.tc-day-number { font-size: 9px; line-height: 1; margin: 0; margin-inline-start: 2px; }
+.tc-day strong { font-size: 10px; line-height: 1.1; }
+.tc-day-volume { font-size: 8px; line-height: 1.1; margin-top: 0; }
+.tc-day-count { font-size: 8px; line-height: 1.1; margin-top: 0; }
+.tc-daily-profit { min-height: 0; padding: 6px; margin: 6px 0; border-radius: 5px; }
+.tc-daily-profit > .tc-icon { width: 22px; height: 22px; }
+.tc-daily-profit strong { font-size: 17px; line-height: 1.15; }
+.tc-daily-profit strong small { font-size: 11px; }
+.tc-daily-profit p { font-size: 8px; margin-top: 2px; }
+.tc-daily-profit .tc-mini { height: 28px; width: 45px; }
+.tc-day-metrics { gap: 7px 5px; padding: 0 0 7px; }
+.tc-day-metrics > div { gap: 4px; }
+.tc-day-metrics .tc-icon { width: 20px; height: 20px; border-radius: 5px; }
+.tc-day-metrics .tc-icon svg { width: 13px; height: 13px; }
+.tc-day-metrics span:not(.tc-icon) { font-size: 8px; line-height: 1.1; margin-bottom: 3px; }
+.tc-day-metrics strong { font-size: 11px; line-height: 1.15; }
+.tc-day-metrics small { font-size: 8px; margin-top: 2px; }
+.tc-trades-heading { margin: 6px 0 3px; }
+.tc-trades-heading h3, .tc-payments h3 { font-size: 10px; }
+.tc-trades-heading button { font-size: 8px; padding: 4px 5px; }
+.tc-trade summary { padding: 5px 0; gap: 5px; }
+.tc-trade .tc-icon { width: 22px; height: 22px; }
+.tc-trade-name b, .tc-trade-price b { font-size: 10px; }
+.tc-trade-name small, .tc-trade-price small { font-size: 8px; margin-top: 2px; }
+.tc-trade-expanded { padding: 6px; gap: 6px; }
+.tc-more-trades { padding-top: 5px; font-size: 9px !important; }
+.tc-empty-state { padding: 7px 0; font-size: 10px; }
+.tc-no-activity { min-height: 0; gap: 5px; padding: 6px; font-size: 10px; }
+.tc-no-activity svg { width: 20px; height: 20px; }
+.tc-payments { margin-top: 6px; }
+.tc-payment { padding: 5px 0; }
+.tc-summary-body { gap: 6px; margin-top: 5px; }
+.tc-chart { height: 76px; }
+.tc-summary-totals { gap: 3px; }
+.tc-summary-totals > div { padding: 4px; }
+.tc-summary-totals span { font-size: 8px; margin-bottom: 2px; }
+.tc-summary-totals strong { font-size: 10px; }
+@media (min-width: 1250px) {
+  .tc-metrics { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
 @media (max-width: 739px) {
-  .trading-calendar { padding: 8px; gap: 7px; }
-  .tc-heading { margin: 2px 1px; gap: 7px; }
-  .tc-heading h1 { font-size: 21px; }
-  .tc-heading p { font-size: 10px; }
-  .tc-heading-tools { width: 100%; justify-content: space-between; }
-  .tc-month-picker, .tc-monthly { padding: 7px 10px; font-size: 10px; }
-  .tc-metrics-top { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metrics-top > :first-child { grid-column: 1 / -1; min-height: 68px; }
-  .tc-metrics-bottom { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tc-metric { padding: 7px; gap: 6px; min-height: 78px; }
-  .tc-metric h2 { font-size: 10px; }
-  .tc-metric .tc-icon { width: 27px; height: 27px; }
-  .tc-value { font-size: 17px; }
-  .tc-value-xl { font-size: 21px; }
-  .tc-metric p { font-size: 9px; }
-  .tc-metric .tc-mini { width: 54px; height: 30px; opacity: .4; }
-  .tc-profit-card .tc-mini { width: 90px; height: 47px; opacity: .8; }
-  .tc-extremes { margin-inline-start: -35px; }
-  .tc-workspace { grid-template-columns: 1fr; }
-  .tc-toolbar { flex-wrap: wrap; margin: 8px 0; }
-  .tc-filters { gap: 4px; width: 100%; }
-  .tc-filters button { padding: 6px 7px; flex: 1; font-size: 9px; }
-  .tc-display-options { margin-inline-start: auto; }
-  .tc-display-options button { font-size: 9px; }
-  .tc-section-heading h2 { font-size: 14px; }
-  .tc-days { gap: 4px; }
-  .tc-day { min-height: 59px; padding: 4px 2px; }
-  .tc-day strong { font-size: 10px; }
-  .tc-day-number { margin-inline-start: 3px; font-size: 10px; }
-  .tc-day-volume { font-size: 8px; }
-  .tc-day-count { font-size: 7px; }
-  .tc-day-panel { padding: 10px; }
-  .tc-day-panel .tc-section-heading h2 { font-size: 14px; }
-  .tc-daily-profit strong { font-size: 19px; }
-  .tc-day-metrics { gap: 11px; padding-top: 3px; }
-  .tc-day-metrics strong { font-size: 13px; }
-  .tc-day-metrics span:not(.tc-icon) { font-size: 10px; }
-  .tc-trade summary { padding: 7px 0; }
-  .tc-trade-name b, .tc-trade-price b { font-size: 11px; }
-  .tc-trade-name small, .tc-trade-price small { font-size: 10px; }
-  .tc-summary { padding: 9px; }
-  .tc-summary > .tc-section-heading { flex-wrap: wrap; gap: 7px; }
-  .tc-summary .tc-section-heading h2 { font-size: 14px; }
+  .trading-calendar { padding: 4px; gap: 4px; }
+  .tc-heading { flex-wrap: nowrap; align-items: center; }
+  .tc-heading h1 { font-size: 15px; }
+  .tc-heading p, .tc-monthly { display: none; }
+  .tc-heading-tools { flex-shrink: 1; min-width: 0; }
+  .tc-month-picker { padding: 5px; font-size: 9px; white-space: nowrap; }
+  .tc-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  .tc-metric { padding: 5px; gap: 4px; }
+  .tc-metric > .tc-icon { display: none; }
+  .tc-metric h2 { font-size: 9px; }
+  .tc-value, .tc-value-xl { font-size: 15px; }
+  .tc-metric p { font-size: 8px; }
+  .tc-metrics-bottom > .tc-metric:last-child { grid-column: 1 / -1; }
+  .tc-metrics-bottom > .tc-metric:last-child .tc-metric-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; }
+  .tc-metrics-bottom > .tc-metric:last-child h2, .tc-metrics-bottom > .tc-metric:last-child p { margin: 0; }
+  .tc-extremes { gap: 3px; margin-top: 3px; }
+  .tc-extremes > div { padding: 2px; }
+  .tc-extremes small { display: none; }
+  .tc-workspace { grid-template-columns: 1fr; gap: 4px; }
+  .tc-toolbar { gap: 3px; }
+  .tc-filters { width: 100%; gap: 3px; }
+  .tc-filters button { flex: 1; padding: 5px 4px; font-size: 9px; }
+  .tc-day-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tc-day-metrics .tc-icon { display: none; }
+  .tc-day-metrics strong { font-size: 10px; }
+  .tc-day-panel .tc-section-heading h2 { font-size: 12px; }
+  .tc-daily-profit { margin: 5px 0; padding: 5px; }
+  .tc-summary > .tc-section-heading { flex-wrap: wrap; gap: 4px; }
+  .tc-summary .tc-section-heading h2 { font-size: 11px; }
+  .tc-summary .tc-section-heading h2 > span { display: none; }
+  .tc-chart-tabs { margin-inline-start: auto; }
+  .tc-chart-tabs button { font-size: 8px; padding: 5px; }
   .tc-summary-body { grid-template-columns: 1fr; }
-  .tc-chart { height: 105px; }
-  .tc-summary-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tc-chart { height: 70px; }
+  .tc-summary-totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tc-summary-totals strong { font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) { .tc-day { transition: none; } }
