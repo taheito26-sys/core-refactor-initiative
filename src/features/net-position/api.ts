@@ -114,7 +114,7 @@ export function usePersonalLoans() {
     },
     retry: false,
   });
-  return { loans: query.data ?? [], unavailable: query.isError };
+  return { loans: query.data ?? [], loaded: query.isSuccess, unavailable: query.isError };
 }
 
 export function usePersonalLoanActions() {

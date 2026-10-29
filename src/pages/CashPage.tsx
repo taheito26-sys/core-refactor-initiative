@@ -29,11 +29,11 @@ export default function CashPage({ adminTrackerState, isAdminView }: CashPagePro
 
   return (
     <div
-      className="tracker-root"
+      className="tracker-root cash-page-reference"
       dir={t.isRTL ? 'rtl' : 'ltr'}
       style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 8 }}
     >
-      <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} cloudLoaded={cloudLoaded} />
+      <CashManagement redesigned state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} cloudLoaded={cloudLoaded} />
     </div>
   );
 }

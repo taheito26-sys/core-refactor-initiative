@@ -1,3 +1,4 @@
+import { CashOverview, type CashAccountAction } from '@/features/cash/CashOverview';
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject, type ReactNode } from 'react';
 import { ModernSelect } from '@/components/shared/ModernSelect';
@@ -2502,6 +2503,7 @@ function EditLoanModal({ loan, customers, onSave, onClose, isMobile = false }: E
 
 // ── Main CashManagement Component ─────────────────────────────────
 interface CashManagementProps {
+  redesigned?: boolean;
   state: TrackerState;
   applyState: (next: TrackerState) => void;
   /** DB-first commit variant — resolves only after the server acks. */
@@ -2519,7 +2521,7 @@ interface CashManagementProps {
   cloudLoaded?: boolean;
 }
 
-export function CashManagement({ state, applyState, applyStateAndCommit, clearedAccountIds, cloudLoaded = true }: CashManagementProps) {
+export function CashManagement({ state, applyState, applyStateAndCommit, clearedAccountIds, cloudLoaded = true, redesigned = false }: CashManagementProps) {
   const t = useT();
   const isMobile = useIsMobile();
   const { user, merchantProfile } = useAuth();
@@ -3012,7 +3014,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'position' | 'statements'>('accounts');
   // ── Redesigned phone layout (classic stays one tap away, or ?cash=classic) ──
   const [design] = useCashDesign();
-  const v2 = isMobile && design === 'v2';
+  const v2 = !redesigned && isMobile && design === 'v2';
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();
@@ -4170,9 +4172,30 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   return (
-    <div className={`tracker-root${v2 ? ' ov2 cv2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
+    <div className={`tracker-root${redesigned ? ' cash-reference-root' : v2 ? ' ov2 cv2' : ''}`} dir={v2 ? (t.isRTL ? 'rtl' : 'ltr') : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
 
+      {redesigned && <CashOverview
+        state={state}
+        section={innerTab}
+        onSection={setInnerTab}
+        loaded={cloudLoaded}
+        onAddAccount={() => setShowAddAccount(true)}
+        onAddCash={() => setShowCashCounter(true)}
+        onTransfer={() => { setTransferFromId(undefined); setShowTransfer(true); }}
+        onCustody={() => setShowMerchantCustody(true)}
+        onAccountAction={(account, action: CashAccountAction) => {
+          if (action === 'ledger') setAccountDetailId(account.id);
+          else if (action === 'transfer') { setTransferFromId(account.id); setShowTransfer(true); }
+          else if (action === 'notes') setShowNotesDetails(account);
+          else if (action === 'edit') setEditingAccount(account);
+          else if (action === 'clear') setClearLedgerPromptId(account.id);
+          else if (action === 'delete') setDeleteAccountPromptId(account.id);
+          else setShowDeposit({ account, mode: action });
+        }}
+      />}
       <BankSmsBalancesPanel />
+
+      {!redesigned && <>
 
       {v2 && (
         <>
@@ -4313,13 +4336,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         </button>
       </div>
 
+      </>}
+
       {/* ── CASH FLOW TAB ── */}
       {innerTab === 'flow' && (
         <CashFlowPanel ledger={ledger} accounts={accounts} typeLabel={ty => LEDGER_TYPE_LABELS[ty as LedgerEntryType] || ty} t={t} isMobile={isMobile} onOpenAccount={setAccountDetailId} v2={v2} />
       )}
 
       {/* ── ACCOUNTS TAB ── */}
-      {innerTab === 'accounts' && (
+      {innerTab === 'accounts' && !redesigned && (
         <div>
           {/* Only block on the cloud round-trip when there's nothing to show
               yet — local-first: `accounts` already reflects localStorage's

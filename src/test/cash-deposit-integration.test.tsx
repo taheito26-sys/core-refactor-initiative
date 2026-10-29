@@ -1,4 +1,5 @@
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { fireEvent, screen } from '@testing-library/dom';
@@ -6,6 +7,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import type { TrackerState } from '@/lib/tracker-helpers';
+
+vi.mock('@/features/net-position/api', () => ({ useNetPositionSettings: () => ({ loaded: false, settings: null }), usePersonalLoans: () => ({ loans: [], loaded: false }) }));
+vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({ useExchangeBalances: () => ({ isSuccess: false }) }));
 
 vi.mock('@/lib/i18n', () => ({
   useT: () => (key: string) => key,
@@ -162,12 +166,12 @@ describe('cash management sale_deposit visibility', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <CashManagement state={state} applyState={() => undefined} />
+        <MemoryRouter><CashManagement redesigned state={state} applyState={() => undefined} /></MemoryRouter>
       </QueryClientProvider>,
     );
 
     expect(screen.getAllByText('150').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText('cashLedgerTab'));
+    fireEvent.click(screen.getByRole('button', { name: 'cmViewLedger' }));
     expect(screen.getAllByText('Sale deposit').length).toBeGreaterThan(0);
   });
 });
