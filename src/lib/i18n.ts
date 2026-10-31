@@ -1445,6 +1445,7 @@ const translations = {
   autoSaved: { en: 'Auto-saved', ar: 'تم الحفظ تلقائياً' },
   buyerNameRequired: { en: 'Buyer name', ar: 'اسم المشتري' },
   supplierNameRequired: { en: 'Supplier name', ar: 'اسم المورد' },
+  orderBuyerPickRequired: { en: 'Select a saved buyer before saving the order. To add a new buyer, save their details first.', ar: 'اختر مشتريًا محفوظًا قبل حفظ الطلب. لإضافة مشترٍ جديد، احفظ بياناته أولاً.' },
   buyerNameRequiredMsg: { en: 'Buyer name is required', ar: 'اسم المشتري مطلوب' },
   supplierNameRequiredMsg: { en: 'Supplier name is required', ar: 'اسم المورد مطلوب' },
 

@@ -1,3 +1,4 @@
+import { assertSavedOrderBuyers } from '@/features/orders/utils/order-buyer';
 // React hook that provides tracker state with cross-device cloud sync
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
@@ -91,6 +92,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
 
   const applyState = useCallback((next: TrackerState) => {
+    assertSavedOrderBuyers(stateRef.current, next);
     // In admin preloaded mode, don't persist
     if (adminMode || options.preloadedState) {
       setState(next);
@@ -143,6 +145,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
    * locally and maybe uploaded later."
    */
   const applyStateAndCommit = useCallback(async (next: TrackerState): Promise<void> => {
+    assertSavedOrderBuyers(stateRef.current, next);
     if (adminMode || options.preloadedState) {
       setState(next);
       stateRef.current = next;

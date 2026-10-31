@@ -1,3 +1,4 @@
+import { hasSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -1587,26 +1588,16 @@ export default function OrdersPage() {
   };
   const newSaleSplitError = !newSaleSplitOpen ? null : validateSplitPlan({
     total: newSaleSplitAnchorTotal, qtyA: splitQtyANum, qtyB: splitQtyBNum, priceA: splitPriceANum, priceB: splitPriceBNum,
-    hasBuyerA: !!buyerName.trim(), hasBuyerB: !!newSaleSplitCustomerText.trim(),
+    hasBuyerA: !!buyerId, hasBuyerB: !!newSaleSplitCustomerId,
     sameBuyer: (!!buyerId && buyerId === newSaleSplitCustomerId)
       || (!!buyerName.trim() && buyerName.trim().toLowerCase() === newSaleSplitCustomerText.trim().toLowerCase()),
   });
 
-  // Turns a picked or typed customer into a stored customer id, reusing a
-  // named one, folding in a connected portal customer, or adding a new one.
-  const resolveSplitParty = (pickedId: string, typedText: string, customersIn: Customer[]): { id: string; customers: Customer[] } => {
-    const optionFor = (id: string) => allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === id);
-    const fromOption = (id: string) => {
-      const option = optionFor(id);
-      const materialized = option ? materializeListedCustomer(option, customersIn) : null;
-      return { id: materialized?.id || id, customers: materialized?.customers || customersIn };
-    };
-    if (pickedId) return fromOption(pickedId);
-    const typed = typedText.trim();
-    const matched = exactCustomerMatch(splitPanelOptions, typed);
-    if (matched) return fromOption(matched.id);
-    const created: Customer = { id: uid(), name: typed, phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
-    return { id: created.id, customers: [...customersIn, created] };
+  // Only an explicitly selected, saved buyer can own either half of a split.
+  const resolveSplitParty = (pickedId: string, _typedText: string, customersIn: Customer[]): { id: string; customers: Customer[] } => {
+    const option = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === pickedId);
+    const materialized = option ? materializeListedCustomer(option, customersIn) : null;
+    return { id: materialized?.id || '', customers: materialized?.customers || customersIn };
   };
 
   const fifoDisplayUnitCost = useMemo(() => {
@@ -2058,7 +2049,7 @@ export default function OrdersPage() {
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
     if (!(amountUSDT > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
-    if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
+    if (!buyerId || !buyerName.trim()) errs.push(t('orderBuyerPickRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
     const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
@@ -2138,9 +2129,9 @@ export default function OrdersPage() {
     }
 
     let nextCustomers = state.customers;
-    let nextTrades = state.trades;
-    let nextCustomerLoans = state.customerLoans;
-    let nextDeletedCustomerIds = state.deletedCustomerIds;
+    const nextTrades = state.trades;
+    const nextCustomerLoans = state.customerLoans;
+    const nextDeletedCustomerIds = state.deletedCustomerIds;
     let customerId = '';
     if (buyerId) {
       // The buyer was picked from the list (a local or connected customer),
@@ -2153,18 +2144,12 @@ export default function OrdersPage() {
       // the buyer's whole prior history stays stuck under the old one.
       const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
       const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
-      customerId = materialized?.id || buyerId;
+      customerId = materialized?.id || '';
       nextCustomers = materialized?.customers || state.customers;
-    } else if (buyerName.trim()) {
-      // No id -- the merchant typed a name that wasn't selected from the
-      // list, so this really is either a brand-new buyer or a rename of an
-      // existing local record (name-matched, best effort).
-      const ensured = ensureCustomer(buyerName);
-      customerId = ensured.id;
-      nextCustomers = ensured.customers;
-      nextTrades = ensured.trades;
-      nextCustomerLoans = ensured.customerLoans;
-      nextDeletedCustomerIds = ensured.deletedCustomerIds ?? state.deletedCustomerIds;
+    }
+    if (!hasSavedOrderBuyer(nextCustomers, customerId)) {
+      setSaleMessage(t('orderBuyerPickRequired'));
+      return;
     }
 
     // Remember which customer this exchange counterparty resolved to, so the
@@ -2554,7 +2539,7 @@ export default function OrdersPage() {
       const secondParty = resolveSplitParty(newSaleSplitCustomerId, newSaleSplitCustomerText, nextCustomers);
       const splitCustomers = secondParty.customers;
       const secondCustomerId = secondParty.id;
-      if (!secondCustomerId || secondCustomerId === customerId) {
+      if (!hasSavedOrderBuyer(splitCustomers, secondCustomerId) || secondCustomerId === customerId) {
         setSaleMessage(t('splitNeedsDifferentCustomers'));
         return;
       }
@@ -2871,7 +2856,7 @@ export default function OrdersPage() {
   };
   const editSplitError = !splitOpen ? null : validateSplitPlan({
     total: editSplitTotal, qtyA: editQtyANum, qtyB: editQtyBNum, priceA: editPriceANum, priceB: editPriceBNum,
-    hasBuyerA: !!splitFirstText.trim(), hasBuyerB: !!splitCustomerText.trim(),
+    hasBuyerA: !!editCustomerId, hasBuyerB: !!splitCustomerId,
     sameBuyer: (!!editCustomerId && editCustomerId === splitCustomerId)
       || (!!splitFirstText.trim() && splitFirstText.trim().toLowerCase() === splitCustomerText.trim().toLowerCase()),
   });
@@ -2950,6 +2935,11 @@ export default function OrdersPage() {
       fee = splitResult.primaryTrade.feeQAR;
     }
     if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
+    if (!hasSavedOrderBuyer(customersForSave, customerIdForSave)
+      || (splitResult && !hasSavedOrderBuyer(customersForSave, secondCustomerIdForSave))) {
+      toast.error(t('orderBuyerPickRequired'));
+      return;
+    }
 
     // ── Loaned-order guards (checked before anything is mutated) ──
     const existingLoan = loanByTradeId.get(editingTradeId);
@@ -5978,7 +5968,7 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'static', background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale || !buyerId || (newSaleSplitOpen && !newSaleSplitCustomerId)} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
@@ -6108,7 +6098,7 @@ export default function OrdersPage() {
 
               {!splitOpen && (<>
               <div className="field2" style={{ marginBottom: 10 }}>
-                <div className="lbl">{t('buyerLabel')}</div>
+                <div className="lbl">{t('buyerLabel')} <span aria-hidden="true">*</span></div>
                 <ModernSelect value={editCustomerId} onChange={e => setEditCustomerId(e.target.value)} disabled={isApproved}
                   style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                 >
@@ -6650,6 +6640,7 @@ export default function OrdersPage() {
                   {!isApproved && (
                     <button
                       onClick={saveTradeEdit}
+                      disabled={!editCustomerId || (splitOpen && !splitCustomerId)}
                       style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                     >
                       {splitOpen ? t('splitConfirmEdit') : t('saveCorrection')}

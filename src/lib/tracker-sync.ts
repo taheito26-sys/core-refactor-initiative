@@ -1,3 +1,4 @@
+import { assertSavedOrderBuyers } from '@/features/orders/utils/order-buyer';
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey, getTrackerWriteGeneration, isTrackerDataCleared, isTrackerClearInProgress,
@@ -361,6 +362,8 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
+
+  assertSavedOrderBuyers({ customers: latestState?.customers ?? [], trades: latestState?.trades ?? [] }, stripped);
 
   if (!options.replaceExisting && latestState && typeof latestState === 'object') {
     assertNoNewDuplicateBatches(latestState.batches ?? [], stripped.batches ?? []);
