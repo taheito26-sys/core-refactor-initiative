@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAppUpdates } from '@/lib/app-updates';
 const notify = vi.hoisted(() => vi.fn());
-vi.mock('sonner', () => ({ toast: { info: notify } }));
+vi.mock('@/features/app-updates/update-notice', () => ({ showAppUpdate: notify, dismissAppUpdate: vi.fn() }));
 let stop: (() => void) | undefined;
 beforeEach(() => {
   vi.useFakeTimers(); vi.clearAllMocks(); sessionStorage.clear();
@@ -42,9 +42,31 @@ describe('automatic app updates', () => {
     editor.append(document.createElement('input')); document.body.append(editor);
     await vi.advanceTimersByTimeAsync(0);
     expect(reload).not.toHaveBeenCalled();
-    notify.mock.calls[0][1].action.onClick();
+    notify.mock.calls[0][0].onUpdate();
     expect(reload).toHaveBeenCalledTimes(1);
   });
+  it('shows one card while editing and ignores repeated update taps', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const input = document.createElement('input'); document.body.append(input);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(notify).toHaveBeenCalledTimes(1);
+    const update = notify.mock.calls[0][0].onUpdate;
+    update(); update();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[1][0].updating).toBe(true);
+  });
+
+  it('ignores update actions after the updater stops', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    const input = document.createElement('input'); document.body.append(input);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    const update = notify.mock.calls[0][0].onUpdate;
+    stop(); update();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('does not block updates for a closed editor kept in the DOM', async () => {
     const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
     editor.setAttribute('data-state', 'closed'); editor.append(document.createElement('input'));

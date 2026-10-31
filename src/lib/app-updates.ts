@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { showAppUpdate, dismissAppUpdate } from '@/features/app-updates/update-notice';
 
 /** Keep an open app current without discarding an edited page. */
 export function startAppUpdates(buildId: string, reload = () => window.location.reload()) {
@@ -11,6 +11,7 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
   let targetVersion = 'worker';
   let activated = false;
   let updateRequested = false;
+  let noticeShown = false;
   let registration: ServiceWorkerRegistration | undefined;
   let controlled = !!navigator.serviceWorker?.controller;
   const apply = () => {
@@ -19,12 +20,19 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
       .some(editor => !editor.closest('[hidden],[aria-hidden=true],[data-state=closed]')
         && editor.querySelector('input,textarea,select,[contenteditable=true]'));
     if (!updateRequested && (dirty || openEditor || document.activeElement?.matches('input,textarea,[contenteditable=true]'))) {
-      const ar = document.documentElement.lang === 'ar' || !!document.querySelector('[dir=rtl]');
-      toast.info(ar ? 'يتوفر تحديث جديد' : 'A new version is ready', {
-        id: 'app-update', duration: Infinity,
-        description: ar ? 'احفظ التغييرات قبل التحديث. سيُطبق التحديث عند مغادرة هذه الصفحة أيضاً.' : 'Save your changes before updating. The update will also apply when you leave this page.',
-        action: { label: ar ? 'التحديث الآن' : 'Update now', onClick: () => { updateRequested = true; dirty = false; apply(); } },
-      });
+      if (!noticeShown) {
+        noticeShown = true;
+        showAppUpdate({
+          updating: false,
+          onUpdate: () => {
+            if (stopped || updateRequested) return;
+            updateRequested = true;
+            showAppUpdate({ updating: true, onUpdate: () => {}, onLater: () => {} });
+            apply();
+          },
+          onLater: dismissAppUpdate,
+        });
+      }
       return;
     }
     if (registration?.installing) return;
@@ -35,6 +43,7 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
       sessionStorage.setItem('app-update-attempt', attempt);
     } catch { /* Updates still work if browser storage is unavailable. */ }
     reloading = true;
+    dismissAppUpdate();
     reload();
   };
   const edited = (event: Event) => {
@@ -104,6 +113,7 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
   void check();
   return () => {
     stopped = true;
+    dismissAppUpdate();
     clearInterval(timer); clearInterval(navigation);
     document.removeEventListener('click', interacted, true);
     document.removeEventListener('input', edited, true);
