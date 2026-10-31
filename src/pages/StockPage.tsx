@@ -1,4 +1,5 @@
 import { BatchConsumption } from '@/features/stock/components/BatchConsumption';
+import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-identity';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
@@ -155,6 +156,8 @@ export default function StockPage() {
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
   // ── Mobile Add Batch Sheet ────────────────────────────────────────
   const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
+  const batchSavingRef = useRef(false);
+  const [batchSaving, setBatchSaving] = useState(false);
   const [batchConfirmDetails, setBatchConfirmDetails] = useState<{
     qty: number; price: number; source: string; total: number; fundingAccName?: string;
   } | null>(null);
@@ -524,6 +527,10 @@ export default function StockPage() {
 
 
   const addBatch = async () => {
+    if (batchSavingRef.current) return;
+    batchSavingRef.current = true;
+    setBatchSaving(true);
+    try {
     const ts = new Date(batchDate).getTime();
     const source = batchSupplier.trim();
 
@@ -571,7 +578,12 @@ export default function StockPage() {
     }
 
     const batchCostQAR = Math.round(volumeQAR * 100) / 100;
-    const batchId = uid();
+    const purchaseKey = batchPurchaseKey({ ts, source, initialUSDT: totalUSDT, buyPriceQAR: px, note: batchNote.trim(), importedFrom: pendingImport?.exchange });
+    if (state.batches.some(b => (b.purchaseKey ?? batchPurchaseKey(b)) === purchaseKey)) {
+      setBatchMsg(t('duplicateBatchPurchase'));
+      return;
+    }
+    const batchId = await batchPurchaseId(purchaseKey);
 
     // ── Multi-account cash deduction (new system) ──────────────────
     let nextCashLedger = [...(state.cashLedger || [])];
@@ -586,7 +598,7 @@ export default function StockPage() {
         setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`);
         return;
       }
-      const entryId = uid();
+      const entryId = await batchPurchaseId(`${purchaseKey}:funding`);
       // Auto-deduct the physical notes largest-first so the Notes Details
       // tally moves with the balance instead of staying stuck at whatever
       // was last manually counted/deposited.
@@ -618,7 +630,7 @@ export default function StockPage() {
       ? deriveCashQAR(cashAccounts, nextCashLedger)
       : Math.max(0, currentCash - batchCostQAR);
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
-      id: uid(),
+      id: await batchPurchaseId(`${purchaseKey}:cash-history`),
       ts: Date.now(),
       type: 'batch_purchase',
       amount: Math.min(batchCostQAR, currentCash),
@@ -637,6 +649,7 @@ export default function StockPage() {
         ...state.batches,
         {
           id: batchId,
+          purchaseKey,
           ts,
           source,
           note: batchNote.trim(),
@@ -703,6 +716,12 @@ export default function StockPage() {
          ? ` · ${fmtTotal(batchCostQAR)} ${activeBatchFiat} ${t('deductedFromAccount')} "${fundingAccName}"`
          : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} ${activeBatchFiat} ${t('deductedFromCash')}` : '';
       setBatchMsg(t('batchAdded') + deductMsg);
+    }
+    } catch (err) {
+      setBatchMsg(`⚠ ${t('saveFailed')}: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      batchSavingRef.current = false;
+      setBatchSaving(false);
     }
   };
 
@@ -1897,7 +1916,7 @@ export default function StockPage() {
                 </div>
               )}
 
-              <div className="formActions"><button className="btn" style={addBatchAccent.submitBtn} onClick={addBatch}>🚀 {t('addBatchTitle')}</button></div>
+              <div className="formActions"><button className="btn" style={addBatchAccent.submitBtn} disabled={batchSaving} aria-busy={batchSaving} onClick={addBatch}>🚀 {batchSaving ? t('saving') : t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
@@ -2128,7 +2147,7 @@ export default function StockPage() {
                     </div>
                   )}
                   <div className="formActions">
-                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13, ...addBatchAccent.submitBtn }} onClick={addBatch}>🚀 {t('addBatchTitle')}</button>
+                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13, ...addBatchAccent.submitBtn }} disabled={batchSaving} aria-busy={batchSaving} onClick={addBatch}>🚀 {batchSaving ? t('saving') : t('addBatchTitle')}</button>
                   </div>
                   {batchMsg && (
                     <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>

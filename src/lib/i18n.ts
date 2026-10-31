@@ -987,6 +987,7 @@ const translations = {
   fresh: { en: 'Fresh', ar: 'جديدة' },
   autoTracked: { en: 'Auto-tracked', ar: 'تتبع تلقائي' },
   addBatchTitle: { en: 'Add Batch', ar: 'إضافة دفعة' },
+  duplicateBatchPurchase: { en: 'This stock purchase is already recorded. Check the existing batch before adding it again.', ar: 'تم تسجيل عملية شراء المخزون هذه بالفعل. تحقق من الدفعة الحالية قبل إضافتها مرة أخرى.' },
   currentAvPrice: { en: 'Current Av Price', ar: 'متوسط السعر الحالي' },
   avg: { en: 'Avg', ar: 'متوسط' },
   useRateBtn: { en: 'Use Rate', ar: 'استخدام السعر' },

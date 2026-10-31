@@ -6,6 +6,7 @@ import { clearCashStateFromCloud, saveCashToCloud, resetCashSyncSession } from '
 import { hasMeaningfulTrackerData } from './tracker-backup';
 import { mergeLoansByRecency, mergeBatchesByRecency, withoutDeletedRepayments, type TrackerState } from './tracker-helpers';
 import { mergeTransfersByRecency } from './usdt-transfers';
+import { assertNoNewDuplicateBatches } from '@/features/stock/lib/batch-identity';
 import { uploadVaultBackup } from './supabase-vault';
 
 let _sessionEpoch = 0;
@@ -362,6 +363,7 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
   const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
 
   if (!options.replaceExisting && latestState && typeof latestState === 'object') {
+    assertNoNewDuplicateBatches(latestState.batches ?? [], stripped.batches ?? []);
     const deletedLoanIds = guardTombstones(
       'customerLoans', latestState.deletedLoanIds, stripped.deletedLoanIds, (latestState.customerLoans || []).length,
     );

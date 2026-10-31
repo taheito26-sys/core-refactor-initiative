@@ -303,6 +303,8 @@ export function deriveCashQAR(cashAccounts: CashAccount[], cashLedger: CashLedge
 
 export interface Batch {
   id: string;
+  /** Immutable creation identity, retained when a purchase is edited. */
+  purchaseKey?: string;
   ts: number;
   source: string;
   note: string;
