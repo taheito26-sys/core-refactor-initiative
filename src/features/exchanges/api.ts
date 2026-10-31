@@ -138,15 +138,23 @@ export async function addOrderLink(
   await markOrderLinked(orderId, entityType, entityId);
 }
 
-/** Records the sell price and buyer for an OKX P2P entry; null clears a field. */
-export async function setTransferSaleDetails(
-  transferId: string,
-  details: { price: number | null; customer: string | null },
+/**
+ * Records the fiat, price and buyer of an OKX P2P order. OKX reports none of them,
+ * so the merchant enters them; the total follows from the amount.
+ */
+export async function setOrderSaleDetails(
+  order: { id: string; amount: number },
+  details: { fiat: string; price: number; customer: string | null },
 ) {
   const { error } = await supabase
-    .from('exchange_transfers' as any)
-    .update({ sale_price_qar: details.price, sale_customer_name: details.customer?.trim() || null })
-    .eq('id', transferId);
+    .from('exchange_p2p_orders' as any)
+    .update({
+      fiat: details.fiat,
+      price: details.price,
+      total: Number((order.amount * details.price).toFixed(4)),
+      counterparty: details.customer?.trim() || null,
+    })
+    .eq('id', order.id);
   if (error) throw error;
 }
 

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-context';
 import { useExchangeCredentials } from '../hooks/useExchangeCredentials';
 import { syncExchange } from '../api';
+import { useOkxEscrowOrderSync } from '../hooks/useOkxEscrowOrderSync';
 
 const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 /** Don't re-sync an exchange that was synced more recently than this. */
@@ -19,6 +20,8 @@ export function ExchangeAutoSyncBootstrap() {
   const { data: credentials } = useExchangeCredentials();
   const qc = useQueryClient();
   const syncingRef = useRef<Set<string>>(new Set());
+
+  useOkxEscrowOrderSync();
 
   useEffect(() => {
     if (!userId || !credentials || credentials.length === 0) return;

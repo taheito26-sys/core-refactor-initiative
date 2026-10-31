@@ -643,17 +643,6 @@ export default function OrdersPage() {
     ]),
     [state.trades, state.usdtTransfers],
   );
-  // What the merchant recorded for an exchange row they imported as a sale:
-  // OKX does not report a P2P order's fiat price or buyer, so the inbox shows
-  // these from the tracker trade the row is linked to.
-  const linkedSaleInfo = useMemo(
-    () => new Map(
-      state.trades
-        .filter((t) => !t.voided)
-        .map((t) => [t.id, { price: t.sellPriceQAR, customer: customerNameById.get(t.customerId) || '' }] as const),
-    ),
-    [state.trades, customerNameById],
-  );
   const importedExchangeRefs = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
     [state.trades],
@@ -4998,7 +4987,6 @@ export default function OrdersPage() {
                     onPickTransfer={applyExchangeTransferPrefill}
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
-                    linkedSaleInfo={linkedSaleInfo}
                     customerNames={state.customers.map((c) => c.name)}
                     monthKey={selectedMonth}
                     onLoanClick={(src) => setLoanSources([src])}

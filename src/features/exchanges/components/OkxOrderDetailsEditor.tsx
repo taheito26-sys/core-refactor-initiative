@@ -3,35 +3,38 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { setTransferSaleDetails } from '../api';
-import type { ExchangeTransfer } from '../types';
+import { setOrderSaleDetails } from '../api';
+import type { ExchangeP2POrder } from '../types';
 
-/** Inline form for the sell price and buyer of an OKX P2P entry, which OKX does not report. */
-export function P2PSaleDetailsEditor({
-  transfer,
+const FIATS = ['QAR', 'EGP'] as const;
+
+/** Inline form for the fiat, price and buyer of an OKX P2P order, which OKX does not report. */
+export function OkxOrderDetailsEditor({
+  order,
   customerNames,
   onClose,
 }: {
-  transfer: ExchangeTransfer;
+  order: ExchangeP2POrder;
   customerNames: string[];
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const listId = useId();
-  const [price, setPrice] = useState(transfer.sale_price_qar ? String(transfer.sale_price_qar) : '');
-  const [customer, setCustomer] = useState(transfer.sale_customer_name ?? '');
+  const [fiat, setFiat] = useState(order.fiat || 'QAR');
+  const [price, setPrice] = useState(order.price > 0 ? String(order.price) : '');
+  const [customer, setCustomer] = useState(order.counterparty ?? '');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    const parsed = price.trim() ? Number(price) : null;
-    if (parsed !== null && (!Number.isFinite(parsed) || parsed <= 0)) {
-      toast.error('Enter a sell price above zero, or leave it empty');
+    const parsed = Number(price);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error('Enter the price per USDT');
       return;
     }
     setSaving(true);
     try {
-      await setTransferSaleDetails(transfer.id, { price: parsed, customer });
-      await queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] });
+      await setOrderSaleDetails(order, { fiat, price: parsed, customer });
+      await queryClient.invalidateQueries({ queryKey: ['exchange-p2p-orders'] });
       onClose();
     } catch {
       toast.error('Could not save the price and customer');
@@ -42,13 +45,21 @@ export function P2PSaleDetailsEditor({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded border border-dashed bg-muted/20 p-1.5">
+      <select
+        value={fiat}
+        onChange={(e) => setFiat(e.target.value)}
+        aria-label="Fiat currency"
+        className="h-7 rounded border bg-background px-1 text-xs"
+      >
+        {FIATS.map((f) => <option key={f} value={f}>{f}</option>)}
+      </select>
       <Input
         inputMode="decimal"
         value={price}
         onChange={(e) => setPrice(e.target.value)}
-        placeholder="Sell price (QAR)"
-        aria-label="Sell price in QAR"
-        className="h-7 w-32 text-xs"
+        placeholder={`Price per USDT (${fiat})`}
+        aria-label="Price per USDT"
+        className="h-7 w-36 text-xs"
       />
       <Input
         list={listId}

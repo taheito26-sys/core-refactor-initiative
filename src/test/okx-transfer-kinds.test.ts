@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeExchangeTransfers } from '@/features/exchanges/normalize-transfers';
+import { deriveOkxEscrowOrders, normalizeExchangeTransfers } from '@/features/exchanges/normalize-transfers';
 import { transferKindLabel, type ExchangeTransfer } from '@/features/exchanges/types';
 
 let seq = 0;
@@ -29,9 +29,12 @@ const tr = (over: Partial<ExchangeTransfer> & { billType?: string }): ExchangeTr
 };
 
 describe('normalizeExchangeTransfers', () => {
-  it('labels an OKX "Place an order" bill as P2P, not Pay', () => {
-    const [out] = normalizeExchangeTransfers([tr({ billType: '116', amount: 3000 })]);
-    expect(out.kind).toBe('p2p');
+  it('removes OKX order bills from the transfer list: they are P2P orders', () => {
+    const rows = normalizeExchangeTransfers([
+      tr({ billType: '116', amount: 3000 }),
+      tr({ billType: '118', direction: 'in', amount: 1696.42 }),
+    ]);
+    expect(rows).toEqual([]);
   });
 
   it('labels OKX moves between the merchant\'s own accounts as Internal, not Pay', () => {
@@ -62,27 +65,54 @@ describe('normalizeExchangeTransfers', () => {
     expect(transferKindLabel({ kind: 'pay', network: null })).toBe('Pay');
     expect(transferKindLabel({ kind: 'internal', network: null })).toBe('Internal');
   });
+});
 
-  it('drops a cancelled order: the escrow lock and its refund net out', () => {
-    const lock = tr({ billType: '116', amount: 1696.42, transfer_time: '2026-10-30T23:02:56Z' });
-    const refund = tr({ billType: '118', direction: 'in', amount: 1696.42, transfer_time: '2026-10-30T23:15:09Z' });
-    const sale = tr({ billType: '116', amount: 3000, transfer_time: '2026-10-30T23:55:37Z' });
-    const rows = normalizeExchangeTransfers([sale, refund, lock]);
-    expect(rows.map((r) => r.id)).toEqual([sale.id]);
-    expect(rows[0].kind).toBe('p2p');
+describe('deriveOkxEscrowOrders', () => {
+  it('turns an escrow lock into a sell order shaped like a Binance order, price and buyer unset', () => {
+    const lock = tr({ billType: '116', amount: 3000, reference: '105346285500', transfer_time: '2026-10-30T23:55:37Z' });
+    const { orders, cancelledOrderNumbers } = deriveOkxEscrowOrders([lock]);
+    expect(cancelledOrderNumbers).toEqual([]);
+    expect(orders).toHaveLength(1);
+    expect(orders[0]).toMatchObject({
+      order_number: '105346285500', side: 'sell', asset: 'USDT', amount: 3000, price: 0, total: 0,
+      status: 'completed', counterparty: null, order_time: '2026-10-30T23:55:37Z',
+    });
+    expect(orders[0].raw.source).toBe('okx-escrow');
+  });
+
+  it('marks a cancelled order: the escrow lock and its refund net out', () => {
+    const lock = tr({ billType: '116', amount: 1696.42, reference: 'L1', transfer_time: '2026-10-30T23:02:56Z' });
+    const refund = tr({ billType: '118', direction: 'in', amount: 1696.42, reference: 'R1', transfer_time: '2026-10-30T23:15:09Z' });
+    const sale = tr({ billType: '116', amount: 3000, reference: 'L2', transfer_time: '2026-10-30T23:55:37Z' });
+    const { orders, cancelledOrderNumbers } = deriveOkxEscrowOrders([sale, refund, lock]);
+    expect(cancelledOrderNumbers).toEqual(['L1']);
+    expect(orders.find((o) => o.order_number === 'L1')?.status).toBe('cancelled');
+    expect(orders.find((o) => o.order_number === 'L2')?.status).toBe('completed');
   });
 
   it('pairs each refund with only one lock of the same size', () => {
-    const a = tr({ billType: '116', amount: 500, transfer_time: '2026-10-30T08:00:00Z' });
-    const b = tr({ billType: '116', amount: 500, transfer_time: '2026-10-30T09:00:00Z' });
-    const refund = tr({ billType: '118', direction: 'in', amount: 500, transfer_time: '2026-10-30T09:30:00Z' });
-    const rows = normalizeExchangeTransfers([a, b, refund]);
-    expect(rows.map((r) => r.id)).toEqual([a.id]);
+    const a = tr({ billType: '116', amount: 500, reference: 'A', transfer_time: '2026-10-30T08:00:00Z' });
+    const b = tr({ billType: '116', amount: 500, reference: 'B', transfer_time: '2026-10-30T09:00:00Z' });
+    const refund = tr({ billType: '118', direction: 'in', amount: 500, reference: 'R', transfer_time: '2026-10-30T09:30:00Z' });
+    expect(deriveOkxEscrowOrders([a, b, refund]).cancelledOrderNumbers).toEqual(['B']);
   });
 
-  it('keeps a lock already linked to the tracker, and an unmatched refund', () => {
-    const linked = tr({ billType: '116', amount: 200, linked_at: '2026-10-30T12:00:00Z', transfer_time: '2026-10-30T10:00:00Z' });
-    const refund = tr({ billType: '118', direction: 'in', amount: 200, transfer_time: '2026-10-30T11:00:00Z' });
-    expect(normalizeExchangeTransfers([linked, refund]).map((r) => r.id).sort()).toEqual([linked.id, refund.id].sort());
+  it('keeps a lock already imported into the tracker, with its link, and never cancels it', () => {
+    const linked = tr({
+      billType: '116', amount: 200, reference: 'LK', linked_at: '2026-10-30T12:00:00Z',
+      linked_entity_type: 'trade', linked_entity_id: 'trade-1', transfer_time: '2026-10-30T10:00:00Z',
+    });
+    const refund = tr({ billType: '118', direction: 'in', amount: 200, reference: 'RF', transfer_time: '2026-10-30T11:00:00Z' });
+    const { orders, cancelledOrderNumbers } = deriveOkxEscrowOrders([linked, refund]);
+    expect(cancelledOrderNumbers).toEqual([]);
+    expect(orders[0]).toMatchObject({ status: 'completed', linked_entity_id: 'trade-1', linked_at: '2026-10-30T12:00:00Z' });
+  });
+
+  it('ignores Binance rows and on-chain rows', () => {
+    const { orders } = deriveOkxEscrowOrders([
+      tr({ exchange: 'binance', billType: '116' }),
+      tr({ kind: 'network', raw: { type: '116' } }),
+    ]);
+    expect(orders).toEqual([]);
   });
 });
