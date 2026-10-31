@@ -394,8 +394,14 @@ export function ExchangeInbox({
               <button
                 type="button"
                 disabled={imported}
-                title={imported ? 'Already in the tracker' : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
+                title={imported ? 'Already in the tracker' : isOkxEscrowOrder(o) && !(o.price > 0) ? 'Enter the price and customer first' : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
                 onClick={async () => {
+                  // An OKX order has no price until the merchant enters one, so
+                  // there is nothing to import yet: open the entry form instead.
+                  if (isOkxEscrowOrder(o) && !(o.price > 0)) {
+                    setEditingSaleId(o.id);
+                    return;
+                  }
                   // Re-read the order from Binance first so a re-registered sale
                   // carries the total quantity taken at the listed price.
                   const f = (await fetchFreshExchangeOrder(o)) ?? o;

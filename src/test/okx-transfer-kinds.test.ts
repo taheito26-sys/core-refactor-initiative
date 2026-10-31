@@ -74,7 +74,7 @@ describe('deriveOkxEscrowOrders', () => {
     expect(cancelledOrderNumbers).toEqual([]);
     expect(orders).toHaveLength(1);
     expect(orders[0]).toMatchObject({
-      order_number: '105346285500', side: 'sell', asset: 'USDT', amount: 3000, price: 0, total: 0,
+      order_number: '105346285500', side: 'sell', asset: 'USDT', amount: 3000, fiat: 'EGP', price: 0, total: 0,
       status: 'completed', counterparty: null, order_time: '2026-10-30T23:55:37Z',
     });
     expect(orders[0].raw.source).toBe('okx-escrow');

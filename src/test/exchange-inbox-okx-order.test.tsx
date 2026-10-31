@@ -69,15 +69,37 @@ describe('OKX P2P orders in the inbox', () => {
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ orderNumber: 'B2', priceFiat: 3.65, assigneeName: 'Abu Tamim' }));
   });
 
-  it('saves fiat, price and customer from the editor', async () => {
+  it('defaults an unpriced OKX order to EGP and derives the price from the total received', async () => {
     renderInbox();
     fireEvent.click(screen.getAllByTitle('Set price & customer')[0]);
-    fireEvent.change(screen.getByLabelText('Price per USDT'), { target: { value: '3.7' } });
+    expect((screen.getByLabelText('Fiat currency') as HTMLSelectElement).value).toBe('EGP');
+    fireEvent.change(screen.getByLabelText('Total received'), { target: { value: '167100' } });
+    expect((screen.getByLabelText('Price per USDT') as HTMLInputElement).value).toBe('55.7');
     fireEvent.change(screen.getByLabelText('Customer'), { target: { value: 'Zack' } });
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() => expect(setOrderSaleDetails).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'o1', amount: 3000 }),
-      { fiat: 'QAR', price: 3.7, customer: 'Zack' },
+      { fiat: 'EGP', price: 55.7, customer: 'Zack', total: 167100 },
     ));
+  });
+
+  it('derives the total from a typed price', () => {
+    renderInbox();
+    fireEvent.click(screen.getAllByTitle('Set price & customer')[0]);
+    fireEvent.change(screen.getByLabelText('Price per USDT'), { target: { value: '55.7' } });
+    expect((screen.getByLabelText('Total received') as HTMLInputElement).value).toBe('167100');
+  });
+
+  it('opens the entry form instead of importing an unpriced OKX order', () => {
+    const onPick = renderInbox();
+    fireEvent.click(screen.getByText(/3,000/));
+    expect(onPick).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Total received')).toBeTruthy();
+  });
+
+  it('keeps the fiat of an order that is already priced', () => {
+    renderInbox();
+    fireEvent.click(screen.getAllByTitle('Set price & customer')[1]);
+    expect((screen.getByLabelText('Fiat currency') as HTMLSelectElement).value).toBe('QAR');
   });
 });

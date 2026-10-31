@@ -140,18 +140,19 @@ export async function addOrderLink(
 
 /**
  * Records the fiat, price and buyer of an OKX P2P order. OKX reports none of them,
- * so the merchant enters them; the total follows from the amount.
+ * so the merchant enters them. The total is the fiat actually received when the
+ * merchant typed it, otherwise it follows from the amount and price.
  */
 export async function setOrderSaleDetails(
   order: { id: string; amount: number },
-  details: { fiat: string; price: number; customer: string | null },
+  details: { fiat: string; price: number; customer: string | null; total?: number },
 ) {
   const { error } = await supabase
     .from('exchange_p2p_orders' as any)
     .update({
       fiat: details.fiat,
       price: details.price,
-      total: Number((order.amount * details.price).toFixed(4)),
+      total: details.total ?? Number((order.amount * details.price).toFixed(4)),
       counterparty: details.customer?.trim() || null,
     })
     .eq('id', order.id);

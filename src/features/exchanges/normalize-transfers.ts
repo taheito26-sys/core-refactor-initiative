@@ -79,7 +79,8 @@ export function deriveOkxEscrowOrders(transfers: ExchangeTransfer[]): {
       order_number: lock.reference,
       side: 'sell' as const,
       asset: lock.asset,
-      fiat: 'QAR',
+      // OKX P2P sells are settled in EGP; the merchant can switch it per order.
+      fiat: 'EGP',
       amount: lock.amount,
       price: 0,
       total: 0,
