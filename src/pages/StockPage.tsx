@@ -499,7 +499,7 @@ export default function StockPage() {
 
   /** USDT received via Pay/on-chain prefills a batch at the running cost basis. */
   const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
-    const via = prefill.kind === 'pay' ? 'Pay' : 'network';
+    const via = prefill.kind === 'pay' ? 'Pay' : prefill.kind === 'p2p' ? 'P2P' : 'network';
     setBatchDate(inputFromTs(prefill.ts));
     setBatchEntryMode('qty_price');
     setBatchUsdtQty(String(prefill.amountUSDT));

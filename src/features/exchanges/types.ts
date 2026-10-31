@@ -68,11 +68,22 @@ export function isCompletedP2POrder(status: string): boolean {
   return !NON_COMPLETED_P2P_STATUS_PATTERN.test(status);
 }
 
+export type ExchangeTransferKind = 'pay' | 'network' | 'p2p';
+
+export const TRANSFER_KIND_LABELS: Record<ExchangeTransferKind, string> = {
+  pay: 'Pay',
+  network: 'Network',
+  p2p: 'P2P',
+};
+
 export interface ExchangeTransfer {
   id: string;
   exchange: ExchangeId;
-  /** 'pay' = Binance Pay / OKX internal transfer, 'network' = on-chain. */
-  kind: 'pay' | 'network';
+  /**
+   * 'pay' = Binance Pay / OKX internal transfer, 'network' = on-chain,
+   * 'p2p' = USDT locked in escrow for an OKX P2P order (see normalizeExchangeTransfers).
+   */
+  kind: ExchangeTransferKind;
   direction: 'in' | 'out';
   asset: string;
   amount: number;

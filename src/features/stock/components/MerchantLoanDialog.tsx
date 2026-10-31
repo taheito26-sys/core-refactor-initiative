@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useT } from '@/lib/i18n';
 import { fmtDate, fmtTotal, num, uid, type TrackerState } from '@/lib/tracker-helpers';
 import type { UsdtTransferKind } from '@/lib/usdt-transfers';
-import { EXCHANGE_LABELS } from '@/features/exchanges/types';
+import { EXCHANGE_LABELS, TRANSFER_KIND_LABELS } from '@/features/exchanges/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   applyLoanMove,
@@ -35,7 +35,7 @@ function describeSource(src: LoanSource, t: ReturnType<typeof useT>): string {
   const amt = `${fmtTotal(loanSourceAmount(src))} USDT`;
   switch (src.type) {
     case 'exchange_transfer':
-      return `${dir} ${amt} · ${EXCHANGE_LABELS[src.transfer.exchange]} ${src.transfer.kind === 'pay' ? 'Pay' : 'Network'} · ${fmtDate(loanSourceTs(src))}`;
+      return `${dir} ${amt} · ${EXCHANGE_LABELS[src.transfer.exchange]} ${TRANSFER_KIND_LABELS[src.transfer.kind] ?? 'Network'} · ${fmtDate(loanSourceTs(src))}`;
     case 'exchange_order':
       return `${dir} ${amt} · ${EXCHANGE_LABELS[src.order.exchange]} P2P #${src.order.order_number} · ${fmtDate(loanSourceTs(src))}`;
     case 'batch':

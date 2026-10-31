@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { ExchangeTransfer } from '../types';
+import { normalizeExchangeTransfers } from '../normalize-transfers';
 
 export function useExchangeTransfers() {
   return useQuery({
@@ -11,7 +12,7 @@ export function useExchangeTransfers() {
         .select('*')
         .order('transfer_time', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as ExchangeTransfer[];
+      return normalizeExchangeTransfers((data ?? []) as unknown as ExchangeTransfer[]);
     },
   });
 }

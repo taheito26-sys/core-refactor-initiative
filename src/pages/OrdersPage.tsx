@@ -308,7 +308,7 @@ export default function OrdersPage() {
    * guess) rather than trying to infer one.
    */
   const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
-    const via = prefill.kind === 'pay' ? 'Pay' : 'network';
+    const via = prefill.kind === 'pay' ? 'Pay' : prefill.kind === 'p2p' ? 'P2P' : 'network';
     setSaleDate(toLocalInputValue(prefill.ts));
     setSaleEntryMode('qty_price');
     setSaleUsdtQty(String(prefill.amountUSDT));

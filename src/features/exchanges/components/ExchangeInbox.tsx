@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
-import { EXCHANGE_LABELS, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer } from '../types';
+import { EXCHANGE_LABELS, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
 import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
 import { useT } from '@/lib/i18n';
 import type { LoanSource } from '@/features/stock/loan-ledger';
@@ -50,7 +50,7 @@ export interface ExchangeTransferPayload {
   transferIds: string[];
   /** Reference of the picked transfer, or all of them joined when combined. */
   reference: string;
-  kind: 'pay' | 'network';
+  kind: ExchangeTransferKind;
   amountUSDT: number;
   buyPrice: number;
   ts: number;
