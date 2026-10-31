@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/lib/i18n', () => {
-  const t = Object.assign((key: string) => key, { lang: 'en', isRTL: false });
+  const t = Object.assign((key: string) => ({ exchangeNeedsAmount: 'needs amount', exchangeSetAmount: 'Set amount received', exchangeFiatCurrency: 'Fiat currency', exchangeTotalReceived: 'Total received', exchangePricePerUsdt: 'Price per USDT', exchangeEnterRateInstead: 'Enter rate instead', save: 'Save' }[key] ?? key), { lang: 'en', isRTL: false });
   return { useT: () => t };
 });
 
@@ -49,17 +49,17 @@ function renderInbox(onPick = vi.fn()) {
 describe('OKX P2P orders in the inbox', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('shows an OKX order like a Binance one, flagged when it still needs a price and customer', () => {
+  it('shows an OKX order like a Binance one, flagged when it still needs an amount', () => {
     renderInbox();
     expect(screen.getAllByText('OKX').length).toBe(2);
     expect(screen.getAllByText('P2P').length).toBe(3);
-    expect(screen.getAllByText('needs price & customer').length).toBe(1);
+    expect(screen.getAllByText('needs amount').length).toBe(1);
     expect(screen.getByText('Abu Tamim')).toBeTruthy();
   });
 
-  it('offers the price and customer pencil on OKX orders only', () => {
+  it('offers the amount pencil on OKX orders only', () => {
     renderInbox();
-    expect(screen.getAllByTitle('Set price & customer').length).toBe(2);
+    expect(screen.getAllByTitle('Set amount received').length).toBe(2);
   });
 
   it('hands the sale form the saved price and customer when picked', async () => {
@@ -71,23 +71,24 @@ describe('OKX P2P orders in the inbox', () => {
 
   it('defaults an unpriced OKX order to EGP and derives the price from the total received', async () => {
     renderInbox();
-    fireEvent.click(screen.getAllByTitle('Set price & customer')[0]);
+    fireEvent.click(screen.getAllByTitle('Set amount received')[0]);
     expect((screen.getByLabelText('Fiat currency') as HTMLSelectElement).value).toBe('EGP');
     fireEvent.change(screen.getByLabelText('Total received'), { target: { value: '167100' } });
-    expect((screen.getByLabelText('Price per USDT') as HTMLInputElement).value).toBe('55.7');
-    fireEvent.change(screen.getByLabelText('Customer'), { target: { value: 'Zack' } });
+    expect(screen.getByText('55.7 EGP/USDT')).toBeTruthy();
+    expect(screen.queryByLabelText('Customer')).toBeNull();
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() => expect(setOrderSaleDetails).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'o1', amount: 3000 }),
-      { fiat: 'EGP', price: 55.7, customer: 'Zack', total: 167100 },
+      { fiat: 'EGP', price: 55.7, customer: null, total: 167100 },
     ));
   });
 
   it('derives the total from a typed price', () => {
     renderInbox();
-    fireEvent.click(screen.getAllByTitle('Set price & customer')[0]);
+    fireEvent.click(screen.getAllByTitle('Set amount received')[0]);
+    fireEvent.click(screen.getByText('Enter rate instead'));
     fireEvent.change(screen.getByLabelText('Price per USDT'), { target: { value: '55.7' } });
-    expect((screen.getByLabelText('Total received') as HTMLInputElement).value).toBe('167100');
+    expect(screen.getByText('167100 EGP')).toBeTruthy();
   });
 
   it('opens the entry form instead of importing an unpriced OKX order', () => {
@@ -97,9 +98,14 @@ describe('OKX P2P orders in the inbox', () => {
     expect(screen.getByLabelText('Total received')).toBeTruthy();
   });
 
-  it('keeps the fiat of an order that is already priced', () => {
+  it('keeps the fiat and existing counterparty when saving only the amount', async () => {
     renderInbox();
-    fireEvent.click(screen.getAllByTitle('Set price & customer')[1]);
+    fireEvent.click(screen.getAllByTitle('Set amount received')[1]);
     expect((screen.getByLabelText('Fiat currency') as HTMLSelectElement).value).toBe('QAR');
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(setOrderSaleDetails).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'o2' }),
+      { fiat: 'QAR', price: 3.65, total: 1825, customer: 'Abu Tamim' },
+    ));
   });
 });

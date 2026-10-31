@@ -117,7 +117,6 @@ export function ExchangeInbox({
   defaultPrice,
   activeEntityIds,
   importedReferences,
-  customerNames,
   monthKey,
   onLoanClick,
 }: {
@@ -394,7 +393,7 @@ export function ExchangeInbox({
               <button
                 type="button"
                 disabled={imported}
-                title={imported ? 'Already in the tracker' : isOkxEscrowOrder(o) && !(o.price > 0) ? 'Enter the price and customer first' : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
+                title={imported ? 'Already in the tracker' : isOkxEscrowOrder(o) && !(o.price > 0) ? t('exchangeEnterAmount') : isPartial ? 'Assign the remaining amount to another customer' : 'Fill the form with this order'}
                 onClick={async () => {
                   // An OKX order has no price until the merchant enters one, so
                   // there is nothing to import yet: open the entry form instead.
@@ -446,7 +445,7 @@ export function ExchangeInbox({
                     <Chip className={EXCHANGE_CHIP[o.exchange]}>{EXCHANGE_LABELS[o.exchange]}</Chip>
                     <Chip className={KIND_CHIP.p2p.cls}>{KIND_CHIP.p2p.label}</Chip>
                     {!imported && isOkxEscrowOrder(o) && o.price <= 0 && (
-                      <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs price &amp; customer</Chip>
+                      <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">{t('exchangeNeedsAmount')}</Chip>
                     )}
                     {!imported && needsQarRate && o.price > 0 && (
                       <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs QAR rate</Chip>
@@ -464,8 +463,8 @@ export function ExchangeInbox({
               {isOkxEscrowOrder(o) && !imported && (
                 <button
                   type="button"
-                  title="Set price & customer"
-                  aria-label="Set price and customer"
+                  title={t('exchangeSetAmount')}
+                  aria-label={t('exchangeSetAmount')}
                   onClick={() => setEditingSaleId(editingSaleId === o.id ? null : o.id)}
                   className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-muted-foreground hover:border-primary/60 hover:text-primary"
                 >
@@ -477,7 +476,7 @@ export function ExchangeInbox({
               )}
               </div>
               {editingSaleId === o.id && (
-                <OkxOrderDetailsEditor order={o as ExchangeP2POrder} customerNames={customerNames ?? []} onClose={() => setEditingSaleId(null)} />
+                <OkxOrderDetailsEditor order={o as ExchangeP2POrder} onClose={() => setEditingSaleId(null)} />
               )}
               </div>
             );
