@@ -926,8 +926,8 @@ export default function StockPage() {
     }
   };
 
-  const deleteBatch = (targetId?: string) => {
-    const idToDelete = targetId || editingBatchId;
+  const deleteBatch = () => {
+    const idToDelete = editingBatchId;
     if (!idToDelete) return;
     const batch = state.batches.find(b => b.id === idToDelete);
     if (!batch) return;
