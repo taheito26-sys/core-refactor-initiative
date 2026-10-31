@@ -111,6 +111,7 @@ export function ExchangeInbox({
   defaultPrice,
   activeEntityIds,
   importedReferences,
+  linkedSaleInfo,
   monthKey,
   onLoanClick,
 }: {
@@ -138,6 +139,12 @@ export function ExchangeInbox({
    * looks pending forever even though it's already in the tracker.
    */
   importedReferences?: Set<string>;
+  /**
+   * Sell price (QAR) and buyer of each tracker trade, by trade id. An OKX P2P
+   * escrow entry carries only the USDT amount, so once it is imported its
+   * price and customer are read from the trade it was saved as.
+   */
+  linkedSaleInfo?: Map<string, { price: number; customer: string }>;
   /**
    * "YYYY-MM" (local calendar, matching OrdersPage's month pills) or "all".
    * When a specific month, only that month's orders/transfers are listed --
@@ -515,6 +522,16 @@ export function ExchangeInbox({
                       </Chip>
                     )}
                     {tr.counterparty && <span className="truncate">{tr.counterparty}</span>}
+                    {tr.kind === 'p2p' && (() => {
+                      const sale = tr.linked_entity_type === 'trade' && tr.linked_entity_id ? linkedSaleInfo?.get(tr.linked_entity_id) : undefined;
+                      if (!sale) return <span className="italic">price &amp; customer: set when you import</span>;
+                      return (
+                        <>
+                          {sale.price > 0 && <Chip className="bg-emerald-500/15 text-emerald-600 ring-emerald-500/30 dark:text-emerald-400">@ {fmtNum(sale.price, 4)} QAR</Chip>}
+                          {sale.customer && <span className="truncate font-medium text-foreground">{sale.customer}</span>}
+                        </>
+                      );
+                    })()}
                     <span className="truncate">{fmtWhen(tr.transfer_time)}</span>
                   </div>
                 </div>
