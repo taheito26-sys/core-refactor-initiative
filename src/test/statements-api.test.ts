@@ -52,6 +52,13 @@ describe('statement query options', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it('refreshes open loan history within ten seconds and whenever the client returns', () => {
+    const options = statementQueryOptions('sales', 'u1');
+    expect(options.refetchInterval).toBe(10_000);
+    expect(options.refetchOnWindowFocus).toBe('always');
+    expect(options.refetchOnReconnect).toBe('always');
+  });
+
   it('keeps the two variants under their own keys', () => {
     expect(statementKey('plain', 'u')).not.toEqual(statementKey('sales', 'u'));
   });

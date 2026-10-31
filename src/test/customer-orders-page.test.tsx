@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -47,9 +47,11 @@ vi.mock('@/features/orders/shared-order-workflow', async () => ({
 }));
 
 import CustomerOrdersPage from '@/pages/customer/CustomerOrdersPage';
+import { supabase } from '@/integrations/supabase/client';
+import { statementKey } from '@/features/customer/statements-api';
 
-const renderPage = () => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+const renderPage = (queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) => render(
+  <QueryClientProvider client={queryClient}>
     <MemoryRouter><CustomerOrdersPage /></MemoryRouter>
   </QueryClientProvider>,
 );
@@ -79,6 +81,22 @@ describe('customer orders page on a phone', () => {
     await waitFor(() => expect(screen.getByText('موافقة')).toBeTruthy());
     expect(screen.getByText('رفض')).toBeTruthy();
     expect(screen.getByText('بانتظار موافقة العميل')).toBeTruthy();
+  });
+
+  it('adds November and its loan when a newer statement arrives on an already-open page', async () => {
+    language = 'en';
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = renderPage(client);
+    await waitFor(() => expect(screen.getByText('Oct 26')).toBeTruthy());
+    expect(screen.queryByText('Nov 26')).toBeNull();
+    const result = await supabase.functions.invoke('customer-loan-statement?sales=1');
+    const data = result.data;
+    const novemberLoan = { ref: 'november-loan', date: new Date(2026, 10, 1, 0, 15).getTime(), amount: 12345, paid: 0, settled: false };
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: { statements: data.statements.map(s => ({ ...s, orders: [...s.orders, novemberLoan] })) }, error: null });
+    await act(async () => { await client.invalidateQueries({ queryKey: statementKey('sales', 'u1') }); });
+    fireEvent.click(await screen.findByText('Nov 26'));
+    await waitFor(() => expect(container.querySelectorAll('.co-row')).toHaveLength(1));
+    expect(container.querySelector('.co-row')?.textContent).toContain('12,345');
   });
 
   it('switches language from the header', async () => {

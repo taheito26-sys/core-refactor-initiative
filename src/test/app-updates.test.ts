@@ -67,6 +67,42 @@ describe('automatic app updates', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it('waits for registration and its update check instead of reloading the old worker', async () => {
+    const worker = new EventTarget();
+    let finishRegistration: (value: unknown) => void = () => {};
+    let finishUpdate: () => void = () => {};
+    const registration = { update: vi.fn(() => new Promise<void>(resolve => { finishUpdate = resolve; })) };
+    Object.assign(worker, { controller: {}, register: vi.fn(() => new Promise(resolve => { finishRegistration = resolve; })) });
+    vi.stubGlobal('navigator', { serviceWorker: worker });
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled();
+    finishRegistration(registration);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled();
+    finishUpdate();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks for newly deployed releases within five seconds', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => ({ buildId: 'old' }) } as Response);
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers from a hung version request on the next check', async () => {
+    vi.mocked(fetch).mockImplementationOnce((_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it('does not block updates for a closed editor kept in the DOM', async () => {
     const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
     editor.setAttribute('data-state', 'closed'); editor.append(document.createElement('input'));
@@ -79,7 +115,7 @@ describe('automatic app updates', () => {
     const reload = vi.fn(); stop = startAppUpdates('old', reload);
     await vi.advanceTimersByTimeAsync(0);
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenCalledWith('/app-version.json', { cache: 'no-store' });
+    expect(fetch).toHaveBeenCalledWith('/app-version.json', expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
     await vi.advanceTimersByTimeAsync(60_000);
     expect(reload).toHaveBeenCalledTimes(1);
   });

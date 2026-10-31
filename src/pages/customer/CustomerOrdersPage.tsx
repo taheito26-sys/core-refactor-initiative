@@ -29,7 +29,7 @@ import {
 import { formatCustomerDate, formatCustomerNumber, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ZoomControls } from '@/components/shared/ZoomControls';
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
-import { statementQueryOptions } from '@/features/customer/statements-api';
+import { statementKey, statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
@@ -591,7 +591,6 @@ export default function CustomerOrdersPage() {
     // Own variant: this call also asks for the buyer's non-loan sales (?sales=1),
     // which the Home and Wallet pages must not receive from the shared cache.
     ...statementQueryOptions<HistoryStatement>('sales', userId),
-    refetchInterval: 45000,
   });
   // This edge-function-backed query resolves slower than the live 'c-orders'
   // query above, so without folding its own loading state in here, the page
@@ -717,6 +716,8 @@ export default function CustomerOrdersPage() {
         { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` },
         () => {
           qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+          qc.invalidateQueries({ queryKey: statementKey('sales', userId) });
+          qc.invalidateQueries({ queryKey: statementKey('plain', userId) });
           qc.invalidateQueries({ queryKey: ['c-order-summaries'] });
           qc.invalidateQueries({ queryKey: ['c-order-cash-links', userId] });
         },
@@ -2382,6 +2383,8 @@ export default function CustomerOrdersPage() {
           onSuccess={() => {
             setAcceptingOrder(null);
             qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+          qc.invalidateQueries({ queryKey: statementKey('sales', userId) });
+          qc.invalidateQueries({ queryKey: statementKey('plain', userId) });
           }}
         />
       )}

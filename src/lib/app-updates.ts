@@ -13,6 +13,8 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
   let updateRequested = false;
   let noticeShown = false;
   let registration: ServiceWorkerRegistration | undefined;
+  let workerReady = !navigator.serviceWorker;
+  let workerChecking = false;
   let controlled = !!navigator.serviceWorker?.controller;
   const apply = () => {
     if (!pending || reloading || document.visibilityState === 'hidden') return;
@@ -35,7 +37,7 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
       }
       return;
     }
-    if (registration?.installing) return;
+    if (!workerReady || (workerChecking && !activated) || registration?.installing) return;
     if (registration?.waiting) { registration.waiting.postMessage({ type: 'SKIP_WAITING' }); return; }
     const attempt = `${buildId}->${targetVersion}`;
     try {
@@ -62,10 +64,15 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
   const check = async () => {
     if (stopped || checking || reloading || document.visibilityState === 'hidden') return;
     checking = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
       // An offline or stalled worker request must not block the independent version check.
-      void registration?.update().catch(() => undefined);
-      const response = await fetch('/app-version.json', { cache: 'no-store' });
+      if (registration && !workerChecking) {
+        workerChecking = true;
+        void registration.update().catch(() => undefined).finally(() => { workerChecking = false; if (!stopped) apply(); });
+      }
+      const response = await fetch('/app-version.json', { cache: 'no-store', signal: controller.signal });
       if (!response.ok) return;
       const version: unknown = await response.json();
       if (!stopped && version && typeof version === 'object' && 'buildId' in version
@@ -75,7 +82,7 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
         apply();
       }
     } catch { /* Offline clients continue using their current version. */ }
-    finally { checking = false; }
+    finally { window.clearTimeout(timeout); checking = false; }
   };
   document.addEventListener('click', interacted, true);
   document.addEventListener('input', edited, true);
@@ -100,9 +107,9 @@ export function startAppUpdates(buildId: string, reload = () => window.location.
         if (reg.waiting) { pending = true; apply(); }
         void check();
       }
-    }).catch(() => undefined);
+    }).catch(() => undefined).finally(() => { workerReady = true; if (!stopped) apply(); });
   }
-  const timer = window.setInterval(check, 30_000);
+  const timer = window.setInterval(check, 5000);
   const navigation = window.setInterval(() => {
     if (pathname !== location.pathname) {
       pathname = location.pathname;

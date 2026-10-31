@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => {
       : "https://qtrp2ptracker.vercel.app")
   ).replace(/\/$/, "");
 
+  const essentialJs = new Set<string>();
+
   return {
     define: { __APP_BUILD_ID__: JSON.stringify(buildId) },
     server: {
@@ -35,7 +37,14 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: false,
     },
     plugins: [
-      { name: 'app-version', generateBundle() {
+      { name: 'app-version', generateBundle(_options, bundle) {
+        const visit = (fileName: string) => {
+          const chunk = bundle[fileName];
+          if (!chunk || chunk.type !== 'chunk' || essentialJs.has(fileName)) return;
+          essentialJs.add(fileName);
+          chunk.imports.forEach(visit);
+        };
+        for (const chunk of Object.values(bundle)) if (chunk.type === 'chunk' && chunk.isEntry) visit(chunk.fileName);
         this.emitFile({ type: 'asset', fileName: 'app-version.json', source: JSON.stringify({ buildId }) });
       } },
       react(),
@@ -54,6 +63,11 @@ export default defineConfig(({ mode }) => {
           ],
           workbox: {
             globIgnores: ["**/app-version.json", "**/auth/refresh.html"],
+            // Install only startup JavaScript; page modules are cached as they are opened.
+            manifestTransforms: [async entries => ({
+              manifest: entries.filter(entry => !entry.url.endsWith('.js') || essentialJs.has(entry.url)),
+              warnings: [],
+            })],
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
               /^\/auth\//,
@@ -69,10 +83,14 @@ export default defineConfig(({ mode }) => {
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-                handler: "NetworkFirst",
+                handler: "NetworkOnly",
+              },
+              {
+                urlPattern: /\/assets\/.*\.js$/,
+                handler: "CacheFirst",
                 options: {
-                  cacheName: "supabase-api",
-                  expiration: { maxEntries: 50, maxAgeSeconds: 60 },
+                  cacheName: "tracker-page-code",
+                  expiration: { maxEntries: 150, maxAgeSeconds: 30 * 24 * 60 * 60 },
                 },
               },
             ],

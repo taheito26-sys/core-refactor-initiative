@@ -35,6 +35,9 @@ export function statementQueryOptions<T>(variant: StatementVariant, userId: stri
     queryKey: statementKey(variant, userId),
     queryFn: (): Promise<T[]> => userId ? fetchStatements<T>(variant, userId) : Promise.resolve([]),
     staleTime: STATEMENT_STALE_MS,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: 'always' as const,
+    refetchOnReconnect: 'always' as const,
     enabled: !!userId,
   };
 }
