@@ -1,7 +1,7 @@
 import { summarizeTransferSelection } from '../transfer-selection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Inbox, X } from 'lucide-react';
+import { Check, ChevronDown, Inbox, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
@@ -9,6 +9,7 @@ import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, transferKindLabel, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
 import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
+import { P2PSaleDetailsEditor } from './P2PSaleDetailsEditor';
 import { useT } from '@/lib/i18n';
 import type { LoanSource } from '@/features/stock/loan-ledger';
 
@@ -112,6 +113,7 @@ export function ExchangeInbox({
   activeEntityIds,
   importedReferences,
   linkedSaleInfo,
+  customerNames,
   monthKey,
   onLoanClick,
 }: {
@@ -145,6 +147,8 @@ export function ExchangeInbox({
    * price and customer are read from the trade it was saved as.
    */
   linkedSaleInfo?: Map<string, { price: number; customer: string }>;
+  /** Existing customers, offered as suggestions when recording a P2P entry's buyer. */
+  customerNames?: string[];
   /**
    * "YYYY-MM" (local calendar, matching OrdersPage's month pills) or "all".
    * When a specific month, only that month's orders/transfers are listed --
@@ -187,6 +191,8 @@ export function ExchangeInbox({
       return next;
     });
   };
+
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
 
   const handleDismissTransfer = async (transferId: string) => {
     setDismissingId(transferId);
@@ -489,9 +495,11 @@ export function ExchangeInbox({
                     reference: tr.reference,
                     kind: tr.kind,
                     amountUSDT: tr.amount,
-                    buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
+                    buyPrice: tr.kind === 'p2p' && Number(tr.sale_price_qar) > 0
+                      ? Number(tr.sale_price_qar)
+                      : defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
                     ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
-                    assigneeName: tr.counterparty ?? undefined,
+                    assigneeName: (tr.kind === 'p2p' && tr.sale_customer_name?.trim()) || tr.counterparty || undefined,
                   });
                   // This row alone now fills the form, so any half-made
                   // selection is moot -- drop it rather than leave the
@@ -523,8 +531,14 @@ export function ExchangeInbox({
                     )}
                     {tr.counterparty && <span className="truncate">{tr.counterparty}</span>}
                     {tr.kind === 'p2p' && (() => {
-                      const sale = tr.linked_entity_type === 'trade' && tr.linked_entity_id ? linkedSaleInfo?.get(tr.linked_entity_id) : undefined;
-                      if (!sale) return <span className="italic">price &amp; customer: set when you import</span>;
+                      const linked = tr.linked_entity_type === 'trade' && tr.linked_entity_id ? linkedSaleInfo?.get(tr.linked_entity_id) : undefined;
+                      // Once imported the saved sale is the truth; before that, what the merchant noted on the row.
+                      const sale = linked ?? (
+                        tr.sale_price_qar || tr.sale_customer_name
+                          ? { price: Number(tr.sale_price_qar) || 0, customer: tr.sale_customer_name?.trim() || '' }
+                          : undefined
+                      );
+                      if (!sale) return <span className="italic">no price or customer yet</span>;
                       return (
                         <>
                           {sale.price > 0 && <Chip className="bg-emerald-500/15 text-emerald-600 ring-emerald-500/30 dark:text-emerald-400">@ {fmtNum(sale.price, 4)} QAR</Chip>}
@@ -536,6 +550,17 @@ export function ExchangeInbox({
                   </div>
                 </div>
               </button>
+              {!imported && tr.kind === 'p2p' && (
+                <button
+                  type="button"
+                  title="Set price & customer"
+                  aria-label="Set price and customer"
+                  onClick={() => setEditingSaleId(editingSaleId === tr.id ? null : tr.id)}
+                  className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-muted-foreground hover:border-primary/60 hover:text-primary"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
               {!imported && (
                 <button
                   type="button"
@@ -551,6 +576,9 @@ export function ExchangeInbox({
                 <LoanButton source={{ type: 'exchange_transfer', transfer: tr as ExchangeTransfer }} />
               )}
               </div>
+              {editingSaleId === tr.id && (
+                <P2PSaleDetailsEditor transfer={tr as ExchangeTransfer} customerNames={customerNames ?? []} onClose={() => setEditingSaleId(null)} />
+              )}
               </div>
             );
           })())}

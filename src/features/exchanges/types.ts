@@ -110,6 +110,9 @@ export interface ExchangeTransfer {
   linked_entity_type: 'batch' | 'trade' | null;
   linked_entity_id: string | null;
   linked_at: string | null;
+  /** Sell price (QAR per USDT) and buyer the merchant recorded for an OKX P2P entry, which OKX itself does not report. */
+  sale_price_qar?: number | null;
+  sale_customer_name?: string | null;
   /** Set when the merchant marked this transfer as "not an order" (e.g. a loan repayment received via Pay) — hidden from the inbox, never imported. */
   dismissed_at: string | null;
   dismiss_reason?: ExchangeDismissReason | null;

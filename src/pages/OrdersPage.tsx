@@ -4999,6 +4999,7 @@ export default function OrdersPage() {
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
                     linkedSaleInfo={linkedSaleInfo}
+                    customerNames={state.customers.map((c) => c.name)}
                     monthKey={selectedMonth}
                     onLoanClick={(src) => setLoanSources([src])}
                   />

@@ -138,6 +138,18 @@ export async function addOrderLink(
   await markOrderLinked(orderId, entityType, entityId);
 }
 
+/** Records the sell price and buyer for an OKX P2P entry; null clears a field. */
+export async function setTransferSaleDetails(
+  transferId: string,
+  details: { price: number | null; customer: string | null },
+) {
+  const { error } = await supabase
+    .from('exchange_transfers' as any)
+    .update({ sale_price_qar: details.price, sale_customer_name: details.customer?.trim() || null })
+    .eq('id', transferId);
+  if (error) throw error;
+}
+
 /** Marks a Pay/network transfer as "not an order" (e.g. a loan repayment received via Pay) so it stops showing in the exchange inbox without ever being imported as a batch/trade. */
 export async function dismissTransfer(transferId: string) {
   const { error } = await supabase
