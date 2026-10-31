@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
-import { EXCHANGE_LABELS, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
+import { EXCHANGE_LABELS, transferKindLabel, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
 import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
 import { useT } from '@/lib/i18n';
 import type { LoanSource } from '@/features/stock/loan-ledger';
@@ -74,6 +74,7 @@ const KIND_CHIP = {
   p2p: { label: 'P2P', cls: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400 ring-fuchsia-500/30' },
   pay: { label: 'Pay', cls: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-violet-500/30' },
   network: { label: 'Network', cls: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 ring-teal-500/30' },
+  internal: { label: 'Internal', cls: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 ring-slate-500/30' },
 } as const;
 
 function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -507,7 +508,7 @@ export function ExchangeInbox({
                   <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                     <span>{tr.direction === 'in' ? 'received' : 'sent'}</span>
                     <Chip className={EXCHANGE_CHIP[tr.exchange]}>{EXCHANGE_LABELS[tr.exchange]}</Chip>
-                    <Chip className={kind.cls}>{kind.label}</Chip>
+                    <Chip className={kind.cls}>{transferKindLabel(tr)}</Chip>
                     {!imported && (
                       <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">
                         {tr.direction === 'in' ? 'needs cost basis' : 'needs sell rate'}

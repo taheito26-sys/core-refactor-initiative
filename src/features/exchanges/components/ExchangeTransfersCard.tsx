@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
-import { EXCHANGE_LABELS, TRANSFER_KIND_LABELS } from '../types';
+import { EXCHANGE_LABELS, transferKindLabel } from '../types';
 
 export function ExchangeTransfersCard() {
   const { data: transfers, isLoading } = useExchangeTransfers();
@@ -34,7 +34,7 @@ export function ExchangeTransfersCard() {
                 </span>
                 <Badge variant="outline">{EXCHANGE_LABELS[tr.exchange]}</Badge>
                 <Badge variant="secondary" className="capitalize">
-                  {TRANSFER_KIND_LABELS[tr.kind] ?? tr.kind}
+                  {transferKindLabel(tr)}
                 </Badge>
                 <span className="text-muted-foreground">{tr.status}</span>
                 {tr.transfer_time && (

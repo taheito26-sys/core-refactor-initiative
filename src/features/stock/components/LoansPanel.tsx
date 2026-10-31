@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { fmtDate, fmtPrice, fmtTotal, type DerivedState, type TrackerState } from '@/lib/tracker-helpers';
 import type { UsdtTransfer, UsdtTransferKind } from '@/lib/usdt-transfers';
-import { EXCHANGE_LABELS, TRANSFER_KIND_LABELS } from '@/features/exchanges/types';
+import { EXCHANGE_LABELS, transferKindLabel } from '@/features/exchanges/types';
 import { dismissExchangeRecord, restoreExchangeRecord } from '@/features/exchanges/api';
 import type { ExchangeDismissReason } from '@/features/exchanges/types';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
@@ -277,7 +277,7 @@ export function LoansPanel({
                   {item.direction === 'out' ? '⬆️' : '⬇️'} {item.direction === 'out' ? t('mloanSent') : t('mloanReceived')} <span className="mono">{fmtTotal(item.pendingUSDT)} USDT</span>
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {EXCHANGE_LABELS[item.exchange]} {item.source === 'order' ? `P2P${item.price ? ` @ ${fmtPrice(item.price)} ${item.fiat ?? ''}` : ''}` : TRANSFER_KIND_LABELS[item.transfer?.kind] ?? 'Network'}
+                  {EXCHANGE_LABELS[item.exchange]} {item.source === 'order' ? `P2P${item.price ? ` @ ${fmtPrice(item.price)} ${item.fiat ?? ''}` : ''}` : item.transfer ? transferKindLabel(item.transfer) : 'Network'}
                   {item.counterparty ? ` · ${item.counterparty}` : ''}
                   {item.ts ? ` · ${fmtDate(item.ts)}` : ''}
                 </div>

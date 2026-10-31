@@ -68,20 +68,35 @@ export function isCompletedP2POrder(status: string): boolean {
   return !NON_COMPLETED_P2P_STATUS_PATTERN.test(status);
 }
 
-export type ExchangeTransferKind = 'pay' | 'network' | 'p2p';
+export type ExchangeTransferKind = 'pay' | 'network' | 'p2p' | 'internal';
 
 export const TRANSFER_KIND_LABELS: Record<ExchangeTransferKind, string> = {
   pay: 'Pay',
   network: 'Network',
   p2p: 'P2P',
+  internal: 'Internal',
 };
+
+/** "USDT-TRC20" (OKX) and "TRX" (Binance) both name the chain; drop OKX's asset prefix. */
+function chainName(network: string | null | undefined): string {
+  return (network ?? '').replace(/^[A-Z]+-/, '').trim();
+}
+
+/** Kind label for display; an on-chain transfer also names its chain, e.g. "Network · TRC20". */
+export function transferKindLabel(tr: Pick<ExchangeTransfer, 'kind' | 'network'>): string {
+  const base = TRANSFER_KIND_LABELS[tr.kind] ?? 'Network';
+  const chain = tr.kind === 'network' ? chainName(tr.network) : '';
+  return chain ? `${base} · ${chain}` : base;
+}
 
 export interface ExchangeTransfer {
   id: string;
   exchange: ExchangeId;
   /**
-   * 'pay' = Binance Pay / OKX internal transfer, 'network' = on-chain,
-   * 'p2p' = USDT locked in escrow for an OKX P2P order (see normalizeExchangeTransfers).
+   * 'network' = on-chain deposit/withdrawal, 'pay' = Binance Pay (user to user),
+   * 'p2p' = USDT locked in escrow for an OKX P2P order,
+   * 'internal' = OKX move between the merchant's own accounts (sub-account, trading account).
+   * See normalizeExchangeTransfers for how OKX ledger bills are sorted into these.
    */
   kind: ExchangeTransferKind;
   direction: 'in' | 'out';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeExchangeTransfers } from '@/features/exchanges/normalize-transfers';
-import type { ExchangeTransfer } from '@/features/exchanges/types';
+import { transferKindLabel, type ExchangeTransfer } from '@/features/exchanges/types';
 
 let seq = 0;
 const tr = (over: Partial<ExchangeTransfer> & { billType?: string }): ExchangeTransfer => {
@@ -34,18 +34,33 @@ describe('normalizeExchangeTransfers', () => {
     expect(out.kind).toBe('p2p');
   });
 
-  it('keeps real internal transfers as Pay and on-chain as Network', () => {
+  it('labels OKX moves between the merchant\'s own accounts as Internal, not Pay', () => {
     const rows = normalizeExchangeTransfers([
       tr({ billType: '21', direction: 'in' }),
+      tr({ billType: '20' }),
+      tr({ billType: '130', direction: 'in' }),
       tr({ billType: '131' }),
-      tr({ kind: 'network', raw: { type: '116' } }),
     ]);
-    expect(rows.map((r) => r.kind)).toEqual(['pay', 'pay', 'network']);
+    expect(rows.map((r) => r.kind)).toEqual(['internal', 'internal', 'internal', 'internal']);
   });
 
-  it('never reclassifies Binance rows', () => {
+  it('keeps on-chain as Network even when its raw type collides with a bill type', () => {
+    const [out] = normalizeExchangeTransfers([tr({ kind: 'network', raw: { type: '116' } })]);
+    expect(out.kind).toBe('network');
+  });
+
+  it('never reclassifies Binance rows: Binance Pay stays Pay', () => {
     const [out] = normalizeExchangeTransfers([tr({ exchange: 'binance', billType: '116' })]);
     expect(out.kind).toBe('pay');
+  });
+
+  it('names the chain on a Network label and not on the others', () => {
+    expect(transferKindLabel({ kind: 'network', network: 'USDT-TRC20' })).toBe('Network · TRC20');
+    expect(transferKindLabel({ kind: 'network', network: 'TRX' })).toBe('Network · TRX');
+    expect(transferKindLabel({ kind: 'network', network: '' })).toBe('Network');
+    expect(transferKindLabel({ kind: 'p2p', network: null })).toBe('P2P');
+    expect(transferKindLabel({ kind: 'pay', network: null })).toBe('Pay');
+    expect(transferKindLabel({ kind: 'internal', network: null })).toBe('Internal');
   });
 
   it('drops a cancelled order: the escrow lock and its refund net out', () => {
