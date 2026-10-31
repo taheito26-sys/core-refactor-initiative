@@ -1,7 +1,5 @@
-import { useLocation } from 'react-router-dom';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Menu, Bell, Users, TrendingUp, User, Search, Filter } from 'lucide-react';
-import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { Menu, TrendingUp } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -12,23 +10,6 @@ import { UserProfileModal } from '@/features/profile/UserProfileModal';
 import { useHomeDesign } from '@/features/orders/v2/design';
 import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import { ThemeColorPicker } from './ThemeColorPicker';
-import { P2PTopBar } from '@/features/p2p/components/P2PTopBar';
-
-function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
-  if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
-  if (pathname === '/trading/orders') return { title: t('orders'), subtitle: t('tradesSub') };
-  if (pathname === '/trading/stock') return { title: t('stock'), subtitle: t('stockSub') };
-  if (pathname === '/trading/calendar') return { title: t('calendar'), subtitle: t('calendarSub') };
-  if (pathname === '/trading/p2p') return { title: t('p2pTracker'), subtitle: 'Live market rates' };
-  if (pathname === '/crm') return { title: t('crm'), subtitle: t('crmSub') };
-  if (pathname === '/merchants') return { title: t('theMerchants'), subtitle: 'Relationships, deals & invitations' };
-  if (pathname === '/deals') return { title: t('deals'), subtitle: 'Deal management' };
-  if (pathname === '/analytics') return { title: t('analytics'), subtitle: 'Performance insights' };
-  if (pathname === '/vault') return { title: t('vault'), subtitle: 'Document storage' };
-  if (pathname === '/settings') return { title: t('settings'), subtitle: t('layoutThemesData') };
-  if (pathname === '/notifications') return { title: t('notifications'), subtitle: 'Activity feed' };
-  return { title: 'The Tracker', subtitle: 'P2P Trading Platform' };
-}
 
 const RANGES = [
   { id: 'today', label: '1D' },
@@ -43,25 +24,18 @@ type TopBarProps = {
 };
 
 export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
-  const location = useLocation();
   const { settings, update } = useTheme();
   const { merchantProfile, logout } = useAuth();
   const t = useT();
-  const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
   const [profileOpen, setProfileOpen] = useState(false);
-  // On the phone dashboard the bar carries search and filter buttons, and the zoom control moves into the filter sheet.
-  const onPhoneDashboard = isMobile && location.pathname === '/dashboard';
-  const { setSearchOpen, setFilterOpen, scope, customFrom } = useDashboardFilters();
-  const dashFiltersActive = scope !== 'all' || !!customFrom;
-  // The New | Classic choice for every page lives here, on the home page only.
-  const onHome = location.pathname === '/dashboard';
+  // One global layout choice is available on every tracker page.
   const [design, setDesign] = useHomeDesign();
   // On a phone every control shares one line, so each is drawn small; the bar also ignores the app zoom (app-topbar).
   const pillCls = cn('rounded font-semibold transition-all md:px-2.5 md:text-[11px]', isMobile ? 'px-[3px] py-[3px] text-[8.5px] leading-none' : 'px-1.5 py-1 text-[10px]');
 
   // ── Phone: the controls always span the bar edge to edge ──
   // The row is drawn at its natural size and then scaled so its width is exactly the bar's, whatever the app zoom
-  // (already divided out by app-topbar) or how many controls this page shows: fewer controls are drawn larger.
+  // (already divided out by app-topbar). Every page uses the same controls and spacing.
   const headerRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(1);
@@ -85,14 +59,12 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
     ro.observe(header);
     ro.observe(row);
     return () => ro.disconnect();
-  }, [isMobile, location.pathname, settings.language, settings.currency, design]);
-
-  if (isMobile && location.pathname === '/trading/p2p') return <P2PTopBar onMenuClick={onMenuClick} />;
+  }, [isMobile, settings.language, settings.currency, design]);
 
   return (
     <header
       ref={headerRef}
-      className={cn('app-topbar sticky top-0 z-20 flex items-center bg-background/95 backdrop-blur-sm', isMobile ? 'flex-nowrap gap-[2px] px-1 py-1' : 'gap-1 md:gap-2 px-2 md:px-3 py-1.5', onPhoneDashboard ? '' : 'border-b border-border')}
+      className={cn('app-topbar sticky top-0 z-20 flex items-center bg-background/95 backdrop-blur-sm', isMobile ? 'flex-nowrap gap-[2px] px-1 py-1' : 'gap-1 md:gap-2 px-2 md:px-3 py-1.5', 'border-b border-border')}
       style={isMobile ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 5px)',
         paddingLeft: 'max(4px, env(safe-area-inset-left, 0px))',
@@ -196,24 +168,11 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       {/* ── Colours of the current layout ── */}
       <ThemeColorPicker compact={isMobile} />
 
-      {/* ── Dashboard search and filter (phone) ── */}
-      {onPhoneDashboard && (
-        <div className="flex shrink-0 items-center gap-[2px]">
-          <button onClick={() => setSearchOpen(true)} aria-label={t('search')} className="p-[2px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
-            <Search className="h-3 w-3" />
-          </button>
-          <button onClick={() => setFilterOpen(true)} aria-label={t('dhFilters')} className="relative p-[2px] rounded-full border border-border bg-card text-foreground hover:bg-muted">
-            <Filter className="h-3 w-3" />
-            {dashFiltersActive && <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-primary" />}
-          </button>
-        </div>
-      )}
-
       {/* ── Zoom Controls ── */}
       <ZoomControls className="shrink-0" compact={isMobile} />
 
-      {/* ── New | Classic, for every page, chosen from the home page ── */}
-      {onHome && <LayoutSwitch design={design} onChange={setDesign} className={cn('shrink-0', isMobile ? 'in-topbar ms-auto' : 'in-topbar-desk')} />}
+      {/* ── New | Classic, shared by every tracker page ── */}
+      <LayoutSwitch design={design} onChange={setDesign} className={cn('shrink-0', isMobile ? 'in-topbar ms-auto' : 'in-topbar-desk')} />
 
       {/* ── Activity ── */}
       <div className="max-md:order-[-1] shrink-0">
