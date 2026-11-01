@@ -1,3 +1,5 @@
+import { isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
+
 export function resolveCustomerLabel(params: {
   displayName?: string | null;
   name?: string | null;
@@ -9,13 +11,13 @@ export function resolveCustomerLabel(params: {
     params.displayName,
     params.name,
     params.nickname,
-    params.phone,
   ];
 
   for (const candidate of candidates) {
-    const label = candidate?.trim();
-    if (label) return label;
+    if (isMeaningfulBuyerName(candidate)) return normalizeBuyerName(candidate);
   }
+
+  if (params.phone?.trim()) return params.phone.trim();
 
   // Fall back to a shortened UUID rather than the full raw ID
   const uid = params.customerUserId?.trim();

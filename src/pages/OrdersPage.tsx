@@ -1,3 +1,4 @@
+import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
 import { hasSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1694,8 +1695,8 @@ export default function OrdersPage() {
   };
 
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
-    const nm = name.trim();
-    if (!nm) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
+    const nm = normalizeBuyerName(name);
+    if (!isMeaningfulBuyerName(nm)) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     // Prefer an existing local customer over a connected-portal match: a
     // buyer who already has trades/loans recorded under a local id must
     // keep landing on that same id once they also connect their portal
@@ -1729,6 +1730,7 @@ export default function OrdersPage() {
       const materialized = materializeListedCustomer(connected, state.customers);
       return { id: materialized.id, customers: materialized.customers, trades: state.trades, customerLoans: state.customerLoans };
     }
+    if (!isFullBuyerName(nm)) return { id: '', customers: state.customers, trades: state.trades, customerLoans: state.customerLoans };
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
     return { id: nextCustomer.id, customers: [...state.customers, nextCustomer], trades: state.trades, customerLoans: state.customerLoans };
   };
@@ -1736,7 +1738,7 @@ export default function OrdersPage() {
   const addBuyerFromModal = () => {
     if (!newBuyerName.trim()) return;
     const created = ensureCustomer(newBuyerName, newBuyerPhone, newBuyerTier);
-    if (!created.id) return;
+    if (!created.id) { toast.error(t('buyerFullNameRequired')); return; }
     applyState({ ...state, customers: created.customers, trades: created.trades, customerLoans: created.customerLoans, deletedCustomerIds: created.deletedCustomerIds ?? state.deletedCustomerIds });
     setBuyerName(newBuyerName.trim());
     setBuyerId(created.id);
@@ -2735,7 +2737,7 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === id);
     if (!tr) return;
     // Allow editing approved trades — will trigger re-approval
-    const cn = customerLabel(tr.customerId);
+    const cn = customerLabel(tr.customerId) || t('orderBuyerMissing');
     setEditingTradeId(id);
     setEditDate(toInputFromTs(tr.ts));
     setEditQty(String(tr.amountUSDT));
@@ -3698,7 +3700,7 @@ export default function OrdersPage() {
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
-    const cn = customerLabel(tr.customerId) || '—';
+    const cn = customerLabel(tr.customerId) || t('orderBuyerMissing');
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
     const isExpanded = !!expandedCards[tr.id];
     const qty = linkedRow?.quantity ?? tr.amountUSDT;
@@ -4055,7 +4057,7 @@ export default function OrdersPage() {
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
-    const name = customerLabel(tr.customerId) || '—';
+    const name = customerLabel(tr.customerId) || t('orderBuyerMissing');
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
     const qty = linkedRow?.quantity ?? tr.amountUSDT;
     const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
@@ -4093,6 +4095,7 @@ export default function OrdersPage() {
 
     const status = (() => {
       if (tr.voided || tr.approvalStatus === 'cancelled') return { label: t('ov2Cancelled'), kind: 'bad' as const };
+      if (!hasSavedOrderBuyer(state.customers, tr.customerId)) return { label: t('orderBuyerMissing'), kind: 'bad' as const };
       if (tr.approvalStatus === 'pending_approval') return { label: t('ov2Pending'), kind: 'warn' as const };
       if (tr.approvalStatus === 'rejected') return { label: t('ov2Rejected'), kind: 'bad' as const };
       if (loan) {
@@ -4369,7 +4372,7 @@ export default function OrdersPage() {
                         const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
                         const margin = Number.isFinite(net) && rev > 0 ? net / rev : NaN;
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                        const cn = customerLabel(tr.customerId);
+                        const cn = customerLabel(tr.customerId) || t('orderBuyerMissing');
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         const loan = loanByTradeId.get(tr.id);
                         const isLoaned = !!loan;

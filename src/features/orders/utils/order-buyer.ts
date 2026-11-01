@@ -1,8 +1,9 @@
+import { isMeaningfulBuyerName } from '@/lib/buyer-name';
 import type { Customer, Trade, TrackerState } from '@/lib/tracker-helpers';
 
 export function hasSavedOrderBuyer(customers: Customer[] | undefined, customerId: string | undefined): boolean {
   return !!customerId && !!customers?.some(customer => customer.id === customerId
-    && !!customer.name?.trim() && !/^[-–—]+$/.test(customer.name.trim()));
+    && [customer.name, customer.nameEn, customer.nameAr].some(isMeaningfulBuyerName));
 }
 
 const orderFields = (trade: Trade) => JSON.stringify([

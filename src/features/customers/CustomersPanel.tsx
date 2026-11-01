@@ -1,3 +1,4 @@
+import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
 import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -311,9 +312,12 @@ export function CustomersPanel({ state, applyState, derived }: { state: TrackerS
   };
 
   const saveCustomer = () => {
-    const nameEn = custForm.nameEn?.trim() || '';
-    const nameAr = custForm.nameAr?.trim() || '';
-    if (!nameEn && !nameAr) { setCustError('At least one name (English or Arabic) is required.'); return; }
+    const nameEn = normalizeBuyerName(custForm.nameEn);
+    const nameAr = normalizeBuyerName(custForm.nameAr);
+    if ((!nameEn && !nameAr) || [nameEn, nameAr].filter(Boolean).some(name => !isMeaningfulBuyerName(name))
+      || (!editingCust && [nameEn, nameAr].filter(Boolean).some(name => !isFullBuyerName(name)))) {
+      setCustError(t('buyerFullNameRequired')); return;
+    }
     // `name` is this buyer's identity key -- trades and loans are matched
     // back to them by it -- so an edit must never repoint it. Only a
     // brand-new customer gets one assigned, and from English first so it

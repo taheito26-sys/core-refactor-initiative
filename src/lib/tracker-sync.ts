@@ -363,8 +363,6 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const latestState = (latestRow as any)?.state as Partial<TrackerState> | null;
 
-  assertSavedOrderBuyers({ customers: latestState?.customers ?? [], trades: latestState?.trades ?? [] }, stripped);
-
   if (!options.replaceExisting && latestState && typeof latestState === 'object') {
     assertNoNewDuplicateBatches(latestState.batches ?? [], stripped.batches ?? []);
     const deletedLoanIds = guardTombstones(
@@ -441,6 +439,7 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
     }
   }
 
+  assertSavedOrderBuyers({ customers: latestState?.customers ?? [], trades: latestState?.trades ?? [] }, merged);
   const json = stateToJson(merged);
   if (!json || (!options.replaceExisting && json === _lastSavedJson)) return;
 

@@ -1,3 +1,4 @@
+import { isMeaningfulBuyerName, normalizeBuyerName } from './buyer-name.ts';
 // Exact helper functions from the TRACKER_CLOUDFLARE- repo
 import {
   taggedAmountBySource,
@@ -450,7 +451,7 @@ export interface Customer {
 export function resolveCustomerName(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>, lang: 'en' | 'ar'): string {
   const primary = lang === 'ar' ? customer.nameAr : customer.nameEn;
   const secondary = lang === 'ar' ? customer.nameEn : customer.nameAr;
-  return primary || secondary || customer.name;
+  return [primary, secondary, customer.name].filter(isMeaningfulBuyerName).map(normalizeBuyerName)[0] ?? '';
 }
 
 /**
@@ -461,7 +462,7 @@ export function resolveCustomerName(customer: Pick<Customer, 'name' | 'nameEn' |
  */
 export function customerNameVariants(customer: Pick<Customer, 'name' | 'nameEn' | 'nameAr'>): string[] {
   return [customer.name, customer.nameEn, customer.nameAr].filter(
-    (n): n is string => typeof n === 'string' && n.trim() !== '',
+    (n): n is string => isMeaningfulBuyerName(n),
   );
 }
 
