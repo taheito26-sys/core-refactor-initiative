@@ -1,3 +1,4 @@
+import { registeredOrderAmount } from './order-coverage';
 // ─── Explaining a tracker vs. exchange USDT mismatch ───
 //
 // The tracker's available stock and the Binance + OKX balances drift apart
@@ -14,7 +15,7 @@
 //
 // Whatever is left after that is the real mismatch.
 
-import { sumLinkedAmount, type ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
+import type { ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
 import type { ExchangeDismissReason, ExchangeId, ExchangeP2POrder, ExchangeTransfer } from './types';
 
 /** Amounts within this margin are rounding noise from the exchange. */
@@ -60,6 +61,7 @@ export function findPendingExchangeItems(input: {
   liveEntityIds: Set<string>;
   /** Order numbers / transfer references found in live batch/trade notes. */
   importedReferences: Set<string>;
+  trackerAmounts?: Map<string, number>;
   /** Exchange transfer ids already tagged as borrow / lend movements. */
   taggedTransferIds?: Set<string>;
 }): PendingExchangeItem[] {
@@ -68,12 +70,7 @@ export function findPendingExchangeItems(input: {
 
   for (const o of input.orders || []) {
     if (!isUsdt(o.asset) || o.dismissed_at) continue;
-    const links = (input.linksByOrder?.get(o.id) ?? []).filter(l => input.liveEntityIds.has(l.entity_id));
-    let linked = sumLinkedAmount(links);
-    if (linked <= AMOUNT_EPSILON) {
-      const legacyLinked = !!o.linked_at && !!o.linked_entity_id && input.liveEntityIds.has(o.linked_entity_id);
-      if (legacyLinked || input.importedReferences.has(o.order_number)) linked = Number(o.amount);
-    }
+    const linked = registeredOrderAmount(o, input);
     const pending = Math.max(0, Number(o.amount) - linked);
     if (pending <= AMOUNT_EPSILON) continue;
     const direction = o.side === 'sell' ? 'out' : 'in';

@@ -304,6 +304,8 @@ export function deriveCashQAR(cashAccounts: CashAccount[], cashLedger: CashLedge
 
 export interface Batch {
   id: string;
+  /** Stable exchange source identity, retained when the note changes. */
+  exchangeOrderNumber?: string;
   /** Immutable creation identity, retained when a purchase is edited. */
   purchaseKey?: string;
   ts: number;

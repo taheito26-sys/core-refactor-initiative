@@ -1,4 +1,5 @@
-import { sumLinkedAmount, type ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
+import { registeredOrderAmount } from './order-coverage';
+import type { ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
 import { isCompletedP2POrder, type ExchangeP2POrder } from './types';
 
 /** Amounts within this margin are rounding noise from the exchange. */
@@ -48,6 +49,7 @@ export function auditCompletedP2POrders(input: {
   linksByOrder: Map<string, ExchangeOrderLink[]> | undefined;
   liveEntityIds: Set<string>;
   importedReferences: Set<string>;
+  trackerAmounts?: Map<string, number>;
   /** "YYYY-MM", or "all" for every month. */
   monthKey: string;
   /** Sell orders belong on the Orders page, buy orders on the Stock page; each page checks only its own. */
@@ -62,12 +64,7 @@ export function auditCompletedP2POrders(input: {
     if (input.monthKey !== 'all' && (!ts || localMonthOf(ts) !== input.monthKey)) continue;
 
     const amount = Number(o.amount) || 0;
-    const links = (input.linksByOrder?.get(o.id) ?? []).filter(l => input.liveEntityIds.has(l.entity_id));
-    let registeredUSDT = sumLinkedAmount(links);
-    if (registeredUSDT <= AMOUNT_EPSILON) {
-      const legacyLinked = !!o.linked_at && !!o.linked_entity_id && input.liveEntityIds.has(o.linked_entity_id);
-      if (legacyLinked || input.importedReferences.has(o.order_number)) registeredUSDT = amount;
-    }
+    const registeredUSDT = registeredOrderAmount(o, input);
     const missingUSDT = Math.max(0, amount - registeredUSDT);
 
     let status: P2PAuditStatus;

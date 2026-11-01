@@ -1,3 +1,4 @@
+import { registeredOrderAmount } from '../order-coverage';
 import { summarizeTransferSelection } from '../transfer-selection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -6,7 +7,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
-import { useExchangeOrderLinks, sumLinkedAmount } from '../hooks/useExchangeOrderLinks';
+import { useExchangeOrderLinks } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, transferKindLabel, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
 import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
 import { OkxOrderDetailsEditor } from './OkxOrderDetailsEditor';
@@ -117,6 +118,7 @@ export function ExchangeInbox({
   defaultPrice,
   activeEntityIds,
   importedReferences,
+  trackerAmounts,
   monthKey,
   onLoanClick,
 }: {
@@ -144,6 +146,7 @@ export function ExchangeInbox({
    * looks pending forever even though it's already in the tracker.
    */
   importedReferences?: Set<string>;
+  trackerAmounts?: Map<string, number>;
   /** Existing customers, offered as suggestions when recording an OKX P2P order's buyer. */
   customerNames?: string[];
   /**
@@ -230,13 +233,7 @@ export function ExchangeInbox({
    */
   const orderCoverage = useMemo(() => {
     return (o: NonNullable<typeof allOrders>[number]) => {
-      const links = (linksByOrder?.get(o.id) ?? []).filter(
-        (l) => !activeEntityIds || activeEntityIds.has(l.entity_id),
-      );
-      let linkedAmount = sumLinkedAmount(links);
-      if (linkedAmount <= AMOUNT_EPSILON && isImported(o.linked_at, o.linked_entity_id, o.order_number)) {
-        linkedAmount = o.amount;
-      }
+      const linkedAmount = registeredOrderAmount(o, { linksByOrder, liveEntityIds: activeEntityIds, importedReferences, trackerAmounts });
       const remaining = Math.max(0, o.amount - linkedAmount);
       return {
         remaining,
@@ -244,7 +241,7 @@ export function ExchangeInbox({
         isPartial: linkedAmount > AMOUNT_EPSILON && remaining > AMOUNT_EPSILON,
       };
     };
-  }, [linksByOrder, activeEntityIds, isImported]);
+  }, [linksByOrder, activeEntityIds, importedReferences, trackerAmounts]);
 
   const allOrders = useMemo(
     () =>

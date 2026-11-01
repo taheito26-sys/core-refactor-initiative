@@ -37,10 +37,10 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
 
-function renderInbox(onPick = vi.fn()) {
+function renderInbox(onPick = vi.fn(), trackerAmounts?: Map<string, number>) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ExchangeInbox side="sell" onPick={onPick} activeEntityIds={new Set()} customerNames={['Abu Tamim']} />
+      <ExchangeInbox side="sell" onPick={onPick} activeEntityIds={new Set()} customerNames={['Abu Tamim']} trackerAmounts={trackerAmounts} />
     </QueryClientProvider>,
   );
   return onPick;
@@ -55,6 +55,14 @@ describe('OKX P2P orders in the inbox', () => {
     expect(screen.getAllByText('P2P').length).toBe(3);
     expect(screen.getAllByText('needs amount').length).toBe(1);
     expect(screen.getByText('Abu Tamim')).toBeTruthy();
+  });
+
+  it('does not allow a saved OKX order to be imported again while server links are absent', () => {
+    const onPick = renderInbox(vi.fn(), new Map([['okx:B1', 3000]]));
+    const button = screen.getByText(/3,000/).closest('button');
+    expect(button?.disabled).toBe(true);
+    fireEvent.click(button!);
+    expect(onPick).not.toHaveBeenCalled();
   });
 
   it('offers the amount pencil on OKX orders only', () => {

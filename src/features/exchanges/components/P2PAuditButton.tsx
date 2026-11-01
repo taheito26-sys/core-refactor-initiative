@@ -1,3 +1,4 @@
+import { trackerOrderAmounts } from '../order-coverage';
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -56,7 +57,7 @@ export function P2PAuditButton({
       [...state.batches.map(b => extractImportedReference(b.note)), ...liveTrades.map(tr => extractImportedReference(tr.note))]
         .filter((r): r is string => !!r),
     );
-    return auditCompletedP2POrders({ orders, linksByOrder, liveEntityIds, importedReferences, monthKey, side });
+    return auditCompletedP2POrders({ orders, linksByOrder, liveEntityIds, importedReferences, trackerAmounts: trackerOrderAmounts({ trades: state.trades, batches: state.batches }), monthKey, side });
   }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, monthKey, side]);
 
   const alarms = audit.missing + audit.partial;

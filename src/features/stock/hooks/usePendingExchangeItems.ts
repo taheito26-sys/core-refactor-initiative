@@ -1,3 +1,4 @@
+import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { useMemo } from 'react';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { taggedExchangeTransferIds } from '@/lib/usdt-transfers';
@@ -34,6 +35,7 @@ export function usePendingExchangeItems(state: TrackerState): PendingExchangeIte
       transfers,
       liveEntityIds,
       importedReferences,
+      trackerAmounts: trackerOrderAmounts({ trades: state.trades, batches: state.batches }),
       taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers),
     });
   }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, transfers]);

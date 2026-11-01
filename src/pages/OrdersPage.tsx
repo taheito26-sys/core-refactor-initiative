@@ -1,3 +1,4 @@
+import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
 import { hasSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
@@ -645,6 +646,7 @@ export default function OrdersPage() {
     ]),
     [state.trades, state.usdtTransfers],
   );
+  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ trades: state.trades, batches: state.batches }), [state.trades, state.batches]);
   const importedExchangeRefs = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
     [state.trades],
@@ -2916,6 +2918,7 @@ export default function OrdersPage() {
       splitResult = splitOrder({
         trade: {
           ...existingTrade,
+          exchangeOrderNumber: existingTrade.exchangeOrderNumber || extractImportedReference(existingTrade.note) || undefined,
           ts, sellPriceQAR: sell, feeQAR: fee, note: editNote,
           customerId: customerIdForSave, usesStock: editUsesStock,
           manualBuyPrice: !editUsesStock ? (parseFloat(editManualBuyPrice) || 0) : undefined,
@@ -3129,6 +3132,7 @@ export default function OrdersPage() {
       return {
         ...tr,
         ...updatedFields,
+        exchangeOrderNumber: tr.exchangeOrderNumber || extractImportedReference(tr.note) || undefined,
         revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
@@ -4980,6 +4984,7 @@ export default function OrdersPage() {
                     onPickTransfer={applyExchangeTransferPrefill}
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
+                    trackerAmounts={savedExchangeAmounts}
                     customerNames={state.customers.map((c) => c.name)}
                     monthKey={selectedMonth}
                     onLoanClick={(src) => setLoanSources([src])}

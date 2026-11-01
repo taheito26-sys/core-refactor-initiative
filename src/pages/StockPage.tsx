@@ -1,3 +1,4 @@
+import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { BatchConsumption } from '@/features/stock/components/BatchConsumption';
 import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-identity';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
@@ -107,7 +108,7 @@ export default function StockPage() {
   // normal save path can stamp the batch as imported and mark the source row
   // linked. There is no separate import action -- picking only prefills.
   const [pendingImport, setPendingImport] = useState<
-    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
+    | { kind: 'order'; orderId: string; exchangeOrderNumber: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
     | { kind: 'transfer'; transferIds: string[]; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
     | null
   >(null);
@@ -244,6 +245,7 @@ export default function StockPage() {
     () => new Set([...state.batches.map((b) => b.id), ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id)]),
     [state.batches, state.usdtTransfers],
   );
+  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ trades: state.trades, batches: state.batches }), [state.trades, state.batches]);
   const importedExchangeRefs = useMemo(
     () => new Set(state.batches.map((b) => extractImportedReference(b.note)).filter((r): r is string => !!r)),
     [state.batches],
@@ -490,7 +492,7 @@ export default function StockPage() {
       }),
     );
     setFundingAccountId('none');
-    setPendingImport({ orderId: prefill.orderId, kind: 'order', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
+    setPendingImport({ orderId: prefill.orderId, exchangeOrderNumber: prefill.orderNumber, kind: 'order', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
     setBatchMsg(
       prefill.originalFiat
         ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${activeBatchFiat}/USDT rate as the price.`
@@ -650,6 +652,7 @@ export default function StockPage() {
         {
           id: batchId,
           purchaseKey,
+          exchangeOrderNumber: pendingImport?.kind === 'order' ? pendingImport.exchangeOrderNumber : undefined,
           ts,
           source,
           note: batchNote.trim(),
@@ -818,6 +821,7 @@ export default function StockPage() {
         ts,
         source: src,
         note: editNote.trim(),
+        exchangeOrderNumber: b.exchangeOrderNumber || extractImportedReference(b.note) || undefined,
         initialUSDT: qty,
         buyPriceQAR: px,
         fundingAccountId: newFundingId,
@@ -1707,6 +1711,7 @@ export default function StockPage() {
                   defaultPrice={wacop || undefined}
                   activeEntityIds={activeBatchIds}
                   importedReferences={importedExchangeRefs}
+                    trackerAmounts={savedExchangeAmounts}
                   monthKey={selectedMonth}
                   onLoanClick={(src) => setLoanSources([src])}
                 />
@@ -2013,6 +2018,7 @@ export default function StockPage() {
                       defaultPrice={wacop || undefined}
                       activeEntityIds={activeBatchIds}
                       importedReferences={importedExchangeRefs}
+                    trackerAmounts={savedExchangeAmounts}
                       monthKey={selectedMonth}
                       onLoanClick={(src) => setLoanSources([src])}
                     />
