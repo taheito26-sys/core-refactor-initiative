@@ -11,10 +11,24 @@ Guidance for AI assistants working in this repository. Read this before making c
   runs the app off `main`, and anything not on `main` is invisible to them.
 - If a session is started on a designated feature branch, still land the work on
   `main` when it's done: merge the branch (or commit straight to `main`) and push.
-- Run the checks before pushing: `npx tsc -p tsconfig.app.json --noEmit`,
-  `npx eslint <changed files>`, and `npx vitest run`. The repo has pre-existing
-  failures in unrelated suites — compare against a clean-tree baseline rather
-  than expecting zero, and never push a change that adds new ones.
+- **Routine fixes are already authorized:** implement, validate, push to `main`, and
+  verify the production deployment without asking for a second approval. The owner's
+  November 1, 2026 preference is a fast release with no repeated confirmation prompts.
+- **Use checks appropriate to the change:** documentation-only edits need source/diff
+  review; small UI edits need relevant tests and one build; financial calculations,
+  customer identity, persistence, authentication, or shared runtime changes need the
+  full relevant regression coverage, app TypeScript checks, and production build.
+  Run the full test suite for broad/shared changes or unresolved regressions, rather
+  than automatically repeating it for every small edit. Compare pre-existing failures
+  against the unchanged baseline and never add new failures.
+- Run independent checks together. Reuse a baseline for the same source revision,
+  dependency lockfile, and toolchain; repeat a check only after a relevant change or
+  failure. Do not build the same revision locally more than once without a reason.
+- Prefer the connected GitHub and Vercel tools. If shell networking immediately fails
+  because its proxy is unreachable, use the connected tools instead of repeating a
+  network permission request that stalls the task. Genuine sandbox restrictions remain
+  in force; never work around a denied operation or change unrelated app permissions.
+- See `docs/release-workflow.md` for measured deployment timings and permission scope.
 - A pull request is optional here, not the delivery mechanism. Open one only when
   the owner asks for a review; otherwise merging it immediately is expected.
 
@@ -361,7 +375,7 @@ Coverage is concentrated on pure logic — FIFO (`consume-fifo`, `tracker-fifo`,
 WebRTC/signaling. UI-heavy pages are largely untested.
 
 When you add domain logic, put it in a pure module and test it there rather than reaching for a
-component test. Run `npm test` plus `npm run typecheck` before claiming anything works.
+component test. Follow the impact-based verification policy in section 0 and report the checks actually run.
 
 `TESTING.md` holds the manual end-to-end checklist (order workflow, FX rate, notifications,
 bilingual/RTL). Use it for anything touching the order lifecycle.
@@ -372,8 +386,8 @@ These come from `.kiro/steering/` and hold for AI assistants here:
 
 - **Inspect before editing.** Read the file first; make the smallest correct change. Do not
   refactor unrelated pages, tabs, shared layouts, or business logic along the way.
-- **Verify with real commands** — `npm run typecheck`, `npm test`, `npm run build:dry-run` — and
-  report the actual output. If verification fails, fix it and rerun.
+- **Verify with real commands** chosen using section 0, and report the actual output.
+  If verification adds a new failure, fix it and rerun the affected check.
 - **Never claim something works because it should.** UI, WebRTC, PWA, and mobile behavior are only
   "working" once tested on the real device/browser. Say "pushed — please test", not "this is
   fixed".
@@ -401,9 +415,10 @@ Commit messages are short imperative summaries, frequently with a PR number suff
 - Auth redirect URLs must be allow-listed in Supabase for web *and* the Capacitor deep-link
   scheme `com.taheito26sys.corerefactorinitiative://login-callback` /
   `://reset-password-callback`. See `README.md` §"Auth redirect configuration".
-- Service workers are aggressively cleaned up on boot (`App.tsx`), and Workbox is set to
-  `skipWaiting` + `clientsClaim` with `autoUpdate`. Stale-cache symptoms usually mean the deploy
-  has not landed yet — check `__APP_BUILD_ID__` in the console.
+- App updates are coordinated by `src/lib/app-updates.ts`. Clean clients update automatically;
+  unsaved edits and open editors postpone reloading. Workbox precaches startup code and uses
+  explicit worker activation so a new release does not discard unfinished work. Verify the
+  live deployment commit before diagnosing a client cache problem.
 - Native `android/` and `ios/` projects are generated locally via Capacitor and are not meant to
   be committed.
 
