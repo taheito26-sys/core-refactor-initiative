@@ -78,6 +78,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const [state, setState] = useState<TrackerState>(initial.state);
   const [derived, setDerived] = useState<DerivedState>(initial.derived);
   const stateRef = useRef(state);
+  const activeTrackerCommits = useRef(0);
+  const mutationRevision = useRef(0);
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cashCommitInFlightUntilRef = useRef<number>(0);
   const clearedAccountIds = useRef<Set<string>>(new Set());
@@ -100,6 +102,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
+    mutationRevision.current += 1;
     const startingAfterClear = isTrackerDataCleared();
     prepareTrackerWrite();
     const prev = stateRef.current;
@@ -152,6 +155,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(computeFIFO(next.batches, next.trades, next.usdtTransfers));
       return;
     }
+    mutationRevision.current += 1;
     const startingAfterClear = isTrackerDataCleared();
     prepareTrackerWrite();
     const prev = stateRef.current;
@@ -160,6 +164,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // postgres_changes event can fire refreshFromCloud while the *other*
     // write is still pending, and reading cloud in that window would pull
     // a stale snapshot/ledger and revert what this commit is adding.
+    activeTrackerCommits.current += 1;
     cashCommitInFlightUntilRef.current = Date.now() + 8000;
     try {
       // Write to DB FIRST — if this throws, React state is not mutated.
@@ -169,6 +174,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // cash-authoritative instance — see saveCashToCloud's `reconcile` doc.
       await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
     } finally {
+      activeTrackerCommits.current -= 1;
       cashCommitInFlightUntilRef.current = 0;
     }
 
@@ -206,9 +212,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // a still-stale snapshot or ledger and silently revert whatever the
     // in-flight commit just added (e.g. a new loan or repayment). Skip —
     // the commit will call setState itself once both writes finish.
-    if (cashCommitInFlightUntilRef.current > Date.now()) return;
+    if (activeTrackerCommits.current || cashCommitInFlightUntilRef.current > Date.now()) return;
+    const revision = mutationRevision.current;
     try {
       const cloudSnapshot = await loadTrackerStateFromCloud();
+      if (activeTrackerCommits.current || revision !== mutationRevision.current) return;
       const cloudState = cloudSnapshot?.state;
       if (cloudSnapshot && isTrackerDataCleared()) clearedStateLoadedRef.current = true;
       if (cloudState) {
@@ -237,6 +245,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // Dedicated cash tables are AUTHORITATIVE. Always apply the result —
       // even when both arrays are empty — so a clear on one device propagates.
       const cashData = await loadCashFromCloud();
+      if (activeTrackerCommits.current || revision !== mutationRevision.current) return;
       if (cashData) {
         // Race guard: tracker_snapshots realtime can trigger refreshFromCloud
         // before saveCashToCloud completes. In that window, cloud cash tables

@@ -138,7 +138,7 @@ export default function OrdersPage() {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
-  const { state, derived, applyState, applyStateAndCommit } = useTrackerState({
+  const { state, derived, applyState, applyStateAndCommit, cloudLoaded } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -2032,7 +2032,24 @@ export default function OrdersPage() {
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
+  const orderSaveInFlight = useRef(false);
+  const [orderSaving, setOrderSaving] = useState(false);
   const addTrade = async () => {
+    if (orderSaveInFlight.current || !cloudLoaded) return;
+    orderSaveInFlight.current = true;
+    setOrderSaving(true);
+    try {
+      await performAddTrade();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save the order. Please try again.';
+      setSaleMessage(message);
+      toast.error(message);
+    } finally {
+      orderSaveInFlight.current = false;
+      setOrderSaving(false);
+    }
+  };
+  const performAddTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
     if (isCapitalTransfer) return;
 
@@ -2600,7 +2617,8 @@ export default function OrdersPage() {
       });
       next = depositFor(primaryTrade, cashDepositMode, cashDepositAmount, cashDepositAccountId);
       next = depositFor(secondTrade, newSaleSplitCashMode, newSaleSplitCashAmount, newSaleSplitCashAccountId);
-      applyState(next);
+      await applyStateAndCommit(next);
+      latestStateRef.current = next;
       showSaleToast({ amountUSDT: primaryTrade.amountUSDT + secondTrade.amountUSDT, sell: primaryTrade.sellPriceQAR, net: salePreview?.net });
       toast.success(t('splitSuccess'));
       if (pendingImport?.kind === 'order') {
@@ -2637,7 +2655,8 @@ export default function OrdersPage() {
         };
         next = { ...next, customerLoans: [...(next.customerLoans || []), loan] };
       }
-      applyState(next);
+      await applyStateAndCommit(next);
+      latestStateRef.current = next;
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
       if (pendingImport?.kind === 'order') {
         // Best-effort: the trade note embeds the order number, so the inbox
@@ -5976,7 +5995,7 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'static', background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale || !buyerId || (newSaleSplitOpen && !newSaleSplitCustomerId)} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={orderSaving || !cloudLoaded || !canSubmitSale || !buyerId || (newSaleSplitOpen && !newSaleSplitCustomerId)} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
