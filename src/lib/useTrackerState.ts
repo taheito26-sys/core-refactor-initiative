@@ -147,7 +147,10 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
    * trade) where "done" must mean "durable on the server," not "saved
    * locally and maybe uploaded later."
    */
-  const applyStateAndCommit = useCallback(async (next: TrackerState): Promise<void> => {
+  const applyStateAndCommit = useCallback(async (next: TrackerState, selection: { restoreBuyerIds?: string[] } = {}): Promise<void> => {
+    if (selection.restoreBuyerIds?.length) {
+      next = { ...next, deletedCustomerIds: (next.deletedCustomerIds ?? []).filter(id => !selection.restoreBuyerIds!.includes(id)) };
+    }
     assertSavedOrderBuyers(stateRef.current, next);
     if (adminMode || options.preloadedState) {
       setState(next);
@@ -168,7 +171,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     cashCommitInFlightUntilRef.current = Date.now() + 8000;
     try {
       // Write to DB FIRST — if this throws, React state is not mutated.
-      await saveTrackerStateNow(next);
+      await saveTrackerStateNow(next, selection);
       if (startingAfterClear && !await loadCashFromCloud()) throw new Error('Could not reload cash after clearing.');
       // Reconcile (including empty, so deletes propagate) only for the
       // cash-authoritative instance — see saveCashToCloud's `reconcile` doc.

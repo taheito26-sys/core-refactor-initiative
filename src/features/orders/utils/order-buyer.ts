@@ -21,6 +21,6 @@ export function assertSavedOrderBuyers(previous: Pick<TrackerState, 'customers' 
     const old = before.get(trade.id);
     if (old && !old.voided && orderFields(old) === orderFields(trade)
       && !hasSavedOrderBuyer(previous.customers, old.customerId)) continue;
-    throw new Error('Pick and save a buyer before saving this order.');
+    throw new Error(`Pick and save a buyer before saving this order. Order: ${trade.exchangeOrderNumber || trade.id.slice(0, 8)}. Buyer record: ${trade.customerId ? (next.customers?.some(customer => customer.id === trade.customerId) ? 'name is missing or invalid' : 'not found after sync') : 'not selected'}.`);
   }
 }

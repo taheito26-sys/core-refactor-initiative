@@ -1,6 +1,6 @@
 import { preserveExchangeRegistrations } from './exchange-registration';
 import { resetAppUpdateSaves, trackAppSave } from './app-update-saves';
-import { assertSavedOrderBuyers } from '@/features/orders/utils/order-buyer';
+import { assertSavedOrderBuyers, hasSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey, getTrackerWriteGeneration, isTrackerDataCleared, isTrackerClearInProgress,
@@ -280,6 +280,8 @@ async function ensureRow(userId: string): Promise<void> {
 }
 
 export interface TrackerSaveOptions {
+  /** Explicit buyer selection may reactivate its existing identity after a prior deletion. */
+  restoreBuyerIds?: string[];
   replaceExisting?: boolean;
   preserveDataCleared?: boolean;
   allowDuringClear?: boolean;
@@ -415,9 +417,12 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
     // every customer the device didn't currently know about. See
     // deletedCustomerIds for why a plain union still needs its own
     // tombstone list, same as batches/trades/loans.
+    const restoredBuyerIds = new Set((options.restoreBuyerIds ?? []).filter(id =>
+      hasSavedOrderBuyer(stripped.customers, id) && stripped.trades.some(trade =>
+        !trade.voided && trade.customerId === id)));
     const deletedCustomerIds = guardTombstones(
       'customers', latestState.deletedCustomerIds, stripped.deletedCustomerIds, (latestState.customers || []).length,
-    );
+    ).filter(id => !restoredBuyerIds.has(id));
     const mergedCustomers = mergeArrayById(latestState.customers, stripped.customers)
       .filter(c => !deletedCustomerIds.includes((c as { id: string }).id));
 

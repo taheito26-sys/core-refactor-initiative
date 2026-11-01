@@ -2617,7 +2617,7 @@ export default function OrdersPage() {
       });
       next = depositFor(primaryTrade, cashDepositMode, cashDepositAmount, cashDepositAccountId);
       next = depositFor(secondTrade, newSaleSplitCashMode, newSaleSplitCashAmount, newSaleSplitCashAccountId);
-      await applyStateAndCommit(next);
+      await applyStateAndCommit(next, { restoreBuyerIds: [primaryTrade.customerId, secondTrade.customerId] });
       latestStateRef.current = next;
       showSaleToast({ amountUSDT: primaryTrade.amountUSDT + secondTrade.amountUSDT, sell: primaryTrade.sellPriceQAR, net: salePreview?.net });
       toast.success(t('splitSuccess'));
@@ -2655,7 +2655,7 @@ export default function OrdersPage() {
         };
         next = { ...next, customerLoans: [...(next.customerLoans || []), loan] };
       }
-      await applyStateAndCommit(next);
+      await applyStateAndCommit(next, { restoreBuyerIds: [baseTrade.customerId] });
       latestStateRef.current = next;
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
       if (pendingImport?.kind === 'order') {

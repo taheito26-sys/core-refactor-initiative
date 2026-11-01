@@ -53,6 +53,24 @@ describe('saveTrackerStateNow', () => {
     expect(saved.trades[0].customerId).toBe('shared-buyer');
   });
 
+
+  it('restores only an explicitly selected saved buyer that still has an old deletion marker', async () => {
+    const { state: empty } = (await import('@/lib/tracker-state')).createEmptyState();
+    const buyer = { id: 'buyer', name: 'Mohamed Al-Damrawy', phone: '', tier: 'C' as const, dailyLimitUSDT: 0, notes: '', createdAt: 1 };
+    maybeSingleMock.mockResolvedValueOnce({ data: { state: { ...empty, deletedCustomerIds: ['buyer', 'other'] }, write_generation: 0 }, error: null });
+    const next = { ...empty, customers: [buyer], trades: [{ id: 'order', customerId: buyer.id, ts: 1, amountUSDT: 1800.82, sellPriceQAR: 3.83, feeQAR: 0, note: '', voided: false, usesStock: false, revisions: [], inputMode: 'USDT' as const }] };
+    await expect(saveTrackerStateNow(next, { restoreBuyerIds: ['buyer'] })).resolves.toBeUndefined();
+    const saved = rpcMock.mock.calls.at(-1)?.[1]._state;
+    expect(saved.deletedCustomerIds).toEqual(['other']);
+    expect(saved.customers[0].id).toBe('buyer');
+  });
+  it('keeps deletion protection when no explicit buyer restoration is requested', async () => {
+    const { state: empty } = (await import('@/lib/tracker-state')).createEmptyState();
+    maybeSingleMock.mockResolvedValueOnce({ data: { state: { ...empty, deletedCustomerIds: ['buyer'] }, write_generation: 0 }, error: null });
+    const next = { ...empty, customers: [{ id: 'buyer', name: 'Mohamed Al-Damrawy' }], trades: [{ id: 'order', customerId: 'buyer', ts: 1, amountUSDT: 1800, sellPriceQAR: 3.83, feeQAR: 0, note: '', voided: false, usesStock: false, revisions: [], inputMode: 'USDT' as const }] };
+    await expect(saveTrackerStateNow(next as TrackerState)).rejects.toThrow('buyer');
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     resetTrackerSyncSession();
     localStorage.clear();
