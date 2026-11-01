@@ -316,11 +316,16 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
   // Cash is intentionally NOT written to the snapshot — the dedicated
   // cash_accounts / cash_ledger tables are the single source of truth for
   // cash, otherwise a stale snapshot resurrects cleared cash on next load.
+  const ownTrades = stripForeignIds('trades', state.trades);
+  const referencedBuyerIds = new Set(ownTrades.map(trade => trade.customerId).filter(Boolean));
   const stripped: TrackerState = {
     ...state,
     batches: stripForeignIds('batches', state.batches),
-    trades: stripForeignIds('trades', state.trades),
-    customers: stripForeignIds('customers', state.customers),
+    trades: ownTrades,
+    // Keep the existing shared identity when an owned order references it.
+    // Stripping it made a selected team buyer fail the saved-buyer guard.
+    customers: (state.customers ?? []).filter(customer =>
+      !_foreignIds.customers.has(customer.id) || referencedBuyerIds.has(customer.id)),
     suppliers: stripForeignIds('suppliers', state.suppliers),
     usdtTransfers: stripForeignIds('usdtTransfers', state.usdtTransfers),
     cashAccounts: [],

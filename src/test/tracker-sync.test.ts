@@ -38,6 +38,21 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 describe('saveTrackerStateNow', () => {
+  it('saves an order for an existing team buyer without stripping the selected buyer from its snapshot', async () => {
+    const { state: empty } = (await import('@/lib/tracker-state')).createEmptyState();
+    const buyer = { id: 'shared-buyer', name: 'Mohamed Al-Damrawy', phone: '', tier: 'C' as const, dailyLimitUSDT: 0, notes: '', createdAt: 1 };
+    snapshotInMock.mockResolvedValueOnce({ data: [
+      { user_id: 'user-1', state: empty, updated_at: '2026-11-01T00:00:00Z' },
+      { user_id: 'user-2', state: { ...empty, customers: [buyer, { ...buyer, id: 'unrelated' }] }, updated_at: '2026-11-01T01:00:00Z' },
+    ], error: null });
+    await loadTrackerStateFromCloud();
+    const next = { ...empty, customers: [buyer, { ...buyer, id: 'unrelated' }], trades: [{ id: 'new-order', customerId: buyer.id, ts: 1, amountUSDT: 1800.82, sellPriceQAR: 3.83, feeQAR: 0, note: '', voided: false, usesStock: false, revisions: [], inputMode: 'USDT' as const }] };
+    await expect(saveTrackerStateNow(next)).resolves.toBeUndefined();
+    const saved = rpcMock.mock.calls.at(-1)?.[1]._state;
+    expect(saved.customers.map((customer: { id: string }) => customer.id)).toEqual(['shared-buyer']);
+    expect(saved.trades[0].customerId).toBe('shared-buyer');
+  });
+
   beforeEach(() => {
     resetTrackerSyncSession();
     localStorage.clear();
