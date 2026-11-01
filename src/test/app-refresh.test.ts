@@ -11,23 +11,33 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = ''; localStorage.clear(); });
 describe('loading the current release outside the cached app shell', () => {
-  it('releases only the app root worker, preserves data, and opens the latest calendar', async () => {
+  it('releases only the app root worker, preserves data, and opens the latest orders', async () => {
     const unregister = vi.fn(async () => true);
     const other = vi.fn(async () => true);
     vi.stubGlobal('navigator', { serviceWorker: { getRegistrations: vi.fn(async () => [
       { scope: 'https://tracker.test/', unregister }, { scope: 'https://tracker.test/other/', unregister: other },
     ]) } });
-    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', replace });
+    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', href: 'https://tracker.test/auth/refresh.html', replace });
     await run();
     expect(unregister).toHaveBeenCalledTimes(1);
     expect(other).not.toHaveBeenCalled();
     expect(localStorage.getItem('saved-trades')).toBe('keep');
-    expect(replace).toHaveBeenCalledWith('https://tracker.test/trading/calendar?release=release-123');
+    expect(replace).toHaveBeenCalledWith('https://tracker.test/trading/orders?release=release-123');
+  });
+  it('returns to the requested app page but rejects external recovery targets', async () => {
+    vi.stubGlobal('navigator', {});
+    const replace = vi.fn();
+    vi.stubGlobal('location', { origin: 'https://tracker.test', href: 'https://tracker.test/auth/refresh.html?next=%2Ftrading%2Fstock%3Ftab%3Dall', replace });
+    await run();
+    expect(replace).toHaveBeenLastCalledWith('https://tracker.test/trading/stock?tab=all&release=release-123');
+    location.href = 'https://tracker.test/auth/refresh.html?next=https%3A%2F%2Foutside.test';
+    await run();
+    expect(replace).toHaveBeenLastCalledWith('https://tracker.test/trading/orders?release=release-123');
   });
   it('leaves the worker and data intact when the network is unavailable', async () => {
     const getRegistrations = vi.fn();
     vi.stubGlobal('navigator', { serviceWorker: { getRegistrations } });
-    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', replace });
+    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', href: 'https://tracker.test/auth/refresh.html', replace });
     vi.mocked(fetch).mockRejectedValue(new Error('offline'));
     await run();
     expect(getRegistrations).not.toHaveBeenCalled();
@@ -38,7 +48,7 @@ describe('loading the current release outside the cached app shell', () => {
   it('supports Arabic and works without an installed worker', async () => {
     localStorage.setItem('tracker_settings', JSON.stringify({ language: 'ar' }));
     vi.stubGlobal('navigator', {});
-    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', replace });
+    const replace = vi.fn(); vi.stubGlobal('location', { origin: 'https://tracker.test', href: 'https://tracker.test/auth/refresh.html', replace });
     await run();
     expect(document.documentElement.dir).toBe('rtl');
     expect(replace).toHaveBeenCalledTimes(1);

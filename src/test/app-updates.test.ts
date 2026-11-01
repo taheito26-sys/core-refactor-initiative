@@ -18,6 +18,19 @@ beforeEach(() => {
 afterEach(() => { stop?.(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('automatic app launch updates', () => {
+  it('automatically escapes the cached shell through the network-only recovery page after saves', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { origin: 'https://tracker.test', pathname: '/trading/orders', search: '?month=2026-11', hash: '#orders', replace });
+    vi.stubGlobal('navigator', {});
+    let finish: () => void = () => {};
+    waitSaves.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+    stop = startAppUpdates('old');
+    await tick();
+    expect(replace).not.toHaveBeenCalled();
+    finish(); await tick();
+    expect(replace).toHaveBeenCalledWith('https://tracker.test/auth/refresh.html?next=%2Ftrading%2Forders%3Fmonth%3D2026-11%23orders');
+  });
+
   it('starts checking immediately and returns without waiting for the network or delaying rendering', () => {
     vi.mocked(fetch).mockReturnValue(new Promise(() => {}));
     stop = startAppUpdates('old', vi.fn());

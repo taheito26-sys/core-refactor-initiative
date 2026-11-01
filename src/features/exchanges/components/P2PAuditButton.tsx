@@ -171,8 +171,8 @@ export function P2PAuditButton({
 
           <div className="text-xs text-muted-foreground">
             {side === 'buy'
-              ? L('Completed Binance P2P buy orders compared with the batches registered in stock.', 'مطابقة طلبات شراء Binance P2P المكتملة مع الدفعات المسجلة في المخزون.')
-              : L('Completed Binance P2P sell orders compared with the orders registered in the tracker.', 'مطابقة طلبات بيع Binance P2P المكتملة مع الطلبات المسجلة في النظام.')}
+              ? L('Completed exchange P2P buy orders compared with the batches registered in stock.', 'مطابقة طلبات شراء P2P من المنصات المكتملة مع الدفعات المسجلة في المخزون.')
+              : L('Completed exchange P2P sell orders compared with the orders registered in the tracker.', 'مطابقة طلبات بيع P2P من المنصات المكتملة مع الطلبات المسجلة في النظام.')}
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 text-center">
@@ -185,8 +185,8 @@ export function P2PAuditButton({
             <div className={cn('flex items-start gap-2 rounded-lg border p-2.5 text-xs font-semibold', alarms > 0 ? 'border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400' : 'border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400')} role="alert">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                {L(`${notRegistered} completed P2P order(s) on Binance are not registered in the tracker — ${fmtN(audit.missingUSDT, 2)} USDT.`,
-                  `${notRegistered} طلب P2P مكتمل على Binance غير مسجل في النظام — ${fmtN(audit.missingUSDT, 2)} USDT.`)}
+                {L(`${notRegistered} completed exchange P2P order(s) are not registered in the tracker — ${fmtN(audit.missingUSDT, 2)} USDT.`,
+                  `${notRegistered} طلب P2P مكتمل من المنصات غير مسجل في النظام — ${fmtN(audit.missingUSDT, 2)} USDT.`)}
                 {audit.ignored > 0 && ` ${L(`${audit.ignored} of them were ignored earlier.`, `${audit.ignored} منها تم تجاهلها سابقًا.`)}`}
               </span>
             </div>
@@ -226,6 +226,7 @@ export function P2PAuditButton({
                 </div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
                   <span className="font-bold">
+                    <span className="mr-1 font-bold">{r.order.exchange === 'okx' ? 'OKX' : 'Binance'}</span>
                     {r.order.side === 'sell' ? L('Sell', 'بيع') : L('Buy', 'شراء')} {fmtN(Number(r.order.amount), 2)} USDT
                     <span className="font-normal text-muted-foreground"> @ {fmtN(Number(r.order.price), 2)} {r.order.fiat}</span>
                   </span>

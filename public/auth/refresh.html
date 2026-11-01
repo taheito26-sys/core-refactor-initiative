@@ -56,7 +56,12 @@
         }
       }
       // Never clear caches, localStorage, IndexedDB or authentication state.
-      const target = new URL('/trading/calendar', location.origin);
+      const requested = new URL(location.href).searchParams.get('next') || '/trading/orders';
+      let target = new URL(requested, location.origin);
+      // Never turn recovery into an external redirect or a recovery loop.
+      if (target.origin !== location.origin || target.pathname.startsWith('/auth/')) {
+        target = new URL('/trading/orders', location.origin);
+      }
       target.searchParams.set('release', version.buildId);
       location.replace(target.href);
     } catch (_) {

@@ -65,10 +65,11 @@ export default defineConfig(({ mode }) => {
             globIgnores: ["**/app-version.json", "**/auth/refresh.html"],
             // Install only startup JavaScript; page modules are cached as they are opened.
             manifestTransforms: [async entries => ({
-              manifest: entries.filter(entry => !entry.url.endsWith('.js') || essentialJs.has(entry.url)),
+              manifest: entries.filter(entry => entry.url !== 'index.html' && (!entry.url.endsWith('.js') || essentialJs.has(entry.url))),
               warnings: [],
             })],
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+            navigateFallback: undefined,
             navigateFallbackDenylist: [
               /^\/auth\//,
               /^\/~oauth/,
@@ -81,6 +82,18 @@ export default defineConfig(({ mode }) => {
             skipWaiting: true,
             cleanupOutdatedCaches: true,
             runtimeCaching: [
+              {
+                // Fetch the current document on launch; use the last successful page offline.
+                urlPattern: ({ request, url }) => request.mode === 'navigate' && url.origin === self.location.origin
+                  && !/^\/(auth\/|~oauth|login|signup|reset-password|verify-email)/.test(url.pathname),
+                handler: "NetworkFirst",
+                options: {
+                  cacheName: "tracker-navigation",
+                  networkTimeoutSeconds: 3,
+                  cacheableResponse: { statuses: [200] },
+                  expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 60 * 60 },
+                },
+              },
               {
                 urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
                 handler: "NetworkOnly",

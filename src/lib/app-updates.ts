@@ -2,7 +2,11 @@ import { showAppUpdate, showAppUpdated, dismissAppUpdate } from '@/features/app-
 import { hasPendingAppSaves, waitForAppSaves } from './app-update-saves';
 
 /** Check immediately without blocking render; install and restart automatically without an acceptance step. */
-export function startAppUpdates(buildId: string, reload = () => window.location.reload()) {
+export function startAppUpdates(buildId: string, reload = () => {
+  const recovery = new URL('/auth/refresh.html', location.origin);
+  recovery.searchParams.set('next', location.pathname + location.search + location.hash);
+  window.location.replace(recovery.href);
+}) {
   let pending = false;
   let reloading = false;
   let preparing = false;
