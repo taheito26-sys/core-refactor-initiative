@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
-  deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
+  clientPeriodChanges, deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
   type DashPoint, type RangeWindow,
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
@@ -49,6 +49,7 @@ interface DashboardHomeProps {
   allPoints: DashPoint[];
   win: RangeWindow;
   rangeText: string;
+  comparisonText: string;
   now: number;
   lang: 'en' | 'ar';
   isAdminView?: boolean;
@@ -95,7 +96,7 @@ function Delta({ pct, label }: { pct: number | null; label: string }) {
 
 /** The merchant dashboard home: every colour comes from the active theme's variables. */
 export function DashboardHome({
-  points, allPoints, win, rangeText, now, lang, isAdminView, money, parts, tiles, moreTiles, fees, cash, onGo, children,
+  points, allPoints, win, rangeText, comparisonText, now, lang, isAdminView, money, parts, tiles, moreTiles, fees, cash, onGo, children,
 }: DashboardHomeProps) {
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -122,7 +123,7 @@ export function DashboardHome({
   const dwin = useMemo(() => deltaWindow(win, now), [win, now]);
   const { cur: dCur, prev: dPrev } = useMemo(() => summarizeWithPrevious(points, dwin), [points, dwin]);
   const changeByClient = useMemo(
-    () => (win.prevFrom == null ? new Map(topClients(points, dwin, clientMetric, 500).map(c => [c.name, c.change])) : null),
+    () => (win.prevFrom == null ? clientPeriodChanges(points, dwin, clientMetric) : null),
     [points, win, dwin, clientMetric],
   );
   const volSpark = useMemo(() => sparkline(points, win, p => p.vol, 6), [points, win]);
@@ -173,7 +174,7 @@ export function DashboardHome({
             <section key={s.key} className="dh-card dh-stat" style={{ ['--tone' as string]: toneVar(s.tone) }}>
               <header><span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3></header>
               <div className="dh-val"><b>{p.n}</b><small style={{ color: s.unit }}>{p.u}</small></div>
-              <Delta pct={s.pct} label={t('dhVsPrev')} />
+              <Delta pct={s.pct} label={comparisonText} />
               <Sparkline className={`dh-stat-spark ${s.kind}`} values={s.spark} color={toneVar(s.tone)} kind={s.kind} />
             </section>
           );
@@ -229,6 +230,7 @@ export function DashboardHome({
             <button type="button" className={clientMetric === 'volume' ? 'on' : ''} onClick={() => setClientMetric('volume')}>{t('dhVolume')}</button>
           </div>
         </header>
+        <p className="muted" style={{ fontSize: 'calc(10px * var(--s))', margin: '0 0 8px' }}>{comparisonText}</p>
         {clients.length === 0 ? (
           <div className="dh-empty">{t('noDataAvailable')}</div>
         ) : (

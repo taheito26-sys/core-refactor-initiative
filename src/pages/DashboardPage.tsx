@@ -1,3 +1,4 @@
+import { useDashboardNow } from '@/features/dashboard/hooks/useDashboardNow';
 import { useMemo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -484,8 +485,8 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
   const points = useMemo(() => scopePoints(allPoints, scope), [allPoints, scope]);
   const firstTs = useMemo(() => (allPoints.length ? Math.min(...allPoints.map(p => p.ts)) : null), [allPoints]);
 
-  const nowMinute = Math.floor(Date.now() / 60000);
-  const nowTs = nowMinute * 60000;
+  const nowTs = useDashboardNow();
+  const nowMinute = nowTs / 60000;
   const win = useMemo(() => {
     const custom = customFrom
       ? { from: new Date(`${customFrom}T00:00`).getTime(), to: new Date(`${customTo || customFrom}T00:00`).getTime() }
@@ -493,6 +494,11 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
     return rangeWindow(settings.range, nowMinute * 60000, firstTs, custom);
   }, [settings.range, customFrom, customTo, firstTs, nowMinute]);
   const dateLocale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
+  const comparisonText = win.prevFrom == null
+    ? t('dhCalendarComparison')
+      .replace('{current}', new Date(nowTs).toLocaleDateString(dateLocale, { month: 'short', year: '2-digit' }))
+      .replace('{previous}', new Date(new Date(nowTs).getFullYear(), new Date(nowTs).getMonth() - 1, 1).toLocaleDateString(dateLocale, { month: 'short', year: '2-digit' }))
+    : t('dhVsPrev');
   const rangeText = `${new Date(win.from).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })} – ${new Date(win.to).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   const fiatParts = useCallback((qarAmount: number) => {
@@ -577,14 +583,14 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
   }, [state.trades, stk, nowTs]);
   const pctLine = (cur: number, prev: number | null | undefined) => {
     const p = pctChange(cur, prev);
-    return p == null ? undefined : <span className={p >= 0 ? 'good' : 'bad'}>{p >= 0 ? '↑ +' : '↓ '}{p.toFixed(1)}% {t('dhVsPrev')}</span>;
+    return p == null ? undefined : <span className={p >= 0 ? 'good' : 'bad'}>{p >= 0 ? '↑ +' : '↓ '}{p.toFixed(1)}% {comparisonText}</span>;
   };
   const moreTiles: HomeTile[] = (() => {
-    const avgOrder = fiatParts(moreCur.orders ? moreCur.vol / moreCur.orders : 0);
-    const margin = moreCur.vol > 0 ? (moreCur.net / moreCur.vol) * 100 : 0;
+    const avgOrder = fiatParts(homeCur.orders ? homeCur.vol / homeCur.orders : 0);
+    const margin = homeCur.vol > 0 ? (homeCur.net / homeCur.vol) * 100 : 0;
     const feeParts = fiatParts(fees);
     return [
-      { key: 'orders', label: t('dhOrdersCount'), Icon: ShoppingCart, tone: 'good', unitTone: 'brand', value: String(moreCur.orders), unit: t('dhOrdersWord'), sub: pctLine(moreCur.orders, morePrev?.orders), spark: sparkline(points, win, () => 1, 10), path: '/trading/orders' },
+      { key: 'orders', label: t('dhOrdersCount'), Icon: ShoppingCart, tone: 'good', unitTone: 'brand', value: String(homeCur.orders), unit: t('dhOrdersWord'), sub: pctLine(moreCur.orders, morePrev?.orders), spark: sparkline(points, win, () => 1, 10), path: '/trading/orders' },
       { key: 'avgorder', label: t('dhAvgOrder'), Icon: Ruler, tone: 'brand', unitTone: 'brand', square: true, value: avgOrder.n, unit: avgOrder.u, sub: pctLine(moreCur.orders ? moreCur.vol / moreCur.orders : 0, morePrev?.orders ? morePrev.vol / morePrev.orders : null) },
       { key: 'margin', label: t('dhAvgMargin'), Icon: Percent, tone: 't5', unitTone: 'brand', value: margin.toFixed(2), unit: '%', valueTone: margin >= 0 ? undefined : 'bad', sub: t('dhNetOfFees') },
       { key: 'fees', label: t('dhFees'), Icon: Receipt, tone: 'warn', unitTone: 'warn', square: true, value: feeParts.n, unit: feeParts.u },
@@ -692,6 +698,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
         allPoints={allPoints}
         win={win}
         rangeText={rangeText}
+        comparisonText={comparisonText}
         now={nowTs}
         lang={t.lang === 'ar' ? 'ar' : 'en'}
         isAdminView={isAdminView}

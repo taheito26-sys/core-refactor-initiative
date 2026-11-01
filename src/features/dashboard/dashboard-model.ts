@@ -80,14 +80,10 @@ export function rangeWindow(range: string, now: number, firstTs: number | null, 
   }
 }
 
-/**
- * The window a "vs previous period" figure compares: the selected one, or for all time (which has
- * nothing before it) the last 30 days against the 30 before.
- */
+/** All-time totals keep their range; their change compares this calendar month to date with last month to date. */
 export function deltaWindow(win: RangeWindow, now: number): RangeWindow {
   if (win.prevFrom != null && win.prevTo != null) return win;
-  const from = now - 30 * DAY;
-  return { from, to: now, prevFrom: from - 30 * DAY, prevTo: from - 1 };
+  return rangeWindow('this_month', now, null);
 }
 
 export const inWindow = (ts: number, from: number, to: number) => ts >= from && ts <= to;
@@ -189,6 +185,23 @@ export function topClients(points: DashPoint[], win: RangeWindow, metric: 'profi
     .map(([name, r]) => ({ name, value: r.value, orders: r.orders, change: win.prevFrom == null ? null : pctChange(r.value, prev.get(name)) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, limit);
+}
+
+/** Changes include clients active only in the previous period, whose current-period activity is zero. */
+export function clientPeriodChanges(points: DashPoint[], win: RangeWindow, metric: 'profit' | 'volume'): Map<string, number | null> {
+  const totals = new Map<string, { current: number; previous: number }>();
+  for (const point of points) {
+    if (!point.client) continue;
+    const current = inWindow(point.ts, win.from, win.to);
+    const previous = win.prevFrom != null && win.prevTo != null && inWindow(point.ts, win.prevFrom, win.prevTo);
+    if (!current && !previous) continue;
+    const row = totals.get(point.client) ?? { current: 0, previous: 0 };
+    const value = metric === 'profit' ? point.net : point.vol;
+    if (current) row.current += value;
+    if (previous) row.previous += value;
+    totals.set(point.client, row);
+  }
+  return new Map([...totals].map(([name, row]) => [name, pctChange(row.current, row.previous)]));
 }
 
 /** Distinct clients with an order in the last `days`, and how many of them placed their first order this month. */

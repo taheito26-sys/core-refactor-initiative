@@ -1101,8 +1101,8 @@ export function getWACOP(derived: DerivedState): number | null {
   return ta > 0 ? tv / ta : null;
 }
 
-export function inRange(ts: number, range: string): boolean {
-  const now = new Date();
+export function inRange(ts: number, range: string, at = Date.now()): boolean {
+  const now = new Date(at);
   const nowTs = now.getTime();
   const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();

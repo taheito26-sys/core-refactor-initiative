@@ -1,3 +1,4 @@
+import { useDashboardNow } from '@/features/dashboard/hooks/useDashboardNow';
 import { useMemo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -48,6 +49,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const nowTs = useDashboardNow();
   const isMobile = useIsMobile();
   const isAdminWorkspace = Boolean(isAdminView);
   const { user, merchantProfile } = useAuth();
@@ -403,7 +405,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
 
   const rangeMerchantKpis = useMemo(() => {
     if (!merchantDealKpis?.dealDetails) return null;
-    const filtered = merchantDealKpis.dealDetails.filter(d => inRange(d.ts, settings.range));
+    const filtered = merchantDealKpis.dealDetails.filter(d => inRange(d.ts, settings.range, nowTs));
     let inCount = 0, inNet = 0, inMyShare = 0;
     let outCount = 0, outNet = 0, outMyShare = 0;
     for (const d of filtered) {
@@ -414,7 +416,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
       }
     }
     return { inCount, inNet, inMyShare, outCount, outNet, outMyShare };
-  }, [merchantDealKpis, settings.range]);
+  }, [merchantDealKpis, settings.range, nowTs]);
 
   const p2pAvgs = useMemo(() => {
     const sellTrades = allTrades.filter(t => t.usesStock && t.sellPriceQAR > 0);
@@ -439,7 +441,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
   // ── Segmented Net Profit KPI (Own / Incoming / Outgoing) ──────────────
   const segmentedProfit = useMemo(() => {
     const computeForRange = (range: string) => {
-      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
+      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range, nowTs));
       let ownNet = 0, ownRev = 0, ownQty = 0, ownCount = 0;
       for (const tr of ownTrades) {
         ownNet += tradeNet(tr);
@@ -452,7 +454,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
       if (merchantDealKpis?.dealDetails) {
         const seen = new Set<string>();
         for (const d of merchantDealKpis.dealDetails) {
-          if (!inRange(d.ts, range)) continue;
+          if (!inRange(d.ts, range, nowTs)) continue;
           if (seen.has(d.id)) continue;
           seen.add(d.id);
           if (!Number.isFinite(d.myShare)) continue;
@@ -469,7 +471,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
       lastMonth: computeForRange('last_month'),
       range: computeForRange(settings.range),
     };
-  }, [allTrades, merchantDealKpis, settings.range, tradeNet]);
+  }, [allTrades, merchantDealKpis, settings.range, tradeNet, nowTs]);
 
   const trendData = useMemo(() => {
     const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
@@ -621,7 +623,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
     };
   };
 
-  const now = new Date();
+  const now = new Date(nowTs);
   const monthKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const curMo = t(monthKeys[now.getMonth()] as any);

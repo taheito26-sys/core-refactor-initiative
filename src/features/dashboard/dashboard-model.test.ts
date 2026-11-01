@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeClients, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
+  activeClients, clientPeriodChanges, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
   type DashPoint,
 } from './dashboard-model';
 
@@ -138,10 +138,26 @@ describe('deltaWindow', () => {
     expect(deltaWindow(w, NOW)).toBe(w);
   });
 
-  it('compares the last 30 days with the 30 before for all time', () => {
-    const w = deltaWindow(rangeWindow('all', NOW, at(2026, 3, 6)), NOW);
-    expect(w.to).toBe(NOW);
-    expect(w.from).toBe(NOW - 30 * DAY);
-    expect(w.prevTo).toBe(w.from - 1);
+  it('compares November to date with October to date when All is selected', () => {
+    const now = at(2026, 11, 1, 3);
+    const w = deltaWindow(rangeWindow('all', now, at(2026, 3, 6)), now);
+    expect(w.from).toBe(at(2026, 11, 1, 0));
+    expect(w.to).toBe(now);
+    expect(w.prevFrom).toBe(at(2026, 10, 1, 0));
+    expect(w.prevTo).toBe(at(2026, 10, 1, 3));
+    const points = [pt(at(2026, 9, 20), { vol: 99999 }), pt(at(2026, 10, 1, 1), { vol: 100 }), pt(at(2026, 10, 30), { vol: 99999 }), pt(at(2026, 11, 1, 1), { vol: 50 })];
+    expect(summarize(points, w.from, w.to).vol).toBe(50);
+    expect(summarize(points, w.prevFrom!, w.prevTo!).vol).toBe(100);
+    expect(pctChange(50, 100)).toBe(-50);
+  });
+
+  it('does not skip an empty new month and rolls January against December', () => {
+    const now = at(2027, 1, 1, 3);
+    const w = deltaWindow(rangeWindow('all', now, at(2026, 9, 1)), now);
+    expect(w.from).toBe(at(2027, 1, 1, 0));
+    expect(w.prevFrom).toBe(at(2026, 12, 1, 0));
+    const points = [pt(at(2026, 12, 1, 1))];
+    expect(summarize(points, w.from, w.to).orders).toBe(0);
+    expect(clientPeriodChanges(points, w, 'profit').get('A')).toBe(-100);
   });
 });
