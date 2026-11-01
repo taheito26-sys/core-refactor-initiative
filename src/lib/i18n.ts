@@ -988,6 +988,8 @@ const translations = {
   fresh: { en: 'Fresh', ar: 'جديدة' },
   autoTracked: { en: 'Auto-tracked', ar: 'تتبع تلقائي' },
   addBatchTitle: { en: 'Add Batch', ar: 'إضافة دفعة' },
+  appUpdateSaveFailed: { en: 'Update paused: save failed', ar: 'التحديث متوقف: تعذّر الحفظ' },
+  appUpdateSaveRetry: { en: 'Your data has not been discarded. The update resumes automatically after a successful save.', ar: 'لم تُحذف بياناتك. يُستأنف التحديث تلقائيًا بعد نجاح الحفظ.' },
   appUpdateAutomatic: { en: 'Updating automatically…', ar: 'جارٍ التحديث تلقائيًا…' },
   appUpdateComplete: { en: 'App updated', ar: 'تم تحديث التطبيق' },
   appUpdateActive: { en: 'The new version is now active.', ar: 'الإصدار الجديد يعمل الآن.' },

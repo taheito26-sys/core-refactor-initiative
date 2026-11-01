@@ -12,4 +12,11 @@ describe('automatic update status', () => {
     expect(screen.getByRole('status').textContent).toContain('appUpdateComplete');
     expect(screen.queryByRole('button')).toBeNull();
   });
+  it('shows the failed save reason without a spinner or approval button', () => {
+    const { container } = render(<UpdateCard phase="failed" error="Write rejected" />);
+    expect(screen.getByText('Write rejected')).toBeTruthy();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
 });

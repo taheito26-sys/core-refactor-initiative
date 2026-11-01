@@ -516,14 +516,14 @@ export function saveTrackerState(state: TrackerState): void {
       persistToCloud(state, {}, generation).then(resolve, reject);
     }, 2000);
   });
-  void trackAppSave(queued, 'tracker').catch(err => {
+  void trackAppSave(queued, 'tracker', () => persistToCloud(state, {}, generation)).catch(err => {
     console.warn('[tracker-sync] debounced cloud save failed:', err);
   });
 }
 
 /** Force an immediate cloud save (e.g. on import/restore) */
 export function saveTrackerStateNow(state: TrackerState, options: TrackerSaveOptions = {}): Promise<void> {
-  return trackAppSave(commitTrackerStateNow(state, options), 'tracker');
+  return trackAppSave(commitTrackerStateNow(state, options), 'tracker', () => commitTrackerStateNow(state, options));
 }
 
 async function commitTrackerStateNow(state: TrackerState, options: TrackerSaveOptions): Promise<void> {

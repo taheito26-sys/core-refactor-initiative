@@ -222,13 +222,16 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
 export function saveCashToCloud(
   accounts: CashAccount[], ledger: CashLedgerEntry[], reconcile = false, replacementUserId?: string,
 ): Promise<void> {
-  const request = persistCashToCloud(accounts, ledger, reconcile, replacementUserId);
-  if (!replacementUserId) {
-    pendingCashWrites.add(request);
-    const done = () => { pendingCashWrites.delete(request); };
-    request.then(done, done);
-  }
-  return trackAppSave(request, 'cash');
+  const run = () => {
+    const request = persistCashToCloud(accounts, ledger, reconcile, replacementUserId);
+    if (!replacementUserId) {
+      pendingCashWrites.add(request);
+      const done = () => { pendingCashWrites.delete(request); };
+      request.then(done, done);
+    }
+    return request;
+  };
+  return trackAppSave(run(), 'cash', run);
 }
 
 async function persistCashToCloud(

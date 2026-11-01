@@ -18,11 +18,13 @@ export function startAppUpdates(buildId: string, reload = () => {
   let registration: ServiceWorkerRegistration | undefined;
   let workerReady = !navigator.serviceWorker;
   let workerChecking = false;
-  let controlled = !!navigator.serviceWorker?.controller;
-  const announce = (phase: 'updating' | 'saving') => {
-    if (noticePhase === phase) return;
-    noticePhase = phase;
-    showAppUpdate(phase);
+
+  const announce = (phase: 'updating' | 'saving' | 'failed', error?: string) => {
+    const key = phase + (error ?? '');
+    if (noticePhase === key) return;
+    noticePhase = key;
+    if (error) showAppUpdate(phase, error);
+    else showAppUpdate(phase);
   };
 
   try {
@@ -39,13 +41,16 @@ export function startAppUpdates(buildId: string, reload = () => {
     if (!workerReady || (workerChecking && !activated) || registration?.installing) return;
     if (registration?.waiting) { registration.waiting.postMessage({ type: 'SKIP_WAITING' }); return; }
     preparing = true;
+    const slowSave = window.setTimeout(() => {
+      if (!stopped && !reloading) announce('failed', 'The save has not completed. Waiting for the server response.');
+    }, 15000);
     void (async () => {
       try {
         await waitForAppSaves();
         if (stopped || document.visibilityState === 'hidden' || registration?.installing || registration?.waiting) return;
         const attempt = `${buildId}->${targetVersion}`;
         try {
-          if (!activated && sessionStorage.getItem('app-update-attempt') === attempt) {
+          if (sessionStorage.getItem('app-update-attempt') === attempt) {
             dismissAppUpdate();
             return;
           }
@@ -55,15 +60,15 @@ export function startAppUpdates(buildId: string, reload = () => {
         announce('updating');
         reloading = true;
         reload();
-      } catch {
-        // Keep the app available and retry automatically; never interrupt a failed financial save.
-        announce('saving');
-      } finally { preparing = false; }
+      } catch (error) {
+        // Retry the actual failed write on the next check; never claim failed work is still saving.
+        announce('failed', error instanceof Error ? error.message : 'Save failed');
+      } finally { window.clearTimeout(slowSave); preparing = false; }
     })();
   };
   const controllerChanged = () => {
-    if (controlled || pending) { activated = true; pending = true; apply(); }
-    controlled = true;
+    activated = true;
+    if (pending) apply();
   };
   const check = async () => {
     if (stopped || checking || reloading || document.visibilityState === 'hidden') return;
@@ -98,15 +103,14 @@ export function startAppUpdates(buildId: string, reload = () => {
         const installing = () => {
           const worker = reg.installing;
           worker?.addEventListener('statechange', () => {
-            if (!stopped && worker.state === 'installed' && (controlled || pending)) {
-              pending = true;
+            if (!stopped && worker.state === 'installed' && pending) {
               window.setTimeout(() => { if (!stopped) apply(); }, 0);
             }
           });
         };
         reg.addEventListener?.('updatefound', installing);
         installing();
-        if (reg.waiting) { pending = true; apply(); }
+        if (reg.waiting && pending) apply();
         void check();
       }
     }).catch(() => undefined).finally(() => { workerReady = true; if (!stopped) apply(); });

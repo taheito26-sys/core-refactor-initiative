@@ -51,4 +51,26 @@ describe('automatic update save protection', () => {
     await expect(waitForAppSaves()).rejects.toThrow('newer save failed');
   });
 
+  it('retries the actual failed write before allowing an update', async () => {
+    const retry = vi.fn().mockResolvedValue(undefined);
+    await trackAppSave(Promise.reject(new Error('offline')), 'tracker', retry).catch(() => {});
+    await waitForAppSaves();
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(hasPendingAppSaves()).toBe(false);
+  });
+  it('retains a repeated failure and retries it again on the next check', async () => {
+    const retry = vi.fn().mockRejectedValueOnce(new Error('still offline')).mockResolvedValue(undefined);
+    await trackAppSave(Promise.reject(new Error('offline')), 'cash', retry).catch(() => {});
+    await expect(waitForAppSaves()).rejects.toThrow('still offline');
+    await waitForAppSaves();
+    expect(retry).toHaveBeenCalledTimes(2);
+  });
+  it('never retries an obsolete failure after a newer snapshot succeeds', async () => {
+    const retry = vi.fn();
+    await trackAppSave(Promise.reject(new Error('old failed')), 'tracker', retry).catch(() => {});
+    await trackAppSave(Promise.resolve(), 'tracker');
+    await waitForAppSaves();
+    expect(retry).not.toHaveBeenCalled();
+  });
+
 });

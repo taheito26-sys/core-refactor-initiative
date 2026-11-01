@@ -81,7 +81,7 @@ describe('automatic app launch updates', () => {
   it('keeps a failed save open and resumes automatically when saving succeeds', async () => {
     waitSaves.mockRejectedValueOnce(new Error('saving offline'));
     const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
-    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalledWith('saving');
+    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalledWith('failed', 'saving offline');
     await vi.advanceTimersByTimeAsync(5000);
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -114,6 +114,33 @@ describe('automatic app launch updates', () => {
     vi.stubGlobal('navigator', { serviceWorker: worker }); vi.mocked(fetch).mockResolvedValue(version('old'));
     const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
     worker.dispatchEvent(new Event('controllerchange')); await tick(); expect(reload).not.toHaveBeenCalled();
+  });
+  it('does not reload a current build when an existing controller changes or a worker waits', async () => {
+    const worker = new EventTarget();
+    const activate = vi.fn();
+    Object.assign(worker, { controller: {}, register: vi.fn(async () => ({ waiting: { postMessage: activate }, update: vi.fn(async () => {}) })) });
+    vi.stubGlobal('navigator', { serviceWorker: worker });
+    vi.mocked(fetch).mockResolvedValue(version('old'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    worker.dispatchEvent(new Event('controllerchange')); await tick();
+    expect(reload).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+  });
+  it('shows a failed save reason instead of an endless saving spinner', async () => {
+    waitSaves.mockRejectedValue(new Error('Write rejected'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(notify).toHaveBeenLastCalledWith('failed', 'Write rejected');
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(waitSaves).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenLastCalledWith('failed', 'Write rejected');
+  });
+  it('replaces the spinner with a waiting message when a save request stalls', async () => {
+    waitSaves.mockReturnValue(new Promise(() => {}));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(notify).toHaveBeenLastCalledWith('failed', expect.stringContaining('Waiting for the server'));
+    expect(reload).not.toHaveBeenCalled();
   });
   it('checks again automatically when the app resumes', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(version('old'));

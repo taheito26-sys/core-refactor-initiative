@@ -2,8 +2,8 @@ import { createElement } from 'react';
 import { toast } from 'sonner';
 import { UpdateCard } from './UpdateCard';
 
-export function showAppUpdate(phase: 'updating' | 'saving' = 'updating') {
-  toast.custom(() => createElement(UpdateCard, { phase }), { id: 'app-update', duration: Infinity, dismissible: false });
+export function showAppUpdate(phase: 'updating' | 'saving' | 'failed' = 'updating', error?: string) {
+  toast.custom(() => createElement(UpdateCard, { phase, error }), { id: 'app-update', duration: Infinity, dismissible: false });
 }
 
 export function showAppUpdated() {
