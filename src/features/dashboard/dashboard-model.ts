@@ -94,6 +94,13 @@ export function pctChange(cur: number, prev: number | null | undefined): number 
   return ((cur - prev) / Math.abs(prev)) * 100;
 }
 
+/** Headline month KPIs compare this month so far with the whole preceding calendar month. */
+export function calendarMonthComparison(points: DashPoint[], now: number) {
+  const month = rangeWindow('this_month', now, null);
+  const window: RangeWindow = { ...month, prevTo: month.from - 1 };
+  return { window, ...summarizeWithPrevious(points, window) };
+}
+
 export interface Summary { vol: number; ownVol: number; net: number; fullNet: number; orders: number }
 
 export function summarize(points: DashPoint[], from: number, to: number): Summary {

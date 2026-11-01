@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
-  clientPeriodChanges, deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
+  calendarMonthComparison, clientPeriodChanges, deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
   type DashPoint, type RangeWindow,
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
@@ -121,19 +121,25 @@ export function DashboardHome({
 
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
   const dwin = useMemo(() => deltaWindow(win, now), [win, now]);
-  const { cur: dCur, prev: dPrev } = useMemo(() => summarizeWithPrevious(points, dwin), [points, dwin]);
+  const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
+  const monthLocale = lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
+  const monthLabel = new Date(monthly.window.from).toLocaleDateString(monthLocale, { month: 'short', year: '2-digit' });
+  const previousMonthLabel = new Date(monthly.window.prevFrom!).toLocaleDateString(monthLocale, { month: 'short', year: '2-digit' });
+  const monthlyComparisonLabel = lang === 'ar'
+    ? `${monthLabel} حتى الآن مقابل ${previousMonthLabel} كاملًا`
+    : `${monthLabel} so far vs ${previousMonthLabel} in full`;
   const changeByClient = useMemo(
     () => (win.prevFrom == null ? clientPeriodChanges(points, dwin, clientMetric) : null),
     [points, win, dwin, clientMetric],
   );
-  const volSpark = useMemo(() => sparkline(points, win, p => p.vol, 6), [points, win]);
-  const netSpark = useMemo(() => sparkline(points, win, p => p.net, 12), [points, win]);
+  const volSpark = useMemo(() => sparkline(points, monthly.window, p => p.vol, 6), [points, monthly.window]);
+  const netSpark = useMemo(() => sparkline(points, monthly.window, p => p.net, 12), [points, monthly.window]);
   const clients = useMemo(() => topClients(points, win, clientMetric), [points, win, clientMetric]);
   const maxOrders = Math.max(1, ...clients.map(c => c.orders));
 
-  const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; unit: string; value: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
-    { key: 'total', label: t('dhTotalVolume'), Icon: Layers, tone: 't5', unit: 'var(--t5)', value: cur.vol, pct: pctChange(dCur.vol, dPrev?.vol), spark: volSpark, kind: 'bars' },
-    { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', unit: 'var(--text)', value: cur.net, pct: pctChange(dCur.net, dPrev?.net), spark: netSpark, kind: 'line' },
+  const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; unit: string; value: number; previous: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
+    { key: 'total', label: t('dhTotalVolume'), Icon: Layers, tone: 't5', unit: 'var(--t5)', value: monthly.cur.vol, previous: monthly.prev?.vol ?? 0, pct: pctChange(monthly.cur.vol, monthly.prev?.vol), spark: volSpark, kind: 'bars' },
+    { key: 'net', label: t('dhMyNetProfit'), Icon: Target, tone: 'good', unit: 'var(--text)', value: monthly.cur.net, previous: monthly.prev?.net ?? 0, pct: pctChange(monthly.cur.net, monthly.prev?.net), spark: netSpark, kind: 'line' },
   ];
 
   const monthStats = useMemo(() => {
@@ -174,7 +180,8 @@ export function DashboardHome({
             <section key={s.key} className="dh-card dh-stat" style={{ ['--tone' as string]: toneVar(s.tone) }}>
               <header><span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3></header>
               <div className="dh-val"><b>{p.n}</b><small style={{ color: s.unit }}>{p.u}</small></div>
-              <Delta pct={s.pct} label={comparisonText} />
+              <Delta pct={s.pct} label={monthlyComparisonLabel} />
+              <p className="dh-sub">{previousMonthLabel} {lang === 'ar' ? 'الإجمالي' : 'total'}: {parts(s.previous).n} {parts(s.previous).u}</p>
               <Sparkline className={`dh-stat-spark ${s.kind}`} values={s.spark} color={toneVar(s.tone)} kind={s.kind} />
             </section>
           );

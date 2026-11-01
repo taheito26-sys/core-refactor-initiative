@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeClients, clientPeriodChanges, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
+  calendarMonthComparison, activeClients, clientPeriodChanges, deltaWindow, pctChange, rangeWindow, scopePoints, sparkline, summarize, topClients, trendBuckets,
   type DashPoint,
 } from './dashboard-model';
 
@@ -159,5 +159,36 @@ describe('deltaWindow', () => {
     const points = [pt(at(2026, 12, 1, 1))];
     expect(summarize(points, w.from, w.to).orders).toBe(0);
     expect(clientPeriodChanges(points, w, 'profit').get('A')).toBe(-100);
+  });
+});
+
+
+describe('headline calendar month comparison', () => {
+  it('compares November totals with all of October, including its final day', () => {
+    const now = at(2026, 11, 1, 22);
+    const points = [
+      pt(at(2026, 9, 30), { vol: 9000000, net: 90000 }),
+      pt(at(2026, 10, 1), { vol: 20000, net: 400 }),
+      pt(at(2026, 10, 31, 23), { vol: 1080000, net: 29600 }),
+      pt(at(2026, 11, 1, 14), { vol: 21892, net: 685 }),
+      pt(at(2026, 11, 2), { vol: 999999, net: 99999 }),
+    ];
+    const result = calendarMonthComparison(points, now);
+    expect(result.cur.vol).toBe(21892);
+    expect(result.cur.net).toBe(685);
+    expect(result.prev?.vol).toBe(1100000);
+    expect(result.prev?.net).toBe(30000);
+    expect(pctChange(result.cur.vol, result.prev?.vol)).toBeCloseTo(-98.0098, 3);
+    expect(pctChange(result.cur.net, result.prev?.net)).toBeCloseTo(-97.7167, 3);
+  });
+  it('rolls January against all of December and does not skip an empty month', () => {
+    const result = calendarMonthComparison([pt(at(2026, 12, 31, 23), { vol: 100, net: 20 })], at(2027, 1, 1, 1));
+    expect(result.cur.orders).toBe(0);
+    expect(result.prev?.vol).toBe(100);
+    expect(pctChange(result.cur.net, result.prev?.net)).toBe(-100);
+  });
+  it('has no fabricated percentage when the previous month has no profit', () => {
+    const result = calendarMonthComparison([pt(at(2026, 11, 1), { vol: 100, net: 20 })], at(2026, 11, 2));
+    expect(pctChange(result.cur.net, result.prev?.net)).toBeNull();
   });
 });
