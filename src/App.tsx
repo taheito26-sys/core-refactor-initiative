@@ -1,3 +1,4 @@
+import { registerAppUpdateMutationCheck } from "@/lib/app-update-saves";
 import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
@@ -227,6 +228,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+registerAppUpdateMutationCheck(() => queryClient.isMutating());
 
 class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },

@@ -1,3 +1,4 @@
+import { resetAppUpdateSaves, trackAppSave } from './app-update-saves';
 import { assertSavedOrderBuyers } from '@/features/orders/utils/order-buyer';
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ import { uploadVaultBackup } from './supabase-vault';
 
 let _sessionEpoch = 0;
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _cancelQueuedSave: (() => void) | null = null;
 let _lastSavedJson = '';
 /**
  * Once we've successfully read the cloud row at least once this session,
@@ -55,9 +57,12 @@ const _foreignIds: Record<string, Set<string>> = {
  */
 export function resetTrackerSyncSession(): void {
   _sessionEpoch += 1;
+  resetAppUpdateSaves();
   resetCashSyncSession();
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = null;
+  _cancelQueuedSave?.();
+  _cancelQueuedSave = null;
   if (_prefTimer) clearTimeout(_prefTimer);
   _prefTimer = null;
   _lastSavedJson = '';
@@ -501,20 +506,34 @@ export function saveTrackerState(state: TrackerState): void {
   persistToLocal(state);
 
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    persistToCloud(state, {}, generation).catch((err) => {
-      console.warn('[tracker-sync] debounced cloud save failed:', err);
-    });
-  }, 2000);
+  _cancelQueuedSave?.();
+  const queued = new Promise<void>((resolve, reject) => {
+    _cancelQueuedSave = resolve;
+    _saveTimer = setTimeout(() => {
+      _saveTimer = null;
+      _cancelQueuedSave = null;
+      persistToCloud(state, {}, generation).then(resolve, reject);
+    }, 2000);
+  });
+  void trackAppSave(queued, 'tracker').catch(err => {
+    console.warn('[tracker-sync] debounced cloud save failed:', err);
+  });
 }
 
 /** Force an immediate cloud save (e.g. on import/restore) */
-export async function saveTrackerStateNow(state: TrackerState, options: TrackerSaveOptions = {}): Promise<void> {
+export function saveTrackerStateNow(state: TrackerState, options: TrackerSaveOptions = {}): Promise<void> {
+  return trackAppSave(commitTrackerStateNow(state, options), 'tracker');
+}
+
+async function commitTrackerStateNow(state: TrackerState, options: TrackerSaveOptions): Promise<void> {
   const epoch = _sessionEpoch;
   if (options.preserveDataCleared && (!options.replaceExisting || !options.allowDuringClear || !isEmptyClearState(state))) {
     throw new Error('A full clear requires a complete empty tracker state.');
   }
   if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _cancelQueuedSave?.();
+  _cancelQueuedSave = null;
   await persistToCloud(state, options);
   if (epoch !== _sessionEpoch) throw new Error('Account changed during tracker save.');
   persistToLocal(state);

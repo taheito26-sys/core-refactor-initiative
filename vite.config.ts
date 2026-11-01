@@ -51,7 +51,7 @@ export default defineConfig(({ mode }) => {
       mode === "development" && componentTagger(),
       !disablePwaBuild &&
         VitePWA({
-          registerType: "prompt",
+          registerType: "autoUpdate",
           injectRegister: false,
           includeAssets: [
             "favicon.ico?v=2",
@@ -78,7 +78,7 @@ export default defineConfig(({ mode }) => {
               /^\/verify-email/,
             ],
             clientsClaim: true,
-            skipWaiting: false,
+            skipWaiting: true,
             cleanupOutdatedCaches: true,
             runtimeCaching: [
               {

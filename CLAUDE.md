@@ -415,9 +415,10 @@ Commit messages are short imperative summaries, frequently with a PR number suff
 - Auth redirect URLs must be allow-listed in Supabase for web *and* the Capacitor deep-link
   scheme `com.taheito26sys.corerefactorinitiative://login-callback` /
   `://reset-password-callback`. See `README.md` §"Auth redirect configuration".
-- App updates are coordinated by `src/lib/app-updates.ts`. Clean clients update automatically;
-  unsaved edits and open editors postpone reloading. Workbox precaches startup code and uses
-  explicit worker activation so a new release does not discard unfinished work. Verify the
+- App updates are coordinated by `src/lib/app-updates.ts`. The owner explicitly requests automatic launch/resume updates without acceptance buttons.
+  Rendering and version checks run in parallel. Workbox activates new releases automatically;
+  submitted tracker/cash writes finish before the automatic restart. Draft editors do not
+  require a user update decision. Show progress and confirm completion after the new build loads. Verify the
   live deployment commit before diagnosing a client cache problem.
 - Native `android/` and `ios/` projects are generated locally via Capacitor and are not meant to
   be committed.

@@ -1,3 +1,4 @@
+import { waitForAppSaves } from '@/lib/app-update-saves';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { loadTrackerStateFromCloud, saveTrackerState, saveTrackerStateNow, resetTrackerSyncSession } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
@@ -300,6 +301,32 @@ describe('saveTrackerStateNow', () => {
     const { state } = (await import('@/lib/tracker-state')).createEmptyState();
     await expect(saveTrackerStateNow(state)).rejects.toThrow('another device');
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+  it('holds automatic updates through debounce and settles replaced queued saves', async () => {
+    vi.useFakeTimers();
+    try {
+      const { state } = (await import('@/lib/tracker-state')).createEmptyState();
+      const first = { ...state, batches: [{ id: 'batch', ts: 1, source: 'Supplier', note: '', initialUSDT: 1, buyPriceQAR: 3.8, revisions: [] }] };
+      saveTrackerState(first);
+      saveTrackerState({ ...first, batches: [{ ...first.batches[0], initialUSDT: 2 }] });
+      let ready = false; const update = waitForAppSaves().then(() => { ready = true; });
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(ready).toBe(false); expect(rpcMock).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1); await update;
+      expect(ready).toBe(true); expect(rpcMock).toHaveBeenCalledTimes(1);
+    } finally { resetTrackerSyncSession(); vi.useRealTimers(); }
+  });
+
+  it('does not leave an update waiting on a debounce replaced by an immediate commit', async () => {
+    vi.useFakeTimers();
+    try {
+      const { state } = (await import('@/lib/tracker-state')).createEmptyState();
+      const next = { ...state, batches: [{ id: 'batch', ts: 1, source: 'Supplier', note: '', initialUSDT: 1, buyPriceQAR: 3.8, revisions: [] }] };
+      saveTrackerState(next);
+      await saveTrackerStateNow(next);
+      await waitForAppSaves();
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+    } finally { resetTrackerSyncSession(); vi.useRealTimers(); }
   });
 
 });

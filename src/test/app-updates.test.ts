@@ -1,209 +1,122 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAppUpdates } from '@/lib/app-updates';
-const notify = vi.hoisted(() => vi.fn());
-vi.mock('@/features/app-updates/update-notice', () => ({ showAppUpdate: notify, dismissAppUpdate: vi.fn() }));
+
+const { notify, completed, dismiss, waitSaves, hasSaves } = vi.hoisted(() => ({
+  notify: vi.fn(), completed: vi.fn(), dismiss: vi.fn(), waitSaves: vi.fn(), hasSaves: vi.fn(),
+}));
+vi.mock('@/features/app-updates/update-notice', () => ({ showAppUpdate: notify, showAppUpdated: completed, dismissAppUpdate: dismiss }));
+vi.mock('@/lib/app-update-saves', () => ({ waitForAppSaves: waitSaves, hasPendingAppSaves: hasSaves }));
 let stop: (() => void) | undefined;
+const version = (buildId: string) => ({ ok: true, json: async () => ({ buildId }) }) as Response;
+const tick = () => vi.advanceTimersByTimeAsync(0);
+
 beforeEach(() => {
-  vi.useFakeTimers(); vi.clearAllMocks(); sessionStorage.clear();
-  history.replaceState({}, '', '/orders');
-  document.body.innerHTML = '';
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ buildId: 'new' }) })));
+  vi.useFakeTimers(); vi.clearAllMocks(); sessionStorage.clear(); document.body.innerHTML = '';
+  waitSaves.mockResolvedValue(undefined); hasSaves.mockReturnValue(false);
+  vi.stubGlobal('fetch', vi.fn(async () => version('new')));
 });
-afterEach(() => { stop?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-describe('automatic app updates', () => {
-  it('does not treat browsing controls as unsaved edits', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const button = document.createElement('button');
-    button.textContent = 'September'; document.body.append(button); button.click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(notify).not.toHaveBeenCalled();
+afterEach(() => { stop?.(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('automatic app launch updates', () => {
+  it('starts checking immediately and returns without waiting for the network or delaying rendering', () => {
+    vi.mocked(fetch).mockReturnValue(new Promise(() => {}));
+    stop = startAppUpdates('old', vi.fn());
+    expect(typeof stop).toBe('function');
+    expect(fetch).toHaveBeenCalledWith('/app-version.json', expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
+    const screen = document.createElement('main'); document.body.append(screen);
+    expect(screen.isConnected).toBe(true);
   });
-  it('protects form actions before an input event is fired', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const form = document.createElement('form');
-    const button = document.createElement('button'); button.type = 'button';
-    form.append(button); document.body.append(form); button.click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalled();
-  });
-  it('protects an open editor and applies the update after it closes', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
+  it('automatically reloads once without waiting for a button or an open form', async () => {
     const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
-    editor.append(document.createElement('input')); document.body.append(editor);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
-    editor.remove(); await vi.advanceTimersByTimeAsync(30_000);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('honors an explicit update request while an editor is open', async () => {
+    const input = document.createElement('input'); editor.append(input); document.body.append(editor);
+    input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
     const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
-    editor.append(document.createElement('input')); document.body.append(editor);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
-    notify.mock.calls[0][0].onUpdate();
+    await tick();
+    expect(notify).toHaveBeenCalledWith('updating');
     expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('shows one card while editing and ignores repeated update taps', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const input = document.createElement('input'); document.body.append(input);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(notify).toHaveBeenCalledTimes(1);
-    const update = notify.mock.calls[0][0].onUpdate;
-    update(); update();
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[1][0].updating).toBe(true);
-  });
-
-  it('ignores update actions after the updater stops', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const input = document.createElement('input'); document.body.append(input);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(0);
-    const update = notify.mock.calls[0][0].onUpdate;
-    stop(); update();
-    expect(reload).not.toHaveBeenCalled();
-  });
-
-  it('waits for registration and its update check instead of reloading the old worker', async () => {
-    const worker = new EventTarget();
-    let finishRegistration: (value: unknown) => void = () => {};
-    let finishUpdate: () => void = () => {};
-    const registration = { update: vi.fn(() => new Promise<void>(resolve => { finishUpdate = resolve; })) };
-    Object.assign(worker, { controller: {}, register: vi.fn(() => new Promise(resolve => { finishRegistration = resolve; })) });
-    vi.stubGlobal('navigator', { serviceWorker: worker });
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
-    finishRegistration(registration);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
-    finishUpdate();
-    await vi.advanceTimersByTimeAsync(0);
     expect(reload).toHaveBeenCalledTimes(1);
   });
-
-  it('checks for newly deployed releases within five seconds', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => ({ buildId: 'old' }) } as Response);
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
+  it('shows completion only after the new build actually loads', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(completed).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('app-update-from-build')).toBe('old');
+    stop(); stop = startAppUpdates('new', reload); await tick();
+    expect(completed).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('app-update-from-build')).toBeNull();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('does not claim completion or loop when the old bundle is still served', async () => {
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    stop(); stop = startAppUpdates('old', reload); await vi.advanceTimersByTimeAsync(10_000);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(completed).not.toHaveBeenCalled();
+  });
+  it('does not announce an update when already current', async () => {
+    vi.mocked(fetch).mockResolvedValue(version('old'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(notify).not.toHaveBeenCalled(); expect(reload).not.toHaveBeenCalled();
+  });
+  it('waits for submitted saves to finish, then automatically restarts', async () => {
+    let saved: () => void = () => {};
+    waitSaves.mockReturnValue(new Promise<void>(resolve => { saved = resolve; })); hasSaves.mockReturnValue(true);
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalledWith('saving');
+    saved(); await tick();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('keeps a failed save open and resumes automatically when saving succeeds', async () => {
+    waitSaves.mockRejectedValueOnce(new Error('saving offline'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalledWith('saving');
     await vi.advanceTimersByTimeAsync(5000);
     expect(reload).toHaveBeenCalledTimes(1);
   });
-
-  it('recovers from a hung version request on the next check', async () => {
+  it('does not reload after the updater stops while a save is in progress', async () => {
+    let saved: () => void = () => {};
+    waitSaves.mockReturnValue(new Promise<void>(resolve => { saved = resolve; }));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick(); stop(); saved(); await tick();
+    expect(reload).not.toHaveBeenCalled();
+  });
+  it('activates a waiting worker automatically and reloads after activation', async () => {
+    const worker = new EventTarget(); const activate = vi.fn();
+    const registration = { waiting: { postMessage: activate } as { postMessage: typeof activate } | null, update: vi.fn(async () => {}) };
+    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) }); vi.stubGlobal('navigator', { serviceWorker: worker });
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(activate).toHaveBeenCalledWith({ type: 'SKIP_WAITING' }); expect(reload).not.toHaveBeenCalled();
+    registration.waiting = null; worker.dispatchEvent(new Event('controllerchange')); await tick();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('waits for installation rather than reloading the old bundle', async () => {
+    const worker = new EventTarget();
+    const registration = { installing: new EventTarget() as EventTarget | null, update: vi.fn(async () => {}) };
+    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) }); vi.stubGlobal('navigator', { serviceWorker: worker });
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalledWith('updating');
+    registration.installing = null; worker.dispatchEvent(new Event('controllerchange')); await tick();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('does not reload just because a first installation takes control', async () => {
+    const worker = new EventTarget(); Object.assign(worker, { controller: null, register: vi.fn(async () => ({ update: vi.fn(async () => {}) })) });
+    vi.stubGlobal('navigator', { serviceWorker: worker }); vi.mocked(fetch).mockResolvedValue(version('old'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    worker.dispatchEvent(new Event('controllerchange')); await tick(); expect(reload).not.toHaveBeenCalled();
+  });
+  it('checks again automatically when the app resumes', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(version('old'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick();
+    window.dispatchEvent(new Event('focus')); await tick(); expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('keeps opening normally offline and retries without user approval', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'));
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await tick(); expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000); expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it('recovers from a hung version request', async () => {
     vi.mocked(fetch).mockImplementationOnce((_input, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
     }));
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(10_000);
+    const reload = vi.fn(); stop = startAppUpdates('old', reload); await vi.advanceTimersByTimeAsync(10_000);
     expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not block updates for a closed editor kept in the DOM', async () => {
-    const editor = document.createElement('div'); editor.setAttribute('role', 'dialog');
-    editor.setAttribute('data-state', 'closed'); editor.append(document.createElement('input'));
-    document.body.append(editor);
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('automatically reloads a clean app when a new release is available', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenCalledWith('/app-version.json', expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('protects an edited page and applies the update after navigation', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const input = document.createElement('input'); document.body.append(input);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled(); expect(notify).toHaveBeenCalled();
-    history.pushState({}, '', '/stock');
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('continues checking an already-open app and tolerates an offline check', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'));
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0); expect(reload).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(30_000); expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('waits for the replacement worker to activate before reloading', async () => {
-    const worker = new EventTarget();
-    const registration = { installing: new EventTarget() as EventTarget | null, waiting: null, update: vi.fn(async () => {}) };
-    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) });
-    vi.stubGlobal('navigator', { serviceWorker: worker });
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).not.toHaveBeenCalled();
-    registration.installing = null;
-    worker.dispatchEvent(new Event('controllerchange'));
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-  it('does not reload just because the first service worker takes control', async () => {
-    const worker = new EventTarget();
-    Object.assign(worker, { controller: null, register: vi.fn(async () => ({ update: vi.fn(async () => {}) })) });
-    vi.stubGlobal('navigator', { serviceWorker: worker });
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ buildId: 'old' }) } as Response);
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    worker.dispatchEvent(new Event('controllerchange'));
-    expect(reload).not.toHaveBeenCalled();
-  });
-
-  it('does not enter a reload loop if the server still serves the old bundle', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0); expect(reload).toHaveBeenCalledTimes(1);
-    stop(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(30_000); expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps a waiting worker inactive until an edited page is left', async () => {
-    const worker = new EventTarget(); const activate = vi.fn();
-    const registration = { waiting: { postMessage: activate } as { postMessage: typeof activate } | null, update: vi.fn(async () => {}) };
-    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) });
-    vi.stubGlobal('navigator', { serviceWorker: worker });
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const input = document.createElement('input'); document.body.append(input);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(activate).not.toHaveBeenCalled(); expect(reload).not.toHaveBeenCalled();
-    history.pushState({}, '', '/stock'); await vi.advanceTimersByTimeAsync(1000);
-    expect(activate).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
-    registration.waiting = null; worker.dispatchEvent(new Event('controllerchange'));
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-});
-
-describe('update checks while browsing the calendar', () => {
-  it('does not treat changing the viewed month as an unsaved record', async () => {
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    const input = document.createElement('input'); input.type = 'month'; input.dataset.updatePassive = '';
-    document.body.append(input); input.dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(notify).not.toHaveBeenCalled();
-  });
-
-  it('still checks the version when the service worker update never resolves', async () => {
-    const worker = new EventTarget();
-    const registration = { update: vi.fn(() => new Promise<void>(() => {})) };
-    Object.assign(worker, { controller: {}, register: vi.fn(async () => registration) });
-    vi.stubGlobal('navigator', { serviceWorker: worker });
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ buildId: 'old' }) } as Response);
-    const reload = vi.fn(); stop = startAppUpdates('old', reload);
-    await vi.advanceTimersByTimeAsync(0);
-    const initialChecks = vi.mocked(fetch).mock.calls.length;
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(registration.update).toHaveBeenCalled();
-    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(initialChecks);
   });
 });

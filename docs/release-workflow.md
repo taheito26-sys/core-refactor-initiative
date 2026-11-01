@@ -50,5 +50,8 @@ is rejected, report it directly instead of repeatedly requesting the same action
 
 The installed client checks versions every five seconds and fetches startup code instead
 of preloading every page. Startup precache is about 1.46 MiB, down from about 5.5 MiB.
-A clean page reloads automatically after the new worker is ready. Unsaved edits postpone
-that reload; do not force-reload a financial form merely to hide the update prompt.
+The owner now explicitly requests automatic launch/resume updates without acceptance buttons.
+The app renders while checking and downloading in parallel. Once ready, it restarts automatically
+after submitted tracker and cash writes finish. Open editors do not require an update decision.
+Progress is shown when an update arrives, and completion is confirmed only after a different
+build loads. Offline checks retry without blocking the initial screen.

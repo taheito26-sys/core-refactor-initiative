@@ -1,3 +1,4 @@
+import { trackAppSave } from './app-update-saves';
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
 import { isTrackerClearInProgress, isTrackerDataCleared, getTrackerWriteGeneration } from './tracker-backup';
@@ -227,7 +228,7 @@ export function saveCashToCloud(
     const done = () => { pendingCashWrites.delete(request); };
     request.then(done, done);
   }
-  return request;
+  return trackAppSave(request, 'cash');
 }
 
 async function persistCashToCloud(
