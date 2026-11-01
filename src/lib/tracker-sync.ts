@@ -1,3 +1,4 @@
+import { preserveExchangeRegistrations } from './exchange-registration';
 import { resetAppUpdateSaves, trackAppSave } from './app-update-saves';
 import { assertSavedOrderBuyers } from '@/features/orders/utils/order-buyer';
 // Cross-device tracker state & preferences sync via Supabase
@@ -202,8 +203,8 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
     merged = {
       ...merged,
       ...state,
-      batches: mergeBatchesByRecency(merged.batches, Array.isArray(state.batches) ? state.batches : []),
-      trades: mergeArrayById(merged.trades, Array.isArray(state.trades) ? state.trades : []),
+      batches: preserveExchangeRegistrations(merged.batches, mergeBatchesByRecency(merged.batches, Array.isArray(state.batches) ? state.batches : [])),
+      trades: preserveExchangeRegistrations(merged.trades, mergeArrayById(merged.trades, Array.isArray(state.trades) ? state.trades : [])),
       customers: mergeArrayById(merged.customers, Array.isArray(state.customers) ? state.customers : []),
       cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
@@ -387,13 +388,13 @@ async function persistToCloud(state: TrackerState, options: TrackerSaveOptions =
     const deletedBatchIds = guardTombstones(
       'batches', latestState.deletedBatchIds, stripped.deletedBatchIds, (latestState.batches || []).length,
     );
-    const mergedBatches = mergeArrayById(latestState.batches, stripped.batches)
+    const mergedBatches = preserveExchangeRegistrations(latestState.batches, mergeArrayById(latestState.batches, stripped.batches))
       .filter(b => !deletedBatchIds.includes((b as { id: string }).id));
 
     const deletedTradeIds = guardTombstones(
       'trades', latestState.deletedTradeIds, stripped.deletedTradeIds, (latestState.trades || []).length,
     );
-    const mergedTrades = mergeArrayById(latestState.trades, stripped.trades)
+    const mergedTrades = preserveExchangeRegistrations(latestState.trades, mergeArrayById(latestState.trades, stripped.trades))
       .filter(tr => !deletedTradeIds.includes((tr as { id: string }).id));
 
     // customers/suppliers are unioned by id on every save, exactly like

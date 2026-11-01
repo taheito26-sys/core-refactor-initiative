@@ -1,3 +1,4 @@
+import { preserveExchangeRegistrations } from './exchange-registration';
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
 import { computeFIFO, mergeLoansByRecency, withoutDeletedRepayments, type TrackerState, type DerivedState } from './tracker-helpers';
 import { mergeTransfersByRecency } from './usdt-transfers';
@@ -157,8 +158,8 @@ export function mergeLocalAndCloud(
     return {
       ...cleanLocal,
       ...cleanCloud,
-      batches: withoutDeletedBatches(unionById(cleanLocal.batches, cleanCloud.batches), deletedBatchIds),
-      trades: unionById(cleanLocal.trades, cleanCloud.trades),
+      batches: withoutDeletedBatches(preserveExchangeRegistrations(cleanLocal.batches, unionById(cleanLocal.batches, cleanCloud.batches)), deletedBatchIds),
+      trades: preserveExchangeRegistrations(cleanLocal.trades, unionById(cleanLocal.trades, cleanCloud.trades)),
       customers: unionById(cleanLocal.customers, cleanCloud.customers),
       suppliers: unionById(cleanLocal.suppliers, cleanCloud.suppliers),
       cashAccounts: [],
@@ -183,8 +184,8 @@ export function mergeLocalAndCloud(
   return {
     ...local,
     ...cloud,
-    batches: withoutDeletedBatches(unionById(local.batches, cloud.batches), deletedBatchIds),
-    trades: unionById(local.trades, cloud.trades),
+    batches: withoutDeletedBatches(preserveExchangeRegistrations(local.batches, unionById(local.batches, cloud.batches)), deletedBatchIds),
+    trades: preserveExchangeRegistrations(local.trades, unionById(local.trades, cloud.trades)),
     customers: unionById(local.customers, cloud.customers),
     suppliers: unionById(local.suppliers, cloud.suppliers),
     cashAccounts: unionById(local.cashAccounts, cloud.cashAccounts),

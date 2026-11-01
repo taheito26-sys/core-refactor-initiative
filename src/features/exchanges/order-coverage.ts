@@ -1,17 +1,18 @@
 import type { TrackerState } from '@/lib/tracker-helpers';
 import type { ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
 import type { ExchangeP2POrder } from './types';
-import { extractImportedReference } from './tracker-import';
+import { exchangeRegistration } from '@/lib/exchange-registration';
 
 export const exchangeOrderKey = (exchange: string, reference: string) => `${exchange}:${String(reference).trim()}`;
 
 /** Rebuild coverage from durable identities on live tracker rows, independently of link-query timing or editable notes. */
 export function trackerOrderAmounts(state: Pick<TrackerState, 'trades' | 'batches'>): Map<string, number> {
   const amounts = new Map<string, number>();
-  const add = (row: { note: string; importedFrom?: string; exchangeOrderNumber?: string }, amount: number) => {
-    const reference = row.exchangeOrderNumber || extractImportedReference(row.note ?? '');
-    if (!reference) return;
-    const exchange = row.importedFrom || row.note?.match(/Imported from (Binance|OKX) /i)?.[1]?.toLowerCase() || '*';
+  const add = (row: { note: string; importedFrom?: 'binance' | 'okx'; exchangeOrderNumber?: string; revisions?: Array<{ before?: { note?: string } }> }, amount: number) => {
+    const identity = exchangeRegistration(row);
+    if (!identity) return;
+    const { reference } = identity;
+    const exchange = identity.exchange || '*';
     const key = exchangeOrderKey(exchange, reference);
     amounts.set(key, (amounts.get(key) ?? 0) + Math.max(0, Number(amount) || 0));
   };
