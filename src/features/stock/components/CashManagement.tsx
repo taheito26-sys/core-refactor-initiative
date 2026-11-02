@@ -1,3 +1,4 @@
+import { editCashAccount } from '@/features/cash/edit-account';
 import { CashOverview, type CashAccountAction } from '@/features/cash/CashOverview';
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment, type MutableRefObject, type ReactNode } from 'react';
@@ -192,12 +193,14 @@ function KpiBox({ icon, label, value, unit, sub, tone = 'neutral', progress, onC
 interface AddAccountModalProps {
   existingAccount?: CashAccount;
   existingAccounts?: CashAccount[];
-  onSave: (account: CashAccount) => void;
+  currentBalance?: number;
+  onSave: (account: CashAccount, balance?: number) => Promise<void> | void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClose, isMobile = false }: AddAccountModalProps) {
+function AddAccountModal({ existingAccount, existingAccounts = [], currentBalance = 0, onSave, onClose, isMobile = false }: AddAccountModalProps) {
   const t = useT();
+  const [balance, setBalance] = useState(String(currentBalance));
   const [name, setName] = useState(existingAccount?.name || '');
   const [type, setType] = useState<CashAccountType>(existingAccount?.type || 'hand');
   const [currency, setCurrency] = useState<CashCurrency>(existingAccount?.currency || 'QAR');
@@ -225,7 +228,7 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
     };
   }, [isMobile]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (submitting) return; // guard against double-click / rapid re-fire creating duplicates
     const trimmedName = name.trim();
     if (!trimmedName) { setErr(t('accountNameRequired')); return; }
@@ -236,9 +239,13 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
       a.name.trim().toLowerCase() === trimmedName.toLowerCase()
     );
     if (isDuplicate) { setErr(t('accountNameDuplicate')); return; }
+    if (existingAccount && (!balance.trim() || !Number.isFinite(Number(balance)))) {
+      setErr(t.lang === 'ar' ? 'أدخل رصيدًا صحيحًا' : 'Enter a valid balance.'); return;
+    }
     setErr('');
     setSubmitting(true);
     const account: CashAccount = {
+      ...existingAccount,
       id: existingAccount?.id || uid(),
       name: trimmedName,
       type,
@@ -254,7 +261,11 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
       lastReconciled: existingAccount?.lastReconciled,
       createdAt: existingAccount?.createdAt || Date.now(),
     };
-    onSave(account);
+    try {
+      await onSave(account, existingAccount ? Number(balance) : undefined);
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Could not save the account.');
+    } finally { setSubmitting(false); }
   };
 
   const selectStyle: React.CSSProperties = {
@@ -351,6 +362,12 @@ function AddAccountModal({ existingAccount, existingAccounts = [], onSave, onClo
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           </div>
         )}
+
+        {existingAccount && <div className="field2" style={{ marginBottom: 12 }}>
+          <label className="lbl" htmlFor="account-edit-balance">{t.lang === 'ar' ? 'الرصيد' : 'Balance'} ({currency})</label>
+          <div className="inputBox"><input id="account-edit-balance" type="number" step="any" value={balance} onChange={e => setBalance(e.target.value)} /></div>
+          <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>{t.lang === 'ar' ? 'تصحيح مباشر للرصيد، وليس إيداعًا أو سحبًا.' : 'Direct balance correction, without a deposit or withdrawal.'}</p>
+        </div>}
 
         <div className="field2" style={{ marginBottom: 16 }}>
           <div className="lbl">{t('notesOptionalAcc')}</div>
@@ -3264,10 +3281,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     }
   };
 
-  const saveAccount = async (account: CashAccount) => {
-    const newAccounts = accounts.map(a => a.id === account.id ? account : a);
-    const ok = await commit({ ...state, cashAccounts: newAccounts });
-    if (ok) setEditingAccount(undefined);
+  const pendingAccountEdit = useRef<{ accountId: string; correctionId: string } | null>(null);
+  const saveAccount = async (account: CashAccount, balance?: number) => {
+    if (pendingAccountEdit.current?.accountId !== account.id) {
+      pendingAccountEdit.current = { accountId: account.id, correctionId: uid() };
+    }
+    const ok = await commit(editCashAccount(state, account, balance, Date.now(), pendingAccountEdit.current.correctionId));
+    if (ok) { pendingAccountEdit.current = null; setEditingAccount(undefined); }
   };
 
   const deactivateAccount = async (id: string) => {
@@ -3979,8 +3999,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const isCreatingAccountRef = useRef(false);
   const [isCreatingAccountUi, setIsCreatingAccountUi] = useState(false);
 
-  const handleAccountSaved = (account: CashAccount) => {
-    if (editingAccount) { saveAccount(account); return; }
+  const handleAccountSaved = async (account: CashAccount, balance?: number) => {
+    if (editingAccount) { await saveAccount(account, balance); return; }
     setPendingAccount(account);
   };
 
@@ -5806,6 +5826,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         <AddAccountModal
           isMobile={isMobile}
           existingAccount={editingAccount}
+          currentBalance={editingAccount ? getAccountBalance(editingAccount.id, ledger) : 0}
           existingAccounts={accounts}
           onSave={handleAccountSaved}
           onClose={() => { setShowAddAccount(false); setEditingAccount(undefined); }}
