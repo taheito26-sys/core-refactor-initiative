@@ -21,7 +21,7 @@ export interface DashPoint {
 export interface RangeWindow {
   from: number;
   to: number;
-  /** The period just before, of the same length; null when there is nothing to compare with. */
+  /** The previous comparison period; monthly ranges use the full preceding calendar month. */
   prevFrom: number | null;
   prevTo: number | null;
 }
@@ -65,8 +65,7 @@ export function rangeWindow(range: string, now: number, firstTs: number | null, 
       return { from, to: now, prevFrom: from - 30 * DAY, prevTo: from - 1 };
     }
     case 'this_month': {
-      const elapsed = now - monthStart;
-      return { from: monthStart, to: now, prevFrom: prevMonthStart, prevTo: Math.min(prevMonthStart + elapsed, monthStart - 1) };
+      return { from: monthStart, to: now, prevFrom: prevMonthStart, prevTo: monthStart - 1 };
     }
     case 'last_month': {
       const from = prevMonthStart;
@@ -80,7 +79,7 @@ export function rangeWindow(range: string, now: number, firstTs: number | null, 
   }
 }
 
-/** All-time totals keep their range; their change compares this calendar month to date with last month to date. */
+/** All-time totals keep their range; their change compares this calendar month to date with the full previous month. */
 export function deltaWindow(win: RangeWindow, now: number): RangeWindow {
   if (win.prevFrom != null && win.prevTo != null) return win;
   return rangeWindow('this_month', now, null);
@@ -170,7 +169,7 @@ export function trendBuckets(points: DashPoint[], granularity: Granularity, now:
   return buckets;
 }
 
-export interface TopClient { name: string; value: number; orders: number; change: number | null }
+export interface TopClient { name: string; value: number; orders: number; previousValue: number; change: number | null }
 
 /** The clients with the most profit (or volume) in the window, with the change against the period before. */
 export function topClients(points: DashPoint[], win: RangeWindow, metric: 'profit' | 'volume', limit = 5): TopClient[] {
@@ -189,7 +188,7 @@ export function topClients(points: DashPoint[], win: RangeWindow, metric: 'profi
     }
   }
   return [...cur.entries()]
-    .map(([name, r]) => ({ name, value: r.value, orders: r.orders, change: win.prevFrom == null ? null : pctChange(r.value, prev.get(name)) }))
+    .map(([name, r]) => ({ name, value: r.value, orders: r.orders, previousValue: prev.get(name) ?? 0, change: win.prevFrom == null ? null : pctChange(r.value, prev.get(name)) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, limit);
 }

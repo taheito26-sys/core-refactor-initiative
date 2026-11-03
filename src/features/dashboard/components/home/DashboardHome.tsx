@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
-  calendarMonthComparison, clientPeriodChanges, deltaWindow, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
+  calendarMonthComparison, pctChange, scopePoints, sparkline, summarize, summarizeWithPrevious, topClients,
   type DashPoint, type RangeWindow,
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
@@ -120,7 +120,6 @@ export function DashboardHome({
   const [clientMetric, setClientMetric] = useState<'profit' | 'volume'>('profit');
 
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
-  const dwin = useMemo(() => deltaWindow(win, now), [win, now]);
   const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
   const monthLocale = lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
   const monthLabel = new Date(monthly.window.from).toLocaleDateString(monthLocale, { month: 'short', year: '2-digit' });
@@ -128,13 +127,9 @@ export function DashboardHome({
   const monthlyComparisonLabel = lang === 'ar'
     ? `${monthLabel} حتى الآن مقابل ${previousMonthLabel} كاملًا`
     : `${monthLabel} so far vs ${previousMonthLabel} in full`;
-  const changeByClient = useMemo(
-    () => (win.prevFrom == null ? clientPeriodChanges(points, dwin, clientMetric) : null),
-    [points, win, dwin, clientMetric],
-  );
   const volSpark = useMemo(() => sparkline(points, monthly.window, p => p.vol, 6), [points, monthly.window]);
   const netSpark = useMemo(() => sparkline(points, monthly.window, p => p.net, 12), [points, monthly.window]);
-  const clients = useMemo(() => topClients(points, win, clientMetric), [points, win, clientMetric]);
+  const clients = useMemo(() => topClients(points, monthly.window, clientMetric), [points, monthly.window, clientMetric]);
   const maxOrders = Math.max(1, ...clients.map(c => c.orders));
 
   const stats: Array<{ key: string; label: string; Icon: LucideIcon; tone: Tone; unit: string; value: number; previous: number; pct: number | null; spark: number[]; kind: 'bars' | 'line' }> = [
@@ -231,13 +226,13 @@ export function DashboardHome({
       {/* Top clients */}
       <section className="dh-card dh-top">
         <header className="dh-top-head">
-          <h2><Crown />{t('top5Clients')}</h2>
+          <h2><Crown />{t('top5Clients')} · {monthLabel}</h2>
           <div className="dh-seg sm">
             <button type="button" className={clientMetric === 'profit' ? 'on' : ''} onClick={() => setClientMetric('profit')}>{t('dhNetProfitTab')}</button>
             <button type="button" className={clientMetric === 'volume' ? 'on' : ''} onClick={() => setClientMetric('volume')}>{t('dhVolume')}</button>
           </div>
         </header>
-        <p className="muted" style={{ fontSize: 'calc(10px * var(--s))', margin: '0 0 8px' }}>{comparisonText}</p>
+        <p className="muted" style={{ fontSize: 'calc(10px * var(--s))', margin: '0 0 8px' }}>{monthlyComparisonLabel}</p>
         {clients.length === 0 ? (
           <div className="dh-empty">{t('noDataAvailable')}</div>
         ) : (
@@ -247,14 +242,14 @@ export function DashboardHome({
             </thead>
             <tbody>
               {clients.map((c, i) => {
-                const change = changeByClient ? changeByClient.get(c.name) ?? null : c.change;
+                const change = c.change;
                 return (
                   <tr key={c.name}>
                     <td><span className="dh-medal" style={{ background: MEDALS[i] }}>{i + 1}</span></td>
                     <td className="dh-client-td"><div className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span title={c.name}>{c.name}</span></div></td>
                     <td className="dh-ord-td"><div className="dh-ord"><span className="dh-ord-n">{c.orders}</span><span className="dh-ord-bar"><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: BARS[i] }} /></i></span></div></td>
-                    <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</td>
-                    <td className={`r ${change == null ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : `${change >= 0 ? '+' : ''}${Math.round(change)}%`}</td>
+                    <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}<div className="muted" style={{ fontSize: 'calc(9px * var(--s))', fontWeight: 400 }}>{previousMonthLabel}: {money(c.previousValue)}</div></td>
+                    <td className={`r ${change == null ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</td>
                   </tr>
                 );
               })}

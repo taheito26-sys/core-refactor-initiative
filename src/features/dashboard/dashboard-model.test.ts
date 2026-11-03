@@ -24,11 +24,11 @@ describe('rangeWindow', () => {
     expect(w.from - (w.prevFrom as number)).toBe(7 * DAY);
   });
 
-  it('compares this month so far with the same stretch of last month', () => {
+  it('compares this month so far with the whole previous month', () => {
     const w = rangeWindow('this_month', NOW, null);
     expect(w.from).toBe(at(2026, 10, 1, 0));
     expect(w.prevFrom).toBe(at(2026, 9, 1, 0));
-    expect((w.prevTo as number) - (w.prevFrom as number)).toBe(NOW - w.from);
+    expect(w.prevTo).toBe(w.from - 1);
   });
 
   it('has nothing to compare all time with', () => {
@@ -138,17 +138,17 @@ describe('deltaWindow', () => {
     expect(deltaWindow(w, NOW)).toBe(w);
   });
 
-  it('compares November to date with October to date when All is selected', () => {
+  it('compares November to date with all of October when All is selected', () => {
     const now = at(2026, 11, 1, 3);
     const w = deltaWindow(rangeWindow('all', now, at(2026, 3, 6)), now);
     expect(w.from).toBe(at(2026, 11, 1, 0));
     expect(w.to).toBe(now);
     expect(w.prevFrom).toBe(at(2026, 10, 1, 0));
-    expect(w.prevTo).toBe(at(2026, 10, 1, 3));
+    expect(w.prevTo).toBe(at(2026, 11, 1, 0) - 1);
     const points = [pt(at(2026, 9, 20), { vol: 99999 }), pt(at(2026, 10, 1, 1), { vol: 100 }), pt(at(2026, 10, 30), { vol: 99999 }), pt(at(2026, 11, 1, 1), { vol: 50 })];
     expect(summarize(points, w.from, w.to).vol).toBe(50);
-    expect(summarize(points, w.prevFrom!, w.prevTo!).vol).toBe(100);
-    expect(pctChange(50, 100)).toBe(-50);
+    expect(summarize(points, w.prevFrom!, w.prevTo!).vol).toBe(100099);
+    expect(pctChange(50, 100099)).toBeCloseTo(-99.95, 2);
   });
 
   it('does not skip an empty new month and rolls January against December', () => {
@@ -190,5 +190,27 @@ describe('headline calendar month comparison', () => {
   it('has no fabricated percentage when the previous month has no profit', () => {
     const result = calendarMonthComparison([pt(at(2026, 11, 1), { vol: 100, net: 20 })], at(2026, 11, 2));
     expect(pctChange(result.cur.net, result.prev?.net)).toBeNull();
+  });
+});
+
+
+describe('monthly top client ranking and baseline', () => {
+  it('excludes past-month-only clients and uses full prior-month profit and volume for the same client', () => {
+    const now = at(2026, 11, 3);
+    const points = [
+      pt(at(2026, 9, 20), { client: 'Mohamed Al-Damrawy', net: 100, vol: 1000 }),
+      pt(at(2026, 10, 1), { client: 'Mohamed Al-Damrawy', net: 10000, vol: 400000 }),
+      pt(at(2026, 10, 31, 23), { client: 'Mohamed Al-Damrawy', net: 20000, vol: 700000 }),
+      pt(at(2026, 10, 20), { client: 'Past client', net: 999999 }),
+      pt(at(2026, 11, 2), { client: 'Mohamed Al-Damrawy', net: 685, vol: 21892 }),
+    ];
+    const win = calendarMonthComparison(points, now).window;
+    const profit = topClients(points, win, 'profit');
+    expect(profit).toHaveLength(1);
+    expect(profit[0]).toMatchObject({ value: 685, previousValue: 30000, orders: 1 });
+    expect(profit[0].change).toBeCloseTo(-97.7167, 3);
+    const volume = topClients(points, win, 'volume')[0];
+    expect(volume.previousValue).toBe(1100000);
+    expect(volume.change).toBeCloseTo(-98.0098, 3);
   });
 });
