@@ -1,4 +1,4 @@
-# Full Migration Guide: Lovable Cloud → External Supabase
+# Legacy database export to Supabase
 
 ## Exported Files
 

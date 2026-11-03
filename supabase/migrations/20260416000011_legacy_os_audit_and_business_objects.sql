@@ -1,4 +1,4 @@
--- Legacy OS compatibility tables required by the Lovable export bundle.
+-- Legacy OS compatibility tables required by the legacy export bundle.
 -- These tables exist in the source dump but were not part of the repo-managed
 -- migration history, so the fresh project needs them before replaying live data.
 

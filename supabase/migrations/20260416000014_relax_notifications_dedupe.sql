@@ -1,4 +1,4 @@
--- The Lovable export contains notification rows with duplicate dedupe_key
+-- The legacy export contains notification rows with duplicate dedupe_key
 -- values. Keep the lookup index, but remove the uniqueness constraint so the
 -- live import can replay without aborting on source-data collisions.
 

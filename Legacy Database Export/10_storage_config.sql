@@ -1,6 +1,6 @@
 -- ============================================================
 -- Storage Export (buckets + policies + object metadata)
--- Generated from Lovable Cloud database
+-- Generated from legacy Cloud database
 -- ============================================================
 
 -- NOTE: This file exports bucket config, RLS policies, and object
@@ -30,17 +30,14 @@ ON CONFLICT (id) DO NOTHING;
 -- ── Storage RLS Policies ──
 
 -- payment-proofs policies
-DROP POLICY IF EXISTS "Customers upload own payment proofs" ON storage.objects;
 CREATE POLICY "Customers upload own payment proofs"
 ON storage.objects FOR INSERT
 WITH CHECK ((bucket_id = 'payment-proofs') AND ((auth.uid())::text = (storage.foldername(name))[1]));
 
-DROP POLICY IF EXISTS "Customers view own payment proofs" ON storage.objects;
 CREATE POLICY "Customers view own payment proofs"
 ON storage.objects FOR SELECT
 USING ((bucket_id = 'payment-proofs') AND ((auth.uid())::text = (storage.foldername(name))[1]));
 
-DROP POLICY IF EXISTS "Merchants view payment proofs for their orders" ON storage.objects;
 CREATE POLICY "Merchants view payment proofs for their orders"
 ON storage.objects FOR SELECT
 USING ((bucket_id = 'payment-proofs') AND (EXISTS (
@@ -50,14 +47,12 @@ USING ((bucket_id = 'payment-proofs') AND (EXISTS (
 )));
 
 -- chat-attachments policies
-DROP POLICY IF EXISTS "chat_attachments_upload" ON storage.objects;
 CREATE POLICY "chat_attachments_upload"
 ON storage.objects FOR INSERT
 WITH CHECK ((bucket_id = 'chat-attachments')
   AND ((storage.foldername(name))[1] = (auth.uid())::text)
   AND fn_is_chat_member(((storage.foldername(name))[2])::uuid, auth.uid()));
 
-DROP POLICY IF EXISTS "chat_attachments_read" ON storage.objects;
 CREATE POLICY "chat_attachments_read"
 ON storage.objects FOR SELECT
 USING ((bucket_id = 'chat-attachments') AND (EXISTS (
@@ -66,7 +61,6 @@ USING ((bucket_id = 'chat-attachments') AND (EXISTS (
   AND fn_is_chat_member(a.room_id, auth.uid())
 )));
 
-DROP POLICY IF EXISTS "chat_attachments_delete" ON storage.objects;
 CREATE POLICY "chat_attachments_delete"
 ON storage.objects FOR DELETE
 USING ((bucket_id = 'chat-attachments') AND ((storage.foldername(name))[1] = (auth.uid())::text));

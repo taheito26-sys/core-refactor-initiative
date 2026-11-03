@@ -1,4 +1,4 @@
--- Seed the one application user that was present in the Lovable data export
+-- Seed the one application user that was present in the legacy data export
 -- but missing from the auth export bundle. This keeps merchant/chat/profile
 -- foreign keys intact during the data import.
 

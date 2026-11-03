@@ -1,4 +1,4 @@
--- Temporary compatibility shim for the Lovable export bundle.
+-- Temporary compatibility shim for the legacy export bundle.
 -- The imported merchant_deals rows still use legacy labels that were
 -- normalized in later migrations. Allow them during the data load, then
 -- a follow-up migration will rewrite the rows and restore the stricter set.

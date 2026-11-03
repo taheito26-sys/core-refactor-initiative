@@ -1,4 +1,4 @@
-# Lovable Prompt — Chat System Backend + Migration
+# Chat system backend and migration
 
 ## Context
 

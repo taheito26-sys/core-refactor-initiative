@@ -204,7 +204,7 @@ export function useFinalizeDecisions() {
        * Frontend fix: collect ALL errors before throwing so callers get a full
        * picture of what failed, and stop treating partial success as success.
        *
-       * ⚠️ BACKEND TASK FOR LOVABLE: replace this entire loop with a single
+       * ⚠️ BACKEND TASK : replace this entire loop with a single
        * fn_finalize_settlement_decisions(p_period_id, p_agreement_id,
        * p_agreement_snapshot) RPC that runs everything inside one transaction.
        * See the Supabase backend prompt for the exact function signature.

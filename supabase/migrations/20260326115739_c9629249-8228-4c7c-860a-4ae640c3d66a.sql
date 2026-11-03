@@ -1,5 +1,5 @@
 -- =====================================================================
--- Chat Backend Migration (from lovable-chat-backend-prompt.md)
+-- Chat Backend Migration (from chat-backend-migration-notes.md)
 -- All additive — no drops, no recreates, existing data survives.
 -- =====================================================================
 

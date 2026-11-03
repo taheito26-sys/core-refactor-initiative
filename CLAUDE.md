@@ -32,6 +32,9 @@ Guidance for AI assistants working in this repository. Read this before making c
 - A pull request is optional here, not the delivery mechanism. Open one only when
   the owner asks for a review; otherwise merging it immediately is expected.
 
+Project services: GitHub is the source of truth for code, Supabase owns the backend,
+and Vercel hosts the web app. Use these project connections for investigation and delivery.
+
 ## 1. What this project is
 
 **The Tracker** (`core-refactor-initiative`) — a single Vite + React + TypeScript codebase that
@@ -74,9 +77,7 @@ matching whatever tool you use, and do not regenerate the others.
 There is **no CI workflow in this repo** (`.github/` does not exist). Verification is whatever you
 run locally, so run it. `node_modules` is not committed — install before running anything.
 
-Playwright (`playwright.config.ts`) imports `lovable-agent-playwright-config`, which is not a
-declared dependency. E2E is driven by the Lovable agent environment, not by local scripts; do not
-assume `npx playwright test` works here.
+Playwright uses the standard `@playwright/test` configuration and fixtures. Browser tests live in `e2e/` and run against the local Vite server.
 
 ## 3a. Invariant guard — buyer identity and PDF export
 
@@ -228,7 +229,7 @@ development, that is what is firing.
 ## 7. Data layer and Supabase
 
 - **Migrations** live in `supabase/migrations/`, named `YYYYMMDDHHMMSS_description.sql`. Older
-  Lovable-generated ones use a UUID suffix instead of a description. Always add a new file;
+  Older generated ones use a UUID suffix instead of a description. Always add a new file;
   never edit a migration that has been applied. Many recent files are named `fix_*` — that is the
   established pattern for correcting a previously shipped migration.
 - **Privileged writes go through RPCs** (`SECURITY DEFINER`) called via `supabase.rpc(...)`, so
@@ -409,7 +410,7 @@ Commit messages are short imperative summaries, frequently with a PR number suff
 - `src/lib/demo-mode.ts` is hardwired to `false` — demo mode is disabled in production.
 - `CTempeslint_out.json` (1.8 MB) is stray tool output; `youthful-satoshi/` is empty. Neither is
   part of the build.
-- `Migrate/` and `Lovable Cutover/` are one-off SQL dumps from the Lovable→Supabase cutover, not
+- `Migrate/` and `Legacy Database Export/` are one-off SQL dumps from the legacy database export, not
   the live migration path. `scripts/migrations/*.sql` are standalone messaging-OS scripts, separate
   from `supabase/migrations/`.
 - Auth redirect URLs must be allow-listed in Supabase for web *and* the Capacitor deep-link

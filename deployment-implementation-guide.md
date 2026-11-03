@@ -1,4 +1,4 @@
-# Lovable: Step-by-Step Implementation Guide
+# Deployment implementation guide
 
 Follow these steps in exact sequence to complete the Merchant Trading OS modernization and backend database build.
 

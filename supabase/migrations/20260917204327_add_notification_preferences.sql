@@ -1,5 +1,5 @@
 -- notification_preferences never got a real migration -- it only ever existed
--- in the old Lovable schema dump (Lovable Cutover/02_schema_full.sql), which
+-- in the old legacy schema dump (Legacy Database Export/02_schema_full.sql), which
 -- CLAUDE.md documents as a one-off snapshot, not the live migration path. The
 -- table was consequently missing from the actual database, so every read from
 -- useNotificationPreferences (per-category in-app/push/sound toggles) 404'd

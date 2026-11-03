@@ -1,6 +1,6 @@
 -- ============================================================
 -- Auth Users Export (auth.users + auth.identities)
--- Generated from Lovable Cloud database
+-- Generated from legacy Cloud database
 -- ============================================================
 
 -- WARNING: auth.users is a Supabase-managed table.

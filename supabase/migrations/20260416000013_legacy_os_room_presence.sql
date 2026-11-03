@@ -1,4 +1,4 @@
--- Legacy OS presence table required by the Lovable data dump.
+-- Legacy OS presence table required by the legacy data dump.
 
 CREATE TABLE IF NOT EXISTS public.os_room_presence (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

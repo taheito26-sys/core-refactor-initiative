@@ -18,7 +18,7 @@ export interface DashboardStats {
  * never hangs the UI.  A `.limit()` on the approvals query is added for the
  * same reason.
  *
- * ⚠️ BACKEND TASK FOR LOVABLE: replace the three-round-trip approach with a
+ * ⚠️ BACKEND TASK : replace the three-round-trip approach with a
  * single fn_get_dashboard_stats(p_merchant_id) RPC that returns
  * { total_deployed, active_capital, active_relationships, pending_approvals }
  * computed entirely in Postgres.  See the Supabase backend prompt for the

@@ -1,5 +1,5 @@
 -- Normalize imported auth.users token columns for the Supabase OAuth flow.
--- The Lovable export left several token fields NULL, but the auth service path
+-- The legacy export left several token fields NULL, but the auth service path
 -- in this project scans them as strings during sign-in / callback handling.
 
 UPDATE auth.users

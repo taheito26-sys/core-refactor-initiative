@@ -1,6 +1,6 @@
 -- ============================================================
 -- Storage Export (buckets + policies + object metadata)
--- Generated from Lovable Cloud database
+-- Generated from legacy Cloud database
 -- ============================================================
 
 -- NOTE: This file exports bucket config, RLS policies, and object

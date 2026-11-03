@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
@@ -48,7 +47,6 @@ export default defineConfig(({ mode }) => {
         this.emitFile({ type: 'asset', fileName: 'app-version.json', source: JSON.stringify({ buildId }) });
       } },
       react(),
-      mode === "development" && componentTagger(),
       !disablePwaBuild &&
         VitePWA({
           registerType: "autoUpdate",

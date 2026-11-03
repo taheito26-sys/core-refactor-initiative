@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Sparkles, RefreshCw, Brain } from 'lucide-react';
+import { ListChecks, RefreshCw, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { buildNotificationDigest } from '@/lib/notification-digest';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DigestData {
@@ -19,11 +19,16 @@ export function NotificationDigest() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('notification-digest');
-      if (fnError) throw fnError;
-      setDigest(data as DigestData);
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to generate digest');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!user) throw new Error('Sign in to view your notification digest.');
+      const { data, error: fetchError } = await supabase.from('notifications')
+        .select('category').eq('user_id', user.id).is('read_at', null)
+        .order('created_at', { ascending: false }).limit(30);
+      if (fetchError) throw fetchError;
+      setDigest(buildNotificationDigest(data ?? []));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate digest');
     } finally {
       setLoading(false);
     }
@@ -35,11 +40,11 @@ export function NotificationDigest() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Brain className="h-4 w-4 text-primary" />
+              <Bell className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-foreground">Smart Digest</h3>
-              <p className="text-[10px] text-muted-foreground">AI-powered notification summary</p>
+              <h3 className="text-xs font-bold text-foreground">Notification Digest</h3>
+              <p className="text-[10px] text-muted-foreground">Unread notifications by category</p>
             </div>
           </div>
           <Button
@@ -52,7 +57,7 @@ export function NotificationDigest() {
             {loading ? (
               <RefreshCw className="h-3 w-3 animate-spin" />
             ) : (
-              <Sparkles className="h-3 w-3" />
+              <ListChecks className="h-3 w-3" />
             )}
             {digest ? 'Refresh' : 'Generate'}
           </Button>
@@ -87,7 +92,7 @@ export function NotificationDigest() {
 
         {!digest && !loading && !error && (
           <p className="text-[11px] text-muted-foreground/60 text-center py-4">
-            Click "Generate" to get an AI summary of your unread notifications
+            Click "Generate" to get a summary of your unread notifications
           </p>
         )}
       </div>

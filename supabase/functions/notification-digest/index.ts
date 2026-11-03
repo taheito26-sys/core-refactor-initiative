@@ -6,7 +6,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.99.3'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -53,52 +52,15 @@ Deno.serve(async (req) => {
     // Count by category
     const categories: Record<string, number> = {}
     for (const n of notifications) {
-      categories[n.category] = (categories[n.category] || 0) + 1
+      const category = n.category || 'other'
+      categories[category] = (categories[category] || 0) + 1
     }
 
-    // Build prompt
-    const notifText = notifications.map((n, i) =>
-      `${i + 1}. [${n.category}] ${n.title}${n.body ? ': ' + n.body : ''} (${n.created_at})`
-    ).join('\n')
-
-    const prompt = `You are a concise business assistant for a P2P trading platform. Summarize the following ${notifications.length} unread notifications into a brief executive digest (3-5 bullet points max). Focus on actionable items first (approvals, invites needing response), then informational updates. Use business-friendly language. Keep it under 150 words.
-
-Notifications:
-${notifText}
-
-Reply with ONLY the digest summary, no preamble.`
-
-    // Call Lovable AI Gateway
-    const aiResponse = await fetch('https://ai-gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
-        temperature: 0.3,
-      }),
-    })
-
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text()
-      console.error('AI Gateway error:', errText)
-      // Fallback: return a simple count-based summary
-      const fallback = Object.entries(categories)
-        .map(([cat, count]) => `• ${count} ${cat} notification${count > 1 ? 's' : ''}`)
-        .join('\n')
-      return new Response(JSON.stringify({
-        summary: `You have ${notifications.length} unread notifications:\n${fallback}`,
-        count: notifications.length,
-        categories,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-    }
-
-    const aiData = await aiResponse.json()
-    const summary = aiData.choices?.[0]?.message?.content ?? 'Unable to generate summary.'
+    // Keep the digest within Supabase; no external AI gateway or API key is required.
+    const lines = Object.entries(categories)
+      .map(([category, count]) => `• ${count} ${category} notification${count > 1 ? 's' : ''}`)
+      .join('\n')
+    const summary = `You have ${notifications.length} unread notifications:\n${lines}`
 
     return new Response(JSON.stringify({
       summary,

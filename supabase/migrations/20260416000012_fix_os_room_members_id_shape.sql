@@ -1,4 +1,4 @@
--- The Lovable data dump inserts an `id` column into os_room_members, but the
+-- The legacy data dump inserts an `id` column into os_room_members, but the
 -- live table replay still has the older composite primary-key shape. Convert it
 -- to the dump-compatible shape before importing the legacy rows.
 
