@@ -1,14 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { loadSnapshot, saveSnapshot, commitSnapshot, refreshEvents } = vi.hoisted(() => ({ loadSnapshot: vi.fn(), saveSnapshot: vi.fn(), commitSnapshot: vi.fn(), refreshEvents: [] as Array<() => void> }));
+const { loadSnapshot, saveSnapshot, commitSnapshot, refreshEvents, saveCash } = vi.hoisted(() => ({ loadSnapshot: vi.fn(), saveSnapshot: vi.fn(), commitSnapshot: vi.fn(), refreshEvents: [] as Array<() => void>, saveCash: vi.fn() }));
 vi.mock('@/lib/tracker-sync', () => ({
   loadTrackerStateFromCloud: loadSnapshot,
   saveTrackerState: saveSnapshot,
   saveTrackerStateNow: commitSnapshot,
 }));
 vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ isAuthenticated: true }) }));
-vi.mock('@/lib/cash-sync', () => ({ loadCashFromCloud: async () => ({ accounts: [], ledger: [] }), saveCashToCloud: async () => {} }));
+vi.mock('@/lib/cash-sync', () => ({ loadCashFromCloud: async () => ({ accounts: [], ledger: [] }), saveCashToCloud: saveCash }));
 vi.mock('@/lib/vault-auto-trigger', () => ({ triggerVaultBackup: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -31,6 +31,7 @@ describe('durable order submission', () => {
     localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks(); refreshEvents.length = 0;
     loadSnapshot.mockResolvedValue({ state: {}, cleared: false });
     commitSnapshot.mockResolvedValue(undefined);
+    saveCash.mockResolvedValue(undefined);
   });
   const withOrder = (state: TrackerState): TrackerState => ({ ...state,
     customers: [{ id: 'buyer', name: 'Mohamed Al-Damrawy' } as Customer],
@@ -91,6 +92,31 @@ describe('durable order submission', () => {
       await act(async () => { finish(); await saving; });
       expect(hook.result.current.state.trades).toHaveLength(1);
     } finally { clock.mockRestore(); hook.unmount(); }
+  });
+
+  it('does not block a sale without cash changes on an unrelated cash write', async () => {
+    saveCash.mockImplementation(() => new Promise(() => {}));
+    const hook = renderHook(() => useTrackerState());
+    await waitFor(() => expect(hook.result.current.cloudLoaded).toBe(true));
+    const writes = saveCash.mock.calls.length;
+    await act(async () => { await hook.result.current.applyStateAndCommit(withOrder(hook.result.current.state)); });
+    expect(saveCash).toHaveBeenCalledTimes(writes);
+    expect(hook.result.current.state.trades).toHaveLength(1);
+    hook.unmount();
+  });
+  it('still waits for a real cash deposit before reporting success', async () => {
+    let finish!: () => void;
+    saveCash.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const hook = renderHook(() => useTrackerState());
+    await waitFor(() => expect(hook.result.current.cloudLoaded).toBe(true));
+    const next = withOrder(hook.result.current.state);
+    next.cashAccounts = [{ id: 'cash', name: 'Cash', currency: 'QAR', type: 'hand', status: 'active', createdAt: 1 }];
+    let saving!: Promise<void>;
+    await act(async () => { saving = hook.result.current.applyStateAndCommit(next); await Promise.resolve(); });
+    expect(hook.result.current.state.trades).toHaveLength(0);
+    await act(async () => { finish(); await saving; });
+    expect(hook.result.current.state.trades).toHaveLength(1);
+    hook.unmount();
   });
 
 });

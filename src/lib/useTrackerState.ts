@@ -175,7 +175,10 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       if (startingAfterClear && !await loadCashFromCloud()) throw new Error('Could not reload cash after clearing.');
       // Reconcile (including empty, so deletes propagate) only for the
       // cash-authoritative instance — see saveCashToCloud's `reconcile` doc.
-      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
+      const cashChanged = startingAfterClear || options.isCashAuthority
+        || JSON.stringify(prev.cashAccounts ?? []) !== JSON.stringify(next.cashAccounts ?? [])
+        || JSON.stringify(prev.cashLedger ?? []) !== JSON.stringify(next.cashLedger ?? []);
+      if (cashChanged) await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
     } finally {
       activeTrackerCommits.current -= 1;
       cashCommitInFlightUntilRef.current = 0;

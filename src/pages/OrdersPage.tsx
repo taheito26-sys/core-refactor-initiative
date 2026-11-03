@@ -1,6 +1,6 @@
 import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
-import { hasSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
+import { hasSavedOrderBuyer, resolveSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -631,6 +631,8 @@ export default function OrdersPage() {
     () => sortByCustomerUsage(mergeListedCustomers(state.customers ?? [], connectedCustomers)),
     [connectedCustomers, state.customers, sortByCustomerUsage],
   );
+  const selectedSaleBuyer = useMemo(() => resolveSavedOrderBuyer(allBuyerOptions, buyerName, buyerId), [allBuyerOptions, buyerName, buyerId]);
+  const saleBuyerId = selectedSaleBuyer ? (selectedSaleBuyer.source === 'connected' ? selectedSaleBuyer.customerUserId : selectedSaleBuyer.id) : '';
   // "🤝 Merchant loan" on an exchange-inbox row or an existing order opens
   // the merchant-loan dialog (USDT sent back to a lender, or lent out)
   // instead of recording it as a sale.
@@ -1547,7 +1549,7 @@ export default function OrdersPage() {
   };
 
   const splitLegA: SplitLegState = {
-    buyerText: buyerName, buyerId, qty: newSaleSplitQtyA, sellPrice: saleSell,
+    buyerText: buyerName, buyerId: saleBuyerId, qty: newSaleSplitQtyA, sellPrice: saleSell,
     isLoan: isLoanSale, cashMode: cashDepositMode, cashAmount: cashDepositAmount, cashAccountId: cashDepositAccountId,
   };
   const splitLegB: SplitLegState = {
@@ -1591,8 +1593,8 @@ export default function OrdersPage() {
   };
   const newSaleSplitError = !newSaleSplitOpen ? null : validateSplitPlan({
     total: newSaleSplitAnchorTotal, qtyA: splitQtyANum, qtyB: splitQtyBNum, priceA: splitPriceANum, priceB: splitPriceBNum,
-    hasBuyerA: !!buyerId, hasBuyerB: !!newSaleSplitCustomerId,
-    sameBuyer: (!!buyerId && buyerId === newSaleSplitCustomerId)
+    hasBuyerA: !!saleBuyerId, hasBuyerB: !!newSaleSplitCustomerId,
+    sameBuyer: (!!saleBuyerId && saleBuyerId === newSaleSplitCustomerId)
       || (!!buyerName.trim() && buyerName.trim().toLowerCase() === newSaleSplitCustomerText.trim().toLowerCase()),
   });
 
@@ -2038,6 +2040,7 @@ export default function OrdersPage() {
     if (orderSaveInFlight.current || !cloudLoaded) return;
     orderSaveInFlight.current = true;
     setOrderSaving(true);
+    setSaleMessage('');
     try {
       await performAddTrade();
     } catch (error) {
@@ -2070,7 +2073,7 @@ export default function OrdersPage() {
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
     if (!(amountUSDT > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
-    if (!buyerId || !buyerName.trim()) errs.push(t('orderBuyerPickRequired'));
+    if (!saleBuyerId || !buyerName.trim()) errs.push(t('orderBuyerPickRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
     const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
@@ -2154,7 +2157,7 @@ export default function OrdersPage() {
     const nextCustomerLoans = state.customerLoans;
     const nextDeletedCustomerIds = state.deletedCustomerIds;
     let customerId = '';
-    if (buyerId) {
+    if (selectedSaleBuyer) {
       // The buyer was picked from the list (a local or connected customer),
       // so buyerId already names the right, stable identity -- use it as-is
       // rather than re-deriving from the displayed name. Re-deriving by name
@@ -2163,8 +2166,7 @@ export default function OrdersPage() {
       // editing their own profile): the old name no longer matches, so a
       // fresh id gets created and every future order lands under it while
       // the buyer's whole prior history stays stuck under the old one.
-      const selected = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === buyerId);
-      const materialized = selected ? materializeListedCustomer(selected, state.customers) : null;
+      const materialized = materializeListedCustomer(selectedSaleBuyer, state.customers);
       customerId = materialized?.id || '';
       nextCustomers = materialized?.customers || state.customers;
     }
@@ -5995,11 +5997,11 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'static', background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} disabled={orderSaving || !cloudLoaded || !canSubmitSale || !buyerId || (newSaleSplitOpen && !newSaleSplitCustomerId)} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
-                    {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
+                  <button className="btn" onClick={addTrade} disabled={orderSaving || !cloudLoaded} aria-busy={orderSaving} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
+                    {orderSaving ? t('saving') : !cloudLoaded ? t('loading') : merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
-                <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
+                <div role="alert" className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
 
                 </>)}
               </div>
