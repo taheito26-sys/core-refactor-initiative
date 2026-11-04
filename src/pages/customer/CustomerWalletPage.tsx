@@ -1,3 +1,4 @@
+import { monthlyPaymentNumbers } from '@/features/customer/payment-sequence';
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber, resolveCustomerDisplayName } from "@/features/customer/customer-portal";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { giverAccent, giverPaymentNumbers, normalizeGiverText, resolveGiver, typedPaymentNumber, uniquePaymentKeys } from "@/features/customer/cash-givers";
+import { giverAccent, normalizeGiverText, resolveGiver, uniquePaymentKeys } from "@/features/customer/cash-givers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { ZoomControls } from "@/components/shared/ZoomControls";
 import { PeriodPicker } from "@/components/shared/PeriodPicker";
@@ -881,19 +882,10 @@ export default function CustomerWalletPage() {
   // on the merchant is numbered in the same date order, so the list never
   // shows a gap and the number stays the same once the merchant accepts it.
   const paymentSequence = useMemo(() => {
-    const sorted = [
+    return monthlyPaymentNumbers([
       ...loanPayments.map(p => ({ key: p.key, date: p.date })),
       ...unsettledPaymentClaims.filter(c => c.status === "pending").map(c => ({ key: `claim:${c.id}`, date: new Date(c.paidAt).getTime() })),
-    ].sort((a, b) => a.date - b.date || a.key.localeCompare(b.key));
-    const map = new Map<string, number>();
-    const countByMonth = new Map<string, number>();
-    for (const p of sorted) {
-      const monthKey = localMonthKey(p.date);
-      const next = (countByMonth.get(monthKey) ?? 0) + 1;
-      countByMonth.set(monthKey, next);
-      map.set(p.key, next);
-    }
-    return map;
+    ]);
   }, [loanPayments, unsettledPaymentClaims]);
 
   // Search + sort controls for the Payments Received list — lets the buyer
@@ -991,32 +983,27 @@ export default function CustomerWalletPage() {
     addedByCustomer: boolean;
     payment: (typeof groupedLoanPayments)[number] | null;
     claim: (typeof myPaymentClaims)[number] | null;
-    /** Who handed over the cash, and which of their payments this is (1 = their first). */
+    /** Cash giver and the shared calendar-month payment number (across all givers). */
     giver: string | null;
     giverNo: number | null;
     /** Key the giver assignment is stored under. */
     assignKey: string;
   };
 
-  // Giver per payment, and each giver's running payment number across everything the buyer
-  // has paid (not just the month on screen). A reported payment still waiting on the merchant
-  // counts, so a payment just logged is already number 1; a rejected one gets no number.
+  // Resolve giver names independently. Every displayed payment number uses the same
+  // monthly sequence as its # badge, never a historic number embedded in a note.
   const giverInfo = useMemo(() => {
     const giverByRow = new Map<string, string | null>();
-    const entries: { key: string; date: number; giver: string | null; typed: number | null }[] = [];
     for (const p of loanPayments) {
       const giver = resolveGiver(assignedGiverByKey.get(p.key) ?? assignedGiverByKey.get(p.base), [p.note, paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base)], giverNames);
       giverByRow.set(p.key, giver);
-      entries.push({ key: p.key, date: p.date, giver, typed: typedPaymentNumber([p.note, paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base)], giver) });
     }
     for (const c of unsettledPaymentClaims) {
-      const key = `claim:${c.id}`;
       const giver = resolveGiver(assignedGiverByKey.get(claimPaymentKey(c)), [c.note], giverNames);
-      giverByRow.set(key, giver);
-      if (c.status === "pending") entries.push({ key, date: new Date(c.paidAt).getTime(), giver, typed: typedPaymentNumber([c.note], giver) });
+      giverByRow.set(`claim:${c.id}`, giver);
     }
-    return { giverByRow, numbers: giverPaymentNumbers(entries) };
-  }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames]);
+    return { giverByRow, numbers: paymentSequence };
+  }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames, paymentSequence]);
 
   const paymentRows = useMemo<PaymentRow[]>(() => {
     const q = paymentSearch.trim().toLowerCase();
@@ -1126,12 +1113,11 @@ export default function CustomerWalletPage() {
 
   // Headline counters cover everything the buyer has ever reported, not the
   // month/search narrowing the list below applies.
-  const overallCounts = useMemo(() => {
-    const pending = unsettledPaymentClaims.filter(c => c.status === "pending").length;
-    const rejected = unsettledPaymentClaims.length - pending;
-    const completed = loanPayments.length;
-    return { total: completed + pending + rejected, completed, pending, rejected };
-  }, [loanPayments, unsettledPaymentClaims]);
+  const monthlyPaymentCount = useMemo(() => {
+    const completed = loanPayments.filter(p => !paymentsMonth || localMonthKey(p.date) === paymentsMonth).length;
+    const pending = unsettledPaymentClaims.filter(c => c.status === "pending" && (!paymentsMonth || localMonthKey(c.paidAt) === paymentsMonth)).length;
+    return completed + pending;
+  }, [loanPayments, unsettledPaymentClaims, paymentsMonth]);
 
 
   // Resolves how a registered payment can be corrected: through the claim the
@@ -1685,11 +1671,11 @@ export default function CustomerWalletPage() {
                 ))}
               </div>
 
-              {/* The one counter: every payment registered or waiting on the merchant. */}
+              {/* Payments registered or waiting on the merchant in the selected month. */}
               <div className="cw-card cw-kpi1">
                 <span className="cw-kpi-ic" style={{ background: "#d3e3ff", color: "#1d4ed8" }}><Wallet2 /></span>
                 <span className="cw-kpi1-l">{L("Total payments", "إجمالي الدفعات")}</span>
-                <b className="cw-kpi1-v">{overallCounts.completed + overallCounts.pending}</b>
+                <b className="cw-kpi1-v">{monthlyPaymentCount}</b>
               </div>
 
               {/* Settlement */}
