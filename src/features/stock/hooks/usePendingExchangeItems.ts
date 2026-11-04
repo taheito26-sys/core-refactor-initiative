@@ -35,7 +35,7 @@ export function usePendingExchangeItems(state: TrackerState): PendingExchangeIte
       transfers,
       liveEntityIds,
       importedReferences,
-      trackerAmounts: trackerOrderAmounts({ batches: state.batches, trades: state.trades, usdtTransfers: state.usdtTransfers }),
+      trackerAmounts: trackerOrderAmounts({ trades: state.trades, batches: state.batches }),
       taggedTransferIds: taggedExchangeTransferIds(state.usdtTransfers),
     });
   }, [state.batches, state.trades, state.usdtTransfers, orders, linksByOrder, transfers]);

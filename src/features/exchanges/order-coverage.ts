@@ -1,13 +1,12 @@
 import type { TrackerState } from '@/lib/tracker-helpers';
 import type { ExchangeOrderLink } from './hooks/useExchangeOrderLinks';
 import type { ExchangeP2POrder } from './types';
-import { isTransferActive } from '@/lib/usdt-transfers';
 import { exchangeRegistration } from '@/lib/exchange-registration';
 
 export const exchangeOrderKey = (exchange: string, reference: string) => `${exchange}:${String(reference).trim()}`;
 
 /** Rebuild coverage from durable identities on live tracker rows, independently of link-query timing or editable notes. */
-export function trackerOrderAmounts(state: Pick<TrackerState, 'trades' | 'batches'> & Partial<Pick<TrackerState, 'usdtTransfers'>>): Map<string, number> {
+export function trackerOrderAmounts(state: Pick<TrackerState, 'trades' | 'batches'>): Map<string, number> {
   const amounts = new Map<string, number>();
   const add = (row: { note: string; importedFrom?: 'binance' | 'okx'; exchangeOrderNumber?: string; revisions?: Array<{ before?: { note?: string } }> }, amount: number) => {
     const identity = exchangeRegistration(row);
@@ -21,11 +20,6 @@ export function trackerOrderAmounts(state: Pick<TrackerState, 'trades' | 'batche
     if (!trade.voided || trade.usdtTransferKind) add(trade, trade.amountUSDT);
   }
   for (const batch of new Map((state.batches ?? []).map(b => [b.id, b])).values()) add(batch, batch.initialUSDT);
-  for (const movement of new Map((state.usdtTransfers ?? []).map(row => [row.id, row])).values()) {
-    if (isTransferActive(movement) && movement.source?.type === 'exchange_order') {
-      add({ note: '', importedFrom: movement.source.exchange, exchangeOrderNumber: movement.source.orderNumber }, movement.amountUSDT + Math.max(0, Number(movement.feeUSDT) || 0));
-    }
-  }
   return amounts;
 }
 

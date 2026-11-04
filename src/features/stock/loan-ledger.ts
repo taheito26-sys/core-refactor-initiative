@@ -96,8 +96,8 @@ export function loanSourceTs(src: LoanSource): number {
 }
 
 /** Net USDT position with one merchant: > 0 I owe them, < 0 they owe me. */
-export function merchantNet(transfers: UsdtTransfer[] | undefined, name: string, relationshipId?: string): number {
-  const key = transferCounterpartyKey({ counterpartyName: name, relationshipId });
+export function merchantNet(transfers: UsdtTransfer[] | undefined, name: string): number {
+  const key = transferCounterpartyKey({ counterpartyName: name });
   const row = getUsdtTransferBalances(transfers).find(b => b.key === key);
   return row ? round6(row.owedToThem - row.owedToMe) : 0;
 }
@@ -151,7 +151,6 @@ export function applyLoanMove(
   amount: number,
   newId: () => string,
   now = Date.now(),
-  relationshipId?: string,
 ): LoanMoveResult {
   const counterparty = name.trim();
   if (!counterparty) throw new TagError('not_found');
@@ -162,7 +161,7 @@ export function applyLoanMove(
   if (src.type !== 'manual' && qty > full + EPS) throw new TagError('bad_amount');
   if (src.type === 'exchange_transfer' && qty < full - EPS) throw new TagError('bad_amount');
 
-  const netBefore = merchantNet(state.usdtTransfers, counterparty, relationshipId);
+  const netBefore = merchantNet(state.usdtTransfers, counterparty);
   const plan = planLoanMove(netBefore, direction, qty);
   const groupId = plan.parts.length > 1 ? newId() : undefined;
 
@@ -196,8 +195,8 @@ export function applyLoanMove(
         break;
       }
     }
-    if (groupId || relationshipId) {
-      r = { ...r, state: { ...r.state, usdtTransfers: (r.state.usdtTransfers || []).map(x => (x.id === id ? { ...x, ...(groupId ? { groupId } : {}), ...(relationshipId ? { relationshipId } : {}) } : x)) } };
+    if (groupId) {
+      r = { ...r, state: { ...r.state, usdtTransfers: (r.state.usdtTransfers || []).map(x => (x.id === id ? { ...x, groupId } : x)) } };
     }
     for (const d of r.dismiss || []) dismiss.add(d);
     orderLinks.push(...(r.orderLinks || []));
@@ -307,9 +306,16 @@ export function buildMerchantStatements(transfers: UsdtTransfer[] | undefined): 
     const stillUnpaid = new Set(unpaid.filter(u => u.left > EPS).map(u => u.id));
     for (const l of lines) if (stillUnpaid.has(l.id)) l.estimated = true;
 
-    // Keep the complete history; older advances still affect today's position.
+    // Only include September (09) and later months, skip earlier months
+    const currentDate = new Date();
+    const currentYearMonth = `${currentDate.getFullYear()}-09`; // Start from September
+    const septemberCutoff = new Date(currentDate.getFullYear(), 8, 1).getTime(); // September 1st of current year
+
+    const filteredLines = lines.filter(line => line.ts >= septemberCutoff);
+
+    // Group lines by month (only Sept onwards)
     const monthGroups = new Map<string, StatementLine[]>();
-    for (const line of lines) {
+    for (const line of filteredLines) {
       const date = new Date(line.ts);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!monthGroups.has(yearMonth)) monthGroups.set(yearMonth, []);
