@@ -1,4 +1,4 @@
-import { UsdtBalanceWorkspace } from '@/features/stock/components/UsdtBalanceWorkspace';
+import { UsdtBalanceCheck } from '@/features/stock/components/UsdtBalanceCheck';
 import { USDT_MATCH_TOLERANCE } from '@/features/stock/usdt-workspace-model';
 import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { BatchConsumption } from '@/features/stock/components/BatchConsumption';
@@ -1144,7 +1144,7 @@ export default function StockPage() {
 
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
-      <UsdtBalanceWorkspace state={state} available={availableUsdt} balances={exchangeBalances} pending={pendingExchangeItems}
+      <UsdtBalanceCheck state={state} available={availableUsdt} balances={exchangeBalances} pending={pendingExchangeItems}
         loading={exchangeBalanceQuery.isLoading} balanceError={exchangeBalanceQuery.error instanceof Error ? exchangeBalanceQuery.error.message : undefined}
         applyStateAndCommit={applyStateAndCommit} onRecordTrade={registerWorkspaceTrade}
         onReviewAll={() => { setActiveStockSection('transfers'); requestAnimationFrame(() => document.getElementById('merchant-transfer-details')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })); }} />
