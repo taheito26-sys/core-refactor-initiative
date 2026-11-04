@@ -1417,11 +1417,6 @@ export default function StockPage() {
                         ? t('reconcileFullyExplained')
                         : t('reconcileResidual').split('{amount}').join(`${residualDelta >= 0 ? '+' : ''}${fmtU(residualDelta)}`)}
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button className="rowBtn" style={{ fontSize: 10.5, fontWeight: 800, borderColor: 'var(--brand)', color: 'var(--brand)' }} onClick={() => setActiveStockSection('transfers')}>
-                        📋 {t('mloanDecideThese')}
-                      </button>
-                    </div>
                   </div>
                 )}
                 {reconciliationMismatch && residualMismatch && (

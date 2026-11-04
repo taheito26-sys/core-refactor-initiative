@@ -772,7 +772,7 @@ const translations = {
   reconciliationMismatch: { en: 'Mismatch flagged', ar: 'تم رصد فرق' },
   reconcileExplainedStatus: { en: 'Unregistered orders', ar: 'طلبات غير مسجلة' },
   reconcilePendingHeader: { en: '{count} Binance/OKX record(s) not registered yet account for {amount} USDT of this delta:', ar: '{count} سجل من Binance/OKX غير مسجل بعد يفسر {amount} USDT من هذا الفرق:' },
-  reconcileFullyExplained: { en: 'That covers the whole delta — register these (or tag them as borrow / lend) and the tracker will match. No batch needs fixing.', ar: 'هذا يغطي الفرق بالكامل — سجّلها (أو علّمها كاقتراض / إقراض) وسيتطابق المتتبع. لا حاجة لتعديل أي دفعة.' },
+  reconcileFullyExplained: { en: 'These unregistered exchange movements account for the difference. Review the missing transactions before adjusting stock.', ar: 'تفسّر حركات المنصة غير المسجلة هذا الفرق. راجع المعاملات الناقصة قبل تعديل المخزون.' },
   reconcileResidual: { en: 'After registering them, the remaining mismatch is {amount} USDT — only that part needs fixing below.', ar: 'بعد تسجيلها، يبقى فرق قدره {amount} USDT — هذا الجزء فقط يحتاج إلى تصحيح أدناه.' },
   reconcileSell: { en: 'sell', ar: 'بيع' },
   reconcileBuy: { en: 'buy', ar: 'شراء' },
