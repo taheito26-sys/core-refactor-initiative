@@ -75,27 +75,27 @@ export function UsdtBalanceWorkspace({ state, available, balances, pending, load
   const openMerchants = model.merchants.filter(row => Math.abs(row.position) > 1e-6);
   return <section className="usdt-workspace" dir={t.isRTL ? 'rtl' : 'ltr'} aria-label={L('USDT balance workspace', 'مساحة أرصدة USDT')}>
     <header className="uw-heading">
-      <div><span className="uw-eyebrow"><Wallet size={15} />{L('USDT, accounted for', 'USDT واضح ومحسوب')}</span><h2>{L('Your money, in the right place', 'أموالك، كل مبلغ في مكانه')}</h2><p className="uw-muted">{L('Exchange wallets, merchant advances and movements to review — in one place.', 'أرصدة المنصات وسلف التجار والحركات التي تحتاج مراجعة، في مكان واحد.')}</p></div>
+      <div><span className="uw-eyebrow"><Wallet size={15} />{L('STOCK & TRANSFERS', 'المخزون والتحويلات')}</span><h2>{L('USDT balance', 'رصيد USDT')}</h2></div>
       <button type="button" className="uw-sync" disabled={refreshing || !connected.length} onClick={() => { void refresh(); }}><RefreshCw size={15} className={refreshing ? 'uw-spinning' : ''} />{L('Sync balances', 'مزامنة الأرصدة')}</button>
     </header>
     <div className={`uw-status ${tone}`} role="status"><span>{verified && model.matched ? <CheckCircle2 size={19} /> : verifying ? <RefreshCw size={19} /> : <CircleHelp size={19} />}<b>{status}</b></span>{lastSync > 0 && <small><Clock3 size={12} />{L('Balance snapshot', 'لقطة الرصيد')}: {new Date(lastSync).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>}</div>
     {readError && <p className="uw-error" role="alert">{readError}</p>}
     <div className="uw-balance-grid">
-      <div className="uw-number"><span>{L('Expected on exchanges', 'المتوقع في المنصات')}</span><strong>{fmtTotal(model.expected)} <small>USDT</small></strong><p>{L('Available tracker stock · all dates', 'مخزون المتتبع المتاح · جميع التواريخ')}</p></div>
-      <div className="uw-number"><span>{L('In connected exchange wallets', 'في محافظ المنصات المربوطة')}</span><strong>{model.observed === null || !connected.length ? '—' : fmtTotal(model.observed)} <small>USDT</small></strong><p>{connected.length ? connected.map(exchange => `${exchange.toUpperCase()} ${fmtTotal(model.exchanges[exchange])}`).join(' · ') : L('No connected wallet', 'لا توجد محفظة مربوطة')}</p></div>
-      <div className={`uw-number uw-difference ${tone}`}><span>{L('Difference to explain', 'الفرق المطلوب تفسيره')}</span><strong>{model.difference === null || !connected.length ? '—' : fmtTotal(Math.abs(model.difference))} <small>USDT</small></strong><p>{!verified ? L('Verify the latest snapshot first', 'تحقق من أحدث رصيد أولًا') : model.matched ? L('Nothing to adjust', 'لا حاجة إلى تعديل') : model.difference! > 0 ? L('Tracker expects more than the wallets', 'المتتبع يتوقع أكثر من المحافظ') : L('Wallets hold more than the tracker', 'المحافظ تحتوي أكثر من المتتبع')}</p></div>
+      <div className="uw-number"><span>{L('Tracker balance', 'رصيد المتتبع')}</span><strong>{fmtTotal(model.expected)} <small>USDT</small></strong><p>{L('Available USDT', 'USDT المتاح')}</p></div>
+      <div className="uw-number"><span>{L('Exchange balance', 'رصيد المنصات')}</span><strong>{model.observed === null || !connected.length ? '—' : fmtTotal(model.observed)} <small>USDT</small></strong><p>{connected.length ? connected.map(exchange => `${exchange.toUpperCase()} ${fmtTotal(model.exchanges[exchange])}`).join(' · ') : L('No connected wallet', 'لا توجد محفظة مربوطة')}</p></div>
+      <div className={`uw-number uw-difference ${tone}`}><span>{L('Difference', 'الفرق')}</span><strong>{model.difference === null || !connected.length ? '—' : fmtTotal(Math.abs(model.difference))} <small>USDT</small></strong><p>{!verified ? L('Verify the latest snapshot first', 'تحقق من أحدث رصيد أولًا') : model.matched ? L('Nothing to adjust', 'لا حاجة إلى تعديل') : model.difference! > 0 ? L('Tracker expects more than the wallets', 'المتتبع يتوقع أكثر من المحافظ') : L('Wallets hold more than the tracker', 'المحافظ تحتوي أكثر من المتتبع')}</p></div>
     </div>
     <div className="uw-ownership">
-      <div><span>{L('Temporarily with merchants', 'سلف لدى التجار')}</span><strong>{fmtTotal(model.withMerchants)} USDT</strong><small>{L('Owed back to you · already outside available stock', 'ستُعاد إليك · مستبعدة بالفعل من المخزون المتاح')}</small></div>
-      <div><span>{L('You owe merchants', 'سلف عليك للتجار')}</span><strong>{fmtTotal(model.borrowed)} USDT</strong><small>{L('Received USDT you need to return', 'USDT استلمته وعليك إعادته')}</small></div>
-      <div><span>{L('Net USDT you own', 'صافي USDT المملوك لك')}</span><strong>{fmtTotal(model.netOwned)} USDT</strong><small>{L('Available + with merchants − owed', 'المتاح + ما لدى التجار − ما عليك')}</small></div>
+      <div><span>{L('Temporarily with merchants', 'سلف لدى التجار')}</span><strong>{fmtTotal(model.withMerchants)} USDT</strong></div>
+      <div><span>{L('You owe merchants', 'سلف عليك للتجار')}</span><strong>{fmtTotal(model.borrowed)} USDT</strong></div>
+      <div><span>{L('Net USDT you own', 'صافي USDT المملوك لك')}</span><strong>{fmtTotal(model.netOwned)} USDT</strong></div>
     </div>
     <div className="uw-main-actions">
       <button type="button" className="uw-primary" onClick={() => setDraft({ direction: 'out' })}><ArrowUpRight size={18} />{L('Sent USDT · Sulfa', 'أرسلت USDT · سلفة')}</button>
       <button type="button" onClick={() => setDraft({ direction: 'in' })}><ArrowDownLeft size={18} />{L('Received / returned USDT', 'استلمت USDT / استرددت سلفة')}</button>
       <button type="button" onClick={() => setShowReview(value => !value)}><CircleHelp size={17} />{L('Review movements', 'مراجعة الحركات')} <b>{pending.length}</b><ChevronDown size={15} /></button>
     </div>
-    {verified && !model.matched && <p className="uw-guidance">{L('A difference does not mean a batch is wrong. Check unrecorded sales, purchases, transfers and fees before changing stock.', 'وجود فرق لا يعني أن دفعة المخزون خاطئة. راجع المبيعات والمشتريات والتحويلات والرسوم غير المسجلة قبل تعديل المخزون.')}</p>}
+    {verified && !model.matched && <p className="uw-guidance">{L('Review unrecorded movements before adjusting stock.', 'راجع الحركات غير المسجلة قبل تعديل المخزون.')}</p>}
     {showReview && <div className="uw-review-list">
       <div className="uw-section-head"><h3>{L('Choose what each movement was', 'حدد طبيعة كل حركة')}</h3><button type="button" onClick={onReviewAll}>{L('All movements & history', 'جميع الحركات والسجل')}<ArrowRight size={14} /></button></div>
       {!pending.length && <p className="uw-muted">{L('No unclassified exchange movements in the loaded feed.', 'لا توجد حركات منصة غير مصنفة في السجل المحمّل.')}</p>}
@@ -114,7 +114,7 @@ export function UsdtBalanceWorkspace({ state, available, balances, pending, load
         <div className="uw-merchant-actions"><button type="button" onClick={() => setDraft({ direction: row.position > 0 ? 'in' : 'out', name: row.counterpartyName, relationshipId: row.relationshipId, amount: Math.abs(row.position) })}>{row.position > 0 ? L('Record a return', 'تسجيل استرداد') : L('Return to merchant', 'إعادة للتاجر')}</button><details><summary>{L('Movement history', 'سجل الحركات')}</summary>{statements.find(statement => statement.key === row.key)?.lines.slice().reverse().slice(0, 10).map(line => <p key={line.id}>{new Date(line.ts).toLocaleDateString()} · {line.direction === 'in' ? '↓' : '↑'} {fmtTotal(line.amount)} USDT{line.transfer.feeUSDT ? ` · ${L('fee', 'رسوم')} ${fmtTotal(line.transfer.feeUSDT)}` : ''}</p>)}</details></div>
       </article>)}
     </div>
-    <footer className="uw-footnote">{L(`Spot + funding, including locked USDT. Comparison uses all remaining stock and a ${USDT_MATCH_TOLERANCE} USDT rounding tolerance. Merchant transfers create no sales or trading profit.`, `سبوت + تمويل، بما فيه USDT المحجوز. المقارنة تشمل كل المخزون المتبقي وبهامش تقريب ${USDT_MATCH_TOLERANCE} USDT. تحويلات التجار لا تُنشئ مبيعات أو أرباح تداول.`)}</footer>
+    <details className="uw-footnote"><summary>{L('How balances are calculated', 'كيف تُحسب الأرصدة')}</summary><p>{L(`Spot + funding, including locked USDT. Comparison uses all remaining stock and a ${USDT_MATCH_TOLERANCE} USDT rounding tolerance. Merchant transfers create no sales or trading profit.`, `سبوت + تمويل، بما فيه USDT المحجوز. المقارنة تشمل كل المخزون المتبقي وبهامش تقريب ${USDT_MATCH_TOLERANCE} USDT. تحويلات التجار لا تُنشئ مبيعات أو أرباح تداول.`)}</p></details>
     {draft && <MerchantMovementComposer key={`${draft.direction}:${draft.name ?? ''}:${draft.item?.key ?? ''}`} draft={draft} state={state} pending={pending} available={available} applyStateAndCommit={applyStateAndCommit} onClose={() => setDraft(null)} />}
   </section>;
 }
