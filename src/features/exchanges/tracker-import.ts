@@ -1,3 +1,4 @@
+import type { ExchangeTransferPayload } from './components/ExchangeInbox';
 import { fmtP } from '@/lib/tracker-helpers';
 import { EXCHANGE_LABELS, type ExchangeId } from './types';
 
@@ -86,4 +87,20 @@ export function consumeTrackerImportPrefill(kind: 'batch' | 'trade'): TrackerImp
     sessionStorage.removeItem(STORAGE_KEY);
     return null;
   }
+}
+
+
+/** Carry a selected outgoing exchange movement into the normal sale form. */
+export function stashSaleTransferPrefill(prefill: ExchangeTransferPayload): void {
+  sessionStorage.setItem('sale-transfer-prefill', JSON.stringify(prefill));
+}
+export function consumeSaleTransferPrefill(): ExchangeTransferPayload | null {
+  const key = 'sale-transfer-prefill';
+  const raw = sessionStorage.getItem(key);
+  if (!raw) return null;
+  sessionStorage.removeItem(key);
+  try {
+    const value = JSON.parse(raw) as ExchangeTransferPayload;
+    return value && Array.isArray(value.transferIds) && value.transferIds.length && Number(value.amountUSDT) > 0 ? value : null;
+  } catch { return null; }
 }

@@ -45,7 +45,7 @@ import {
   evenSplit, exactCustomerMatch, formatQty, legLoanPrincipal, otherHalf, round2, validateSplitPlan,
   type SplitCashMode,
 } from '@/features/orders/split-plan';
-import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, consumeSaleTransferPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
@@ -337,8 +337,8 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const prefill = consumeTrackerImportPrefill('trade');
-    if (!prefill) return;
-    applyExchangeOrderPrefill(prefill);
+    if (prefill) applyExchangeOrderPrefill(prefill);
+    else { const transfer = consumeSaleTransferPrefill(); if (transfer) applyExchangeTransferPrefill(transfer); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
@@ -648,7 +648,7 @@ export default function OrdersPage() {
     ]),
     [state.trades, state.usdtTransfers],
   );
-  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ trades: state.trades, batches: state.batches }), [state.trades, state.batches]);
+  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ batches: state.batches, trades: state.trades, usdtTransfers: state.usdtTransfers }), [state.trades, state.batches, state.usdtTransfers]);
   const importedExchangeRefs = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
     [state.trades],

@@ -1002,7 +1002,7 @@ function runFIFO(
         remainingQty: Math.max(0, remaining.get(b.id) || 0),
         buyPrice: b.buyPriceQAR,
       }));
-      const fifo = consumeFifo(layers, Number(x.amountUSDT));
+      const fifo = consumeFifo(layers, Number(x.amountUSDT) + Math.max(0, Number(x.feeUSDT) || 0));
       for (const row of fifo.consumed) {
         const rem = remaining.get(row.layerId) || 0;
         remaining.set(row.layerId, Math.max(0, rem - row.qty));

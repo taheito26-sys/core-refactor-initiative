@@ -66,9 +66,7 @@ export function LoansPanel({
   const open = statements.filter((s) => Math.abs(s.net) > 1e-6);
   const settled = statements.filter((s) => Math.abs(s.net) <= 1e-6);
 
-  // Filter pending items to only show September (09) onwards
-  const septemberCutoff = new Date(new Date().getFullYear(), 8, 1).getTime();
-  const filteredPending = useMemo(() => pending.filter((p) => p.ts >= septemberCutoff), [pending]);
+  const filteredPending = pending;
 
   const inPrice = useMemo(() => {
     const m = new Map<string, number>();

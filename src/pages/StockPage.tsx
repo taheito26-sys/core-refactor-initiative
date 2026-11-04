@@ -1,10 +1,12 @@
+import { UsdtBalanceWorkspace } from '@/features/stock/components/UsdtBalanceWorkspace';
+import { USDT_MATCH_TOLERANCE } from '@/features/stock/usdt-workspace-model';
 import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { BatchConsumption } from '@/features/stock/components/BatchConsumption';
 import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-identity';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -42,7 +44,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
-import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, stashTrackerImportPrefill, stashSaleTransferPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { addOrderLink, dismissExchangeRecord, markTransfersLinked } from '@/features/exchanges/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
@@ -80,6 +82,7 @@ function inputFromTs(ts: number) {
 export default function StockPage() {
   const { settings, update } = useTheme();
   const t = useT();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   const { state, derived, applyState, applyStateAndCommit, clearedAccountIds } = useTrackerState({
@@ -118,7 +121,6 @@ export default function StockPage() {
   // Backfills a connected exchange's P2P history for exactly the clicked
   // month, so months outside the auto-sync's rolling window still show up.
   useExchangeMonthSync(selectedMonth);
-  const [reconcileExchangesEnabled, setReconcileExchangesEnabled] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState('');
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
@@ -245,14 +247,15 @@ export default function StockPage() {
     () => new Set([...state.batches.map((b) => b.id), ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id)]),
     [state.batches, state.usdtTransfers],
   );
-  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ trades: state.trades, batches: state.batches }), [state.trades, state.batches]);
+  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ batches: state.batches, trades: state.trades, usdtTransfers: state.usdtTransfers }), [state.trades, state.batches, state.usdtTransfers]);
   const importedExchangeRefs = useMemo(
     () => new Set(state.batches.map((b) => extractImportedReference(b.note)).filter((r): r is string => !!r)),
     [state.batches],
   );
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
-  const { data: exchangeBalances } = useExchangeBalances();
+  const exchangeBalanceQuery = useExchangeBalances();
+  const exchangeBalances = exchangeBalanceQuery.data;
   /** Spot + funding USDT per exchange, synced from exchange-sync -- not part of the local FIFO stock. */
   const exchangeUsdtTotals = useMemo(() => {
     const totals: Record<'binance' | 'okx', number> = { binance: 0, okx: 0 };
@@ -263,38 +266,11 @@ export default function StockPage() {
     return totals;
   }, [exchangeBalances]);
   const exchangeUsdtTotal = exchangeUsdtTotals.binance + exchangeUsdtTotals.okx;
-  /** A gap of up to 50 USDT between tracker and exchanges still counts as a match. */
-  const RECONCILIATION_TOLERANCE_USDT = 50;
-
-  /** Filter to only recent batches (September 2026 onwards) for reconciliation */
-  const septemberCutoff = new Date('2026-09-01T00:00:00Z').getTime();
-  const recentBatches = derived.batches.filter(b => {
-    const batch = state.batches.find(sb => sb.id === b.id);
-    return batch && batch.ts >= septemberCutoff;
-  });
-  const recentAvailableUsdt = recentBatches.reduce((s, b) => s + Math.max(0, b.remainingUSDT), 0);
-
-  const reconciliationDelta = recentAvailableUsdt - exchangeUsdtTotal;
-  const reconciliationMismatch = Math.abs(reconciliationDelta) > RECONCILIATION_TOLERANCE_USDT;
-  // Before a mismatch is blamed on the stock batches, net out every Binance /
-  // OKX record still unregistered in the tracker (sales and buys both) --
-  // those move the exchange balance first and the tracker only once imported.
+  const reconciliationDelta = availableUsdt - exchangeUsdtTotal;
   const pendingExchangeItems = usePendingExchangeItems(state);
-  // Filter pending items to only recent ones (September onwards)
-  const recentPendingItems = pendingExchangeItems.filter(item => item.ts >= septemberCutoff);
-  const reconcileExplanation = useMemo(
-    () => explainReconciliationDelta(reconciliationDelta, recentPendingItems),
-    [recentPendingItems, reconciliationDelta],
-  );
-  /** The mismatch left once every unregistered exchange record is imported -- what batches should actually be fixed for. */
+  const reconcileExplanation = useMemo(() => explainReconciliationDelta(reconciliationDelta,
+    pendingExchangeItems.filter(item => item.transfer?.kind !== 'internal'), USDT_MATCH_TOLERANCE), [pendingExchangeItems, reconciliationDelta]);
   const residualDelta = reconcileExplanation.remaining;
-  const residualMismatch = Math.abs(residualDelta) > 1;
-  const mismatchExplained = reconciliationMismatch && reconcileExplanation.items.length > 0 && !residualMismatch;
-  /** One tone drives the whole reconciliation card: green = in sync, amber = gap explained by pending imports, red = real gap. */
-  const reconTone = !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)';
-  const reconTotalMax = Math.max(recentAvailableUsdt, exchangeUsdtTotal, 1);
-  /** Whole numbers hide a sub-unit gap as "-0", so small gaps are shown with decimals. */
-  const fmtReconDelta = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtU(Math.abs(n), Math.abs(n) < 1 ? 2 : 0)}`;
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
   const activeFifoBatch = useMemo(() => {
     const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
@@ -527,6 +503,26 @@ export default function StockPage() {
   }, []);
 
 
+
+  const registerWorkspaceTrade = (item: PendingExchangeItem) => {
+    if (item.transfer?.kind === 'internal') { setActiveStockSection('transfers'); toast(t.lang === 'ar' ? 'هذه حركة بين محافظك. تحقق من تضمين المحفظتين في المقارنة.' : 'This is a move between your own wallets. Check that both wallets are included.'); return; }
+    setActiveStockSection('batches');
+    if (item.order) {
+      const order = item.order;
+      const needsRate = order.fiat.toUpperCase() !== 'QAR';
+      const share = Number(order.amount) > 0 ? item.pendingUSDT / Number(order.amount) : 1;
+      const prefill = { exchange: order.exchange, orderId: order.id, orderNumber: order.order_number, amountUSDT: item.pendingUSDT, ts: item.ts || Date.now(), assigneeName: order.counterparty ?? undefined,
+        priceFiat: needsRate ? 0 : Number(order.price), needsQarRate: needsRate,
+        ...(needsRate ? { originalFiat: order.fiat, originalPriceFiat: Number(order.price), originalTotalFiat: Number(order.total) * share } : {}) };
+      if (item.direction === 'in') applyExchangeOrderPrefill(prefill);
+      else { stashTrackerImportPrefill({ ...prefill, kind: 'trade' }); navigate('/trading/orders'); }
+    } else if (item.transfer) {
+      const transfer = item.transfer;
+      const prefill: ExchangeTransferPayload = { exchange: transfer.exchange, transferId: transfer.id, transferIds: [transfer.id], reference: transfer.reference, kind: transfer.kind, amountUSDT: item.pendingUSDT, buyPrice: 0, ts: item.ts || Date.now(), assigneeName: transfer.counterparty ?? undefined };
+      if (item.direction === 'in') applyExchangeTransferPrefill(prefill);
+      else { stashSaleTransferPrefill(prefill); navigate('/trading/orders'); }
+    }
+  };
 
   const addBatch = async () => {
     if (batchSavingRef.current) return;
@@ -1051,13 +1047,12 @@ export default function StockPage() {
   const v2Spark = (pick: (b: typeof perf[number]) => number) => bucketSeries(perf.map(b => ({ ts: b.ts, value: pick(b) })));
   const v2Money = (v: number, signed = false) => { const { n, u } = splitMoney(fmtC(v)); return { value: `${signed && v >= 0 ? '+' : ''}${n}`, unit: u || undefined }; };
   const v2Kpis: V2Kpi[] = !v2 ? [] : [
-    { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(recentAvailableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
+    { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(availableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
     { key: 'invested', label: t('totalInvestedQar'), Icon: Wallet, tone: 'brand', ...v2Money(v2Invested), spark: v2Spark(b => b.initialUSDT * b.buyPriceQAR) },
-    ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(recentAvailableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
+    ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(availableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
     { key: 'avg', label: t('monthAvgBuyPrice'), Icon: Coins, tone: 'warn', value: monthAvgBuyPrice != null ? fmtP(monthAvgBuyPrice) : '—', unit: monthAvgBuyPrice != null ? `${localCur(baseFiat, t.lang)}/${localCur('USDT', t.lang)}` : undefined, kind: 'line', spark: perf.length > 1 ? [...perf].reverse().map(b => b.buyPriceQAR) : undefined },
   ];
   const v2Extras = !v2 ? [] : [
-    ...(reconcileExchangesEnabled ? [{ key: 'delta', label: t('reconciliationDelta'), value: `${reconciliationDelta >= 0 ? '+' : ''}${fmtU(reconciliationDelta)} USDT` }] : []),
     ...(activeFifoBatch ? [{ key: 'fifo', label: t('activeFifoLayer'), value: `${activeFifoBatch.source || '—'} · ${fmtP(activeFifoBatch.buyPriceQAR)}` }] : []),
     { key: 'binance', label: `${EXCHANGE_LABELS.binance} USDT`, value: fmtU(exchangeUsdtTotals.binance) },
     { key: 'okx', label: `${EXCHANGE_LABELS.okx} USDT`, value: fmtU(exchangeUsdtTotals.okx) },
@@ -1149,6 +1144,10 @@ export default function StockPage() {
 
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+      <UsdtBalanceWorkspace state={state} available={availableUsdt} balances={exchangeBalances} pending={pendingExchangeItems}
+        loading={exchangeBalanceQuery.isLoading} balanceError={exchangeBalanceQuery.error instanceof Error ? exchangeBalanceQuery.error.message : undefined}
+        applyStateAndCommit={applyStateAndCommit} onRecordTrade={registerWorkspaceTrade}
+        onReviewAll={() => { setActiveStockSection('transfers'); requestAnimationFrame(() => document.getElementById('merchant-transfer-details')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })); }} />
 
 
       {v2 ? (
@@ -1210,7 +1209,7 @@ export default function StockPage() {
         <SuppliersPanel state={state} applyState={applyState} />
       )}
 
-      {activeStockSection === 'transfers' && (
+      {activeStockSection === 'transfers' && (<div id="merchant-transfer-details">
         <LoansPanel
           state={state}
           derived={derived}
@@ -1218,7 +1217,7 @@ export default function StockPage() {
           onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
           onManualFix={setManualFixItems}
         />
-      )}
+      </div>)}
 
       {stockTab === 'batches' && (
       <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection !== 'batches' ? { display: 'none' } : undefined) }}>
@@ -1278,15 +1277,10 @@ export default function StockPage() {
           </div>
 
           <div style={{ display: v2 ? 'none' : 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
-            {reconcileExchangesEnabled && kpiChip({
-              label: t('reconciliationDelta') || 'Delta',
-              value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
-              color: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)',
-              valueColor: !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)',
-            })}
+
             {kpiChip({
               label: t('availableUsdtShort') || 'Available USDT',
-              value: <>{fmtU(recentAvailableUsdt)} {localCur('USDT', t.lang)}</>,
+              value: <>{fmtU(availableUsdt)} {localCur('USDT', t.lang)}</>,
               color: 'var(--good)',
               valueColor: 'var(--good)',
             })}
@@ -1297,7 +1291,7 @@ export default function StockPage() {
             })}
             {wacop > 0 && kpiChip({
               label: t('estValue') || 'Est. Value',
-              value: fmtC(recentAvailableUsdt * wacop),
+              value: fmtC(availableUsdt * wacop),
               color: '#8b5cf6',
             })}
             {activeFifoBatch && kpiChip({
@@ -1322,139 +1316,6 @@ export default function StockPage() {
             })}
           </div>
 
-          <div style={{ marginBottom: 9 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-              <Checkbox checked={reconcileExchangesEnabled} onCheckedChange={(v) => setReconcileExchangesEnabled(v === true)} />
-              {t('checkExchangeReconciliation') || 'Check tracker vs. exchange balances'}
-            </label>
-            {reconcileExchangesEnabled && (
-              <div style={{
-                marginTop: 8,
-                padding: 14,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 14,
-                background: `linear-gradient(135deg, color-mix(in srgb, ${reconTone} 14%, var(--panel, transparent)), color-mix(in srgb, ${reconTone} 4%, transparent))`,
-                border: `1px solid color-mix(in srgb, ${reconTone} 35%, transparent)`,
-                borderInlineStart: `4px solid ${reconTone}`,
-                borderRadius: 14,
-                fontSize: 11,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{
-                    width: 38, height: 38, flexShrink: 0, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, fontWeight: 800, color: '#fff', background: reconTone,
-                    boxShadow: `0 0 0 5px color-mix(in srgb, ${reconTone} 20%, transparent)`,
-                  }}>
-                    {!reconciliationMismatch ? '✓' : mismatchExplained ? '⏳' : '!'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 140 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: reconTone, lineHeight: 1.2 }}>
-                      {!reconciliationMismatch
-                        ? (t('reconciliationMatch') || 'Matches within tolerance')
-                        : mismatchExplained
-                          ? t('reconcileExplainedStatus')
-                          : (t('reconciliationMismatch') || 'Mismatch flagged')}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>
-                      {t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}
-                    </div>
-                  </div>
-                  <div className="mono" style={{
-                    padding: '6px 14px', borderRadius: 999, fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
-                    color: reconTone, background: `color-mix(in srgb, ${reconTone} 16%, transparent)`,
-                    border: `1px solid color-mix(in srgb, ${reconTone} 40%, transparent)`,
-                  }}>
-                    {fmtReconDelta(reconciliationDelta)} USDT
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-                  {[
-                    { label: t('reconciliationTrackerQty') || 'Tracker (available stock)', value: recentAvailableUsdt },
-                    { label: t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)', value: exchangeUsdtTotal },
-                  ].map((row) => (
-                    <div key={row.label} style={{ padding: 10, borderRadius: 10, background: 'color-mix(in srgb, var(--text) 5%, transparent)' }}>
-                      <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 4 }}>
-                        {row.label}
-                      </div>
-                      <div className="mono" style={{ fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                        {fmtU(row.value)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>USDT</span>
-                      </div>
-                      <div style={{ height: 5, borderRadius: 3, marginTop: 8, background: 'color-mix(in srgb, var(--text) 10%, transparent)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${Math.max(2, Math.min(100, (row.value / reconTotalMax) * 100))}%`, background: reconTone, borderRadius: 3 }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {reconciliationMismatch && reconcileExplanation.items.length > 0 && (
-                  <div style={{ fontSize: 10.5, lineHeight: 1.4, borderTop: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--warn)' }}>
-                      {t('reconcilePendingHeader')
-                        .split('{count}').join(String(reconcileExplanation.items.length))
-                        .split('{amount}').join(`${reconcileExplanation.explained >= 0 ? '+' : ''}${fmtU(reconcileExplanation.explained)}`)}
-                    </div>
-                    {reconcileExplanation.items.slice(0, 8).map((item) => (
-                      <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
-                          {item.direction === 'out' ? '⬆️' : '⬇️'} {EXCHANGE_LABELS[item.exchange]}{' '}
-                          {item.source === 'order'
-                            ? `P2P ${item.direction === 'out' ? t('reconcileSell') : t('reconcileBuy')}${item.price ? ` @ ${fmtP(item.price)} ${item.fiat ?? ''}` : ''}`
-                            : item.direction === 'out' ? t('reconcileSent') : t('reconcileReceived')}
-                          {item.counterparty ? ` · ${item.counterparty}` : ''}
-                          {item.ts ? ` · ${fmtDate(item.ts)}` : ''}
-                        </span>
-                        <span className="mono" style={{ fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--text)' }}>
-                          {item.effect >= 0 ? '+' : '−'}{fmtU(item.pendingUSDT)}
-                        </span>
-                      </div>
-                    ))}
-                    {reconcileExplanation.items.length > 8 && (
-                      <div style={{ color: 'var(--muted)' }}>+{reconcileExplanation.items.length - 8} {t('reconcileMore')}</div>
-                    )}
-                    <div style={{ fontWeight: 700, color: mismatchExplained ? 'var(--warn)' : 'var(--bad)' }}>
-                      {mismatchExplained
-                        ? t('reconcileFullyExplained')
-                        : t('reconcileResidual').split('{amount}').join(`${residualDelta >= 0 ? '+' : ''}${fmtU(residualDelta)}`)}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button className="rowBtn" style={{ fontSize: 10.5, fontWeight: 800, borderColor: 'var(--brand)', color: 'var(--brand)' }} onClick={() => setActiveStockSection('transfers')}>
-                        📋 {t('mloanDecideThese')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {reconciliationMismatch && residualMismatch && (
-                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div>
-                      {(residualDelta < 0
-                        ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
-                        : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
-                      ).split('{amount}').join(fmtU(Math.abs(residualDelta)))}
-                    </div>
-                    {residualDelta > 0 && (
-                      <button
-                        className="rowBtn"
-                        style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
-                        onClick={() => setShowFixMismatchModal(true)}
-                      >
-                        🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}
-                      </button>
-                    )}
-                    {residualDelta < 0 && (
-                      <button
-                        className="rowBtn"
-                        style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
-                        onClick={() => prefillReconciliationBatch(Math.abs(residualDelta))}
-                      >
-                        ➕ {t('reconciliationAddMissingBatch') || 'Add missing batch'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {perf.length === 0 ? (
             <div className="empty">

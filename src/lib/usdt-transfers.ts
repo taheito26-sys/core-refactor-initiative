@@ -64,6 +64,8 @@ export interface UsdtTransfer {
   ts: number;
   kind: UsdtTransferKind;
   amountUSDT: number;
+  /** Outgoing network fee: leaves stock but is not owed back by the merchant. */
+  feeUSDT?: number;
   /** Counterparty merchant display name — also the matching key when no relationship is linked. */
   counterpartyName: string;
   /** Linked merchant relationship, when the counterparty is a connected merchant. */

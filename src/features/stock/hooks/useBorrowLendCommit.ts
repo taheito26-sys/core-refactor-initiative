@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useT, type TranslationKey } from '@/lib/i18n';
@@ -16,8 +16,11 @@ export function useBorrowLendCommit(applyStateAndCommit: (next: TrackerState) =>
   const t = useT();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   const commit = useCallback(async (result: TagResult, okMsg: TranslationKey): Promise<boolean> => {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     try {
       await applyStateAndCommit(result.state);
@@ -38,9 +41,10 @@ export function useBorrowLendCommit(applyStateAndCommit: (next: TrackerState) =>
       return true;
     } catch (err) {
       console.error('[borrow-lend] save failed:', err);
-      toast.error(t('mloanSaveFailed'));
+      toast.error(err instanceof Error ? err.message : t('mloanSaveFailed'));
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [applyStateAndCommit, queryClient, t]);
