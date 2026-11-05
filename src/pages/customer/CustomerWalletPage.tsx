@@ -1,4 +1,4 @@
-import { monthlyPaymentNumbers } from '@/features/customer/payment-sequence';
+import { monthlyPaymentNumbers, monthlyGiverPaymentNumbers } from '@/features/customer/payment-sequence';
 import { statementQueryOptions } from "@/features/customer/statements-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -983,27 +983,30 @@ export default function CustomerWalletPage() {
     addedByCustomer: boolean;
     payment: (typeof groupedLoanPayments)[number] | null;
     claim: (typeof myPaymentClaims)[number] | null;
-    /** Cash giver and the shared calendar-month payment number (across all givers). */
+    /** Cash giver and their own calendar-month payment number. */
     giver: string | null;
     giverNo: number | null;
     /** Key the giver assignment is stored under. */
     assignKey: string;
   };
 
-  // Resolve giver names independently. Every displayed payment number uses the same
-  // monthly sequence as its # badge, never a historic number embedded in a note.
+  // Each giver has an independent sequence that restarts every calendar month.
+  // Legacy note numbers never override the monthly count.
   const giverInfo = useMemo(() => {
     const giverByRow = new Map<string, string | null>();
+    const entries: { key: string; date: number; giver: string | null }[] = [];
     for (const p of loanPayments) {
       const giver = resolveGiver(assignedGiverByKey.get(p.key) ?? assignedGiverByKey.get(p.base), [p.note, paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base)], giverNames);
       giverByRow.set(p.key, giver);
+      entries.push({ key: p.key, date: p.date, giver });
     }
     for (const c of unsettledPaymentClaims) {
       const giver = resolveGiver(assignedGiverByKey.get(claimPaymentKey(c)), [c.note], giverNames);
       giverByRow.set(`claim:${c.id}`, giver);
+      if (c.status === "pending") entries.push({ key: `claim:${c.id}`, date: new Date(c.paidAt).getTime(), giver });
     }
-    return { giverByRow, numbers: paymentSequence };
-  }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames, paymentSequence]);
+    return { giverByRow, numbers: monthlyGiverPaymentNumbers(entries) };
+  }, [loanPayments, unsettledPaymentClaims, assignedGiverByKey, paymentNoteByKey, giverNames]);
 
   const paymentRows = useMemo<PaymentRow[]>(() => {
     const q = paymentSearch.trim().toLowerCase();
@@ -1768,7 +1771,7 @@ export default function CustomerWalletPage() {
                     const accent = rowAccent.get(r.key) ?? st.accents[0];
                     const pill = r.status === "completed" ? { background: "#dcf7e6", color: "#15803d", dot: "#16a34a" } : { background: `${accent}1f`, color: accent, dot: accent };
                     const p = r.payment;
-                    const seq = paymentSequence.get(r.key);
+                    const seq = r.giver ? r.giverNo : paymentSequence.get(r.key);
                     const myNote = p ? paymentNoteByKey.get(p.key) ?? paymentNoteByKey.get(p.base) ?? "" : "";
                     const isEditingNote = !!p && editingNoteKey === p.key;
                     const correction = p ? resolveCorrection(p) : null;
