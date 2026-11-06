@@ -1417,6 +1417,13 @@ export default function StockPage() {
                         ? t('reconcileFullyExplained')
                         : t('reconcileResidual').split('{amount}').join(`${residualDelta >= 0 ? '+' : ''}${fmtU(residualDelta)}`)}
                     </div>
+                    <button
+                      className="rowBtn"
+                      style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, color: 'var(--warn)', borderColor: 'color-mix(in srgb, var(--warn) 35%, transparent)' }}
+                      onClick={() => setManualFixItems(reconcileExplanation.items)}
+                    >
+                      🛠️ {t('mfixTitle')}
+                    </button>
                   </div>
                 )}
                 {reconciliationMismatch && residualMismatch && (
