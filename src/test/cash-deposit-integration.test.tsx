@@ -8,7 +8,9 @@ import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
-vi.mock('@/features/net-position/api', () => ({ useNetPositionSettings: () => ({ loaded: false, settings: null }), usePersonalLoans: () => ({ loans: [], loaded: false }) }));
+vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { range: 'all', language: 'en' }, update: vi.fn() }) }));
+
+vi.mock('@/features/net-position/api', () => ({ useNetPositionDays: () => ({ days: [] }), useNetPositionSettings: () => ({ loaded: false, settings: null }), usePersonalLoans: () => ({ loans: [], loaded: false }) }));
 vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({ useExchangeBalances: () => ({ isSuccess: false }) }));
 
 vi.mock('@/lib/i18n', () => ({

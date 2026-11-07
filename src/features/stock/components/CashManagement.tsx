@@ -4203,6 +4203,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         onAddCash={() => setShowCashCounter(true)}
         onTransfer={() => { setTransferFromId(undefined); setShowTransfer(true); }}
         onCustody={() => setShowMerchantCustody(true)}
+        onNewLoan={() => setShowNewLoan(true)}
         onAccountAction={(account, action: CashAccountAction) => {
           if (action === 'ledger') setAccountDetailId(account.id);
           else if (action === 'transfer') { setTransferFromId(account.id); setShowTransfer(true); }

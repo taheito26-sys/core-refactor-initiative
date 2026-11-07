@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { buildStateFrom } from '@/lib/tracker-state';
 vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { language: 'en' } }) }));
-vi.mock('@/features/net-position/api', () => ({ useNetPositionSettings: () => ({ loaded: true, settings: { includedAccounts: ['cash', 'bank'] } }), usePersonalLoans: () => ({ loaded: true, loans: [] }) }));
+vi.mock('@/features/net-position/api', () => ({ useNetPositionDays: () => ({ days: [] }), useNetPositionSettings: () => ({ loaded: true, settings: { includedAccounts: ['cash', 'bank'] } }), usePersonalLoans: () => ({ loaded: true, loans: [] }) }));
 vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({ useExchangeBalances: () => ({ isSuccess: true, data: [] }) }));
 vi.mock('@/features/stock/utils/loanStatementExport', async () => ({ ...await vi.importActual<object>('@/features/stock/utils/loanStatementExport'), downloadTextFile: vi.fn() }));
 import { CashOverview } from '@/features/cash/CashOverview';
@@ -17,6 +17,7 @@ describe('cash management reference layout', () => {
   it('shows real accounts, searches and switches cards/list view', () => {
     show(); expect(screen.getByRole('heading', { name: 'Cash Management' })).toBeTruthy();
     expect(screen.getAllByRole('article')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Search accounts…' }));
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bank' } });
     expect(screen.getAllByRole('article')).toHaveLength(1);
     expect(screen.getByRole('article', { name: 'My Bank' })).toBeTruthy();
@@ -28,16 +29,20 @@ describe('cash management reference layout', () => {
     show(); const card = screen.getByRole('article', { name: 'Cash' });
     fireEvent.click(within(card).getByRole('button', { name: 'View Ledger' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'ledger');
-    fireEvent.click(within(card).getByRole('button', { name: 'Add Cash' }));
+    fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions · Cash' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Cash' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'deposit');
-    fireEvent.click(within(card).getByRole('button', { name: 'Transfer' }));
+    fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions · Cash' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Transfer' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'transfer');
   });
   it('filters account type and exports the selected account ledger only', () => {
-    show(); fireEvent.click(screen.getByRole('button', { name: 'Filter accounts' }));
+    show(); fireEvent.click(screen.getByRole('button', { name: 'Search accounts…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Filter accounts' }));
     fireEvent.change(screen.getByLabelText('Account type'), { target: { value: 'bank' } });
     expect(screen.getAllByRole('article')).toHaveLength(1);
-    fireEvent.click(within(screen.getByRole('article', { name: 'My Bank' })).getByRole('button', { name: 'Statement' }));
+    fireEvent.keyDown(within(screen.getByRole('article', { name: 'My Bank' })).getByRole('button', { name: 'More actions · My Bank' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Statement' }));
     expect(downloadTextFile).toHaveBeenCalledWith(expect.stringContaining('account-bank'), expect.stringContaining('17864'));
     expect(vi.mocked(downloadTextFile).mock.calls[0][1]).not.toContain('80000');
   });
