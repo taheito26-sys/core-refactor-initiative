@@ -24,3 +24,12 @@ it('does not permit write methods', async () => {
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch); const res = response(); await handler({ method: 'POST' }, res);
   expect(res.status).toHaveBeenCalledWith(405); expect(fetch).not.toHaveBeenCalled();
 });
+it('checks the same public configuration embedded in the deployed browser build', async () => {
+  vi.stubEnv('VITE_SUPABASE_URL', ''); vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', '');
+  const key = 'eyJhbGciOiJIUzI1NiJ9.' + btoa(JSON.stringify({ role: 'anon', ref: 'example' })).replace(/=/g, '') + '.publicsignature';
+  const fetch = vi.fn().mockResolvedValueOnce({ ok: true, text: async () => '<script type="module" src="/assets/index-test.js"></script>' }).mockResolvedValueOnce({ ok: true, text: async () => `const url="https://example.supabase.co",key="${key}";` }).mockResolvedValue({ ok: true, status: 200 });
+  vi.stubGlobal('fetch', fetch); const res = response(); await handler({ method: 'GET' }, res);
+  expect(res.status).toHaveBeenCalledWith(200);
+  expect(fetch.mock.calls[2][0]).toBe('https://example.supabase.co/auth/v1/health');
+  expect(JSON.stringify(res.json.mock.calls)).not.toContain(key);
+});

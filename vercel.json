@@ -52,5 +52,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/service-health.js": {
+      "maxDuration": 30
+    }
+  }
 }
