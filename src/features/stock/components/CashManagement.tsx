@@ -903,6 +903,7 @@ function ReconcileEntryModal({ account, currentBalance, onSave, onClose, isMobil
 
 // ── MerchantCustodyModal ──────────────────────────────────────────
 interface MerchantCustodyModalProps {
+  initialAccount?: CashAccount;
   counterparties: NormalizedCounterparty[];
   myMerchantId: string;
   myUserId: string;
@@ -918,13 +919,21 @@ interface MerchantCustodyModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
-function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit, onClose, isMobile = false }: MerchantCustodyModalProps) {
+export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit, onClose, initialAccount, isMobile = false }: MerchantCustodyModalProps) {
   const t = useT();
   const [selectedIdx, setSelectedIdx] = useState('');
   const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState<CashCurrency>('QAR');
+  const [currency, setCurrency] = useState<CashCurrency>(initialAccount?.currency || 'QAR');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!initialAccount || selectedIdx !== '') return;
+    const index = counterparties.findIndex(cp => initialAccount.merchantId
+      ? cp.counterpartyMerchantId === initialAccount.merchantId
+      : Boolean(initialAccount.relationshipId && cp.relationshipId === initialAccount.relationshipId));
+    if (index >= 0) setSelectedIdx(String(index));
+  }, [counterparties, initialAccount, selectedIdx]);
 
   const selected = selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
 
@@ -960,7 +969,7 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('selectMerchantCustodian')}</div>
-          <ModernSelect value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
+          <ModernSelect title={t('selectMerchantCustodian')} value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
             style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
             <option value="">{t('selectRelationship')}</option>
             {counterparties.map((cp, i) => (
@@ -975,11 +984,11 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
             <div className="lbl">{t('amount')}</div>
-            <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
+            <div className="inputBox"><input aria-label={t('amount')} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
           </div>
           <div className="field2">
             <div className="lbl">{t('currency')}</div>
-            <ModernSelect value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
+            <ModernSelect title={t('currency')} value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">🇶🇦 QAR</option>
               <option value="EGP">🇪🇬 EGP</option>
@@ -5889,7 +5898,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           </div>
         </div>
       )}
-      {showDeposit && (
+      {showDeposit && showDeposit.mode !== 'funding' && (
         <DepositWithdrawModal
           account={showDeposit.account}
           currentBalance={balances.get(showDeposit.account.id) || 0}
@@ -5935,13 +5944,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         </div>
       )}
 
-      {showMerchantCustody && (
+      {(showMerchantCustody || showDeposit?.mode === 'funding') && (
         <MerchantCustodyModal
+          key={showDeposit?.account.id || 'custody-request'}
+          initialAccount={showDeposit?.mode === 'funding' ? showDeposit.account : undefined}
           counterparties={counterparties}
           myMerchantId={myMerchantId}
           myUserId={myUserId}
           isMobile={isMobile}
-          onClose={() => setShowMerchantCustody(false)}
+          onClose={() => { setShowMerchantCustody(false); if (showDeposit?.mode === 'funding') setShowDeposit(null); }}
           onSubmit={(input) => {
             createRequest.mutate(input, {
               onSuccess: () => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { render, cleanup, waitFor } from '@testing-library/react';
+import { render, cleanup, waitFor, within } from '@testing-library/react';
 import { fireEvent, screen } from '@testing-library/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
@@ -197,4 +197,17 @@ it('opens and highlights the custody request from its notification URL', async (
     custodyRequests.incoming = [];
     Element.prototype.scrollIntoView = original;
   }
+});
+
+it('routes Add Cash on a custody card into the shared request workflow without a local-only deposit', () => {
+  cleanup();
+  const applyState = vi.fn();
+  const state = makeState({ cashAccounts: [{ id: 'zakaria', name: 'Zakaria', type: 'merchant_custody', merchantId: 'zakaria', currency: 'QAR', status: 'active', createdAt: 1 }] });
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><CashManagement redesigned state={state} applyState={applyState} /></MemoryRouter></QueryClientProvider>);
+  const card = screen.getByRole('article', { name: 'Zakaria' });
+  fireEvent.click(within(card).getByRole('button', { name: 'cmAddCash' }));
+  expect(screen.getByText('custodyRequestDesc')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'sendCustodyRequest' })).toBeTruthy();
+  expect(applyState).not.toHaveBeenCalled();
+  cleanup();
 });
