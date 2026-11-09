@@ -1,3 +1,5 @@
+import { withAuthDeadline } from '@/features/auth/auth-request';
+import { loginErrorKey } from '@/features/auth/login-error';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
@@ -22,7 +24,8 @@ function toLoginEmail(identifier: string): string {
 }
 
 export default function LoginPage() {
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<'password' | 'google' | null>(null);
+  const loading = busy !== null;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -32,6 +35,7 @@ export default function LoginPage() {
   const { settings, update } = useTheme();
 
   const handleUsernameLogin = async () => {
+    if (loading) return;
     const identifier = username.trim();
     if (!identifier || !password) {
       setLoginError(
@@ -42,18 +46,15 @@ export default function LoginPage() {
       return;
     }
     setLoginError('');
-    setLoading(true);
+    setBusy('password');
     try {
       // No portal is recorded here: where this account belongs is decided from
       // the profiles it actually has, once the session resolves.
-      await login(toLoginEmail(identifier), password);
-    } catch {
-      setLoginError(
-        t.isRTL
-          ? 'بيانات الدخول غير صحيحة'
-          : 'Incorrect sign-in details',
-      );
-      setLoading(false);
+      await withAuthDeadline(login(toLoginEmail(identifier), password), 15000);
+    } catch (error) {
+      setLoginError(t(loginErrorKey(error)));
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -72,13 +73,17 @@ export default function LoginPage() {
   }, []);
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
+    if (loading) return;
+    setLoginError('');
+    setBusy('google');
     try {
-      await loginWithGoogle();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (t('googleSignInFailed') || 'Google sign-in failed');
+      await withAuthDeadline(loginWithGoogle(), 15000);
+    } catch (error: unknown) {
+      const message = t(loginErrorKey(error));
+      setLoginError(message);
       toast.error(message);
-      setLoading(false);
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -222,7 +227,7 @@ export default function LoginPage() {
                   />
                   {loginError && <p className="text-xs text-red-400 lg:text-destructive">{loginError}</p>}
                   <Button type="submit" className="w-full h-12 text-sm font-semibold rounded-xl lg:bg-primary lg:text-primary-foreground max-lg:bg-[#d4af37] max-lg:text-black max-lg:hover:bg-[#d4af37]/90" size="lg" disabled={loading}>
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (t.isRTL ? 'تسجيل الدخول' : 'Sign in')}
+                    {busy === 'password' ? <Loader2 className="h-5 w-5 animate-spin" /> : (t.isRTL ? 'تسجيل الدخول' : 'Sign in')}
                   </Button>
                 </form>
               </div>
@@ -241,7 +246,7 @@ export default function LoginPage() {
                   'max-lg:bg-white max-lg:text-black max-lg:hover:bg-white/90'
                 )}
                 size="lg" onClick={handleGoogleLogin} disabled={loading}>
-                {loading ? (
+                {busy === 'google' ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <svg className="h-5 w-5" viewBox="0 0 24 24">
