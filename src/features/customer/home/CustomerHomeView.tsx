@@ -4,6 +4,7 @@ import {
   Database, FileText, Info, Landmark, List, Plus, ReceiptText, TrendingUp, User, UserPlus, Wallet,
 } from 'lucide-react';
 import { ZoomControls } from '@/components/shared/ZoomControls';
+import { BankMisrRateKpi } from '@/features/customer/bank-rate/BankMisrRateKpi';
 import '@/styles/customer-home.css';
 import '@/styles/customer-theme.css';
 import { chartPoints, formatActivityStamp, formatPaymentStamp, smoothPath, sparkPath, type ActivityRow, type RateTrend } from './home-model';
@@ -229,6 +230,7 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
           {rateCard('blue', t('Avg Selling Price', 'متوسط سعر البيع'), p.average.value, p.average.trend, <SolidWallet />)}
           {rateCard('green', t('Emergency Price', 'سعر الطوارئ'), p.emergency.value, p.emergency.trend, <CoinsTwo />, true)}
         </div>
+        <BankMisrRateKpi lang={lang} variant="hero" />
       </section>
 
       {p.belowHero}

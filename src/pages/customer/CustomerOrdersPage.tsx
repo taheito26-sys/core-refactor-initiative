@@ -1,4 +1,5 @@
 import { displayQarEgpRate } from '@/features/customer/display-rate';
+import { BankMisrRateKpi } from '@/features/customer/bank-rate/BankMisrRateKpi';
 import { OrderRetractControls } from '@/features/orders/components/OrderRetractControls';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -1169,6 +1170,8 @@ export default function CustomerOrdersPage() {
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
       <MobileInstallBanner />
 
+      {!isMobile && <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} variant="card" />}
+
       {isMobile ? (
         <>
           <section className="co-hero2">
@@ -1219,6 +1222,10 @@ export default function CustomerOrdersPage() {
               </div>
             </div>
           </section>
+
+          <div className="px-3 pt-3">
+            <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} variant="card" />
+          </div>
 
           <div className="co-mainwrap">
             <div className="ch-card co-main">

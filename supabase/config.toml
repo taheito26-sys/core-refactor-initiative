@@ -20,3 +20,6 @@ verify_jwt = false
 # (resolve / refresh); the function checks the user's JWT itself.
 [functions.p2p-merchant-tracker]
 verify_jwt = false
+
+[functions.bank-misr-rates]
+verify_jwt = false
