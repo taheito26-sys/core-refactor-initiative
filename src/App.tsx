@@ -1,3 +1,4 @@
+import { StartupLoading } from '@/features/auth/StartupLoading';
 import { registerAppUpdateMutationCheck } from "@/lib/app-update-saves";
 import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,7 +19,6 @@ import { ExchangeAutoSyncBootstrap } from "@/features/exchanges/components/Excha
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
-import { Loader2 } from "lucide-react";
 
 function PwaDebugBadge() {
   const enabled =
@@ -206,11 +206,7 @@ const RelationshipWorkspace = createPlaceholderPage('Workspace', 'Relationship w
 import NotFound from "./pages/NotFound";
 
 function RouteLoadingFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-    </div>
-  );
+  return <StartupLoading />;
 }
 
 // Default staleTime: 0 (TanStack Query's own default) meant every mount or

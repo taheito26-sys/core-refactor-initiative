@@ -5,6 +5,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 type Res = { data: unknown; error: { message: string } | null };
 const results: Record<string, Res[]> = {};
 const profileReads = vi.fn();
+const stalledTables = new Set<string>();
 const nextFor = (table: string): Res => {
   profileReads(table);
   const q = results[table] ?? [];
@@ -14,7 +15,7 @@ let authCallback: ((event: string, session: unknown) => void) | null = null;
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: (table: string) => ({ select: () => ({ eq: () => ({ maybeSingle: async () => nextFor(table) }) }) }),
+    from: (table: string) => ({ select: () => ({ eq: () => ({ maybeSingle: async () => stalledTables.has(table) ? new Promise<Res>(() => {}) : nextFor(table) }) }) }),
     rpc: async () => ({ data: null, error: null }),
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => { authCallback = cb; return { data: { subscription: { unsubscribe: () => {} } } }; },
@@ -38,7 +39,7 @@ const session = { user: { id: 'u1', email: 'a@b.c' } };
 const ok = (data: unknown): Res => ({ data, error: null });
 const bad: Res = { data: null, error: { message: 'timeout' } };
 
-beforeEach(() => { for (const k of Object.keys(results)) delete results[k]; authCallback = null; profileReads.mockClear(); });
+beforeEach(() => { for (const k of Object.keys(results)) delete results[k]; authCallback = null; profileReads.mockClear(); stalledTables.clear(); vi.useRealTimers(); });
 
 describe('profile loading', () => {
   it('shares profile requests during overlapping sign-in events and reads again after completion', async () => {
@@ -87,4 +88,22 @@ describe('profile loading', () => {
     await new Promise(r => setTimeout(r, 1500));
     expect(screen.getByTestId('s').textContent).toBe('ready|merchant');
   });
+});
+
+
+it('automatically recovers when a hung profile request times out and the next read succeeds', async () => {
+  vi.useFakeTimers();
+  results.profiles = [ok({ id: 'p', user_id: 'u1', status: 'approved', role: 'merchant' })];
+  results.merchant_profiles = [ok({ id: 'm', user_id: 'u1', merchant_id: 'x' })];
+  results.customer_profiles = [ok(null)];
+  stalledTables.add('merchant_profiles');
+  render(<AuthProvider><Probe /></AuthProvider>);
+  try {
+    await act(async () => { authCallback?.('INITIAL_SESSION', session); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10001); });
+    expect(screen.getByTestId('s').textContent).toBe('loading|none');
+    stalledTables.delete('merchant_profiles');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(screen.getByTestId('s').textContent).toBe('ready|merchant');
+  } finally { vi.useRealTimers(); }
 });

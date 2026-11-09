@@ -1,3 +1,4 @@
+import { withAuthDeadline, profileReadFailure } from './auth-request';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { claimLocalScope, releaseLocalScope } from '@/lib/session-scope';
@@ -111,21 +112,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       const [profileRes, merchantRes, customerRes] = await Promise.all([
-        supabase
+        withAuthDeadline(supabase
           .from('profiles')
           .select('*')
           .eq('user_id', resolvedUserId)
-          .maybeSingle(),
-        supabase
+          .maybeSingle()).catch(profileReadFailure),
+        withAuthDeadline(supabase
           .from('merchant_profiles')
           .select('*')
           .eq('user_id', resolvedUserId)
-          .maybeSingle(),
-        supabase
+          .maybeSingle()).catch(profileReadFailure),
+        withAuthDeadline(supabase
           .from('customer_profiles')
           .select('*')
           .eq('user_id', resolvedUserId)
-          .maybeSingle(),
+          .maybeSingle()).catch(profileReadFailure),
       ]);
 
       const hasError = profileRes.error || merchantRes.error || customerRes.error;
@@ -154,8 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let ensuredCustomerProfile: CustomerProfile | null = null;
       if (!customerRes.data && !customerRes.error && !merchantRes.data && isCustomerAccount) {
         try {
-          const { data: ensuredProfile, error: ensureErr } = await supabase
-            .rpc('ensure_customer_profile', { p_user_id: resolvedUserId });
+          const { data: ensuredProfile, error: ensureErr } = await withAuthDeadline(supabase
+            .rpc('ensure_customer_profile', { p_user_id: resolvedUserId }));
           if (ensureErr) {
             console.warn('[Auth] Failed to ensure customer profile:', ensureErr);
           } else {
@@ -178,9 +179,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Not knowing is not the same as "no profile": if a merchant or customer lookup failed and nothing
       // is known yet, report it unresolved so the guard keeps waiting instead of redirecting to onboarding.
+      const profileUnknown = !!profileRes.error && !knownRef.current.profile;
       const merchantUnknown = !!merchantRes.error && !knownRef.current.merchant;
       const customerUnknown = !!customerRes.error && !knownRef.current.customer;
-      if (hasError && ((merchantUnknown && !knownRef.current.customer) || (customerUnknown && !knownRef.current.merchant))) {
+      if (hasError && (profileUnknown || (merchantUnknown && !knownRef.current.customer) || (customerUnknown && !knownRef.current.merchant))) {
         console.error('[Auth] Profile lookup unresolved after retries — waiting instead of redirecting');
         return 'all_failed' as const;
       }
