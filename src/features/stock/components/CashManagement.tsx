@@ -927,15 +927,11 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
 
-  useEffect(() => {
-    if (!initialAccount || selectedIdx !== '') return;
-    const index = counterparties.findIndex(cp => initialAccount.merchantId
+  const selected = initialAccount
+    ? counterparties.find(cp => initialAccount.merchantId
       ? cp.counterpartyMerchantId === initialAccount.merchantId
-      : Boolean(initialAccount.relationshipId && cp.relationshipId === initialAccount.relationshipId));
-    if (index >= 0) setSelectedIdx(String(index));
-  }, [counterparties, initialAccount, selectedIdx]);
-
-  const selected = selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
+      : Boolean(initialAccount.relationshipId && cp.relationshipId === initialAccount.relationshipId))
+    : selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
 
   const handle = () => {
     if (!selected) { setErr(t('invalidRelationship')); return; }
@@ -948,7 +944,7 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
       custodianUserId: selected.counterpartyUserId,
       requesterMerchantId: myMerchantId,
       amount: num(amount, 0),
-      currency,
+      currency: initialAccount?.currency || currency,
       note: note.trim() || undefined,
       relationshipId: selected.relationshipId,
     });
@@ -960,7 +956,7 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 {t('merchantCashCustody')}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 {initialAccount ? t('cmAddCash') : t('merchantCashCustody')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
@@ -969,14 +965,15 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('selectMerchantCustodian')}</div>
-          <ModernSelect title={t('selectMerchantCustodian')} value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
+          {initialAccount ? <output aria-label={t('selectMerchantCustodian')} style={{ display: 'block', padding: '10px 0', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{selected?.counterpartyLabel || initialAccount.name}</output> : <ModernSelect title={t('selectMerchantCustodian')} value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
             style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
             <option value="">{t('selectRelationship')}</option>
             {counterparties.map((cp, i) => (
               <option key={cp.relationshipId} value={String(i)}>{cp.counterpartyLabel}</option>
             ))}
-          </ModernSelect>
-          {counterparties.length === 0 && (
+          </ModernSelect>}
+          {initialAccount && !selected && <div role="status" style={{ fontSize: 11, color: 'var(--warn)', marginTop: 4 }}>{t('missingMerchantUserMapping')}</div>}
+          {!initialAccount && counterparties.length === 0 && (
             <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           )}
         </div>
@@ -988,13 +985,13 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
           </div>
           <div className="field2">
             <div className="lbl">{t('currency')}</div>
-            <ModernSelect title={t('currency')} value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
+            {initialAccount ? <output aria-label={t('currency')} style={{ display: 'block', padding: '10px 0', fontSize: 12, color: 'var(--text)' }}>{initialAccount.currency}</output> : <ModernSelect title={t('currency')} value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">🇶🇦 QAR</option>
               <option value="EGP">🇪🇬 EGP</option>
               <option value="USDT">💲 USDT</option>
               <option value="USD">🇺🇸 USD</option>
-            </ModernSelect>
+            </ModernSelect>}
           </div>
         </div>
 

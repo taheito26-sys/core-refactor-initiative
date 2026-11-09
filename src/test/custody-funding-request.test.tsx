@@ -9,12 +9,18 @@ describe('custody Add Cash request form', () => {
   it('preselects the account recipient and sends the actual 10,500 funding request', () => {
     const onSubmit = vi.fn();
     render(<MerchantCustodyModal initialAccount={account} counterparties={counterparties} myMerchantId="me" myUserId="my-user" onSubmit={onSubmit} onClose={vi.fn()} />);
-    expect(screen.getByRole('combobox', { name: 'selectMerchantCustodian' })).toHaveTextContent('Zakaria');
-    expect(screen.getByRole('combobox', { name: 'currency' })).toHaveTextContent('QAR');
+    expect(screen.getByLabelText('selectMerchantCustodian')).toHaveTextContent('Zakaria');
+    expect(screen.queryByRole('combobox', { name: 'selectMerchantCustodian' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('currency')).toHaveTextContent('QAR');
+    expect(screen.queryByRole('combobox', { name: 'currency' })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('amount'), { target: { value: '10500' } });
     fireEvent.click(screen.getByText('sendCustodyRequest'));
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(onSubmit).toHaveBeenCalledWith({ custodianMerchantId: 'zakaria', custodianUserId: 'zakaria-user', requesterMerchantId: 'me', relationshipId: 'relationship', amount: 10500, currency: 'QAR', note: undefined });
+  });
+  it('still offers recipient selection for a new custody request', () => {
+    render(<MerchantCustodyModal counterparties={counterparties} myMerchantId="me" myUserId="my-user" onSubmit={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'selectMerchantCustodian' })).toBeInTheDocument();
   });
   it('does not substitute a different merchant when account mapping is unavailable', () => {
     const onSubmit = vi.fn();
