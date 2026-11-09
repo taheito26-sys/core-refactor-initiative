@@ -2,7 +2,8 @@ import { Landmark } from 'lucide-react';
 import { useBankMisrRate } from './useBankMisrRate';
 
 /**
- * Live Bank Misr price of the Qatari riyal (QAR notes, buy), in EGP per 1 QAR.
+ * Live Bank Misr price of the Qatari riyal (QAR notes), in EGP per 1 QAR: the bank's sell price
+ * less the fixed margin in display-price.ts.
  * Renders nothing until a rate exists, so a missing feed never shows a dash or a stale zero.
  */
 export function BankMisrRateKpi({ lang }: { lang: 'en' | 'ar' }) {
@@ -11,7 +12,7 @@ export function BankMisrRateKpi({ lang }: { lang: 'en' | 'ar' }) {
 
   const ar = lang === 'ar';
   const time = new Date(data.fetchedAt).toLocaleTimeString(ar ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
-  const value = data.buy.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const value = data.price.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
   return (
     <div
@@ -25,7 +26,7 @@ export function BankMisrRateKpi({ lang }: { lang: 'en' | 'ar' }) {
       <div className="min-w-0 flex-1">
         <div className="text-[12px] font-semibold leading-tight">{ar ? 'سعر بنك مصر' : 'Bank Misr Price'}</div>
         <div className="text-[10px] leading-tight text-muted-foreground">
-          {ar ? `ريال قطري (أوراق نقدية) · شراء · تحديث ${time}` : `QAR notes · buy · updated ${time}`}
+          {ar ? `ريال قطري (أوراق نقدية) · تحديث ${time}` : `QAR notes · updated ${time}`}
         </div>
       </div>
       <div className="shrink-0 text-end leading-tight" dir="ltr">

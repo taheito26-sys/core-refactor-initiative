@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { bankMisrDisplayPrice } from './display-price';
 
 export interface BankMisrRate {
-  /** EGP the bank pays per 1 QAR note (its buy price). */
-  buy: number;
+  /** EGP per 1 QAR note shown to customers: the bank's sell price less the margin. */
+  price: number;
   fetchedAt: number;
 }
 
@@ -15,7 +16,7 @@ type UntypedClient = {
   from: (table: string) => {
     select: (cols: string) => {
       match: (q: Record<string, string>) => {
-        maybeSingle: () => Promise<{ data: { buy: number | string; fetched_at: string } | null; error: Error | null }>;
+        maybeSingle: () => Promise<{ data: { sell: number | string; fetched_at: string } | null; error: Error | null }>;
       };
     };
   };
@@ -31,12 +32,12 @@ export function useBankMisrRate() {
     queryFn: async (): Promise<BankMisrRate | null> => {
       const { data, error } = await (supabase as unknown as UntypedClient)
         .from('bank_exchange_rates')
-        .select('buy, fetched_at')
+        .select('sell, fetched_at')
         .match({ bank: 'bank_misr', currency: 'QAR', product: 'notes' })
         .maybeSingle();
       if (error) throw error;
-      const buy = data ? Number(data.buy) : NaN;
-      return data && Number.isFinite(buy) ? { buy, fetchedAt: new Date(data.fetched_at).getTime() } : null;
+      const price = data ? bankMisrDisplayPrice(Number(data.sell)) : null;
+      return data && price !== null ? { price, fetchedAt: new Date(data.fetched_at).getTime() } : null;
     },
   });
 }
