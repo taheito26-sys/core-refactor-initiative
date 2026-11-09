@@ -123,6 +123,18 @@ describe('saveCashToCloud', () => {
     expect(db.deletes).toHaveBeenCalledTimes(2);
   });
 
+  it('preserves custody recipient identity through the cloud adapter without changing balances', async () => {
+    const db = cashDatabase();
+    const metadata = encodeURIComponent(JSON.stringify({ merchantId: 'zack', relationshipId: 'rel-zack', purpose: 'custody' }));
+    const notes = `Original note [[custody-link:${metadata}]]`;
+    db.read.mockResolvedValueOnce({ data: [{ id: 'a1', name: 'Custody — zakaria', type: 'vault', currency: 'QAR', status: 'active', is_merchant_account: true, created_at: 1, notes }], error: null }).mockResolvedValueOnce({ data: [], error: null });
+    const loaded = await loadCashFromCloud();
+    expect(loaded.accounts[0]).toMatchObject({ id: 'a1', merchantId: 'zack', relationshipId: 'rel-zack', notes: 'Original note', purpose: 'custody' });
+    await saveCashToCloud(loaded.accounts, loaded.ledger);
+    expect(db.upserts).toHaveBeenCalledWith('cash_accounts', [expect.objectContaining({ id: 'a1', notes })]);
+    expect(loaded.ledger).toEqual([]);
+  });
+
   it('restores cash rows only for the explicitly requested account', async () => {
     const db = cashDatabase();
     await saveCashToCloud([account], [entry], true, 'user-1');

@@ -1,3 +1,4 @@
+import { encodeCustodyAccountNotes, decodeCustodyAccountNotes } from '@/features/cash/custody-account-link';
 import { trackAppSave } from './app-update-saves';
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
@@ -78,7 +79,7 @@ function accountToRow(a: CashAccount, userId: string) {
     status: a.status,
     bank_name: a.bankName ?? null,
     branch: a.branch ?? null,
-    notes: a.notes ?? null,
+    notes: encodeCustodyAccountNotes(a),
     last_reconciled: a.lastReconciled ?? null,
     is_merchant_account: a.isMerchantAccount ?? a.type === 'merchant_custody',
     created_at: a.createdAt,
@@ -88,6 +89,7 @@ function accountToRow(a: CashAccount, userId: string) {
 
 function rowToAccount(row: Record<string, unknown>): CashAccount {
   const isMerchantAccount = (row.is_merchant_account as boolean | null) ?? false;
+  const decoded: ReturnType<typeof decodeCustodyAccountNotes> = isMerchantAccount ? decodeCustodyAccountNotes(row.notes as string | null) : { notes: (row.notes as string | null) ?? undefined, link: {} };
 
   return {
     id: row.id as string,
@@ -97,11 +99,11 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
     status: row.status as 'active' | 'inactive',
     bankName: (row.bank_name as string | null) ?? undefined,
     branch: (row.branch as string | null) ?? undefined,
-    notes: (row.notes as string | null) ?? undefined,
+    notes: decoded.notes,
     lastReconciled: (row.last_reconciled as number | null) ?? undefined,
-    merchantId: (row.merchant_id as string | null) ?? undefined,
-    relationshipId: (row.relationship_id as string | null) ?? undefined,
-    purpose: (row.purpose as CashAccount['purpose']) ?? 'custody',
+    merchantId: (row.merchant_id as string | null) ?? decoded.link.merchantId,
+    relationshipId: (row.relationship_id as string | null) ?? decoded.link.relationshipId,
+    purpose: (row.purpose as CashAccount['purpose']) ?? decoded.link.purpose ?? 'custody',
     isMerchantAccount,
     createdAt: row.created_at as number,
   };

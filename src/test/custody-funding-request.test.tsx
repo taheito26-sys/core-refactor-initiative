@@ -18,6 +18,14 @@ describe('custody Add Cash request form', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(onSubmit).toHaveBeenCalledWith({ custodianMerchantId: 'zakaria', custodianUserId: 'zakaria-user', requesterMerchantId: 'me', relationshipId: 'relationship', amount: 10500, currency: 'QAR', note: undefined });
   });
+  it('repairs the legacy account case from an exact approved recipient label', () => {
+    const onSubmit = vi.fn();
+    render(<MerchantCustodyModal initialAccount={{ ...account, merchantId: undefined, name: 'Custody — Zakaria' }} counterparties={counterparties} myMerchantId="me" myUserId="my-user" onSubmit={onSubmit} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('amount'), { target: { value: '10500' } });
+    fireEvent.click(screen.getByText('sendCustodyRequest'));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ custodianUserId: 'zakaria-user', amount: 10500 }));
+    expect(screen.queryByText('missingMerchantUserMapping')).not.toBeInTheDocument();
+  });
   it('still offers recipient selection for a new custody request', () => {
     render(<MerchantCustodyModal counterparties={counterparties} myMerchantId="me" myUserId="my-user" onSubmit={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByRole('combobox', { name: 'selectMerchantCustodian' })).toBeInTheDocument();

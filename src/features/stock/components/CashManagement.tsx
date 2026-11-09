@@ -1,3 +1,4 @@
+import { resolveCustodyAccountRecipient } from '@/features/cash/custody-account-link';
 import { editCashAccount } from '@/features/cash/edit-account';
 import { CashOverview, type CashAccountAction } from '@/features/cash/CashOverview';
 import { PeriodPicker } from '@/components/shared/PeriodPicker';
@@ -928,10 +929,12 @@ export function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, o
   const [err, setErr] = useState('');
 
   const selected = initialAccount
-    ? counterparties.find(cp => initialAccount.merchantId
-      ? cp.counterpartyMerchantId === initialAccount.merchantId
-      : Boolean(initialAccount.relationshipId && cp.relationshipId === initialAccount.relationshipId))
+    ? resolveCustodyAccountRecipient(initialAccount, counterparties)
     : selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
+
+  useEffect(() => {
+    if (selected?.counterpartyUserId) setErr('');
+  }, [selected?.counterpartyUserId]);
 
   const handle = () => {
     if (!selected) { setErr(t('invalidRelationship')); return; }
@@ -4545,7 +4548,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                       respondRequest.mutate({ id: req.id, action: 'accept' });
                       const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && ((req.relationshipId && a.relationshipId === req.relationshipId) || a.merchantId === req.requesterMerchantId));
                       const custodyAccId = existingCustodyAcc?.id ?? uid();
-                      const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
+                      const newAccounts = existingCustodyAcc ? accounts.map(a => a.id === existingCustodyAcc.id ? { ...a, merchantId: input.custodianMerchantId, relationshipId: input.relationshipId, isMerchantAccount: true } : a) : [...accounts, {
                         id: custodyAccId,
                         name: `Custody — ${req.requesterMerchantId}`,
                         type: 'merchant_custody' as CashAccountType,
@@ -5957,9 +5960,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
                 const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
                 // Add local merchant_custody account + merchant_funding_out ledger entry
-                const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && ((input.relationshipId && a.relationshipId === input.relationshipId) || a.merchantId === input.custodianMerchantId));
+                const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.currency === input.currency && (a.id === showDeposit?.account.id || (input.relationshipId && a.relationshipId === input.relationshipId) || a.merchantId === input.custodianMerchantId));
                 const custodyAccId = existingCustodyAcc?.id ?? uid();
-                const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
+                const newAccounts = existingCustodyAcc ? accounts.map(a => a.id === existingCustodyAcc.id ? { ...a, merchantId: input.custodianMerchantId, relationshipId: input.relationshipId, isMerchantAccount: true } : a) : [...accounts, {
                   id: custodyAccId,
                   name: `Custody — ${cpLabel}`,
                   type: 'merchant_custody' as CashAccountType,
