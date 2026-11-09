@@ -24,6 +24,8 @@ import { NetPositionView } from '@/features/net-position/components/NetPositionV
 import { useLoanPaymentClaims, type LoanPaymentClaim } from '@/hooks/useLoanPaymentClaims';
 import { deleteCashAccountLedgerFromCloud, deleteCashAccountFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
+import { planCustodyMirror } from '@/features/cash/custody-mirror';
+import { useCustodyMirrorStatus } from '@/features/cash/useCustodyMirrorStatus';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery, monthKey } from '@/features/stock/utils/loanGrouping';
 import {
@@ -3180,6 +3182,19 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     return () => { cancelled = true; };
   }, [myMerchantId, myUserId]);
 
+  // A custody account on the non-holding side mirrors the holder's balance, so cash the
+  // holder adds directly shows up here too. Waits for the cloud load so it never writes
+  // against a stale local ledger.
+  const { data: custodyMirror } = useCustodyMirrorStatus();
+  useEffect(() => {
+    if (!cloudLoaded || !custodyMirror?.length) return;
+    const planned = planCustodyMirror(accounts, ledger, custodyMirror, Date.now());
+    if (planned.length === 0) return;
+    const nextLedger = [...ledger, ...planned];
+    applyState({ ...state, cashLedger: nextLedger, cashQAR: deriveCashQAR(accounts, nextLedger) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudLoaded, custodyMirror, accounts, ledger]);
+
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
   const activeAccounts = accounts.filter(a => a.status === 'active');
@@ -4548,7 +4563,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                       respondRequest.mutate({ id: req.id, action: 'accept' });
                       const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && ((req.relationshipId && a.relationshipId === req.relationshipId) || a.merchantId === req.requesterMerchantId));
                       const custodyAccId = existingCustodyAcc?.id ?? uid();
-                      const newAccounts = existingCustodyAcc ? accounts.map(a => a.id === existingCustodyAcc.id ? { ...a, merchantId: input.custodianMerchantId, relationshipId: input.relationshipId, isMerchantAccount: true } : a) : [...accounts, {
+                      const newAccounts = existingCustodyAcc ? accounts.map(a => a.id === existingCustodyAcc.id ? { ...a, merchantId: req.requesterMerchantId, relationshipId: req.relationshipId ?? a.relationshipId, isMerchantAccount: true } : a) : [...accounts, {
                         id: custodyAccId,
                         name: `Custody — ${req.requesterMerchantId}`,
                         type: 'merchant_custody' as CashAccountType,
