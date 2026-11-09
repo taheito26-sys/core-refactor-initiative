@@ -2191,6 +2191,8 @@ const translations = {
   cmCashAdded: { en: "Cash Added", ar: "إضافة نقد" },
   cmOpening: { en: "Opening Balance", ar: "الرصيد الافتتاحي" },
   cmSavedHistory: { en: 'Saved net position history', ar: 'سجل صافي المركز المحفوظ' },
+  cmManageAccount: { en: 'Manage', ar: 'إدارة' },
+  cmRemoveCash: { en: 'Remove Cash', ar: 'سحب نقد' },
   cmSubtitle: { en: 'Manage your cash, banks, loans and overall position', ar: 'أدر النقد والبنوك والقروض وصافي المركز' },
   cmNetPosition: { en: 'Total Net Position', ar: 'صافي المركز الإجمالي' },
   cmCards: { en: 'Cards', ar: 'بطاقات' },

@@ -170,6 +170,14 @@ export function isNotificationDeepLinkable(notification: AppNotification): boole
 export function buildNotificationNavigationTarget(notification: AppNotification): NotificationNavigationTarget {
   const { target } = notification;
 
+  // Custody notifications can still carry the retired /stock URL.
+  if (target.targetEntityType === 'cash_custody' || target.entityType === 'cash_custody') {
+    const id = target.targetEntityId || target.entityId;
+    const params = new URLSearchParams({ tab: 'accounts' });
+    if (id) params.set('focusCustodyId', id);
+    return { pathname: '/trading/cash', search: `?${params.toString()}` };
+  }
+
   // Priority 1: explicit action URL
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) {
     return parseInternalActionUrl(target.actionUrl);

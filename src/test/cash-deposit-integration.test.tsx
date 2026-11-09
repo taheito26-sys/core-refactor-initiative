@@ -1,7 +1,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import { fireEvent, screen } from '@testing-library/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
@@ -9,6 +9,9 @@ import { CashManagement } from '@/features/stock/components/CashManagement';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
 vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { range: 'all', language: 'en' }, update: vi.fn() }) }));
+
+const custodyRequests = vi.hoisted(() => ({ incoming: [] as { id: string; requesterMerchantId: string; amount: number; currency: string }[] }));
+vi.mock('@/hooks/useCashCustodyRequests', () => ({ useCashCustodyRequests: () => ({ pendingIncoming: custodyRequests.incoming, pendingOutgoing: [], createRequest: vi.fn(), respondRequest: vi.fn(), cancelRequest: vi.fn() }) }));
 
 vi.mock('@/features/net-position/api', () => ({ useNetPositionDays: () => ({ days: [] }), useNetPositionSettings: () => ({ loaded: false, settings: null }), usePersonalLoans: () => ({ loans: [], loaded: false }) }));
 vi.mock('@/features/exchanges/hooks/useExchangeBalances', () => ({ useExchangeBalances: () => ({ isSuccess: false }) }));
@@ -176,4 +179,22 @@ describe('cash management sale_deposit visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'cmViewLedger' }));
     expect(screen.getAllByText('Sale deposit').length).toBeGreaterThan(0);
   });
+});
+
+
+it('opens and highlights the custody request from its notification URL', async () => {
+  cleanup();
+  const scroll = vi.fn();
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = scroll;
+  custodyRequests.incoming = [{ id: 'custody-focus', requesterMerchantId: 'zack', amount: 1, currency: 'QAR' }];
+  try {
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/trading/cash?tab=accounts&focusCustodyId=custody-focus']}><CashManagement redesigned state={makeState()} applyState={() => undefined} /></MemoryRouter></QueryClientProvider>);
+    expect(document.getElementById('cash-custody-custody-focus')).toHaveClass('cm-custody-focused');
+    await waitFor(() => expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' }));
+  } finally {
+    cleanup();
+    custodyRequests.incoming = [];
+    Element.prototype.scrollIntoView = original;
+  }
 });

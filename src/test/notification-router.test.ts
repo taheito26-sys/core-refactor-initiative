@@ -122,3 +122,17 @@ describe('notification router', () => {
     expect(target.search).toContain('focusConnectionId=conn-1');
   });
 });
+
+
+describe('cash custody notification destinations', () => {
+  it.each([
+    { target_path: '/stock', target_entity_type: 'cash_custody', target_entity_id: 'custody-1' },
+    { target_path: '/trading/stock', target_tab: 'cash', target_entity_type: 'cash_custody', target_entity_id: 'custody-1' },
+    { entity_type: 'cash_custody', entity_id: 'custody-1' },
+    { action_url: '/stock?tab=cash', entity_type: 'cash_custody', entity_id: 'custody-1' },
+  ])('opens the cash request for legacy and current notifications: %j', fields => {
+    const notification = mapNotificationRowToModel({ id: 'custody-note', title: 'requested cash custody', body: '1 QAR', category: 'deal', read_at: null, created_at: new Date().toISOString(), ...fields });
+    expect(buildNotificationNavigationTarget(notification)).toEqual({ pathname: '/trading/cash', search: '?tab=accounts&focusCustodyId=custody-1' });
+    expect(isNotificationDeepLinkable(notification)).toBe(true);
+  });
+});

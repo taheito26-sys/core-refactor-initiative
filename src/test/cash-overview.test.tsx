@@ -29,11 +29,12 @@ describe('cash management reference layout', () => {
     show(); const card = screen.getByRole('article', { name: 'Cash' });
     fireEvent.click(within(card).getByRole('button', { name: 'View Ledger' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'ledger');
-    fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions · Cash' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Cash' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Add Cash' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'deposit');
-    fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions · Cash' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Transfer' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Remove Cash' }));
+    expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'withdrawal');
+    fireEvent.click(within(card).getByRole('button', { name: 'Manage · Cash' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Transfer' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'transfer');
   });
   it('filters account type and exports the selected account ledger only', () => {
@@ -41,8 +42,8 @@ describe('cash management reference layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filter accounts' }));
     fireEvent.change(screen.getByLabelText('Account type'), { target: { value: 'bank' } });
     expect(screen.getAllByRole('article')).toHaveLength(1);
-    fireEvent.keyDown(within(screen.getByRole('article', { name: 'My Bank' })).getByRole('button', { name: 'More actions · My Bank' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Statement' }));
+    fireEvent.click(within(screen.getByRole('article', { name: 'My Bank' })).getByRole('button', { name: 'Manage · My Bank' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Statement' }));
     expect(downloadTextFile).toHaveBeenCalledWith(expect.stringContaining('account-bank'), expect.stringContaining('17864'));
     expect(vi.mocked(downloadTextFile).mock.calls[0][1]).not.toContain('80000');
   });

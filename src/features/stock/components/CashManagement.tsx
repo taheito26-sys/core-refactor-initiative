@@ -3043,7 +3043,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   // doesn't have to go hunting for it among every other pending claim.
   const [searchParams] = useSearchParams();
   const focusClaimId = searchParams.get('focusLoanPaymentClaimId');
+  const focusCustodyId = searchParams.get('focusCustodyId');
   useEffect(() => {
+    if (searchParams.get('focusCustodyId') || searchParams.get('tab') === 'accounts') setInnerTab('accounts');
     if (searchParams.get('tab') === 'loans') setInnerTab('loans');
     if (searchParams.get('tab') === 'net-position') setInnerTab('position');
   }, [searchParams]);
@@ -3127,6 +3129,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     respondRequest,
     cancelRequest,
   } = useCashCustodyRequests();
+  useEffect(() => {
+    if (!focusCustodyId || innerTab !== 'accounts') return;
+    const timer = setTimeout(() => {
+      document.getElementById(`cash-custody-${focusCustodyId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [focusCustodyId, innerTab, pendingIncoming, pendingOutgoing]);
+
 
   const { pending: pendingPaymentClaims, changeRequests: paymentChangeRequests, reviewClaim, resolveChange } = useLoanPaymentClaims('merchant');
 
@@ -4516,7 +4526,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           <div className="panel-head"><h2><span className="cash-emoji">🤝</span> {t('pendingCustodyRequests')}</h2></div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map(req => (
-              <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
+              <div key={req.id} id={`cash-custody-${req.id}`} tabIndex={focusCustodyId === req.id ? -1 : undefined} className={focusCustodyId === req.id ? 'cm-custody-focused' : undefined} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyIncoming')}: {req.requesterMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
@@ -4565,7 +4575,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               </div>
             ))}
             {pendingOutgoing.map(req => (
-              <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--muted) 25%, transparent)', borderRadius: 8 }}>
+              <div key={req.id} id={`cash-custody-${req.id}`} tabIndex={focusCustodyId === req.id ? -1 : undefined} className={focusCustodyId === req.id ? 'cm-custody-focused' : undefined} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--muted) 25%, transparent)', borderRadius: 8 }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyOutgoingTo')}: {req.custodianMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
