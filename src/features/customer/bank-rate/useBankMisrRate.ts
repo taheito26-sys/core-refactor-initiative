@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface BankMisrRate {
-  /** EGP the bank charges per 1 QAR note. */
-  sell: number;
+  /** EGP the bank pays per 1 QAR note (its buy price). */
+  buy: number;
   fetchedAt: number;
 }
 
@@ -15,7 +15,7 @@ type UntypedClient = {
   from: (table: string) => {
     select: (cols: string) => {
       match: (q: Record<string, string>) => {
-        maybeSingle: () => Promise<{ data: { sell: number | string; fetched_at: string } | null; error: Error | null }>;
+        maybeSingle: () => Promise<{ data: { buy: number | string; fetched_at: string } | null; error: Error | null }>;
       };
     };
   };
@@ -31,12 +31,12 @@ export function useBankMisrRate() {
     queryFn: async (): Promise<BankMisrRate | null> => {
       const { data, error } = await (supabase as unknown as UntypedClient)
         .from('bank_exchange_rates')
-        .select('sell, fetched_at')
+        .select('buy, fetched_at')
         .match({ bank: 'bank_misr', currency: 'QAR', product: 'notes' })
         .maybeSingle();
       if (error) throw error;
-      const sell = data ? Number(data.sell) : NaN;
-      return data && Number.isFinite(sell) ? { sell, fetchedAt: new Date(data.fetched_at).getTime() } : null;
+      const buy = data ? Number(data.buy) : NaN;
+      return data && Number.isFinite(buy) ? { buy, fetchedAt: new Date(data.fetched_at).getTime() } : null;
     },
   });
 }

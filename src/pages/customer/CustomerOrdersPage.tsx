@@ -1170,7 +1170,7 @@ export default function CustomerOrdersPage() {
       {/* Mobile install banner — rendered once at page level (Req 9.1) */}
       <MobileInstallBanner />
 
-      {!isMobile && <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} variant="card" />}
+      {!isMobile && <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} />}
 
       {isMobile ? (
         <>
@@ -1224,7 +1224,7 @@ export default function CustomerOrdersPage() {
           </section>
 
           <div className="px-3 pt-3">
-            <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} variant="card" />
+            <BankMisrRateKpi lang={lang === 'ar' ? 'ar' : 'en'} />
           </div>
 
           <div className="co-mainwrap">

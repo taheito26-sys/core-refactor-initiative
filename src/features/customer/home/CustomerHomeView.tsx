@@ -230,12 +230,14 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
           {rateCard('blue', t('Avg Selling Price', 'متوسط سعر البيع'), p.average.value, p.average.trend, <SolidWallet />)}
           {rateCard('green', t('Emergency Price', 'سعر الطوارئ'), p.emergency.value, p.emergency.trend, <CoinsTwo />, true)}
         </div>
-        <BankMisrRateKpi lang={lang} variant="hero" />
       </section>
 
       {p.belowHero}
 
       <div className="ch-gap">
+        {/* Live Bank Misr price: in the page body, since the hero's backdrop ends above the rate cards' lower edge */}
+        <BankMisrRateKpi lang={lang} />
+
         {/* Quick actions */}
         <section className="ch-card ch-actions">
           {actions.map(a => (
