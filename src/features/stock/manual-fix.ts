@@ -1,4 +1,4 @@
-import { uid, type Batch } from '@/lib/tracker-helpers';
+import { computeFIFO, totalStock, uid, type TrackerState, type Batch } from '@/lib/tracker-helpers';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 
@@ -24,7 +24,7 @@ const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
 
 export function planManualFix(items: Pick<PendingExchangeItem, 'effect'>[]): ManualFixPlan {
   const net = round8(items.reduce((sum, i) => sum + i.effect, 0));
-  if (Math.abs(net) < 0.005) return { mode: 'none', amount: 0 };
+  if (Math.abs(net) <= 1e-8) return { mode: 'none', amount: 0 };
   return net > 0 ? { mode: 'trim', amount: net } : { mode: 'add', amount: -net };
 }
 
@@ -58,4 +58,29 @@ export function buildManualFixBatch(input: {
     initialUSDT: round8(input.amount),
     revisions: [],
   };
+}
+
+/** Include stock consumed by earlier uncovered sales when bringing stock up to the target. */
+export function buildBalanceFixBatch(input: Parameters<typeof buildManualFixBatch>[0] & {
+  state: Pick<TrackerState, 'batches' | 'trades' | 'usdtTransfers'>;
+  exchangeTotal: number;
+}): Batch {
+  const batch = buildManualFixBatch(input);
+  const derived = computeFIFO([...input.state.batches, batch], input.state.trades, input.state.usdtTransfers);
+  const after = totalStock(derived);
+  const shortfall = [...derived.tradeCalc.values(), ...derived.transferCalc.values()]
+    .reduce((sum, row) => sum + row.shortfallQty, 0);
+  batch.initialUSDT = round8(batch.initialUSDT + input.exchangeTotal - after + shortfall);
+  return batch;
+}
+
+/** A fix can only be confirmed when every selected reduction fits and closes the gap. */
+export function canApplyBalanceReductions(target: number, reductions: Array<{ batchId: string; amount: number }>, batches: Array<{ id: string; remaining: number }>): boolean {
+  const ids = new Set<string>();
+  return target > 0 && reductions.length > 0 && reductions.every(r => {
+    const batch = batches.find(b => b.id === r.batchId);
+    if (ids.has(r.batchId)) return false;
+    ids.add(r.batchId);
+    return batch && Number.isFinite(r.amount) && r.amount >= 0 && r.amount <= batch.remaining;
+  }) && Math.abs(target - reductions.reduce((sum, r) => sum + r.amount, 0)) <= 1e-8;
 }

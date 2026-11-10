@@ -46,7 +46,7 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { addOrderLink, dismissExchangeRecord, markTransfersLinked } from '@/features/exchanges/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
-import { buildManualFixBatch, planManualFix } from '@/features/stock/manual-fix';
+import { buildBalanceFixBatch, canApplyBalanceReductions, planManualFix } from '@/features/stock/manual-fix';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { P2PAuditButton } from '@/features/exchanges/components/P2PAuditButton';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
@@ -135,8 +135,6 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
   const [editFundingAccountId, setEditFundingAccountId] = useState('none');
 
-  /** Correct the tracker-vs-exchange delta by trimming one or more stock batches. */
-  const [showFixMismatchModal, setShowFixMismatchModal] = useState(false);
   const queryClient = useQueryClient();
   // Exchange records being fixed by hand instead of registered as an order, purchase or loan.
   const [manualFixItems, setManualFixItems] = useState<PendingExchangeItem[] | null>(null);
@@ -263,36 +261,27 @@ export default function StockPage() {
     return totals;
   }, [exchangeBalances]);
   const exchangeUsdtTotal = exchangeUsdtTotals.binance + exchangeUsdtTotals.okx;
-  /** A gap of up to 50 USDT between tracker and exchanges still counts as a match. */
-  const RECONCILIATION_TOLERANCE_USDT = 50;
+  /** Match at the stock ledger precision; do not hide a remaining balance difference. */
+  const RECONCILIATION_TOLERANCE_USDT = 1e-8;
 
-  /** Filter to only recent batches (September 2026 onwards) for reconciliation */
-  const septemberCutoff = new Date('2026-09-01T00:00:00Z').getTime();
-  const recentBatches = derived.batches.filter(b => {
-    const batch = state.batches.find(sb => sb.id === b.id);
-    return batch && batch.ts >= septemberCutoff;
-  });
-  const recentAvailableUsdt = recentBatches.reduce((s, b) => s + Math.max(0, b.remainingUSDT), 0);
-
-  const reconciliationDelta = recentAvailableUsdt - exchangeUsdtTotal;
+  // Reconcile the same complete stock balance used by FIFO, regardless of date filters.
+  const reconciliationDelta = availableUsdt - exchangeUsdtTotal;
   const reconciliationMismatch = Math.abs(reconciliationDelta) > RECONCILIATION_TOLERANCE_USDT;
   // Before a mismatch is blamed on the stock batches, net out every Binance /
   // OKX record still unregistered in the tracker (sales and buys both) --
   // those move the exchange balance first and the tracker only once imported.
   const pendingExchangeItems = usePendingExchangeItems(state);
-  // Filter pending items to only recent ones (September onwards)
-  const recentPendingItems = pendingExchangeItems.filter(item => item.ts >= septemberCutoff);
   const reconcileExplanation = useMemo(
-    () => explainReconciliationDelta(reconciliationDelta, recentPendingItems),
-    [recentPendingItems, reconciliationDelta],
+    () => explainReconciliationDelta(reconciliationDelta, pendingExchangeItems),
+    [pendingExchangeItems, reconciliationDelta],
   );
-  /** The mismatch left once every unregistered exchange record is imported -- what batches should actually be fixed for. */
+  /** The projected difference after importing pending records, used only to explain the gap. */
   const residualDelta = reconcileExplanation.remaining;
-  const residualMismatch = Math.abs(residualDelta) > 1;
+  const residualMismatch = Math.abs(residualDelta) > RECONCILIATION_TOLERANCE_USDT;
   const mismatchExplained = reconciliationMismatch && reconcileExplanation.items.length > 0 && !residualMismatch;
   /** One tone drives the whole reconciliation card: green = in sync, amber = gap explained by pending imports, red = real gap. */
   const reconTone = !reconciliationMismatch ? 'var(--good)' : mismatchExplained ? 'var(--warn)' : 'var(--bad)';
-  const reconTotalMax = Math.max(recentAvailableUsdt, exchangeUsdtTotal, 1);
+  const reconTotalMax = Math.max(availableUsdt, exchangeUsdtTotal, 1);
   /** Whole numbers hide a sub-unit gap as "-0", so small gaps are shown with decimals. */
   const fmtReconDelta = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtU(Math.abs(n), Math.abs(n) < 1 ? 2 : 0)}`;
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
@@ -847,6 +836,11 @@ export default function StockPage() {
    * several batches in one commit instead of one at a time.
    */
   const applyMismatchFix = (reductions: Array<{ batchId: string; amount: number }>) => {
+    if (!canApplyBalanceReductions(reconciliationDelta, reductions,
+      derived.batches.map(b => ({ id: b.id, remaining: b.remainingUSDT })))) {
+      toast.error(t('reconciliationIncomplete'));
+      return false;
+    }
     const nextBatches = [...state.batches];
     let nextCashLedger = [...(state.cashLedger || [])];
     let totalCostDelta = 0;
@@ -877,11 +871,16 @@ export default function StockPage() {
         ].slice(0, 20),
       };
     }
+    const nextAvailable = totalStock(computeFIFO(nextBatches, state.trades, state.usdtTransfers));
+    if (Math.abs(nextAvailable - exchangeUsdtTotal) > 1e-8) {
+      toast.error(t('reconciliationIncomplete'));
+      return false;
+    }
     const newCashQAR = (state.cashAccounts || []).length > 0
       ? deriveCashQAR(state.cashAccounts, nextCashLedger)
       : Math.max(0, num(state.cashQAR, 0) - totalCostDelta);
     applyState({ ...state, batches: nextBatches, cashLedger: nextCashLedger, cashQAR: newCashQAR });
-    setShowFixMismatchModal(false);
+    return true;
   };
 
   /** Marks the records a manual fix covered as resolved, so they leave "needs a decision" and the mismatch explanation. */
@@ -903,31 +902,14 @@ export default function StockPage() {
   };
 
   const applyManualFixAdd = (items: PendingExchangeItem[], amount: number, priceQAR: number, note: string) => {
-    applyState({ ...state, batches: [...state.batches, buildManualFixBatch({ amount, priceQAR, items, note })] });
-    void finishManualFix(items);
-  };
-
-  /**
-   * Reconciliation fix when exchanges hold more than the tracker: prefill
-   * the Add Batch form with the missing quantity so the merchant only has
-   * to confirm the price and source instead of retyping the amount.
-   */
-  const prefillReconciliationBatch = (amountUSDT: number) => {
-    setBatchDate(nowInput());
-    setBatchEntryMode('qty_price');
-    setBatchUsdtQty(String(amountUSDT));
-    setBatchPrice('');
-    setBatchAmount('');
-    setBatchNote(t('reconciliationBatchNote') || 'Exchange reconciliation top-up');
-    setFundingAccountId('none');
-    setBatchMsg('');
-    if (isMobile) {
-      setAddBatchSheetOpen(true);
-    } else {
-      window.setTimeout(() => {
-        focusElementBySelectors(['#batch-usdt-qty-input', '[data-batch-qty-input]']);
-      }, 60);
+    const batch = buildBalanceFixBatch({ amount, priceQAR, items, note, state, exchangeTotal: exchangeUsdtTotal });
+    const batches = [...state.batches, batch];
+    if (Math.abs(totalStock(computeFIFO(batches, state.trades, state.usdtTransfers)) - exchangeUsdtTotal) > 1e-8) {
+      toast.error(t('reconciliationIncomplete'));
+      return;
     }
+    applyState({ ...state, batches });
+    void finishManualFix(items);
   };
 
   const deleteBatch = () => {
@@ -1051,9 +1033,9 @@ export default function StockPage() {
   const v2Spark = (pick: (b: typeof perf[number]) => number) => bucketSeries(perf.map(b => ({ ts: b.ts, value: pick(b) })));
   const v2Money = (v: number, signed = false) => { const { n, u } = splitMoney(fmtC(v)); return { value: `${signed && v >= 0 ? '+' : ''}${n}`, unit: u || undefined }; };
   const v2Kpis: V2Kpi[] = !v2 ? [] : [
-    { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(recentAvailableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
+    { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(availableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
     { key: 'invested', label: t('totalInvestedQar'), Icon: Wallet, tone: 'brand', ...v2Money(v2Invested), spark: v2Spark(b => b.initialUSDT * b.buyPriceQAR) },
-    ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(recentAvailableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
+    ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(availableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
     { key: 'avg', label: t('monthAvgBuyPrice'), Icon: Coins, tone: 'warn', value: monthAvgBuyPrice != null ? fmtP(monthAvgBuyPrice) : '—', unit: monthAvgBuyPrice != null ? `${localCur(baseFiat, t.lang)}/${localCur('USDT', t.lang)}` : undefined, kind: 'line', spark: perf.length > 1 ? [...perf].reverse().map(b => b.buyPriceQAR) : undefined },
   ];
   const v2Extras = !v2 ? [] : [
@@ -1286,7 +1268,7 @@ export default function StockPage() {
             })}
             {kpiChip({
               label: t('availableUsdtShort') || 'Available USDT',
-              value: <>{fmtU(recentAvailableUsdt)} {localCur('USDT', t.lang)}</>,
+              value: <>{fmtU(availableUsdt)} {localCur('USDT', t.lang)}</>,
               color: 'var(--good)',
               valueColor: 'var(--good)',
             })}
@@ -1297,7 +1279,7 @@ export default function StockPage() {
             })}
             {wacop > 0 && kpiChip({
               label: t('estValue') || 'Est. Value',
-              value: fmtC(recentAvailableUsdt * wacop),
+              value: fmtC(availableUsdt * wacop),
               color: '#8b5cf6',
             })}
             {activeFifoBatch && kpiChip({
@@ -1371,7 +1353,7 @@ export default function StockPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
                   {[
-                    { label: t('reconciliationTrackerQty') || 'Tracker (available stock)', value: recentAvailableUsdt },
+                    { label: t('reconciliationTrackerQty') || 'Tracker (available stock)', value: availableUsdt },
                     { label: t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)', value: exchangeUsdtTotal },
                   ].map((row) => (
                     <div key={row.label} style={{ padding: 10, borderRadius: 10, background: 'color-mix(in srgb, var(--text) 5%, transparent)' }}>
@@ -1429,25 +1411,25 @@ export default function StockPage() {
                 {reconciliationMismatch && residualMismatch && (
                   <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div>
-                      {(residualDelta < 0
+                      {(reconciliationDelta < 0
                         ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
                         : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
-                      ).split('{amount}').join(fmtU(Math.abs(residualDelta)))}
+                      ).split('{amount}').join(fmtU(Math.abs(reconciliationDelta)))}
                     </div>
-                    {residualDelta > 0 && (
+                    {reconciliationDelta > 0 && (
                       <button
                         className="rowBtn"
                         style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
-                        onClick={() => setShowFixMismatchModal(true)}
+                        onClick={() => setManualFixItems(reconcileExplanation.items)}
                       >
                         🛠️ {t('reconciliationFixWithBatches') || 'Fix with batches'}
                       </button>
                     )}
-                    {residualDelta < 0 && (
+                    {reconciliationDelta < 0 && (
                       <button
                         className="rowBtn"
                         style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 35%, transparent)' }}
-                        onClick={() => prefillReconciliationBatch(Math.abs(residualDelta))}
+                        onClick={() => setManualFixItems(reconcileExplanation.items)}
                       >
                         ➕ {t('reconciliationAddMissingBatch') || 'Add missing batch'}
                       </button>
@@ -2338,14 +2320,14 @@ export default function StockPage() {
       )}
 
       {manualFixItems && (() => {
-        const plan = planManualFix(manualFixItems);
+        const plan = planManualFix([{ effect: reconciliationDelta }]);
         if (plan.mode === 'trim') {
           return (
             <FixMismatchModal
               targetDelta={plan.amount}
-              batches={perf.filter(b => b.remaining > 1e-9)}
+              batches={state.batches.map(b => ({ ...b, remaining: derived.batches.find(d => d.id === b.id)?.remainingUSDT ?? 0 })).filter(b => b.remaining > 1e-9)}
               isMobile={isMobile}
-              onApply={(reductions) => { applyMismatchFix(reductions); void finishManualFix(manualFixItems); }}
+              onApply={(reductions) => { if (applyMismatchFix(reductions)) void finishManualFix(manualFixItems); }}
               onClose={() => setManualFixItems(null)}
             />
           );
@@ -2366,15 +2348,6 @@ export default function StockPage() {
         );
       })()}
 
-      {showFixMismatchModal && (
-        <FixMismatchModal
-          targetDelta={residualDelta}
-          batches={perf.filter(b => b.remaining > 1e-9)}
-          isMobile={isMobile}
-          onApply={applyMismatchFix}
-          onClose={() => setShowFixMismatchModal(false)}
-        />
-      )}
     </div>
   );
 }
@@ -2457,6 +2430,8 @@ function FixMismatchModal({ targetDelta, batches, isMobile = false, onApply, onC
     [selected, amounts]
   );
   const leftover = targetDelta - allocated;
+  const canApply = canApplyBalanceReductions(targetDelta,
+    Array.from(selected).map(id => ({ batchId: id, amount: num(amounts[id], 0) })), batches);
 
   const toggle = (b: FixMismatchBatch) => {
     setSelected(prev => {
@@ -2481,7 +2456,7 @@ function FixMismatchModal({ targetDelta, batches, isMobile = false, onApply, onC
     const reductions = Array.from(selected)
       .map(id => ({ batchId: id, amount: num(amounts[id], 0) }))
       .filter(r => r.amount > 0);
-    if (reductions.length === 0) return;
+    if (!canApply || reductions.length === 0) return;
     onApply(reductions);
   };
 
@@ -2550,7 +2525,7 @@ function FixMismatchModal({ targetDelta, batches, isMobile = false, onApply, onC
 
         <div className="formActions">
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ background: 'var(--bad)', color: '#fff' }} disabled={allocated <= 0} onClick={handleApply}>
+          <button className="btn" style={{ background: 'var(--bad)', color: '#fff' }} disabled={!canApply} onClick={handleApply}>
             {t('reconciliationApplyFix') || 'Apply Fix'}
           </button>
         </div>

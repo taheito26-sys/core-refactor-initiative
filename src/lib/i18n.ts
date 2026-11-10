@@ -769,6 +769,7 @@ const translations = {
   reconciliationDelta: { en: 'Delta', ar: 'الفرق' },
   reconciliationStatus: { en: 'Status', ar: 'الحالة' },
   reconciliationMatch: { en: 'Matches within tolerance', ar: 'متطابق ضمن الهامش المسموح' },
+  reconciliationIncomplete: { en: 'The adjustment must close the entire balance difference. Review the selected batches and amounts.', ar: 'يجب أن يغلق التعديل فرق الرصيد بالكامل. راجع الدفعات والمبالغ المحددة.' },
   reconciliationMismatch: { en: 'Mismatch flagged', ar: 'تم رصد فرق' },
   reconcileExplainedStatus: { en: 'Unregistered orders', ar: 'طلبات غير مسجلة' },
   reconcilePendingHeader: { en: '{count} Binance/OKX record(s) not registered yet account for {amount} USDT of this delta:', ar: '{count} سجل من Binance/OKX غير مسجل بعد يفسر {amount} USDT من هذا الفرق:' },
