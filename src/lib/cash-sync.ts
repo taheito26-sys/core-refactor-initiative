@@ -87,7 +87,7 @@ function accountToRow(a: CashAccount, userId: string) {
   };
 }
 
-function rowToAccount(row: Record<string, unknown>): CashAccount {
+export function rowToAccount(row: Record<string, unknown>): CashAccount {
   const isMerchantAccount = (row.is_merchant_account as boolean | null) ?? false;
   const decoded: ReturnType<typeof decodeCustodyAccountNotes> = isMerchantAccount ? decodeCustodyAccountNotes(row.notes as string | null) : { notes: (row.notes as string | null) ?? undefined, link: {} };
 
@@ -194,7 +194,7 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
   };
 }
 
-function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
+export function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
   const { note, banknoteBreakdown, expenseCategory } = decodeNoteWithBreakdown(row.note as string | null);
   return {
     id: row.id as string,
@@ -217,6 +217,24 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
     batchId: (row.batch_id as string | null) ?? undefined,
     settlementId: (row.settlement_id as string | null) ?? undefined,
   };
+}
+
+/**
+ * Upsert-only write of brand-new ledger entries (the custody mirror's adjustments), for callers
+ * that run outside any page's tracker state. It deletes nothing, and ids are deterministic, so a
+ * repeat or a second device writes the same row.
+ */
+export async function upsertLedgerEntriesToCloud(entries: CashLedgerEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  if (DISABLE_CASH_CLOUD_SYNC || _cashClearInProgress || isTrackerClearInProgress() || isTrackerDataCleared()) return;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) return;
+  const { error } = await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .upsert(entries.map((e) => entryToRow(e, user.id)), { onConflict: 'id' });
+  if (error) throw new Error(`Cash ledger save failed: ${error.message}`);
 }
 
 // Save (full upsert)

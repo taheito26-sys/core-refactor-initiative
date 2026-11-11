@@ -7,9 +7,10 @@ type UntypedClient = {
   rpc: (fn: string) => Promise<{ data: CustodyMirrorStatus[] | null; error: Error | null }>;
 };
 
-export function useCustodyMirrorStatus() {
+export function useCustodyMirrorStatus(enabled = true) {
   return useQuery({
     queryKey: ['custody-mirror-status'],
+    enabled,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     retry: 1,

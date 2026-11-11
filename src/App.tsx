@@ -16,6 +16,7 @@ import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 import { ExchangeAutoSyncBootstrap } from "@/features/exchanges/components/ExchangeAutoSyncBootstrap";
+import { CustodyMirrorBootstrap } from "@/features/cash/CustodyMirrorBootstrap";
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
@@ -340,6 +341,7 @@ const App = () => (
             <AuthDiagnostics />
             <ChatRuntimeBootstrap />
             <ExchangeAutoSyncBootstrap />
+            <CustodyMirrorBootstrap />
             <RouteErrorBoundary>
               <React.Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
