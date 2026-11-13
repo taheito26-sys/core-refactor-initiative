@@ -1456,7 +1456,7 @@ const translations = {
   supplierNameRequired: { en: 'Supplier name', ar: 'اسم المورد' },
   buyerFullNameRequired: { en: 'Enter the buyer’s full name (first and family name), or select an existing buyer. Dashes, numbers and placeholder names are not accepted.', ar: 'أدخل الاسم الكامل للمشتري (الاسم الأول واسم العائلة) أو اختر مشتريًا موجودًا. لا تُقبل الشرطات أو الأرقام أو الأسماء الوهمية.' },
   orderBuyerMissing: { en: 'Buyer required — edit order', ar: 'المشتري مطلوب — عدّل الطلب' },
-  orderBuyerPickRequired: { en: 'Select a saved buyer before saving the order. To add a new buyer, save their details first.', ar: 'اختر مشتريًا محفوظًا قبل حفظ الطلب. لإضافة مشترٍ جديد، احفظ بياناته أولاً.' },
+  orderBuyerPickRequired: { en: 'Enter a buyer name or select a saved buyer. If several buyers share that name, select the correct buyer.', ar: 'أدخل اسم المشتري أو اختر مشتريًا محفوظًا. إذا تكرر الاسم، اختر المشتري الصحيح.' },
   buyerNameRequiredMsg: { en: 'Buyer name is required', ar: 'اسم المشتري مطلوب' },
   supplierNameRequiredMsg: { en: 'Supplier name is required', ar: 'اسم المورد مطلوب' },
 

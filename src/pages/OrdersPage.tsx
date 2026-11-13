@@ -1,6 +1,6 @@
 import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
-import { hasSavedOrderBuyer, resolveSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
+import { canSaveOrderBuyer, materializeOrderBuyer, hasSavedOrderBuyer, resolveSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -1593,17 +1593,14 @@ export default function OrdersPage() {
   };
   const newSaleSplitError = !newSaleSplitOpen ? null : validateSplitPlan({
     total: newSaleSplitAnchorTotal, qtyA: splitQtyANum, qtyB: splitQtyBNum, priceA: splitPriceANum, priceB: splitPriceBNum,
-    hasBuyerA: !!saleBuyerId, hasBuyerB: !!newSaleSplitCustomerId,
+    hasBuyerA: canSaveOrderBuyer(allBuyerOptions, buyerName, buyerId), hasBuyerB: canSaveOrderBuyer(allBuyerOptions, newSaleSplitCustomerText, newSaleSplitCustomerId),
     sameBuyer: (!!saleBuyerId && saleBuyerId === newSaleSplitCustomerId)
       || (!!buyerName.trim() && buyerName.trim().toLowerCase() === newSaleSplitCustomerText.trim().toLowerCase()),
   });
 
-  // Only an explicitly selected, saved buyer can own either half of a split.
-  const resolveSplitParty = (pickedId: string, _typedText: string, customersIn: Customer[]): { id: string; customers: Customer[] } => {
-    const option = allBuyerOptions.find(c => (c.source === 'connected' ? c.customerUserId : c.id) === pickedId);
-    const materialized = option ? materializeListedCustomer(option, customersIn) : null;
-    return { id: materialized?.id || '', customers: materialized?.customers || customersIn };
-  };
+  // Both split legs accept typed names and save their buyers with the order.
+  const resolveSplitParty = (pickedId: string, typedText: string, customersIn: Customer[]): { id: string; customers: Customer[] } =>
+    materializeOrderBuyer(allBuyerOptions, typedText, pickedId, customersIn);
 
   const fifoDisplayUnitCost = useMemo(() => {
     if (priceMode !== 'fifo' || !saleFifoPreview) return null;
@@ -2073,7 +2070,7 @@ export default function OrdersPage() {
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
     if (!(amountUSDT > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
-    if (!saleBuyerId || !buyerName.trim()) errs.push(t('orderBuyerPickRequired'));
+    if (!canSaveOrderBuyer(allBuyerOptions, buyerName, buyerId)) errs.push(t('orderBuyerPickRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
     const splitAmountNum = newSaleSplitOpen ? Number(newSaleSplitAmount) : 0;
@@ -2156,20 +2153,9 @@ export default function OrdersPage() {
     const nextTrades = state.trades;
     const nextCustomerLoans = state.customerLoans;
     const nextDeletedCustomerIds = state.deletedCustomerIds;
-    let customerId = '';
-    if (selectedSaleBuyer) {
-      // The buyer was picked from the list (a local or connected customer),
-      // so buyerId already names the right, stable identity -- use it as-is
-      // rather than re-deriving from the displayed name. Re-deriving by name
-      // is what silently starts a second, disconnected customer the moment
-      // that name changes (a rename, a translation, the connected customer
-      // editing their own profile): the old name no longer matches, so a
-      // fresh id gets created and every future order lands under it while
-      // the buyer's whole prior history stays stuck under the old one.
-      const materialized = materializeListedCustomer(selectedSaleBuyer, state.customers);
-      customerId = materialized?.id || '';
-      nextCustomers = materialized?.customers || state.customers;
-    }
+    const materializedBuyer = materializeOrderBuyer(allBuyerOptions, buyerName, buyerId, nextCustomers);
+    const customerId = materializedBuyer.id;
+    nextCustomers = materializedBuyer.customers;
     if (!hasSavedOrderBuyer(nextCustomers, customerId)) {
       setSaleMessage(t('orderBuyerPickRequired'));
       return;

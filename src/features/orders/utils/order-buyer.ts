@@ -1,6 +1,6 @@
-import type { ListedCustomer } from '@/features/merchants/lib/customer-listing';
+import { materializeListedCustomer, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
-import type { Customer, Trade, TrackerState } from '@/lib/tracker-helpers';
+import { uid, type Customer, type Trade, type TrackerState } from '@/lib/tracker-helpers';
 
 export function hasSavedOrderBuyer(customers: Customer[] | undefined, customerId: string | undefined): boolean {
   return !!customerId && !!customers?.some(customer => customer.id === customerId
@@ -39,4 +39,26 @@ export function resolveSavedOrderBuyer(options: ListedCustomer[], text: string, 
       .some(name => isMeaningfulBuyerName(name) && normalizeBuyerName(name).toLocaleLowerCase('en') === key)
   ).map(customer => [idOf(customer), customer]));
   return matches.size === 1 ? [...matches.values()][0] : null;
+}
+
+/** Typed names are accepted, but ambiguous saved identities still need a selection. */
+export function canSaveOrderBuyer(options: ListedCustomer[], text: string, selectedId = ''): boolean {
+  if (!isMeaningfulBuyerName(text)) return false;
+  if (resolveSavedOrderBuyer(options, text, selectedId)) return true;
+  return !options.some(option => resolveSavedOrderBuyer([option], text));
+}
+
+/** Save a typed buyer together with the order; preserve an existing or connected identity. */
+export function materializeOrderBuyer(options: ListedCustomer[], text: string, selectedId: string, customers: Customer[]): { id: string; customers: Customer[] } {
+  if (!canSaveOrderBuyer(options, text, selectedId)) return { id: '', customers };
+  const chosen = resolveSavedOrderBuyer(options, text, selectedId);
+  if (chosen) return materializeListedCustomer(chosen, customers);
+  // Include buyers created earlier in the same order (for example, a split).
+  const existing = resolveSavedOrderBuyer(customers, text);
+  if (existing) return materializeListedCustomer(existing, customers);
+  const customer: Customer = {
+    id: uid(), name: normalizeBuyerName(text), phone: '', tier: 'C',
+    dailyLimitUSDT: 0, notes: '', createdAt: Date.now(),
+  };
+  return { id: customer.id, customers: [...customers, customer] };
 }
