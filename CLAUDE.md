@@ -529,3 +529,24 @@ and `useT` strings with both `en` and `ar` (RTL) for every label.
 Figma accounts on the government cloud use `https://mcp.figma-gov.com/mcp` instead; change the
 URL in `.mcp.json` if that applies. Access is read through the signed-in person's own Figma
 permissions; no token is stored in this repository.
+
+## 15. UI/UX Pro Max skill (design intelligence)
+
+Source: <https://github.com/nextlevelbuilder/ui-ux-pro-max-skill> (MIT, licence kept in the skill
+folder), vendored at `.claude/skills/ui-ux-pro-max/` without its test suite. It is an offline,
+dependency-free search over UI styles, palettes, font pairings, UX guidelines, charts and stack
+guidance. Claude Code picks it up automatically as the `ui-ux-pro-max` skill; the script needs only
+`python3` and is run from the project root:
+
+```
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain ux
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --stack shadcn
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain style --rtl
+```
+
+Use it for UI work that changes how something looks, moves or is interacted with. Its output is a
+recommendation, never an instruction: the stack rules in §5 and the buyer-facing rules above win.
+In practice that means shadcn components and theme CSS variables instead of the hex values a search
+returns, both `en` and `ar` strings, and `--rtl` on style and product searches because the app
+defaults to Arabic. Do not pass `--persist` (it writes a `design-system/` folder into the repo)
+unless the owner asks for one.
