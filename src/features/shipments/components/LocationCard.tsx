@@ -1,13 +1,13 @@
 import { ExternalLink, MapPin } from 'lucide-react';
 import { agoLabel, type Lang } from '../route';
-import { LOCATION_SOURCE_LABELS, formatCoords, mapEmbedUrl, mapsLink } from '../geo';
+import { LOCATION_SOURCE_LABELS, formatCoords, mapEmbedUrl, mapsLink, placeText } from '../geo';
 import type { ShipmentLocation } from '../types';
 
 /**
- * Where the driver last reported from: a map, how long ago, how precise, and what the point came from
- * (the hourly update, a temperature photo, or a confirmed stop).
+ * Where the driver last reported from: the area by name, a map, how long ago and how precise, and the recent
+ * trail of points (the hourly updates, temperature photos and confirmed stops) with the area of each.
  */
-export function LocationCard({ location, lang, now }: { location: ShipmentLocation | null; lang: Lang; now: number }) {
+export function LocationCard({ location, trail = [], lang, now }: { location: ShipmentLocation | null; trail?: ShipmentLocation[]; lang: Lang; now: number }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   if (!location) {
     return (
@@ -18,8 +18,11 @@ export function LocationCard({ location, lang, now }: { location: ShipmentLocati
     );
   }
   const source = LOCATION_SOURCE_LABELS[location.source];
+  const area = placeText(location, lang);
+  const earlier = trail.filter((p) => p.recorded_at !== location.recorded_at).slice(0, 8);
   return (
     <div className="space-y-3">
+      {area && <div className="text-lg font-bold leading-snug">{area}</div>}
       <iframe
         title={L('Map of the truck’s last known position', 'خريطة آخر موقع معروف للشاحنة')}
         src={mapEmbedUrl(location.latitude, location.longitude)}
@@ -37,6 +40,20 @@ export function LocationCard({ location, lang, now }: { location: ShipmentLocati
         </a>
       </div>
       <div className="text-xs text-muted-foreground" dir="ltr" style={{ textAlign: 'start' }}>{formatCoords(location.latitude, location.longitude)}</div>
+
+      {earlier.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <h4 className="text-xs font-bold text-muted-foreground">{L('Earlier positions', 'مواقع سابقة')}</h4>
+          <ul className="divide-y divide-border rounded-2xl border border-border">
+            {earlier.map((p) => (
+              <li key={p.recorded_at} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 truncate font-medium">{placeText(p, lang) ?? <span dir="ltr">{formatCoords(p.latitude, p.longitude)}</span>}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{agoLabel(p.recorded_at, now, lang)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

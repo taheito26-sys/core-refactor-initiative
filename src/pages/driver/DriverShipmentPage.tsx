@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from '@/lib/theme-context';
+import { TripHero } from '@/features/shipments/components/TripHero';
+import { TripStats } from '@/features/shipments/components/TripStats';
+import { tripSummary } from '@/features/shipments/trip-summary';
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { DueBadge } from '@/features/shipments/components/DueBadge';
 import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
@@ -57,17 +60,9 @@ export default function DriverShipmentPage() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <Link to="/d/shipments" className="inline-flex items-center gap-1 text-sm text-primary"><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />{L('My shipments', 'شحناتي')}</Link>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-extrabold">{shipment.reference}</h1>
-          <StatusChip status={shipment.status} lang={lang} />
-        </div>
-        <p className="text-sm text-muted-foreground">{shipment.cargo}</p>
-        <p className="text-xs text-muted-foreground">
-          {L('Keep at', 'الحرارة المطلوبة')} <b dir="ltr">{shipment.target_temp_c}°C</b> (±{shipment.tolerance_c}) · {L('photo every', 'صورة كل')} {shipment.reading_interval_hours} {L('h', 'ساعة')}
-        </p>
-      </div>
+      <Link to="/d/shipments" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />{L('My shipments', 'شحناتي')}</Link>
+      <TripHero shipment={shipment} lang={lang} now={now} />
+      <p className="px-1 text-xs text-muted-foreground">{L('Photo every', 'صورة كل')} {shipment.reading_interval_hours} {L('hours while on the road', 'ساعات أثناء الرحلة')}</p>
 
       {shipment.status === 'delivered' && <p className="rounded-xl bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-700 dark:text-emerald-400" role="status">{L('Delivered. Thank you.', 'تم التسليم. شكرًا لك.')}</p>}
       {shipment.status === 'cancelled' && <p className="rounded-xl bg-muted p-3 text-sm" role="status">{L('This shipment was cancelled.', 'تم إلغاء هذه الشحنة.')}</p>}
@@ -110,6 +105,13 @@ export default function DriverShipmentPage() {
               </form>
             </>
           ) : null}
+        </section>
+      )}
+
+      {shipment.status !== 'preparing' && (
+        <section className="space-y-2">
+          <h2 className="text-base font-bold">{L('This trip so far', 'رحلتك حتى الآن')}</h2>
+          <TripStats summary={tripSummary(shipment, now, lang)} lang={lang} />
         </section>
       )}
 

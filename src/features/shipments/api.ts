@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { EntryMode, Fix } from './geo';
+import type { EntryMode, Fix, PlaceLabels } from './geo';
 import type { Shipment, ShipmentDriver, ShipmentLocation, ShipmentReading, ShipmentStop, ShipmentWithDetails } from './types';
 
 // The generated Supabase types predate the shipments tables and functions; drop this cast once
@@ -23,7 +23,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 }
 
 const LIST_SELECT =
-  '*, driver:shipment_drivers(id, display_name, truck_plate, phone), stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, accuracy_m, recorded_at, source)';
+  '*, driver:shipment_drivers(id, display_name, truck_plate, phone), stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, accuracy_m, recorded_at, source, place_ar, place_en)';
 
 /** Shipments the caller can see: a customer's own, or the ones assigned to a driver. Newest first. */
 export async function listShipments(): Promise<ShipmentWithDetails[]> {
@@ -51,7 +51,7 @@ export async function getShipment(id: string): Promise<ShipmentDetail | null> {
     .eq('id', id)
     .order('taken_at', { ascending: false, referencedTable: 'readings' })
     .order('recorded_at', { ascending: false, referencedTable: 'locations' })
-    .limit(1, { referencedTable: 'locations' })
+    .limit(30, { referencedTable: 'locations' })
     .maybeSingle();
   if (error) throw error;
   return (data as ShipmentDetail | null) ?? null;
@@ -134,6 +134,8 @@ export interface ReadingInput {
   entryMode: EntryMode;
   /** What the automatic reader saw, kept even when the driver changed it. */
   read: { temperature: number; setPoint: number | null } | null;
+  /** The area the photo was taken in, when it could be named. */
+  place: PlaceLabels | null;
 }
 
 /** Uploads the stamped photo, then records the reading with the phone's time and position. */
@@ -156,6 +158,8 @@ export async function submitReading(input: ReadingInput): Promise<ShipmentReadin
     p_entry_mode: input.entryMode,
     p_read_temperature: input.read?.temperature ?? null,
     p_read_set_point: input.read?.setPoint ?? null,
+    p_place_ar: input.place?.ar ?? null,
+    p_place_en: input.place?.en ?? null,
   });
 }
 
@@ -167,6 +171,7 @@ export interface LocationPointInput {
   /** When the phone took the fix, epoch ms. */
   recordedAt: number;
   source: 'auto' | 'stop' | 'reading';
+  place?: PlaceLabels | null;
 }
 
 export const logLocation = (p: LocationPointInput) =>
@@ -177,6 +182,8 @@ export const logLocation = (p: LocationPointInput) =>
     p_accuracy: p.accuracy,
     p_device_time: new Date(p.recordedAt).toISOString(),
     p_source: p.source,
+    p_place_ar: p.place?.ar ?? null,
+    p_place_en: p.place?.en ?? null,
   });
 
 export interface TripData extends Shipment {

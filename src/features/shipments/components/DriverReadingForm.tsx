@@ -4,9 +4,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { deriveEntryMode, formatCoords, formatStampTime, isFreshFix, type Fix } from '../geo';
+import { deriveEntryMode, formatCoords, formatStampTime, isFreshFix, placeText, type Fix, type PlaceLabels } from '../geo';
 import { useSubmitReading } from '../hooks';
 import { getFix, LocationError } from '../location';
+import { lookupPlace } from '../place';
 import { readScreen, type ScreenReading } from '../read-screen';
 import { parseTemperatureInput, toggleSign, type Lang } from '../route';
 import { stampPhoto } from '../stamp';
@@ -22,6 +23,7 @@ interface Captured {
   previewUrl: string;
   fix: Fix;
   capturedAt: number;
+  place: PlaceLabels | null;
 }
 
 type Phase = 'idle' | 'working' | 'location-failed';
@@ -84,9 +86,10 @@ export function DriverReadingForm({
     try {
       setStep('reading');
       const capturedAt = file.lastModified && Math.abs(Date.now() - file.lastModified) <= MAX_PHOTO_AGE_MS ? file.lastModified : Date.now();
-      const stamped = await stampPhoto(file, { capturedAt, fix, reference: shipment.reference, driverName });
+      const place = await lookupPlace(fix.latitude, fix.longitude);
+      const stamped = await stampPhoto(file, { capturedAt, fix, reference: shipment.reference, driverName, place: placeText(place ? { place_ar: place.ar, place_en: place.en } : null, lang) });
       const result = await reading;
-      setCaptured({ stamped, previewUrl: URL.createObjectURL(stamped), fix, capturedAt });
+      setCaptured({ stamped, previewUrl: URL.createObjectURL(stamped), fix, capturedAt, place });
       setRead(result);
       if (result) {
         setReadState('read');
@@ -121,7 +124,7 @@ export function DriverReadingForm({
     try {
       await submit.mutateAsync({
         shipmentId: shipment.id, photo: captured.stamped, temperatureC: temp, setPointC: setPointValue, note: note.trim(),
-        fix: captured.fix, capturedAt: captured.capturedAt, entryMode: deriveEntryMode(read, temp, setPointValue), read,
+        fix: captured.fix, capturedAt: captured.capturedAt, place: captured.place, entryMode: deriveEntryMode(read, temp, setPointValue), read,
       });
       toast.success(L('Reading sent', 'تم إرسال القراءة'));
       reset();
@@ -150,7 +153,7 @@ export function DriverReadingForm({
       {phase === 'working' && (
         <div className="flex h-44 flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/40 text-center" role="status" aria-live="polite">
           <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden="true" />
-          <div className="text-base font-bold">{step === 'locating' ? L('Getting your location…', 'جارٍ تحديد موقعك…') : L('Stamping the photo and reading the screen…', 'جارٍ ختم الصورة وقراءة الشاشة…')}</div>
+          <div className="text-base font-bold">{step === 'locating' ? L('Getting your location…', 'جارٍ تحديد موقعك…') : L('Finding the area, stamping the photo, reading the screen…', 'جارٍ تحديد المنطقة وختم الصورة وقراءة الشاشة…')}</div>
         </div>
       )}
 
@@ -173,7 +176,12 @@ export function DriverReadingForm({
           <img src={captured.previewUrl} alt={L('Your stamped photo of the temperature screen', 'صورتك المختومة لشاشة الحرارة')} className="max-h-80 w-full rounded-xl bg-muted object-contain" />
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span dir="ltr" className="text-start">{formatStampTime(captured.capturedAt)} · {formatCoords(captured.fix.latitude, captured.fix.longitude)}{captured.fix.accuracy != null ? ` ±${Math.round(captured.fix.accuracy)} m` : ''}</span>
+            <span className="text-start">
+              {placeText(captured.place ? { place_ar: captured.place.ar, place_en: captured.place.en } : null, lang) && (
+                <b className="block text-sm text-foreground">{placeText({ place_ar: captured.place?.ar, place_en: captured.place?.en }, lang)}</b>
+              )}
+              <span dir="ltr" className="block">{formatStampTime(captured.capturedAt)} · {formatCoords(captured.fix.latitude, captured.fix.longitude)}{captured.fix.accuracy != null ? ` ±${Math.round(captured.fix.accuracy)} m` : ''}</span>
+            </span>
           </div>
           <Button type="button" variant="outline" className="h-12 w-full" onClick={() => { reset(); fileRef.current?.click(); }}>
             <RotateCcw className="me-2 h-4 w-4" aria-hidden="true" />{L('Retake photo', 'إعادة التصوير')}

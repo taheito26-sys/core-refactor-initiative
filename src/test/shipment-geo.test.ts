@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  deriveEntryMode, formatCoords, formatStampTime, haversineKm, isFreshFix, mapEmbedUrl, mapsLink, stampLines,
+  deriveEntryMode, formatCoords, formatStampTime, haversineKm, isFreshFix, mapEmbedUrl, mapsLink,
 } from '@/features/shipments/geo';
 
 describe('geo', () => {
@@ -53,5 +53,27 @@ describe('geo', () => {
     expect(isFreshFix({ timestamp: 1000 }, 1000 + 60_000, 120_000)).toBe(true);
     expect(isFreshFix({ timestamp: 1000 }, 1000 + 600_000, 120_000)).toBe(false);
     expect(isFreshFix({ timestamp: 1000 + 600_000 }, 1000, 120_000)).toBe(false);
+  });
+});
+
+import { placeText, stampLines } from '@/features/shipments/geo';
+
+describe('area names', () => {
+  const place = { place_ar: 'بورسعيد', place_en: 'Port Said' };
+  it('picks the language asked for, and falls back to the other one', () => {
+    expect(placeText(place, 'ar')).toBe('بورسعيد');
+    expect(placeText(place, 'en')).toBe('Port Said');
+    expect(placeText({ place_ar: 'بورسعيد', place_en: null }, 'en')).toBe('بورسعيد');
+    expect(placeText({ place_ar: null, place_en: null }, 'en')).toBeNull();
+    expect(placeText(null, 'ar')).toBeNull();
+  });
+
+  it('adds the area to the photo stamp between the time and the coordinates, only when known', () => {
+    const base = { capturedAt: Date.UTC(2026, 10, 14, 7, 52), fix: { latitude: 31.26, longitude: 32.3, accuracy: 10 }, reference: 'SH-0001' };
+    expect(stampLines(base)).toHaveLength(2);
+    const lines = stampLines({ ...base, place: 'Port Said' });
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe('Port Said');
+    expect(lines[2]).toContain('31.26000°N');
   });
 });

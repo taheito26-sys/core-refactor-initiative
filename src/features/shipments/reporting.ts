@@ -1,5 +1,6 @@
 import { logLocation } from './api';
 import { getFix } from './location';
+import { lookupPlace } from './place';
 import { LocationReporter } from './location-reporter';
 
 let reporter: LocationReporter | null = null;
@@ -16,7 +17,8 @@ export function getLocationReporter(): LocationReporter {
         }
       },
       send: async (p) => {
-        await logLocation(p);
+        // The area name is worked out when the point is sent, so a point queued in a dead zone still gets one.
+        await logLocation({ ...p, place: await lookupPlace(p.latitude, p.longitude) });
       },
       now: () => Date.now(),
       storage: window.localStorage,
@@ -29,7 +31,7 @@ export function getLocationReporter(): LocationReporter {
 export async function reportStopLocation(shipmentId: string): Promise<void> {
   try {
     const fix = await getFix({ timeoutMs: 8_000, maxAgeMs: 120_000, highAccuracy: false });
-    await logLocation({ shipmentId, latitude: fix.latitude, longitude: fix.longitude, accuracy: fix.accuracy, recordedAt: fix.timestamp, source: 'stop' });
+    await logLocation({ shipmentId, latitude: fix.latitude, longitude: fix.longitude, accuracy: fix.accuracy, recordedAt: fix.timestamp, source: 'stop', place: await lookupPlace(fix.latitude, fix.longitude) });
     getLocationReporter().noteReported(shipmentId);
   } catch {
     // The hourly report will carry the position instead.

@@ -1,5 +1,5 @@
 import { ExternalLink, MapPin, ScanLine, TriangleAlert } from 'lucide-react';
-import { ENTRY_MODE_LABELS, formatCoords, formatStampTime, mapsLink } from '../geo';
+import { ENTRY_MODE_LABELS, formatCoords, formatStampTime, mapsLink, placeText } from '../geo';
 import type { Lang } from '../route';
 import type { ShipmentReading } from '../types';
 
@@ -8,9 +8,11 @@ export function ReadingStamp({ reading, lang }: { reading: ShipmentReading; lang
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const mode = ENTRY_MODE_LABELS[reading.entry_mode];
   const hasPlace = reading.latitude != null && reading.longitude != null;
+  const area = placeText(reading, lang);
   return (
     <div className="space-y-1 text-xs text-muted-foreground">
       {reading.device_taken_at && <div dir="ltr" style={{ textAlign: 'start' }}>{formatStampTime(new Date(reading.device_taken_at).getTime())}</div>}
+      {area && <div className="flex items-start gap-1.5 text-sm font-semibold text-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />{area}</div>}
       {hasPlace && (
         <a className="inline-flex items-center gap-1.5 hover:text-primary" href={mapsLink(reading.latitude as number, reading.longitude as number)} target="_blank" rel="noreferrer">
           <MapPin className="h-3.5 w-3.5" aria-hidden="true" />

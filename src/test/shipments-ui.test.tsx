@@ -7,11 +7,13 @@ const submitReading = vi.fn();
 const getFixMock = vi.fn();
 const readScreenMock = vi.fn();
 const stampMock = vi.fn(async () => new Blob(['stamped'], { type: 'image/jpeg' }));
+const lookupPlaceMock = vi.fn();
 vi.mock('@/features/shipments/api', () => ({
   submitReading: (...a: unknown[]) => submitReading(...a),
   signedPhotoUrl: vi.fn().mockResolvedValue('https://example.test/photo.jpg'),
 }));
 vi.mock('@/features/shipments/location', async (orig) => ({ ...(await orig<typeof import('@/features/shipments/location')>()), getFix: (...a: unknown[]) => getFixMock(...a) }));
+vi.mock('@/features/shipments/place', () => ({ lookupPlace: (...a: unknown[]) => lookupPlaceMock(...a) }));
 vi.mock('@/features/shipments/read-screen', () => ({ readScreen: (...a: unknown[]) => readScreenMock(...a) }));
 vi.mock('@/features/shipments/stamp', () => ({ stampPhoto: (...a: unknown[]) => (stampMock as (...x: unknown[]) => Promise<Blob>)(...a) }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { channel: vi.fn(), removeChannel: vi.fn() } }));
@@ -38,8 +40,8 @@ const shipment = (over: Partial<ShipmentWithDetails> = {}): ShipmentWithDetails 
   started_at: '2026-11-14T08:00:00Z', delivered_at: null, created_at: '2026-11-14T07:00:00Z',
   driver: { id: 'd1', display_name: 'Ahmed El-Sayed', truck_plate: 'ABC 123', phone: null },
   stops: [stop(10, 'Obour (Cairo)', '2026-11-14T08:00:00Z'), stop(20, 'Kafr El Sheikh', '2026-11-14T09:30:00Z'), stop(30, 'Port Said', null), stop(40, 'Qatar (delivery)', null)],
-  readings: [{ id: 'r1', shipment_id: 'sh1', temperature_c: 8.5, set_point_c: -15, photo_path: 'sh1/a.jpg', note: null, is_alert: true, taken_at: '2026-11-14T11:42:00Z', latitude: 25.2854, longitude: 51.531, accuracy_m: 12, device_taken_at: '2026-11-14T11:41:50Z', time_mismatch: false, entry_mode: 'auto' }],
-  locations: [{ latitude: 25.2854, longitude: 51.531, accuracy_m: 12, recorded_at: '2026-11-14T11:42:00Z', source: 'reading' }],
+  readings: [{ id: 'r1', shipment_id: 'sh1', temperature_c: 8.5, set_point_c: -15, photo_path: 'sh1/a.jpg', note: null, is_alert: true, taken_at: '2026-11-14T11:42:00Z', latitude: 25.2854, longitude: 51.531, accuracy_m: 12, device_taken_at: '2026-11-14T11:41:50Z', time_mismatch: false, entry_mode: 'auto', place_ar: 'بورسعيد', place_en: 'Port Said' }],
+  locations: [{ latitude: 25.2854, longitude: 51.531, accuracy_m: 12, recorded_at: '2026-11-14T11:42:00Z', source: 'reading', place_ar: 'بورسعيد', place_en: 'Port Said' }],
   ...over,
 });
 
@@ -130,11 +132,18 @@ const FIX = { latitude: 25.2854, longitude: 51.531, accuracy: 12, timestamp: Dat
 describe('Last seen and the proof on a reading', () => {
   it('shows when the truck was last seen on the card', () => {
     wrap(<ShipmentCard shipment={shipment()} lang="en" now={NOW} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Last seen 18 min ago/)).toBeTruthy();
+    expect(screen.getByText('Port Said')).toBeTruthy();
+    expect(screen.getAllByText(/18 min ago/).length).toBeGreaterThan(0);
+  });
+
+  it('says Last seen on the card when the area could not be named', () => {
+    wrap(<ShipmentCard shipment={shipment({ locations: [{ ...shipment().locations[0], place_ar: null, place_en: null }] })} lang="en" now={NOW} onOpen={vi.fn()} />);
+    expect(screen.getByText(/Last seen/)).toBeTruthy();
   });
 
   it('shows the stamp, the position link and how the number was entered', () => {
     wrap(<ReadingStamp reading={shipment().readings[0]} lang="en" />);
+    expect(screen.getByText('Port Said')).toBeTruthy();
     expect(screen.getByText('25.28540°N 51.53100°E ±12 m')).toBeTruthy();
     expect(screen.getByText('Read from the photo')).toBeTruthy();
     expect(screen.getByRole('link').getAttribute('href')).toContain('google.com/maps?q=25.285400,51.531000');
@@ -142,7 +151,7 @@ describe('Last seen and the proof on a reading', () => {
   });
 
   it('warns when the phone clock disagrees with the server', () => {
-    wrap(<ReadingStamp reading={{ ...shipment().readings[0], time_mismatch: true, entry_mode: 'manual' }} lang="en" />);
+    wrap(<ReadingStamp reading={{ ...shipment().readings[0], time_mismatch: true, entry_mode: 'manual', place_ar: null, place_en: null }} lang="en" />);
     expect(screen.getByText('Phone clock differs from the server')).toBeTruthy();
     expect(screen.getByText('Typed by the driver')).toBeTruthy();
   });
@@ -152,6 +161,14 @@ describe('Last seen and the proof on a reading', () => {
     expect(container.querySelector('iframe')?.getAttribute('src')).toContain('openstreetmap.org/export/embed.html');
     expect(screen.getByText(/Last seen 18 min ago/)).toBeTruthy();
     expect(screen.getByText(/temperature photo/)).toBeTruthy();
+  });
+
+  it('names the area first on the map card, in Arabic when asked, and lists earlier positions', () => {
+    const earlier = { ...shipment().locations[0], recorded_at: '2026-11-14T09:00:00Z', place_ar: 'كفر الشيخ', place_en: 'Kafr El Sheikh' };
+    wrap(<LocationCard location={shipment().locations[0]} trail={[shipment().locations[0], earlier]} lang="ar" now={NOW} />);
+    expect(screen.getByText('بورسعيد')).toBeTruthy();
+    expect(screen.getByText('كفر الشيخ')).toBeTruthy();
+    expect(screen.getByText('مواقع سابقة')).toBeTruthy();
   });
 
   it('says so when no location has been shared', () => {
@@ -174,6 +191,7 @@ describe('DriverReadingForm', () => {
     getFixMock.mockResolvedValue({ ...FIX, timestamp: Date.now() });
     readScreenMock.mockResolvedValue({ temperature: 8.5, setPoint: -15 });
     submitReading.mockResolvedValue({});
+    lookupPlaceMock.mockResolvedValue({ ar: 'الحي العربي، بورسعيد', en: 'Al-Arab, Port Said' });
   });
 
   it('cannot send before a photo is taken', () => {
@@ -185,7 +203,7 @@ describe('DriverReadingForm', () => {
     form();
     pick();
     await waitFor(() => expect(tempInput().value).toBe('8.5'));
-    expect(stampMock).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ reference: 'SH-0001', driverName: 'Ahmed', fix: expect.objectContaining({ latitude: 25.2854 }) }));
+    expect(stampMock).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ reference: 'SH-0001', driverName: 'Ahmed', fix: expect.objectContaining({ latitude: 25.2854 }), place: 'Al-Arab, Port Said' }));
     expect(screen.getByText(/read automatically/i)).toBeTruthy();
     expect((screen.getByLabelText('Set point shown (°C)') as HTMLInputElement).value).toBe('-15');
     expect(sendButton().disabled).toBe(false);
@@ -195,8 +213,20 @@ describe('DriverReadingForm', () => {
     expect(submitReading.mock.calls[0][0]).toMatchObject({
       shipmentId: 'sh1', temperatureC: 8.5, setPointC: -15, entryMode: 'auto', read: { temperature: 8.5, setPoint: -15 },
       fix: expect.objectContaining({ longitude: 51.531 }),
+      place: { ar: 'الحي العربي، بورسعيد', en: 'Al-Arab, Port Said' },
     });
     await waitFor(() => expect(tempInput().value).toBe(''));
+  });
+
+  it('still sends the reading, with the coordinates alone, when the area cannot be named', async () => {
+    lookupPlaceMock.mockResolvedValue(null);
+    form();
+    pick();
+    await waitFor(() => expect(tempInput().value).toBe('8.5'));
+    expect(stampMock).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ place: null }));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(submitReading).toHaveBeenCalled());
+    expect(submitReading.mock.calls[0][0].place).toBeNull();
   });
 
   it('falls back to typing when the screen cannot be read', async () => {

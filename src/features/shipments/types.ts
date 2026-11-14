@@ -27,6 +27,8 @@ export interface ShipmentReading {
   /** The phone's clock and the server's differ by more than ten minutes. */
   time_mismatch: boolean;
   entry_mode: 'auto' | 'auto_edited' | 'manual';
+  place_ar: string | null;
+  place_en: string | null;
 }
 
 export interface ShipmentLocation {
@@ -37,6 +39,8 @@ export interface ShipmentLocation {
   accuracy_m: number | null;
   recorded_at: string;
   source: 'auto' | 'reading' | 'stop';
+  place_ar: string | null;
+  place_en: string | null;
 }
 
 export interface ShipmentDriver {

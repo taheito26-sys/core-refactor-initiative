@@ -44,15 +44,17 @@ export interface StampInput {
   fix: Pick<Fix, 'latitude' | 'longitude' | 'accuracy'>;
   reference: string;
   driverName?: string | null;
+  /** The area the photo was taken in, when it could be named. */
+  place?: string | null;
 }
 
-/** The two lines burned into the bottom of every reefer photo. */
-export function stampLines({ capturedAt, fix, reference, driverName }: StampInput): [string, string] {
+/** The lines burned into the bottom of every reefer photo: time, then the area when known, then the position. */
+export function stampLines({ capturedAt, fix, reference, driverName, place }: StampInput): string[] {
   const accuracy = fix.accuracy != null ? ` ±${Math.round(fix.accuracy)} m` : '';
-  return [
-    `${formatStampTime(capturedAt)}  ·  ${reference}${driverName ? `  ·  ${driverName}` : ''}`,
-    `${formatCoords(fix.latitude, fix.longitude)}${accuracy}`,
-  ];
+  const lines = [`${formatStampTime(capturedAt)}  ·  ${reference}${driverName ? `  ·  ${driverName}` : ''}`];
+  if (place) lines.push(place);
+  lines.push(`${formatCoords(fix.latitude, fix.longitude)}${accuracy}`);
+  return lines;
 }
 
 export type EntryMode = 'auto' | 'auto_edited' | 'manual';
@@ -101,3 +103,15 @@ export function isFreshFix(fix: Pick<Fix, 'timestamp'>, now: number, maxAgeMs: n
 }
 
 export type { Lang };
+
+/** The names of the area a point is in, as the phone worked them out. */
+export interface PlaceLabels {
+  ar: string | null;
+  en: string | null;
+}
+
+/** The area name in the reader's language, or the other language when only that one is known. */
+export function placeText(place: { place_ar?: string | null; place_en?: string | null } | null | undefined, lang: 'ar' | 'en'): string | null {
+  if (!place) return null;
+  return (lang === 'ar' ? place.place_ar || place.place_en : place.place_en || place.place_ar) || null;
+}

@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import {
   agoLabel, attentionState, latestReading, liveness, readingDue, stopName, stopProgress, type Lang,
 } from '../route';
+import { placeText } from '../geo';
 import type { ShipmentWithDetails } from '../types';
 import { LiveStamp } from './LiveStamp';
 import { PhotoThumb } from './PhotoThumb';
@@ -51,7 +52,9 @@ export function ShipmentCard({ shipment, lang, now, onOpen }: { shipment: Shipme
       {shipment.locations[0] && (
         <div className="-mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {L('Last seen', 'آخر ظهور')} {agoLabel(shipment.locations[0].recorded_at, now, lang)}
+          <span className="min-w-0 truncate">
+            {placeText(shipment.locations[0], lang) ? <b className="text-foreground">{placeText(shipment.locations[0], lang)}</b> : L('Last seen', 'آخر ظهور')} · {agoLabel(shipment.locations[0].recorded_at, now, lang)}
+          </span>
         </div>
       )}
 

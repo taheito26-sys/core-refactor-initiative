@@ -11,13 +11,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
 import { agoLabel, latestReading, liveness, readingDue, type Lang } from '../route';
+import { tripSummary } from '../trip-summary';
 import { LiveStamp } from './LiveStamp';
 import { LocationCard } from './LocationCard';
 import { ReadingStamp } from './ReadingStamp';
 import { PhotoThumb } from './PhotoThumb';
 import { RouteLine } from './RouteLine';
 import { RouteTimeline } from './RouteTimeline';
-import { StatusChip } from './StatusChip';
+import { TripHero } from './TripHero';
+import { TripStats } from './TripStats';
 import { TemperatureChart } from './TemperatureChart';
 import { TemperatureRange } from './TemperatureRange';
 
@@ -50,19 +52,22 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
   return (
     <Sheet open={!!shipmentId} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent side={lang === 'ar' ? 'left' : 'right'} className="w-full overflow-y-auto p-0 sm:max-w-2xl" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <SheetHeader className="space-y-1 border-b border-border p-6 text-start">
-          <div className="flex flex-wrap items-center gap-3 pe-8">
-            <SheetTitle className="text-2xl font-extrabold">{shipment?.reference ?? L('Shipment', 'الشحنة')}</SheetTitle>
-            {shipment && <StatusChip status={shipment.status} lang={lang} />}
-          </div>
-          <SheetDescription className="text-sm">{shipment?.cargo ?? ''}</SheetDescription>
+        <SheetHeader className="sr-only">
+          <SheetTitle>{shipment?.reference ?? L('Shipment', 'الشحنة')}</SheetTitle>
+          <SheetDescription>{shipment?.cargo ?? ''}</SheetDescription>
         </SheetHeader>
 
         {isLoading && <div className="space-y-4 p-6"><Skeleton className="h-48 w-full rounded-2xl" /><Skeleton className="h-32 w-full rounded-2xl" /></div>}
         {!isLoading && !shipment && shipmentId && <p className="p-6 text-sm text-muted-foreground">{L('This shipment is no longer available.', 'هذه الشحنة لم تعد متاحة.')}</p>}
 
         {shipment && due && (
-          <div className="space-y-8 p-6">
+          <div className="space-y-8 p-5 pt-12 sm:p-6 sm:pt-12">
+            <TripHero shipment={shipment} lang={lang} now={now} />
+
+            <Section title={L('The trip in numbers', 'الرحلة بالأرقام')}>
+              <TripStats summary={tripSummary(shipment, now, lang)} lang={lang} />
+            </Section>
+
             <Section title={L('Latest temperature', 'آخر درجة حرارة')}>
               <div className={cn('space-y-4 rounded-2xl p-4', last?.is_alert ? 'bg-destructive/10' : 'bg-muted/50')}>
                 {last ? (
@@ -96,7 +101,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
             </Section>
 
             <Section title={L('Where is the truck', 'أين الشاحنة')}>
-              <LocationCard location={shipment.locations[0] ?? null} lang={lang} now={now} />
+              <LocationCard location={shipment.locations[0] ?? null} trail={shipment.locations} lang={lang} now={now} />
             </Section>
 
             <Section title={L('Route', 'المسار')}>
@@ -138,7 +143,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                         <span className={cn('text-xl font-extrabold tabular-nums', r.is_alert && 'text-destructive')} dir="ltr">{temp(r.temperature_c)}</span>
                         {r.is_alert && <span className="inline-flex items-center gap-1 text-xs font-bold text-destructive"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />{L('Out of range', 'خارج النطاق')}</span>}
                       </div>
-                      <div className="mb-1 text-xs text-muted-foreground">{new Date(r.taken_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-GB')} · {agoLabel(r.taken_at, now, lang)}</div>
+                      <div className="mb-1 text-xs text-muted-foreground">{agoLabel(r.taken_at, now, lang)}</div>
                       <ReadingStamp reading={r} lang={lang} />
                     </div>
                   </li>
