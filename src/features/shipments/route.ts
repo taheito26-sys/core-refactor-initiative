@@ -119,6 +119,9 @@ export function durationLabel(ms: number, lang: Lang): string {
   return m === 0 ? `${h} ${hUnit}` : `${h} ${hUnit} ${m} ${mUnit}`;
 }
 
+/** The tag colour each status takes on the portal's order-style cards. */
+export const STATUS_TAG: Record<ShipmentStatus, string> = { preparing: 'warn', on_the_road: 'blue', delivered: 'ok', cancelled: 'grey' };
+
 export const STATUS_LABELS: Record<ShipmentStatus, { en: string; ar: string }> = {
   preparing: { en: 'Preparing', ar: 'قيد التجهيز' },
   on_the_road: { en: 'On the road', ar: 'في الطريق' },

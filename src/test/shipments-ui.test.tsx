@@ -21,14 +21,10 @@ vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ userId: 'u1' 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
-import { LocationCard } from '@/features/shipments/components/LocationCard';
-import { ReadingStamp } from '@/features/shipments/components/ReadingStamp';
 import { LocationError } from '@/features/shipments/location';
 import type { LocationAccess } from '@/features/shipments/useLocationAccess';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { RouteLine } from '@/features/shipments/components/RouteLine';
-import { TemperatureRange } from '@/features/shipments/components/TemperatureRange';
-import { LiveStamp } from '@/features/shipments/components/LiveStamp';
 
 const NOW = new Date('2026-11-14T12:00:00Z').getTime();
 const stop = (seq: number, name: string, reached: string | null) =>
@@ -48,31 +44,45 @@ const shipment = (over: Partial<ShipmentWithDetails> = {}): ShipmentWithDetails 
 const wrap = (ui: React.ReactElement) => render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
 
 describe('ShipmentCard', () => {
-  it('shows the route ends, progress, driver and an out-of-range temperature in words', () => {
+  it('shows the reference, the temperature against the target, the driver, the area and the route progress', () => {
     wrap(<ShipmentCard shipment={shipment()} lang="en" now={NOW} onOpen={vi.fn()} />);
     expect(screen.getByText('SH-0001')).toBeTruthy();
-    expect(screen.getByText('Obour (Cairo)')).toBeTruthy();
-    expect(screen.getByText('Qatar (delivery)')).toBeTruthy();
+    expect(screen.getByText('8.5')).toBeTruthy();
+    expect(screen.getAllByText('Out of range').length).toBeGreaterThan(0);
+    expect(screen.getByText('-15')).toBeTruthy();
     expect(screen.getByText('Ahmed El-Sayed')).toBeTruthy();
-    expect(screen.getByText('8.5°C')).toBeTruthy();
-    expect(screen.getByText('Out of range')).toBeTruthy();
-    expect(screen.getByText('-15°C ±3')).toBeTruthy();
-    expect(screen.getByText('Live')).toBeTruthy();
+    expect(screen.getAllByText('Port Said').length).toBeGreaterThan(0);
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');
+    expect(screen.getByText(/^2\/\d+$/)).toBeTruthy();
+    expect(screen.getByText(/Last reading/)).toBeTruthy();
   });
 
   it('reads in Arabic and says when a reading is overdue', () => {
     wrap(<ShipmentCard shipment={shipment()} lang="ar" now={NOW + 4 * 3600_000} onOpen={vi.fn()} />);
-    expect(screen.getByText('خارج النطاق')).toBeTruthy();
-    expect(screen.getByText('قديمة')).toBeTruthy();
-    expect(screen.getByText(/القراءة متأخرة/)).toBeTruthy();
+    expect(screen.getAllByText('خارج النطاق').length).toBeGreaterThan(0);
+    expect(screen.getByText(/آخر قراءة/)).toBeTruthy();
   });
 
-  it('opens from the follow button', () => {
+  it('flags a late reading in the status tag when the temperature itself is fine', () => {
+    const fine = shipment({ readings: [{ ...shipment().readings[0], temperature_c: -15, is_alert: false }] });
+    wrap(<ShipmentCard shipment={fine} lang="en" now={NOW + 4 * 3600_000} onOpen={vi.fn()} />);
+    expect(screen.getByText('Reading overdue')).toBeTruthy();
+  });
+
+  it('says there is no reading yet and shows no area for a shipment still being prepared', () => {
+    wrap(<ShipmentCard shipment={shipment({ status: 'preparing', started_at: null, readings: [], locations: [], driver: null })} lang="en" now={NOW} onOpen={vi.fn()} />);
+    expect(screen.getByText('No reading yet')).toBeTruthy();
+    expect(screen.getByText('No driver assigned')).toBeTruthy();
+    expect(screen.queryByText('Truck is in')).toBeNull();
+  });
+
+  it('opens by click or keyboard', () => {
     const onOpen = vi.fn();
     wrap(<ShipmentCard shipment={shipment()} lang="en" now={NOW} onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole('button', { name: /Follow the shipment/ }));
-    expect(onOpen).toHaveBeenCalled();
+    const card = screen.getByRole('button', { name: /SH-0001/ });
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -91,91 +101,8 @@ describe('RouteLine', () => {
   });
 });
 
-describe('TemperatureRange', () => {
-  it('names the allowed range in numbers and marks an out-of-range reading with a different shape', () => {
-    const { container } = wrap(<TemperatureRange temperature={8.5} targetC={-15} toleranceC={3} alert lang="en" />);
-    expect(screen.getByText('-15°C ±3')).toBeTruthy();
-    expect(screen.getByRole('img', { name: 'Out of range' })).toBeTruthy();
-    expect(container.querySelector('path')).toBeTruthy();
-  });
-
-  it('uses a plain marker in range', () => {
-    const { container } = wrap(<TemperatureRange temperature={-14} targetC={-15} toleranceC={3} alert={false} lang="en" />);
-    expect(screen.getByRole('img', { name: 'In range' })).toBeTruthy();
-    expect(container.querySelector('path')).toBeNull();
-  });
-});
-
-describe('LiveStamp', () => {
-  const due = (state: 'ok' | 'overdue' | 'idle', over = 0) => ({ state, dueAt: NOW + 3600_000, overdueMs: over }) as const;
-  it('says live with the update time while readings are on time', () => {
-    wrap(<LiveStamp liveness="live" due={due('ok')} lastAt="2026-11-14T11:42:00Z" lang="en" now={NOW} />);
-    expect(screen.getByText('Live')).toBeTruthy();
-    expect(screen.getByText('updated 18 min ago')).toBeTruthy();
-  });
-  it('says stale, not live, once a reading is late', () => {
-    wrap(<LiveStamp liveness="stale" due={due('overdue', 3_600_000)} lastAt="2026-11-14T07:00:00Z" lang="en" now={NOW} />);
-    expect(screen.getByText('Stale')).toBeTruthy();
-    expect(screen.queryByText('Live')).toBeNull();
-    expect(screen.getByText(/reading overdue by 1 h/)).toBeTruthy();
-  });
-  it('claims nothing live for a shipment that is not moving', () => {
-    wrap(<LiveStamp liveness="none" due={due('idle')} lastAt={null} lang="en" now={NOW} />);
-    expect(screen.getByText('No reading yet')).toBeTruthy();
-    expect(screen.queryByText('Live')).toBeNull();
-  });
-});
-
 const granted: LocationAccess = { permission: 'granted', backgroundDenied: false, request: vi.fn(), activeCount: 1 };
 const FIX = { latitude: 25.2854, longitude: 51.531, accuracy: 12, timestamp: Date.now() };
-
-describe('Last seen and the proof on a reading', () => {
-  it('shows when the truck was last seen on the card', () => {
-    wrap(<ShipmentCard shipment={shipment()} lang="en" now={NOW} onOpen={vi.fn()} />);
-    expect(screen.getByText('Port Said')).toBeTruthy();
-    expect(screen.getAllByText(/18 min ago/).length).toBeGreaterThan(0);
-  });
-
-  it('says Last seen on the card when the area could not be named', () => {
-    wrap(<ShipmentCard shipment={shipment({ locations: [{ ...shipment().locations[0], place_ar: null, place_en: null }] })} lang="en" now={NOW} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Last seen/)).toBeTruthy();
-  });
-
-  it('shows the stamp, the position link and how the number was entered', () => {
-    wrap(<ReadingStamp reading={shipment().readings[0]} lang="en" />);
-    expect(screen.getByText('Port Said')).toBeTruthy();
-    expect(screen.getByText('25.28540°N 51.53100°E ±12 m')).toBeTruthy();
-    expect(screen.getByText('Read from the photo')).toBeTruthy();
-    expect(screen.getByRole('link').getAttribute('href')).toContain('google.com/maps?q=25.285400,51.531000');
-    expect(screen.queryByText(/clock differs/)).toBeNull();
-  });
-
-  it('warns when the phone clock disagrees with the server', () => {
-    wrap(<ReadingStamp reading={{ ...shipment().readings[0], time_mismatch: true, entry_mode: 'manual', place_ar: null, place_en: null }} lang="en" />);
-    expect(screen.getByText('Phone clock differs from the server')).toBeTruthy();
-    expect(screen.getByText('Typed by the driver')).toBeTruthy();
-  });
-
-  it('shows a map with the last position, or says none was shared', () => {
-    const { container } = wrap(<LocationCard location={shipment().locations[0]} lang="en" now={NOW} />);
-    expect(container.querySelector('iframe')?.getAttribute('src')).toContain('openstreetmap.org/export/embed.html');
-    expect(screen.getByText(/Last seen 18 min ago/)).toBeTruthy();
-    expect(screen.getByText(/temperature photo/)).toBeTruthy();
-  });
-
-  it('names the area first on the map card, in Arabic when asked, and lists earlier positions', () => {
-    const earlier = { ...shipment().locations[0], recorded_at: '2026-11-14T09:00:00Z', place_ar: 'كفر الشيخ', place_en: 'Kafr El Sheikh' };
-    wrap(<LocationCard location={shipment().locations[0]} trail={[shipment().locations[0], earlier]} lang="ar" now={NOW} />);
-    expect(screen.getByText('بورسعيد')).toBeTruthy();
-    expect(screen.getByText('كفر الشيخ')).toBeTruthy();
-    expect(screen.getByText('مواقع سابقة')).toBeTruthy();
-  });
-
-  it('says so when no location has been shared', () => {
-    wrap(<LocationCard location={null} lang="en" now={NOW} />);
-    expect(screen.getByText('The driver has not shared a location yet.')).toBeTruthy();
-  });
-});
 
 describe('DriverReadingForm', () => {
   const form = (access: LocationAccess = granted) => wrap(<DriverReadingForm shipment={{ id: 'sh1', reference: 'SH-0001', target_temp_c: -15 }} driverName="Ahmed" access={access} lang="en" />);

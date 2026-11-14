@@ -53,14 +53,16 @@ export function CustomerLayout() {
   const isRTL = settings.language === 'ar';
   const lang  = isRTL ? 'ar' : 'en';
   const isChatRoute = location.pathname.startsWith('/c/chat');
-  const isWideRoute = location.pathname.startsWith('/c/orders');
+  const isWideRoute = location.pathname.startsWith('/c/orders') || location.pathname.startsWith('/c/shipments');
   // The home page draws its own header, bottom bar and background.
   const isHomeRoute = location.pathname === '/c/home' || location.pathname === '/c/home/';
   // On a phone the orders page draws its own header and uses the same bottom bar as home.
   const isOrdersPhone = isMobile && (location.pathname === '/c/orders' || location.pathname === '/c/orders/');
   // The Cash page draws its own header on a phone too, with the Cash tab lit in the shared bottom bar.
   const isWalletPhone = isMobile && (location.pathname === '/c/wallet' || location.pathname === '/c/wallet/');
-  const ownsShell = isHomeRoute || isOrdersPhone || isWalletPhone;
+  // Shipments draws the same header on a phone, with no tab lit in the bottom bar.
+  const isShipmentsPhone = isMobile && (location.pathname === '/c/shipments' || location.pathname === '/c/shipments/');
+  const ownsShell = isHomeRoute || isOrdersPhone || isWalletPhone || isShipmentsPhone;
   const chatUnread = useChatStore(s => Object.values(s.unreadCounts).reduce((sum, n) => sum + (n || 0), 0));
   const displayName = resolveCustomerDisplayName(customerProfile, lang);
 
@@ -161,7 +163,7 @@ export function CustomerLayout() {
             to reach it instead of it always being visible. `main`'s
             bottom padding above keeps content from sitting underneath it. */}
         {isMobile && ownsShell && (
-          <CustomerHomeNav lang={lang} chatUnread={chatUnread} notificationsUnread={unreadCount} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : isWalletPhone ? 'cash' : 'orders'} />
+          <CustomerHomeNav lang={lang} chatUnread={chatUnread} notificationsUnread={unreadCount} onNavigate={go} onMore={() => setDrawerOpen(true)} activeKey={isHomeRoute ? 'home' : isWalletPhone ? 'cash' : isShipmentsPhone ? 'shipments' : 'orders'} />
         )}
         {isMobile && !ownsShell && (
           <nav
