@@ -73,3 +73,29 @@ Sheets and dialogs render in a portal, outside `.ch-root`, so `--q` and the pale
 Wrap the content in `<div className="ch-root co-root cs-sheet">` and use `cs-dh` (gradient header with the curved
 corner), then `cs-dbody` holding `ch-card cs-box` sections (`h3` with an icon, optional `small` on the end side).
 Use `[&>button]:text-white` on the sheet content so its close button shows on the dark header.
+
+## Tabs inside the main card
+
+Two or three views of one page (Shipments / Drivers) are a `cs-tabs` row of `cs-tab` buttons right under the
+`co-mtop` row, each with `role="tab"` and `aria-selected`. The primary button in `co-mtop` follows the tab
+("New shipment", "Add driver"). Chips, tools and tiles below the tabs belong to the active tab.
+
+## Person card with statistics
+
+`co-card cs-card static <kind>` (kind: `road` blue, `free` green, `void` grey) holding: `cs-who` (initials circle
+`cs-av`, name, a muted line, status tag), an optional `cs-where` line, `cs-stats` (3 x 2 grid of `co-t` tiles),
+`cs-acts` (contact link, toggle button, Details button) and an optional `cs-more` with a `cs-tbl` history table and
+a `cs-trips` list. Words next to every percentage (`cs-grade good | fair | poor`: Excellent, Fair, Needs work).
+
+## Forms, banners and the big button
+
+Fields are `cs-field` (a `label` over an `input`, 40q tall, accent focus ring; `cs-field lg` for numbers typed with
+a thumb), two across with `cs-grid2`. The primary action in a form or on a phone task page is `cs-cta`
+(`cs-cta soft` for the secondary one). Messages are `cs-banner` with `ok`, `warn` or `bad`, an icon, a bold line and
+an optional `row` of `co-btn` buttons. A dialog wraps its content in `ch-root cs-form` and gives the dialog
+`cs-dialog` so it takes the same radius and no frame.
+
+## App without a customer header (driver app)
+
+Reuse `PortalHero` without the bell (`onBell` omitted), put sign out in its `extra` slot, show it at every width,
+and end the page with a bottom bar made of `ch-nav` > `ch-nav-in` > `ch-nav-item` links.

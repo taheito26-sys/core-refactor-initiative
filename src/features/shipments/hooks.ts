@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   addStop, assignShipmentDriver, cancelShipment, createDriver, createShipment, getShipment, listDrivers,
-  listShipments, reachStop, setDriverActive, signedPhotoUrl, startShipment, submitReading,
+  listDriverTrips, listShipments, reachStop, setDriverActive, signedPhotoUrl, startShipment, submitReading,
 } from './api';
 
 const SHIPMENTS_KEY = ['shipments'] as const;
@@ -24,6 +24,12 @@ export function useShipment(id: string | null) {
     enabled: !!id,
     refetchInterval: REFRESH_MS,
   });
+}
+
+/** Every trip with its readings and position points, for the per-driver statistics. Refreshes with the rest of the shipments. */
+export function useTripData() {
+  const { userId } = useAuth();
+  return useQuery({ queryKey: [...SHIPMENTS_KEY, 'trips'], queryFn: () => listDriverTrips(''), enabled: !!userId, refetchInterval: REFRESH_MS * 5 });
 }
 
 export const useDrivers = () => {

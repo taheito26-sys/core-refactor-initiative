@@ -7,12 +7,15 @@ import { ZoomControls } from '@/components/shared/ZoomControls';
  * name, then the page title with a small status card. Same markup and classes as those pages (co-hero2).
  */
 export function PortalHero({
-  lang, displayName, unreadCount, onBell, onLanguage, icon, title, subtitle, trendDown, trendTitle, trendText,
+  lang, displayName, unreadCount, onBell, extra, onLanguage, icon, title, subtitle, trendDown, trendTitle, trendText,
 }: {
   lang: 'en' | 'ar';
   displayName: string;
-  unreadCount: number;
-  onBell: () => void;
+  unreadCount?: number;
+  /** Without it the bell is left out (the driver app has no notification centre). */
+  onBell?: () => void;
+  /** Extra controls placed after the language switch, such as sign out. */
+  extra?: ReactNode;
   onLanguage: (lang: 'en' | 'ar') => void;
   icon: ReactNode;
   title: string;
@@ -28,14 +31,17 @@ export function PortalHero({
       <div className="co-top">
         <ZoomControls variant="hero" label={L('Zoom', 'تكبير')} />
         <div className="co-ctl">
-          <button type="button" className="ch-bell" onClick={onBell} aria-label={L('Notifications', 'التنبيهات')}>
-            <Bell strokeWidth={2} />
-            {unreadCount > 0 && <span className="ch-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-          </button>
+          {onBell && (
+            <button type="button" className="ch-bell" onClick={onBell} aria-label={L('Notifications', 'التنبيهات')}>
+              <Bell strokeWidth={2} />
+              {(unreadCount ?? 0) > 0 && <span className="ch-badge">{(unreadCount ?? 0) > 9 ? '9+' : unreadCount}</span>}
+            </button>
+          )}
           <div className="ch-pill" role="group" aria-label={L('Language', 'اللغة')}>
             <button type="button" className={lang === 'ar' ? 'on' : ''} onClick={() => onLanguage('ar')}>AR</button>
             <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => onLanguage('en')}>EN</button>
           </div>
+          {extra}
         </div>
       </div>
       <div className="co-idrow">

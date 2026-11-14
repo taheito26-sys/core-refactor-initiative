@@ -1,8 +1,8 @@
-import { ChevronRight, MapPin, Scale, Truck, User } from 'lucide-react';
+import { ChevronRight, MapPin, Scale, Timer, Truck, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { placeText } from '../geo';
 import {
-  agoLabel, attentionState, latestReading, liveness, rangeScale, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang,
+  agoLabel, attentionState, durationLabel, latestReading, liveness, rangeScale, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang,
 } from '../route';
 import type { ShipmentStatus, ShipmentWithDetails } from '../types';
 
@@ -31,7 +31,7 @@ export function RangeStrip({ temperature, target, tolerance, alert }: { temperat
  * One shipment as an order-style card: reference and status on top, the temperature now against what is
  * allowed, where the truck is, how far along the route it is, and when it was last heard from.
  */
-export function ShipmentCard({ shipment, lang, now, onOpen }: { shipment: ShipmentWithDetails; lang: Lang; now: number; onOpen: () => void }) {
+export function ShipmentCard({ shipment, lang, now, onOpen, audience = 'customer' }: { shipment: ShipmentWithDetails; lang: Lang; now: number; onOpen: () => void; audience?: 'customer' | 'driver' }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const last = latestReading(shipment.readings);
   const due = readingDue(shipment, last?.taken_at ?? null, now);
@@ -77,9 +77,15 @@ export function ShipmentCard({ shipment, lang, now, onOpen }: { shipment: Shipme
       <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
 
       <div className="cs-chips">
-        {shipment.driver && <span className="co-rate"><User style={{ width: 11, height: 11 }} aria-hidden="true" /> <b dir="auto">{shipment.driver.display_name}</b></span>}
+        {audience === 'customer' && shipment.driver && <span className="co-rate"><User style={{ width: 11, height: 11 }} aria-hidden="true" /> <b dir="auto">{shipment.driver.display_name}</b></span>}
         {shipment.weight_tons != null && <span className="co-rate"><Scale style={{ width: 11, height: 11 }} aria-hidden="true" /> <b>{shipment.weight_tons} t</b></span>}
-        {!shipment.driver && <span className="co-rate">{L('No driver assigned', 'لم يُعيَّن سائق')}</span>}
+        {audience === 'customer' && !shipment.driver && <span className="co-rate">{L('No driver assigned', 'لم يُعيَّن سائق')}</span>}
+        {audience === 'driver' && due.dueAt != null && (
+          <span className="co-rate" style={due.state === 'overdue' ? { color: '#f0245b' } : undefined}>
+            <Timer style={{ width: 11, height: 11 }} aria-hidden="true" />{' '}
+            <b>{due.state === 'overdue' ? L(`Reading overdue ${durationLabel(due.overdueMs, lang)}`, `القراءة متأخرة ${durationLabel(due.overdueMs, lang)}`) : L(`Next reading in ${durationLabel(due.dueAt - now, lang)}`, `القراءة القادمة بعد ${durationLabel(due.dueAt - now, lang)}`)}</b>
+          </span>
+        )}
       </div>
 
       {shipment.status === 'on_the_road' && (
@@ -104,7 +110,7 @@ export function ShipmentCard({ shipment, lang, now, onOpen }: { shipment: Shipme
           <i aria-hidden="true" />
           {last ? L(`Last reading ${agoLabel(last.taken_at, now, lang)}`, `آخر قراءة ${agoLabel(last.taken_at, now, lang)}`) : L('No reading yet', 'لا توجد قراءة بعد')}
         </span>
-        <span className="cs-go">{L('Follow', 'تابع')}<ChevronRight aria-hidden="true" /></span>
+        <span className="cs-go">{audience === 'driver' ? L('Open', 'فتح') : L('Follow', 'تابع')}<ChevronRight aria-hidden="true" /></span>
       </div>
     </div>
   );

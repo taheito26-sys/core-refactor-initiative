@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Bell, CheckCircle2, Clock, PackageOpen, Plus, Search, Truck, User, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, PackageOpen, Plus, Search, Truck, User, Users } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
-import { DriversDialog } from '@/features/shipments/components/DriversDialog';
+import { AddDriverDialog } from '@/features/shipments/components/AddDriverDialog';
+import { DriversPanel } from '@/features/shipments/components/DriversPanel';
 import { NewShipmentDialog } from '@/features/shipments/components/NewShipmentDialog';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { ShipmentDetailSheet } from '@/features/shipments/components/ShipmentDetailSheet';
@@ -44,7 +45,8 @@ export default function CustomerShipmentsPage() {
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
-  const [showDrivers, setShowDrivers] = useState(false);
+  const [tab, setTab] = useState<'shipments' | 'drivers'>('shipments');
+  const [showAddDriver, setShowAddDriver] = useState(false);
 
   const matches = (s: ShipmentWithDetails, f: Filter) =>
     f === 'all' ? true
@@ -81,6 +83,12 @@ export default function CustomerShipmentsPage() {
     { key: 'delivered', cls: 't4', icon: CheckCircle2, en: 'Delivered', ar: 'تم التسليم' },
   ];
   const attentionCount = counts.attention;
+  const tabs = (
+    <div className="cs-tabs" role="tablist" aria-label={L('Shipments and drivers', 'الشحنات والسائقون')}>
+      <button type="button" role="tab" aria-selected={tab === 'shipments'} className={cn('cs-tab', tab === 'shipments' && 'on')} onClick={() => setTab('shipments')}><Truck aria-hidden="true" />{L('Shipments', 'الشحنات')}</button>
+      <button type="button" role="tab" aria-selected={tab === 'drivers'} className={cn('cs-tab', tab === 'drivers' && 'on')} onClick={() => setTab('drivers')}><Users aria-hidden="true" />{L('Drivers', 'السائقون')}</button>
+    </div>
+  );
 
   return (
     <div className="ch-root co-root cs-root" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -100,6 +108,10 @@ export default function CustomerShipmentsPage() {
         />
       )}
 
+      {tab === 'drivers' ? (
+        <DriversPanel lang={lang} now={now} tabs={tabs} onAdd={() => setShowAddDriver(true)} />
+      ) : (
+        <>
       <div className="co-mainwrap">
         <div className="ch-card co-main">
           <div className="co-mtop">
@@ -109,6 +121,7 @@ export default function CustomerShipmentsPage() {
               {L('New shipment', 'شحنة جديدة')}
             </button>
           </div>
+          {tabs}
 
           {shipments.length > 0 && (
             <>
@@ -125,7 +138,6 @@ export default function CustomerShipmentsPage() {
                   <Search aria-hidden="true" />
                   <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={L('Search reference, cargo or driver', 'ابحث بالرقم أو الشحنة أو السائق')} aria-label={L('Search shipments', 'بحث في الشحنات')} />
                 </label>
-                <button type="button" className="co-tool" onClick={() => setShowDrivers(true)}><Users />{L('Drivers', 'السائقون')}</button>
               </div>
 
               <div className="co-tiles">
@@ -152,7 +164,7 @@ export default function CustomerShipmentsPage() {
           <p>{L('Dispatch your first truck from Egypt to Qatar. Your driver photographs the cooling unit’s screen along the way, and you see every reading here.', 'أرسل أول شاحنة من مصر إلى قطر. يصوّر السائق شاشة وحدة التبريد في الطريق وتشاهد كل قراءة هنا.')}</p>
           <div className="row">
             <button type="button" className="co-new" onClick={() => setShowNew(true)}><Plus strokeWidth={2.2} />{L('New shipment', 'شحنة جديدة')}</button>
-            <button type="button" className="co-tool" onClick={() => setShowDrivers(true)}><User />{L('Add a driver first', 'أضف سائقاً أولاً')}</button>
+            <button type="button" className="co-tool" onClick={() => setShowAddDriver(true)}><User />{L('Add a driver first', 'أضف سائقاً أولاً')}</button>
           </div>
         </section>
       )}
@@ -169,9 +181,12 @@ export default function CustomerShipmentsPage() {
         </>
       )}
 
+        </>
+      )}
+
       <ShipmentDetailSheet shipmentId={openId} lang={lang} now={now} onClose={() => setOpenId(null)} />
-      <NewShipmentDialog open={showNew} onOpenChange={setShowNew} lang={lang} onManageDrivers={() => { setShowNew(false); setShowDrivers(true); }} onCreated={setOpenId} />
-      <DriversDialog open={showDrivers} onOpenChange={setShowDrivers} lang={lang} />
+      <NewShipmentDialog open={showNew} onOpenChange={setShowNew} lang={lang} onManageDrivers={() => { setShowNew(false); setTab('drivers'); }} onCreated={setOpenId} />
+      <AddDriverDialog open={showAddDriver} onOpenChange={setShowAddDriver} lang={lang} />
     </div>
   );
 }

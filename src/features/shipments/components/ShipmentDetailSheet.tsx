@@ -1,55 +1,21 @@
 import { useState } from 'react';
-import { Activity, Check, ExternalLink, Gauge, Loader2, MapPin, MapPinned, Phone, Route as RouteIcon, ScanLine, Thermometer, Timer, Truck, TriangleAlert, User } from 'lucide-react';
+import { Activity, ExternalLink, Loader2, MapPin, MapPinned, Phone, Route as RouteIcon, ScanLine, Thermometer, Timer, Truck, User } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
-import { ENTRY_MODE_LABELS, LOCATION_SOURCE_LABELS, formatCoords, formatStampTime, mapEmbedUrl, mapsLink, placeText } from '../geo';
-import { agoLabel, durationLabel, latestReading, readingDue, sortStops, stopName, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
+import { LOCATION_SOURCE_LABELS, formatCoords, mapEmbedUrl, mapsLink, placeText } from '../geo';
+import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
 import { tripSummary } from '../trip-summary';
-import type { ShipmentReading } from '../types';
 import { PhotoThumb } from './PhotoThumb';
+import { ReadingProof, ReadingRow } from './ReadingRow';
+import { RouteList } from './RouteList';
+import { TripTiles } from './TripTiles';
 import { RangeStrip } from './ShipmentCard';
 import { TrendChart } from './TrendChart';
 
 const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-function Tile({ cls, icon: Icon, label, value, hint }: { cls: string; icon: typeof Timer; label: string; value: string; hint?: string }) {
-  return (
-    <div className={cn('co-t', cls)}>
-      <div className="co-t-top"><span className="co-t-l">{label}</span><span className="co-t-ic"><Icon /></span></div>
-      <div className="co-t-v" dir="ltr" style={{ textAlign: 'start' }}>{value}</div>
-      {hint && <div className="co-t-c">{hint}</div>}
-    </div>
-  );
-}
-
-/** The proof on one reading: the area, when the phone took it, where, and how the number was entered. */
-function ReadingProof({ reading, lang }: { reading: ShipmentReading; lang: Lang }) {
-  const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const area = placeText(reading, lang);
-  const mode = ENTRY_MODE_LABELS[reading.entry_mode];
-  return (
-    <div className="cs-meta">
-      {area && <div><MapPin aria-hidden="true" /><b>{area}</b></div>}
-      {reading.device_taken_at && <div><Timer aria-hidden="true" /><span className="dir">{formatStampTime(new Date(reading.device_taken_at).getTime())}</span></div>}
-      {reading.latitude != null && reading.longitude != null && (
-        <div>
-          <MapPinned aria-hidden="true" />
-          <a className="cs-link dir" href={mapsLink(reading.latitude, reading.longitude)} target="_blank" rel="noreferrer">
-            {formatCoords(reading.latitude, reading.longitude)}{reading.accuracy_m != null ? ` ±${Math.round(reading.accuracy_m)} m` : ''}<ExternalLink aria-hidden="true" />
-          </a>
-        </div>
-      )}
-      <div><ScanLine aria-hidden="true" />{lang === 'ar' ? mode.ar : mode.en}</div>
-      {reading.time_mismatch && <div className="warn"><TriangleAlert aria-hidden="true" />{L('Phone clock differs from the server', 'ساعة الهاتف تختلف عن الخادم')}</div>}
-    </div>
-  );
-}
 
 /** Everything about one shipment, in the portal's own language: the temperature now, the trip in numbers, where the truck is, the route, the driver and every reading. */
 export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipmentId: string | null; lang: Lang; now: number; onClose: () => void }) {
@@ -133,14 +99,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
 
               <section className="ch-card cs-box">
                 <h3><Activity aria-hidden="true" />{L('The trip in numbers', 'الرحلة بالأرقام')}</h3>
-                <div className="cs-kv">
-                  <Tile cls="t3" icon={Timer} label={L('Time on the road', 'مدة الرحلة')} value={stats.elapsedMs === null ? '—' : durationLabel(stats.elapsedMs, lang)} />
-                  <Tile cls="t2" icon={MapPinned} label={L('Stops reached', 'المحطات')} value={`${stats.stopsDone}/${stats.stopsTotal}`} />
-                  <Tile cls="t4" icon={RouteIcon} label={L('Distance', 'المسافة')} value={stats.distanceKm > 0 ? `${stats.distanceKm} km` : '—'} hint={stats.distanceKm > 0 ? L('Approximate', 'تقريبية') : undefined} />
-                  <Tile cls={stats.alertCount > 0 ? 'bad' : 't4'} icon={Gauge} label={L('Kept in range', 'ضمن النطاق')} value={stats.inRangePct === null ? '—' : `${stats.inRangePct}%`} hint={stats.alertCount > 0 ? L(`${stats.alertCount} out of range`, `${stats.alertCount} خارج النطاق`) : undefined} />
-                  <Tile cls="t1" icon={Thermometer} label={L('Lowest … highest', 'الأدنى … الأعلى')} value={stats.minC === null || stats.maxC === null ? '—' : `${temp(stats.minC)}…${temp(stats.maxC)}`} hint={stats.avgC !== null ? `${L('Average', 'المتوسط')} ${temp(stats.avgC)}°C` : undefined} />
-                  <Tile cls="t3" icon={ScanLine} label={L('Readings', 'القراءات')} value={String(stats.readingsCount)} />
-                </div>
+                <TripTiles summary={stats} lang={lang} />
                 <div style={{ height: 12 }} />
                 <TrendChart readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} lang={lang} />
               </section>
@@ -179,21 +138,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
 
               <section className="ch-card cs-box">
                 <h3><RouteIcon aria-hidden="true" />{L('Route', 'المسار')}<small>{progress.reachedCount}/{progress.total}</small></h3>
-                <ul className="cs-route" style={{ margin: 0, padding: 0 }}>
-                  {sortStops(shipment.stops).map((s) => {
-                    const reached = !!s.reached_at;
-                    const next = !reached && progress.next?.id === s.id && shipment.status === 'on_the_road';
-                    return (
-                      <li key={s.id} className={cn(reached && 'reached', next && 'next')}>
-                        <span className="pt">{reached && <Check aria-hidden="true" />}</span>
-                        <div>
-                          <div className="nm">{stopName(s, lang)}{s.kind === 'driver' && <span className="tag">{L('added by driver', 'أضافها السائق')}</span>}</div>
-                          <div className="tm">{reached && s.reached_at ? dateFmt(s.reached_at) : next ? L('Next stop', 'المحطة التالية') : L('Not reached yet', 'لم يصل بعد')}</div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <RouteList stops={shipment.stops} status={shipment.status} lang={lang} />
               </section>
 
               <section className="ch-card cs-box">
@@ -224,18 +169,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 <h3><ScanLine aria-hidden="true" />{L('Readings', 'القراءات')}<small>{shipment.readings.length}</small></h3>
                 {shipment.readings.length === 0 && <p style={{ margin: 0, fontSize: 11.5, color: '#6b7a9c' }}>{L('Nothing yet.', 'لا شيء بعد.')}</p>}
                 <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>
-                  {shipment.readings.map((r) => (
-                    <li key={r.id} style={{ alignItems: 'flex-start' }}>
-                      <div className="cs-rd" style={{ width: '100%' }}>
-                        <div className="cs-photo"><PhotoThumb path={r.photo_path} alt={L('Temperature screen photo', 'صورة شاشة الحرارة')} className="h-full w-full rounded-none" /></div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div className={cn('cs-rd-t', r.is_alert && 'bad')}>{temp(r.temperature_c)}°C{r.is_alert && <span style={{ fontSize: 10, marginInlineStart: 6 }}>{L('Out of range', 'خارج النطاق')}</span>}</div>
-                          <div className="cs-rd-s">{agoLabel(r.taken_at, now, lang)}</div>
-                          <ReadingProof reading={r} lang={lang} />
-                        </div>
-                      </div>
-                    </li>
-                  ))}
+                  {shipment.readings.map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
                 </ul>
               </section>
 

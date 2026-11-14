@@ -1,54 +1,55 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronRight, Truck } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Clock, PackageOpen, Truck } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
-import { DueBadge } from '@/features/shipments/components/DueBadge';
-import { StatusChip } from '@/features/shipments/components/StatusChip';
-import { RouteLine } from '@/features/shipments/components/RouteLine';
+import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { useShipments } from '@/features/shipments/hooks';
-import { latestReading, readingDue, stopName, stopProgress } from '@/features/shipments/route';
 
 const ORDER = { on_the_road: 0, preparing: 1, delivered: 2, cancelled: 3 } as const;
 
-/** The driver's shipments: the one on the road first, then the ones waiting to start. */
+/** The driver's shipments: the one on the road first, then the ones waiting to start, then the finished ones. */
 export default function DriverShipmentsPage() {
   const { settings } = useTheme();
+  const navigate = useNavigate();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { data: shipments = [], isLoading, isError } = useShipments();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
   const sorted = useMemo(() => [...shipments].sort((a, b) => ORDER[a.status] - ORDER[b.status]), [shipments]);
+  const count = (s: keyof typeof ORDER) => shipments.filter((x) => x.status === s).length;
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-extrabold">{L('My shipments', 'شحناتي')}</h1>
-      {isLoading && <><Skeleton className="h-28" /><Skeleton className="h-28" /></>}
-      {isError && <p className="text-sm text-destructive" role="alert">{L('Could not load. Check your signal.', 'تعذر التحميل. تحقق من الإشارة.')}</p>}
-      {!isLoading && sorted.length === 0 && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{L('No shipments are assigned to you yet.', 'لا توجد شحنات معيّنة لك بعد.')}</p>}
-      {sorted.map((s) => {
-        const p = stopProgress(s.stops);
-        const last = latestReading(s.readings);
-        return (
-          <Link key={s.id} to={`/d/shipments/${s.id}`} className="block space-y-2.5 rounded-2xl border border-border bg-card p-4 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <div className="flex items-center gap-2">
-              <Truck className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              <span className="text-base font-bold">{s.reference}</span>
-              <span className="ms-auto"><StatusChip status={s.status} lang={lang} /></span>
+    <>
+      {shipments.length > 0 && (
+        <div className="co-mainwrap">
+          <div className="ch-card co-main">
+            <div className="co-mlabel">{L('Today', 'اليوم')}</div>
+            <div className="co-tiles three" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+              <div className="co-t t3"><div className="co-t-top"><span className="co-t-l">{L('On the road', 'في الطريق')}</span><span className="co-t-ic"><Truck /></span></div><div className="co-t-v">{count('on_the_road')}</div></div>
+              <div className="co-t t2"><div className="co-t-top"><span className="co-t-l">{L('Waiting', 'بانتظار البدء')}</span><span className="co-t-ic"><Clock /></span></div><div className="co-t-v">{count('preparing')}</div></div>
+              <div className="co-t t4"><div className="co-t-top"><span className="co-t-l">{L('Delivered', 'تم التسليم')}</span><span className="co-t-ic"><CheckCircle2 /></span></div><div className="co-t-v">{count('delivered')}</div></div>
             </div>
-            <div className="truncate text-sm text-muted-foreground">{s.cargo}</div>
-            <RouteLine stops={s.stops} status={s.status} lang={lang} />
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <span className="min-w-0 truncate text-muted-foreground">
-                {p.next ? `${L('Next', 'التالي')}: ${stopName(p.next, lang)}` : p.destination ? stopName(p.destination, lang) : ''}
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" aria-hidden="true" />
-            </div>
-            <DueBadge due={readingDue(s, last?.taken_at ?? null, now)} lang={lang} now={now} />
-          </Link>
-        );
-      })}
-    </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading && <div className="cs-list" aria-busy="true"><div className="cs-skel" /><div className="cs-skel" /></div>}
+      {isError && <p className="co-banner" role="alert" style={{ marginTop: 10, color: '#f0245b', fontSize: 12 }}>{L('Could not load. Check your signal.', 'تعذر التحميل. تحقق من الإشارة.')}</p>}
+
+      {!isLoading && !isError && sorted.length === 0 && (
+        <section className="ch-card cs-empty">
+          <span className="ic"><PackageOpen aria-hidden="true" /></span>
+          <h2>{L('No shipments yet', 'لا توجد شحنات بعد')}</h2>
+          <p>{L('When your customer assigns you a shipment it appears here.', 'عندما يعيّن لك العميل شحنة ستظهر هنا.')}</p>
+        </section>
+      )}
+
+      {!isLoading && sorted.length > 0 && (
+        <div className="cs-list">
+          {sorted.map((s) => <ShipmentCard key={s.id} shipment={s} lang={lang} now={now} audience="driver" onOpen={() => navigate(`/d/shipments/${s.id}`)} />)}
+        </div>
+      )}
+    </>
   );
 }

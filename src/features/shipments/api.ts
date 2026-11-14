@@ -189,14 +189,14 @@ export const logLocation = (p: LocationPointInput) =>
 export interface TripData extends Shipment {
   stops: ShipmentStop[];
   readings: ShipmentReading[];
-  locations: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at'>[];
+  locations: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at' | 'place_ar' | 'place_en'>[];
 }
 
-/** Everything the driver's monthly numbers are worked out from: trips started since a date. */
+/** Everything trip statistics are worked out from: the trips the caller can see, started since a date (all of them with ''). A driver sees their own, a customer their own shipments. */
 export async function listDriverTrips(sinceIso: string): Promise<TripData[]> {
   const { data, error } = await db
     .from('shipments')
-    .select('*, stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, recorded_at)')
+    .select('*, stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, recorded_at, place_ar, place_en)')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as TripData[]).filter((t) => (t.started_at ?? t.created_at) >= sinceIso);

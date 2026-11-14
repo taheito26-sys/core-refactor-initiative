@@ -24,7 +24,6 @@ import { DriverReadingForm } from '@/features/shipments/components/DriverReading
 import { LocationError } from '@/features/shipments/location';
 import type { LocationAccess } from '@/features/shipments/useLocationAccess';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
-import { RouteLine } from '@/features/shipments/components/RouteLine';
 
 const NOW = new Date('2026-11-14T12:00:00Z').getTime();
 const stop = (seq: number, name: string, reached: string | null) =>
@@ -83,21 +82,6 @@ describe('ShipmentCard', () => {
     fireEvent.click(card);
     fireEvent.keyDown(card, { key: 'Enter' });
     expect(onOpen).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('RouteLine', () => {
-  it('shows the route ends and how far the truck has got', () => {
-    wrap(<RouteLine stops={shipment().stops} status="on_the_road" lang="en" />);
-    expect(screen.getByText('Obour (Cairo)')).toBeTruthy();
-    expect(screen.getByText('Qatar (delivery)')).toBeTruthy();
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toBe('2 / 4');
-  });
-
-  it('puts no truck on the line before the trip starts or after delivery', () => {
-    const parked = shipment({ status: 'preparing', stops: shipment().stops.map((st) => ({ ...st, reached_at: null })) });
-    const { container } = wrap(<RouteLine stops={parked.stops} status="preparing" lang="en" />);
-    expect(container.querySelector('svg.lucide-truck')).toBeNull();
   });
 });
 
