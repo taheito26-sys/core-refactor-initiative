@@ -14,17 +14,17 @@ import { resolveCustomerDisplayName } from '@/features/customer/customer-portal'
 import '@/styles/tracker.css';
 import '@/styles/customer-portal.css';
 
-// Primary nav order: Home, Orders, Cash, Notifications, Chat; the rest live under More
+// Primary nav order: Home, Orders, Cash, Shipments, Notifications, Chat; the rest live under More
 const PRIMARY_NAV = [
   { path: '/c/home',    icon: Home,          en: 'Home',   ar: 'الرئيسية' },
   { path: '/c/orders',  icon: ShoppingCart,  en: 'Orders', ar: 'الطلبات' },
   { path: '/c/wallet',  icon: Wallet,        en: 'Cash',   ar: 'النقد' },
+  { path: '/c/shipments', icon: Truck,       en: 'Shipments', ar: 'الشحنات' },
   { path: '/c/notifications', icon: Bell, en: 'Notifications', ar: 'التنبيهات' },
   { path: '/c/chat',    icon: MessageCircle, en: 'Chat',   ar: 'المحادثات' },
 ] as const;
 
 const DRAWER_NAV = [
-  { path: '/c/shipments',     icon: Truck,      en: 'Shipments',     ar: 'الشحنات' },
   { path: '/c/merchants',     icon: Store,      en: 'Merchants',     ar: 'التجار' },
   { path: '/c/settings',      icon: Settings,   en: 'Settings',      ar: 'الإعدادات' },
 ] as const;
@@ -60,7 +60,7 @@ export function CustomerLayout() {
   const isOrdersPhone = isMobile && (location.pathname === '/c/orders' || location.pathname === '/c/orders/');
   // The Cash page draws its own header on a phone too, with the Cash tab lit in the shared bottom bar.
   const isWalletPhone = isMobile && (location.pathname === '/c/wallet' || location.pathname === '/c/wallet/');
-  // Shipments draws the same header on a phone, with no tab lit in the bottom bar.
+  // Shipments draws the same header on a phone, with its own tab lit in the bottom bar.
   const isShipmentsPhone = isMobile && (location.pathname === '/c/shipments' || location.pathname === '/c/shipments/');
   const ownsShell = isHomeRoute || isOrdersPhone || isWalletPhone || isShipmentsPhone;
   const chatUnread = useChatStore(s => Object.values(s.unreadCounts).reduce((sum, n) => sum + (n || 0), 0));

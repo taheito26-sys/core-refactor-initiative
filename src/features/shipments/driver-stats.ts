@@ -86,24 +86,23 @@ export function tripPunctuality(trip: TripLike, now: number): { onTime: number; 
 
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
 
-/** One month of a driver's work. A trip is counted in the month it started, everything about it included. */
-export function driverMonthStats(trips: TripLike[], month: string, now: number): MonthStats {
-  const inMonth = trips.filter((t) => t.started_at && t.status !== 'cancelled' && monthKey(t.started_at) === month);
-  const delivered = inMonth.filter((t) => t.status === 'delivered');
-  const readings = inMonth.flatMap((t) => t.readings);
+/** What a set of trips adds up to. A trip counts whole, so pass the trips that belong together (one month, one driver, all time). */
+export function tripSetStats(trips: TripLike[], now: number): Omit<MonthStats, 'month'> {
+  const counted = trips.filter((t) => t.started_at && t.status !== 'cancelled');
+  const delivered = counted.filter((t) => t.status === 'delivered');
+  const readings = counted.flatMap((t) => t.readings);
   const alerts = readings.filter((r) => r.is_alert).length;
-  const punctual = inMonth.map((t) => tripPunctuality(t, now));
+  const punctual = counted.map((t) => tripPunctuality(t, now));
   const onTime = punctual.reduce((s, p) => s + p.onTime, 0);
   const late = punctual.reduce((s, p) => s + p.late, 0);
   const missed = punctual.reduce((s, p) => s + p.missed, 0);
   const durations = delivered.filter((t) => t.delivered_at).map((t) => (new Date(t.delivered_at as string).getTime() - new Date(t.started_at as string).getTime()) / HOUR);
 
   return {
-    month,
-    tripsStarted: inMonth.length,
+    tripsStarted: counted.length,
     tripsDelivered: delivered.length,
     tons: Math.round(delivered.reduce((s, t) => s + (t.weight_tons ?? 0), 0) * 10) / 10,
-    distanceKm: Math.round(inMonth.reduce((s, t) => s + routeDistanceKm(t.locations), 0)),
+    distanceKm: Math.round(counted.reduce((s, t) => s + routeDistanceKm(t.locations), 0)),
     avgTripHours: durations.length ? Math.round((durations.reduce((s, h) => s + h, 0) / durations.length) * 10) / 10 : null,
     readings: readings.length,
     alerts,
@@ -111,8 +110,13 @@ export function driverMonthStats(trips: TripLike[], month: string, now: number):
     onTimePct: pct(onTime, onTime + late + missed),
     missedReadings: missed,
     // The first stop is confirmed automatically when the trip starts, so it is not the driver's doing.
-    stopsConfirmed: inMonth.reduce((s, t) => s + Math.max(0, t.stops.filter((st) => st.reached_at).length - 1), 0),
+    stopsConfirmed: counted.reduce((s, t) => s + Math.max(0, t.stops.filter((st) => st.reached_at).length - 1), 0),
   };
+}
+
+/** One month of a driver's work. A trip is counted in the month it started, everything about it included. */
+export function driverMonthStats(trips: TripLike[], month: string, now: number): MonthStats {
+  return { month, ...tripSetStats(trips.filter((t) => t.started_at && monthKey(t.started_at) === month), now) };
 }
 
 export type Grade = 'good' | 'fair' | 'poor';
