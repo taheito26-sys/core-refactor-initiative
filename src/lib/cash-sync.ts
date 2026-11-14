@@ -1,4 +1,5 @@
 import { encodeCustodyAccountNotes, decodeCustodyAccountNotes } from '@/features/cash/custody-account-link';
+import { encodeOverdraftFlag, decodeOverdraftFlag } from '@/features/cash/account-overdraft';
 import { trackAppSave } from './app-update-saves';
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
@@ -69,7 +70,7 @@ function normalizeLegacyAccountType(type: CashAccount['type']): 'hand' | 'bank' 
 
 // Type adapters (camelCase <-> snake_case)
 
-function accountToRow(a: CashAccount, userId: string) {
+export function accountToRow(a: CashAccount, userId: string) {
   return {
     id: a.id,
     user_id: userId,
@@ -79,7 +80,7 @@ function accountToRow(a: CashAccount, userId: string) {
     status: a.status,
     bank_name: a.bankName ?? null,
     branch: a.branch ?? null,
-    notes: encodeCustodyAccountNotes(a),
+    notes: encodeOverdraftFlag(encodeCustodyAccountNotes(a), a.allowNegative),
     last_reconciled: a.lastReconciled ?? null,
     is_merchant_account: a.isMerchantAccount ?? a.type === 'merchant_custody',
     created_at: a.createdAt,
@@ -89,7 +90,8 @@ function accountToRow(a: CashAccount, userId: string) {
 
 export function rowToAccount(row: Record<string, unknown>): CashAccount {
   const isMerchantAccount = (row.is_merchant_account as boolean | null) ?? false;
-  const decoded: ReturnType<typeof decodeCustodyAccountNotes> = isMerchantAccount ? decodeCustodyAccountNotes(row.notes as string | null) : { notes: (row.notes as string | null) ?? undefined, link: {} };
+  const overdraft = decodeOverdraftFlag(row.notes as string | null);
+  const decoded: ReturnType<typeof decodeCustodyAccountNotes> = isMerchantAccount ? decodeCustodyAccountNotes(overdraft.notes) : { notes: overdraft.notes ?? undefined, link: {} };
 
   return {
     id: row.id as string,
@@ -105,6 +107,7 @@ export function rowToAccount(row: Record<string, unknown>): CashAccount {
     relationshipId: (row.relationship_id as string | null) ?? decoded.link.relationshipId,
     purpose: (row.purpose as CashAccount['purpose']) ?? decoded.link.purpose ?? 'custody',
     isMerchantAccount,
+    allowNegative: overdraft.allowNegative || undefined,
     createdAt: row.created_at as number,
   };
 }

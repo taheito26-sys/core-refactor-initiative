@@ -13,7 +13,7 @@ import {
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
   type CustomerLoan, type LoanRepayment, type RepaymentMethod, type Customer, type Trade,
-  getAccountBalance, getAllAccountBalances, deriveCashQAR,
+  getAccountBalance, getAllAccountBalances, deriveCashQAR, canSpendFromAccount,
   getLoanRepaid, getLoanRemaining, customerNameVariants, resolveCustomerName,
 } from '@/lib/tracker-helpers';
 import { useT, type TranslationKey } from '@/lib/i18n';
@@ -212,6 +212,7 @@ function AddAccountModal({ existingAccount, existingAccounts = [], currentBalanc
   const [merchantId, setMerchantId] = useState(existingAccount?.merchantId || '');
   const [relationshipId, setRelationshipId] = useState(existingAccount?.relationshipId || '');
   const [notes, setNotes] = useState(existingAccount?.notes || '');
+  const [allowNegative, setAllowNegative] = useState(!!existingAccount?.allowNegative);
   const [err, setErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -261,6 +262,7 @@ function AddAccountModal({ existingAccount, existingAccounts = [], currentBalanc
       isMerchantAccount: type === 'merchant_custody',
       purpose: type === 'merchant_custody' ? 'custody' : undefined,
       notes: notes.trim() || undefined,
+      allowNegative: allowNegative || undefined,
       lastReconciled: existingAccount?.lastReconciled,
       createdAt: existingAccount?.createdAt || Date.now(),
     };
@@ -372,6 +374,14 @@ function AddAccountModal({ existingAccount, existingAccounts = [], currentBalanc
           <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>{t.lang === 'ar' ? 'تصحيح مباشر للرصيد، وليس إيداعًا أو سحبًا.' : 'Direct balance correction, without a deposit or withdrawal.'}</p>
         </div>}
 
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={allowNegative} onChange={e => setAllowNegative(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{t('allowNegativeLbl')}</span>
+            <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{t('allowNegativeHint')}</span>
+          </span>
+        </label>
+
         <div className="field2" style={{ marginBottom: 16 }}>
           <div className="lbl">{t('notesOptionalAcc')}</div>
           <div className="inputBox"><input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('notesAccPh')} /></div>
@@ -482,7 +492,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit' as any)); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
-    if (amtNum > currentBalance && (mode === 'withdrawal' || mode === 'settlement')) {
+    if (!canSpendFromAccount(account, currentBalance, amtNum) && (mode === 'withdrawal' || mode === 'settlement')) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setErr(`${t('insufficientBalMsg' as any)} ${fmtTotal(currentBalance)} ${account.currency}`);
       return;
@@ -679,7 +689,7 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
     if (fromId === toId) { setErr(t('cannotSameAccount' as any)); return; }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (!(amtNum > 0)) { setErr(t('enterValidAmount' as any)); return; }
-    if (amtNum > fromBal) {
+    if (!canSpendFromAccount(fromAcc, fromBal, amtNum)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setErr((t('insufficientFundsMsg' as any)) + ` ${fmtTotal(fromBal)} ${fromAcc?.currency}`);
       return;
@@ -1055,7 +1065,7 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
     if (!(principalNum > 0)) { setErr(t('enterValidAmount')); return; }
     if (fundingAccountId) {
       const bal = balances.get(fundingAccountId) || 0;
-      if (bal < principalNum) { setErr(`${t('insufficientInAcc')} "${fundingAcc?.name}"`); return; }
+      if (!canSpendFromAccount(fundingAcc, bal, principalNum)) { setErr(`${t('insufficientInAcc')} "${fundingAcc?.name}"`); return; }
     }
     if (isDuplicateOrder && !confirmDuplicate) { setErr(t('loanDuplicateOrderWarning')); return; }
     onSave({ customerId, tradeId: tradeId || undefined, principal: principalNum, currency, fundingAccountId: fundingAccountId || undefined, note: note.trim() || undefined });
@@ -2097,6 +2107,7 @@ function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, o
           <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '8px 10px' }}>
             <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('availableBalanceLbl')}</div>
             <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: balance < 0 ? 'var(--bad)' : 'var(--text)' }}>{fmtTotal(balance)}</div>
+            {balance < 0 && <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 2 }}>{t('youOweAccountOwner')}</div>}
           </div>
           <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)', borderRadius: 8, padding: '8px 10px' }}>
             <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('ledgerTransferIn')}</div>

@@ -199,6 +199,13 @@ export interface CashAccount {
   purpose?: 'custody' | 'clearing' | 'settlement';
   /** Flag to explicitly mark as merchant account */
   isMerchantAccount?: boolean;
+  /** When true the balance may go below zero: the negative amount is what the merchant owes the account owner. */
+  allowNegative?: boolean;
+}
+
+/** True when `amount` may be taken out of an account holding `balance`; only an overdraft-enabled account may go below zero. */
+export function canSpendFromAccount(account: Pick<CashAccount, 'allowNegative'> | undefined | null, balance: number, amount: number): boolean {
+  return !!account?.allowNegative || balance + 1e-9 >= amount;
 }
 
 export interface CashLedgerEntry {

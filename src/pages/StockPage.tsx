@@ -23,6 +23,7 @@ import {
   getAllAccountBalances,
   getAccountNoteTotals,
   allocateBanknoteWithdrawal,
+  canSpendFromAccount,
   deriveCashQAR,
   totalStock,
   type TrackerState,
@@ -585,7 +586,7 @@ export default function StockPage() {
       const selectedAcc = activeAccounts.find(a => a.id === fundingAccountId);
       if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
       const availBal = accountBalances.get(fundingAccountId) || 0;
-      if (availBal < batchCostQAR) {
+      if (!canSpendFromAccount(selectedAcc, availBal, batchCostQAR)) {
         setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`);
         return;
       }
