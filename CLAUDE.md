@@ -512,6 +512,29 @@ constant clarification. These guidelines are working if diffs contain fewer unne
 there are fewer rewrites due to overcomplication, and clarifying questions come before
 implementation rather than after mistakes.
 
+## 16. RTK (token-saving command output)
+
+Source: <https://github.com/rtk-ai/rtk> (Apache-2.0 + BUSL-1.1). A single Rust binary that filters and
+compresses shell command output (`git status`, `git diff`, test runners, `ls`, `grep`, …) before the
+assistant reads it. It reduces the bash output only, so overall savings are smaller than the headline
+percentage. Nothing in this repo depends on it: it is a per-machine tool, never a build dependency.
+
+Install once per machine, then register the hook for the assistant in use:
+
+```
+brew install rtk                  # macOS / Linux; Windows: winget install rtk-ai.rtk
+rtk --version && rtk gain         # gain must print the savings dashboard (another "rtk" exists on crates.io)
+rtk init -g                       # Claude Code: global PreToolUse hook, applies to every project
+```
+
+- The hook only rewrites **Bash** tool calls. The built-in `Read`, `Grep` and `Glob` tools bypass it.
+- If a compressed output hides a detail needed for a diagnosis, rerun that command with the raw
+  binary path (for example `command git diff`) rather than guessing from the summary.
+- Verification commands from section 0 (`npm test`, `npm run typecheck`, guards) may be run through RTK, but
+  report failures from the full output, and never claim a pass from a summary alone.
+- Cloud sessions are ephemeral: install and `rtk init -g` run again in each new container. Do not
+  commit `~/.claude` settings or hook files into this repo.
+
 ## 14. Figma (design source)
 
 The project-level `.mcp.json` registers Figma's official remote MCP server
