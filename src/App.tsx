@@ -10,6 +10,7 @@ import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
 import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
+import { DriverGuard } from "@/features/auth/guards/DriverGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
@@ -170,6 +171,12 @@ const CustomerNotificationsPage = React.lazy(() => import("./pages/customer/Cust
 const CustomerChatPage = React.lazy(() => import("./pages/customer/CustomerChatPage"));
 const CustomerSettingsPage = React.lazy(() => import("./pages/customer/CustomerSettingsPage"));
 const CustomerWalletPage = React.lazy(() => import("./pages/customer/CustomerWalletPage"));
+const CustomerShipmentsPage = React.lazy(() => import("./pages/customer/CustomerShipmentsPage"));
+
+// Shipment drivers: a separate, phone-first shell with only their own trips.
+const DriverLayout = React.lazy(() => import("./pages/driver/DriverLayout"));
+const DriverShipmentsPage = React.lazy(() => import("./pages/driver/DriverShipmentsPage"));
+const DriverShipmentPage = React.lazy(() => import("./pages/driver/DriverShipmentPage"));
 
 // Merchant onboarding, admin, and the merchant app shell's pages were all
 // imported eagerly at module scope, so a customer who never visits any of
@@ -390,7 +397,21 @@ const App = () => (
                   <Route path="/c/wallet" element={<CustomerWalletPage />} />
                   <Route path="/c/notifications" element={<CustomerNotificationsPage />} />
                   <Route path="/c/chat" element={<CustomerChatPage />} />
+                  <Route path="/c/shipments" element={<CustomerShipmentsPage />} />
                   <Route path="/c/settings" element={<CustomerSettingsPage />} />
+                </Route>
+
+                {/* Driver app — requires auth + the driver role */}
+                <Route path="/d" element={
+                  <AuthGuard>
+                    <DriverGuard>
+                      <DriverLayout />
+                    </DriverGuard>
+                  </AuthGuard>
+                }>
+                  <Route index element={<Navigate to="/d/shipments" replace />} />
+                  <Route path="shipments" element={<DriverShipmentsPage />} />
+                  <Route path="shipments/:id" element={<DriverShipmentPage />} />
                 </Route>
 
                 {/* App Shell — requires auth + approved profile + merchant profile */}

@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ZoomControls } from '@/components/shared/ZoomControls';
-import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, type LucideIcon } from 'lucide-react';
+import { Home, ShoppingCart, Wallet, MessageCircle, Menu, X, Settings, Store, Bell, LogOut, Truck, type LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
@@ -24,6 +24,7 @@ const PRIMARY_NAV = [
 ] as const;
 
 const DRAWER_NAV = [
+  { path: '/c/shipments',     icon: Truck,      en: 'Shipments',     ar: 'الشحنات' },
   { path: '/c/merchants',     icon: Store,      en: 'Merchants',     ar: 'التجار' },
   { path: '/c/settings',      icon: Settings,   en: 'Settings',      ar: 'الإعدادات' },
 ] as const;

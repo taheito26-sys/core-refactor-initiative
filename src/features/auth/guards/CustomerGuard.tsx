@@ -23,6 +23,11 @@ export function CustomerGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/account-rejected" replace />;
   }
 
+  // A shipment driver has no customer profile and must not be sent to customer onboarding.
+  if (profile?.role === 'driver') {
+    return <Navigate to="/d/shipments" replace />;
+  }
+
   // No customer profile yet — needs onboarding
   if (!customerProfile) {
     return <Navigate to="/c/onboarding" replace />;

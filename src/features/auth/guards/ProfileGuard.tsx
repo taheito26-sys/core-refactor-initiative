@@ -34,6 +34,11 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/account-rejected" replace />;
   }
 
+  // A shipment driver has neither profile; their whole app lives under /d.
+  if (profile?.role === 'driver') {
+    return <Navigate to="/d/shipments" replace />;
+  }
+
   // A merchant profile is what this shell requires, and it wins for a
   // dual-role account.
   if (merchantProfile) {
