@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, MapPin, MapPinOff, Settings } from 'lucide-react';
+import { Loader2, MapPin, MapPinOff, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { canTrackInBackground, openLocationSettings } from '../native-tracker';
@@ -17,14 +17,9 @@ export function LocationAccessCard({ access, lang }: { access: LocationAccess; l
   if (access.permission === 'checking') return null;
 
   if (access.permission === 'granted') {
+    if (!(access.backgroundDenied && native)) return null;
     return (
       <div className="space-y-1.5">
-        <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400" role="status">
-          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {access.activeCount > 0
-            ? L('Location is on · your position is sent every hour', 'الموقع مفعّل · يُرسل موقعك كل ساعة')
-            : L('Location is on', 'الموقع مفعّل')}
-        </div>
         {access.backgroundDenied && native && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300" role="alert">
             <span>{L('Allow location and notifications in settings so your position keeps updating with the screen off.', 'اسمح بالموقع والإشعارات من الإعدادات ليستمر تحديث موقعك والشاشة مطفأة.')}</span>
@@ -52,7 +47,7 @@ export function LocationAccessCard({ access, lang }: { access: LocationAccess; l
           <p className="text-sm text-muted-foreground">
             {denied
               ? L('Open your phone’s settings for this app and set Location to Allow. Temperature photos cannot be sent without it.', 'افتح إعدادات الهاتف لهذا التطبيق واجعل الموقع «سماح». لا يمكن إرسال صور الحرارة بدونه.')
-              : L('Every temperature photo is stamped with the time and your position, and while a trip is on the road your position is sent every hour.', 'تُختم كل صورة حرارة بالوقت وموقعك، وأثناء الرحلة يُرسل موقعك كل ساعة.')}
+              : L('Every temperature photo is stamped with the time and your position.', 'تُختم كل صورة حرارة بالوقت وموقعك.')}
           </p>
         </div>
       </div>
