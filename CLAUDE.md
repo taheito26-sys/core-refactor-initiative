@@ -511,3 +511,21 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 constant clarification. These guidelines are working if diffs contain fewer unnecessary changes,
 there are fewer rewrites due to overcomplication, and clarifying questions come before
 implementation rather than after mistakes.
+
+## 14. Figma (design source)
+
+The project-level `.mcp.json` registers Figma's official remote MCP server
+(`https://mcp.figma.com/mcp`), so an AI assistant can read Figma frames and variables and build
+from them. Setup is a one-time sign-in per person:
+
+1. Open the project in Claude Code and approve the project's `figma` MCP server when asked.
+2. Run `/mcp`, select `figma`, and authenticate with your Figma account.
+3. Run `/mcp` again to confirm it shows as connected, then paste a Figma frame link in the prompt.
+
+Building from a design still follows the stack rules in §5: shadcn components from
+`src/components/ui`, theme colors through CSS variables rather than hex values from the file,
+and `useT` strings with both `en` and `ar` (RTL) for every label.
+
+Figma accounts on the government cloud use `https://mcp.figma-gov.com/mcp` instead; change the
+URL in `.mcp.json` if that applies. Access is read through the signed-in person's own Figma
+permissions; no token is stored in this repository.
