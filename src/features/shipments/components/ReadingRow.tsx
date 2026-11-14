@@ -1,6 +1,7 @@
 import { ExternalLink, MapPin, MapPinned, ScanLine, Timer, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ENTRY_MODE_LABELS, formatCoords, formatStampTime, mapsLink, placeText } from '../geo';
+import { ENTRY_MODE_LABELS, formatStampTime, mapsLink } from '../geo';
+import { useAreaText } from './AreaText';
 import { agoLabel, type Lang } from '../route';
 import type { ShipmentReading } from '../types';
 import { PhotoThumb } from './PhotoThumb';
@@ -10,7 +11,7 @@ const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /** The proof on one reading: the area, when the phone took it, where, and how the number was entered. */
 export function ReadingProof({ reading, lang }: { reading: ShipmentReading; lang: Lang }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const area = placeText(reading, lang);
+  const area = useAreaText(reading, lang);
   const mode = ENTRY_MODE_LABELS[reading.entry_mode];
   return (
     <div className="cs-meta">
@@ -20,7 +21,7 @@ export function ReadingProof({ reading, lang }: { reading: ShipmentReading; lang
         <div>
           <MapPinned aria-hidden="true" />
           <a className="cs-link dir" href={mapsLink(reading.latitude, reading.longitude)} target="_blank" rel="noreferrer">
-            {formatCoords(reading.latitude, reading.longitude)}{reading.accuracy_m != null ? ` ±${Math.round(reading.accuracy_m)} m` : ''}<ExternalLink aria-hidden="true" />
+            {L('Open in maps', 'فتح في الخرائط')}{reading.accuracy_m != null ? ` · ±${Math.round(reading.accuracy_m)} m` : ''}<ExternalLink aria-hidden="true" />
           </a>
         </div>
       )}

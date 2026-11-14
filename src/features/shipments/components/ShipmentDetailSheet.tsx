@@ -5,7 +5,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
-import { LOCATION_SOURCE_LABELS, formatCoords, mapEmbedUrl, mapsLink, placeText } from '../geo';
+import { LOCATION_SOURCE_LABELS, mapEmbedUrl, mapsLink } from '../geo';
+import { AreaText, useAreaText } from './AreaText';
 import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
 import { tripSummary } from '../trip-summary';
 import { PhotoThumb } from './PhotoThumb';
@@ -29,7 +30,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
   const last = shipment ? latestReading(shipment.readings) : null;
   const due = shipment ? readingDue(shipment, last?.taken_at ?? null, now) : null;
   const where = shipment?.locations[0] ?? null;
-  const area = placeText(where, lang);
+  const area = useAreaText(where, lang);
   const stats = shipment ? tripSummary(shipment, now, lang) : null;
   const progress = shipment ? stopProgress(shipment.stops) : null;
   const canChangeDriver = shipment?.status === 'preparing';
@@ -117,7 +118,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                       </div>
                       <div>
                         <MapPinned aria-hidden="true" />
-                        <a className="cs-link dir" href={mapsLink(where.latitude, where.longitude)} target="_blank" rel="noreferrer">{formatCoords(where.latitude, where.longitude)}<ExternalLink aria-hidden="true" /></a>
+                        <a className="cs-link" href={mapsLink(where.latitude, where.longitude)} target="_blank" rel="noreferrer">{L('Open in maps', 'فتح في الخرائط')}<ExternalLink aria-hidden="true" /></a>
                       </div>
                     </div>
                     {shipment.locations.length > 1 && (
@@ -125,7 +126,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                         <div style={{ height: 8 }} />
                         <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>
                           {shipment.locations.slice(1, 8).map((p) => (
-                            <li key={p.recorded_at}><b>{placeText(p, lang) ?? <span dir="ltr">{formatCoords(p.latitude, p.longitude)}</span>}</b><small>{agoLabel(p.recorded_at, now, lang)}</small></li>
+                            <li key={p.recorded_at}><b><AreaText point={p} lang={lang} fallback="—" /></b><small>{agoLabel(p.recorded_at, now, lang)}</small></li>
                           ))}
                         </ul>
                       </>

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ShipmentWithDetails } from '@/features/shipments/types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const withQuery = (ui: React.ReactElement) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
 
 const state: { data: ShipmentWithDetails[]; loading: boolean } = { data: [], loading: false };
 vi.mock('@/features/shipments/hooks', () => ({
@@ -38,7 +40,7 @@ beforeEach(() => { state.data = []; state.loading = false; });
 
 describe('Shipments page', () => {
   it('invites the customer to dispatch a first shipment when there are none', () => {
-    render(<CustomerShipmentsPage />);
+    render(withQuery(<CustomerShipmentsPage />));
     expect(screen.getByText('No shipments yet')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /New shipment/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Needs attention')).toBeNull();
@@ -52,7 +54,7 @@ describe('Shipments page', () => {
       ship('4', 'preparing', null),
       ship('5', 'delivered', -15, false, 30),
     ];
-    render(<CustomerShipmentsPage />);
+    render(withQuery(<CustomerShipmentsPage />));
     const tiles = document.querySelector('.co-tiles') as HTMLElement;
     const tile = (name: string) => within(tiles).getByRole('button', { name: new RegExp(name) });
     expect(within(tile('On the road')).getByText('3')).toBeTruthy();
@@ -63,7 +65,7 @@ describe('Shipments page', () => {
 
   it('filters the list from a tile and clears the filter again', () => {
     state.data = [ship('1', 'on_the_road', 8.5, true), ship('3', 'on_the_road', -15), ship('4', 'preparing', null)];
-    render(<CustomerShipmentsPage />);
+    render(withQuery(<CustomerShipmentsPage />));
     expect(screen.getAllByRole('button', { name: /^SH-/ })).toHaveLength(3);
     fireEvent.click(within(document.querySelector('.co-tiles') as HTMLElement).getByRole('button', { name: /Needs attention/ }));
     expect(screen.getAllByRole('button', { name: /^SH-/ })).toHaveLength(1);
@@ -74,7 +76,7 @@ describe('Shipments page', () => {
 
   it('searches by reference, cargo or driver', () => {
     state.data = [ship('1', 'on_the_road', -15), ship('2', 'preparing', null)];
-    render(<CustomerShipmentsPage />);
+    render(withQuery(<CustomerShipmentsPage />));
     fireEvent.change(screen.getByLabelText('Search shipments'), { target: { value: 'cargo 2' } });
     expect(screen.getAllByRole('button', { name: /^SH-/ })).toHaveLength(1);
     expect(screen.getByText('SH-2')).toBeTruthy();

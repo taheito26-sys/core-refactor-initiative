@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { cacheKey, placeFromAddress } from '../../../supabase/functions/reverse-geocode/place';
 import type { PlaceLabels } from './geo';
 
 const LOOKUP_TIMEOUT_MS = 7_000;
@@ -26,4 +27,44 @@ export async function lookupPlace(latitude: number, longitude: number): Promise<
   } catch {
     return null;
   }
+}
+
+// ─── Naming old positions for the person looking at them ───
+
+// The public geocoder allows one request a second, so every lookup waits behind the previous one.
+let queue: Promise<unknown> = Promise.resolve();
+const viewerCache = new Map<string, Promise<PlaceLabels | null>>();
+
+async function fetchLabel(latitude: number, longitude: number, lang: 'ar' | 'en'): Promise<string | null> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&accept-language=${lang}&lat=${latitude}&lon=${longitude}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return placeFromAddress(data?.address)?.label ?? null;
+}
+
+/**
+ * Names the area of a position that was saved without one, for a merchant or customer reading it.
+ * The result is "district, city, governorate, country" in both languages; null when it cannot be named.
+ */
+export function lookupPlaceForViewer(latitude: number, longitude: number): Promise<PlaceLabels | null> {
+  const key = cacheKey(latitude, longitude);
+  const hit = viewerCache.get(key);
+  if (hit) return hit;
+  const run = queue.then(async () => {
+    try {
+      const ar = await fetchLabel(latitude, longitude, 'ar');
+      await new Promise((r) => setTimeout(r, 1_100));
+      const en = await fetchLabel(latitude, longitude, 'en');
+      await new Promise((r) => setTimeout(r, 1_100));
+      return ar || en ? { ar, en } : null;
+    } catch {
+      return null;
+    }
+  });
+  queue = run;
+  viewerCache.set(key, run);
+  // A failed lookup is retried on the next visit instead of being remembered.
+  void run.then((v) => { if (!v) viewerCache.delete(key); });
+  return run;
 }

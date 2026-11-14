@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import type { ShipmentWithDetails } from '@/features/shipments/types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const withQuery = (ui: React.ReactElement) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
 
 const state: { data: ShipmentWithDetails | null } = { data: null };
 vi.mock('@/features/shipments/hooks', () => ({
@@ -10,6 +12,8 @@ vi.mock('@/features/shipments/hooks', () => ({
   useCancelShipment: () => ({ mutate: vi.fn(), isPending: false }),
   usePhotoUrl: () => ({ data: 'https://example.test/p.jpg', isLoading: false, isError: false }),
 }));
+const lookupMock = vi.fn();
+vi.mock('@/features/shipments/place', () => ({ lookupPlaceForViewer: (...a: unknown[]) => lookupMock(...a) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ShipmentDetailSheet } from '@/features/shipments/components/ShipmentDetailSheet';
@@ -35,7 +39,7 @@ const base = (over: Partial<ShipmentWithDetails> = {}): ShipmentWithDetails => (
   ...over,
 });
 
-const open = (lang: 'en' | 'ar' = 'en') => render(<ShipmentDetailSheet shipmentId="x" lang={lang} now={NOW} onClose={vi.fn()} />);
+const open = (lang: 'en' | 'ar' = 'en') => render(withQuery(<ShipmentDetailSheet shipmentId="x" lang={lang} now={NOW} onClose={vi.fn()} />));
 beforeEach(() => { state.data = base(); });
 
 describe('Shipment detail panel', () => {
@@ -62,6 +66,23 @@ describe('Shipment detail panel', () => {
     expect(document.querySelector('iframe')?.getAttribute('src')).toContain('openstreetmap.org/export/embed.html');
     expect(screen.getByText('Kafr El Sheikh', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText(/Last seen/)).toBeTruthy();
+  });
+
+  it('never prints GPS coordinates, only the area by name', () => {
+    open();
+    expect(document.body.textContent).not.toMatch(/°\s*[NSEW]/);
+    expect(screen.getAllByText('Open in maps').length).toBeGreaterThan(0);
+  });
+
+  it('names the area of a position saved without one, in the reader language', async () => {
+    lookupMock.mockResolvedValue({ ar: 'سفاجا، محافظة البحر الأحمر، مصر', en: 'Safaga, Red Sea Governorate, Egypt' });
+    state.data = base({
+      readings: [{ ...reading(0.3, 8.5, true), place_ar: null, place_en: null }],
+      locations: [{ latitude: 26.73, longitude: 33.93, accuracy_m: 10, recorded_at: iso(0.3), source: 'auto', place_ar: null, place_en: null }],
+    });
+    open('ar');
+    expect((await screen.findAllByText('سفاجا، محافظة البحر الأحمر، مصر')).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/°\s*[NSEW]/);
   });
 
   it('marks reached stops and names the next one', () => {
