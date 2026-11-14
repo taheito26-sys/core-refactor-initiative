@@ -441,3 +441,73 @@ Commit messages are short imperative summaries, frequently with a PR number suff
 
 Several of these are point-in-time snapshots written during a specific change and have not been
 maintained since. Treat the code and migrations as the source of truth when they disagree.
+
+## 13. Coding behavior guidelines (Karpathy-inspired)
+
+Source: <https://github.com/multica-ai/andrej-karpathy-skills> (MIT), derived from Andrej Karpathy's
+observations on common LLM coding mistakes. They bias toward caution over speed; for trivial tasks
+(a typo, an obvious one-liner) use judgment.
+
+**How these combine with the rest of this file:** the project rules above win where they differ.
+In particular §0 stands (push to `main`, fast release, no repeated confirmation prompts), so "ask"
+below means ask only when a real ambiguity would change what gets built, not before routine work.
+
+### 1. Think before coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them; don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity first
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it; don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: every changed line should trace directly to the request.
+
+### 4. Goal-driven execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require
+constant clarification. These guidelines are working if diffs contain fewer unnecessary changes,
+there are fewer rewrites due to overcomplication, and clarifying questions come before
+implementation rather than after mistakes.
