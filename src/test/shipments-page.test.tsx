@@ -26,7 +26,8 @@ const ship = (id: string, status: ShipmentWithDetails['status'], temp: number | 
   driver_id: null, status, note: null, started_at: status === 'preparing' ? null : at(20), delivered_at: null, created_at: at(22),
   driver: { id: 'd', display_name: 'Driver One', truck_plate: 'T1', phone: null },
   stops: [stop(id, 10, status === 'preparing' ? null : at(20)), stop(id, 20, null)],
-  readings: temp === null ? [] : [{ id: `${id}-r`, shipment_id: id, temperature_c: temp, set_point_c: -15, photo_path: `${id}/a.jpg`, note: null, is_alert: alert, taken_at: at(readingHoursAgo) }],
+  locations: [],
+  readings: temp === null ? [] : [{ id: `${id}-r`, shipment_id: id, temperature_c: temp, set_point_c: -15, photo_path: `${id}/a.jpg`, note: null, is_alert: alert, taken_at: at(readingHoursAgo), latitude: 25.2, longitude: 51.5, accuracy_m: 10, device_taken_at: at(readingHoursAgo), time_mismatch: false, entry_mode: 'manual' }],
 });
 
 beforeEach(() => { state.data = []; state.loading = false; });

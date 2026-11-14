@@ -66,6 +66,12 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
+    <!-- Shipment driver location: stamped on temperature photos and reported hourly. The
+         background-geolocation plugin adds the foreground service that keeps reporting with the
+         screen off, so no separate "all the time" permission is required. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <!-- Voice / video calls -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

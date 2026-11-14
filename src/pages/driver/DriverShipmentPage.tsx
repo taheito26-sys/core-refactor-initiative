@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, Flag, Loader2, MapPinPlus, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -17,7 +17,9 @@ import { RouteTimeline } from '@/features/shipments/components/RouteTimeline';
 import { StatusChip } from '@/features/shipments/components/StatusChip';
 import { TemperatureReadout } from '@/features/shipments/components/TemperatureReadout';
 import { useAddStop, useReachStop, useShipment, useStartShipment } from '@/features/shipments/hooks';
+import { reportStopLocation } from '@/features/shipments/reporting';
 import { latestReading, readingDue, stopName, stopProgress } from '@/features/shipments/route';
+import type { DriverOutletContext } from './DriverLayout';
 
 /** One trip from the driver's side: start it, send temperature photos, confirm stops, add stops. */
 export default function DriverShipmentPage() {
@@ -25,6 +27,7 @@ export default function DriverShipmentPage() {
   const { settings } = useTheme();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  const { access, driverName } = useOutletContext<DriverOutletContext>();
   const { data: shipment, isLoading } = useShipment(id);
   const start = useStartShipment();
   const reach = useReachStop();
@@ -78,7 +81,7 @@ export default function DriverShipmentPage() {
 
       {onTheRoad && due.state !== 'ok' && due.state !== 'idle' && <div><DueBadge due={due} lang={lang} now={now} /></div>}
 
-      {active && <DriverReadingForm shipment={shipment} lang={lang} />}
+      {active && <DriverReadingForm shipment={shipment} driverName={driverName} access={access} lang={lang} />}
 
       {onTheRoad && (
         <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
@@ -144,7 +147,7 @@ export default function DriverShipmentPage() {
             <AlertDialogAction
               onClick={() => {
                 if (confirm === 'start') start.mutate(shipment.id, { onError });
-                else if (progress.next) reach.mutate(progress.next.id, { onError });
+                else if (progress.next) reach.mutate(progress.next.id, { onError, onSuccess: () => { void reportStopLocation(shipment.id); } });
                 setConfirm(null);
               }}
             >

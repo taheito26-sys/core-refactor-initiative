@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowUpRight, Scale, Tag, User } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, MapPin, Scale, Tag, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  attentionState, latestReading, liveness, readingDue, stopName, stopProgress, type Lang,
+  agoLabel, attentionState, latestReading, liveness, readingDue, stopName, stopProgress, type Lang,
 } from '../route';
 import type { ShipmentWithDetails } from '../types';
 import { LiveStamp } from './LiveStamp';
@@ -48,6 +48,12 @@ export function ShipmentCard({ shipment, lang, now, onOpen }: { shipment: Shipme
 
       <RouteLine stops={shipment.stops} status={shipment.status} lang={lang} />
       {where && <div className="-mt-2 truncate text-sm font-medium" dir="auto">{where}</div>}
+      {shipment.locations[0] && (
+        <div className="-mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {L('Last seen', 'آخر ظهور')} {agoLabel(shipment.locations[0].recorded_at, now, lang)}
+        </div>
+      )}
 
       <section
         className={cn('rounded-xl p-3.5', attention === 'alert' ? 'bg-destructive/10' : 'bg-muted/50')}

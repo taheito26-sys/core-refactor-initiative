@@ -177,6 +177,7 @@ const CustomerShipmentsPage = React.lazy(() => import("./pages/customer/Customer
 const DriverLayout = React.lazy(() => import("./pages/driver/DriverLayout"));
 const DriverShipmentsPage = React.lazy(() => import("./pages/driver/DriverShipmentsPage"));
 const DriverShipmentPage = React.lazy(() => import("./pages/driver/DriverShipmentPage"));
+const DriverStatsPage = React.lazy(() => import("./pages/driver/DriverStatsPage"));
 
 // Merchant onboarding, admin, and the merchant app shell's pages were all
 // imported eagerly at module scope, so a customer who never visits any of
@@ -412,6 +413,7 @@ const App = () => (
                   <Route index element={<Navigate to="/d/shipments" replace />} />
                   <Route path="shipments" element={<DriverShipmentsPage />} />
                   <Route path="shipments/:id" element={<DriverShipmentPage />} />
+                  <Route path="stats" element={<DriverStatsPage />} />
                 </Route>
 
                 {/* App Shell — requires auth + approved profile + merchant profile */}

@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import { compressPhoto } from './image';
-import type { Shipment, ShipmentDriver, ShipmentReading, ShipmentStop, ShipmentWithDetails } from './types';
+import type { EntryMode, Fix } from './geo';
+import type { Shipment, ShipmentDriver, ShipmentLocation, ShipmentReading, ShipmentStop, ShipmentWithDetails } from './types';
 
 // The generated Supabase types predate the shipments tables and functions; drop this cast once
 // they are regenerated. It only describes the few calls this module makes.
@@ -23,7 +23,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 }
 
 const LIST_SELECT =
-  '*, driver:shipment_drivers(id, display_name, truck_plate, phone), stops:shipment_stops(*), readings:shipment_readings(*)';
+  '*, driver:shipment_drivers(id, display_name, truck_plate, phone), stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, accuracy_m, recorded_at, source)';
 
 /** Shipments the caller can see: a customer's own, or the ones assigned to a driver. Newest first. */
 export async function listShipments(): Promise<ShipmentWithDetails[]> {
@@ -32,7 +32,9 @@ export async function listShipments(): Promise<ShipmentWithDetails[]> {
     .select(LIST_SELECT)
     .order('created_at', { ascending: false })
     .order('taken_at', { ascending: false, referencedTable: 'readings' })
-    .limit(1, { referencedTable: 'readings' });
+    .limit(1, { referencedTable: 'readings' })
+    .order('recorded_at', { ascending: false, referencedTable: 'locations' })
+    .limit(1, { referencedTable: 'locations' });
   if (error) throw error;
   return (data ?? []) as ShipmentWithDetails[];
 }
@@ -48,6 +50,8 @@ export async function getShipment(id: string): Promise<ShipmentDetail | null> {
     .select(LIST_SELECT)
     .eq('id', id)
     .order('taken_at', { ascending: false, referencedTable: 'readings' })
+    .order('recorded_at', { ascending: false, referencedTable: 'locations' })
+    .limit(1, { referencedTable: 'locations' })
     .maybeSingle();
   if (error) throw error;
   return (data as ShipmentDetail | null) ?? null;
@@ -119,19 +123,25 @@ export const addStop = (shipmentId: string, name: string) =>
 
 export interface ReadingInput {
   shipmentId: string;
-  photo: File;
+  /** The photo with the time and position already stamped onto it. */
+  photo: Blob;
   temperatureC: number;
   setPointC: number | null;
   note: string;
+  fix: Fix;
+  /** When the phone took the photo, epoch ms. */
+  capturedAt: number;
+  entryMode: EntryMode;
+  /** What the automatic reader saw, kept even when the driver changed it. */
+  read: { temperature: number; setPoint: number | null } | null;
 }
 
-/** Uploads the (shrunk) screen photo, then records the reading that points at it. */
+/** Uploads the stamped photo, then records the reading with the phone's time and position. */
 export async function submitReading(input: ReadingInput): Promise<ShipmentReading> {
-  const blob = await compressPhoto(input.photo);
   const path = `${input.shipmentId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
   const { error: uploadError } = await supabase.storage
     .from('shipment-photos')
-    .upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+    .upload(path, input.photo, { contentType: input.photo.type || 'image/jpeg', upsert: false });
   if (uploadError) throw uploadError;
   return rpc<ShipmentReading>('driver_submit_reading', {
     p_shipment_id: input.shipmentId,
@@ -139,7 +149,50 @@ export async function submitReading(input: ReadingInput): Promise<ShipmentReadin
     p_set_point: input.setPointC,
     p_photo_path: path,
     p_note: input.note,
+    p_lat: input.fix.latitude,
+    p_lng: input.fix.longitude,
+    p_accuracy: input.fix.accuracy,
+    p_device_time: new Date(input.capturedAt).toISOString(),
+    p_entry_mode: input.entryMode,
+    p_read_temperature: input.read?.temperature ?? null,
+    p_read_set_point: input.read?.setPoint ?? null,
   });
+}
+
+export interface LocationPointInput {
+  shipmentId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  /** When the phone took the fix, epoch ms. */
+  recordedAt: number;
+  source: 'auto' | 'stop' | 'reading';
+}
+
+export const logLocation = (p: LocationPointInput) =>
+  rpc<ShipmentLocation>('driver_log_location', {
+    p_shipment_id: p.shipmentId,
+    p_lat: p.latitude,
+    p_lng: p.longitude,
+    p_accuracy: p.accuracy,
+    p_device_time: new Date(p.recordedAt).toISOString(),
+    p_source: p.source,
+  });
+
+export interface TripData extends Shipment {
+  stops: ShipmentStop[];
+  readings: ShipmentReading[];
+  locations: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at'>[];
+}
+
+/** Everything the driver's monthly numbers are worked out from: trips started since a date. */
+export async function listDriverTrips(sinceIso: string): Promise<TripData[]> {
+  const { data, error } = await db
+    .from('shipments')
+    .select('*, stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, recorded_at)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as TripData[]).filter((t) => (t.started_at ?? t.created_at) >= sinceIso);
 }
 
 export async function signedPhotoUrl(path: string): Promise<string> {

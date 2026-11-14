@@ -19,6 +19,24 @@ export interface ShipmentReading {
   note: string | null;
   is_alert: boolean;
   taken_at: string;
+  /** Where the phone was and what its clock said when the photo was taken. */
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  device_taken_at: string | null;
+  /** The phone's clock and the server's differ by more than ten minutes. */
+  time_mismatch: boolean;
+  entry_mode: 'auto' | 'auto_edited' | 'manual';
+}
+
+export interface ShipmentLocation {
+  id?: string;
+  shipment_id?: string;
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  recorded_at: string;
+  source: 'auto' | 'reading' | 'stop';
 }
 
 export interface ShipmentDriver {
@@ -54,4 +72,6 @@ export interface ShipmentWithDetails extends Shipment {
   driver: Pick<ShipmentDriver, 'id' | 'display_name' | 'truck_plate' | 'phone'> | null;
   stops: ShipmentStop[];
   readings: ShipmentReading[];
+  /** The newest known position, if the driver has shared one. */
+  locations: ShipmentLocation[];
 }

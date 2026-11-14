@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 import { useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
 import { agoLabel, latestReading, liveness, readingDue, type Lang } from '../route';
 import { LiveStamp } from './LiveStamp';
+import { LocationCard } from './LocationCard';
+import { ReadingStamp } from './ReadingStamp';
 import { PhotoThumb } from './PhotoThumb';
 import { RouteLine } from './RouteLine';
 import { RouteTimeline } from './RouteTimeline';
@@ -80,6 +82,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                         {last.note && <p className="text-sm text-muted-foreground">“{last.note}”</p>}
                       </div>
                     </div>
+                    <ReadingStamp reading={last} lang={lang} />
                     <TemperatureRange temperature={last.temperature_c} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} alert={last.is_alert} lang={lang} />
                   </>
                 ) : (
@@ -90,6 +93,10 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 </div>
               </div>
               <TemperatureChart readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} lang={lang} />
+            </Section>
+
+            <Section title={L('Where is the truck', 'أين الشاحنة')}>
+              <LocationCard location={shipment.locations[0] ?? null} lang={lang} now={now} />
             </Section>
 
             <Section title={L('Route', 'المسار')}>
@@ -131,7 +138,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                         <span className={cn('text-xl font-extrabold tabular-nums', r.is_alert && 'text-destructive')} dir="ltr">{temp(r.temperature_c)}</span>
                         {r.is_alert && <span className="inline-flex items-center gap-1 text-xs font-bold text-destructive"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />{L('Out of range', 'خارج النطاق')}</span>}
                       </div>
-                      <div className="text-xs text-muted-foreground">{new Date(r.taken_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-GB')} · {agoLabel(r.taken_at, now, lang)}</div>
+                      <div className="mb-1 text-xs text-muted-foreground">{new Date(r.taken_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-GB')} · {agoLabel(r.taken_at, now, lang)}</div>
+                      <ReadingStamp reading={r} lang={lang} />
                     </div>
                   </li>
                 ))}
