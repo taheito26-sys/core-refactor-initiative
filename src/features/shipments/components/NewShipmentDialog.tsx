@@ -93,7 +93,7 @@ export function NewShipmentDialog({
               <Input id="ship-tol" inputMode="decimal" value={tolerance} onChange={(e) => setTolerance(e.target.value)} dir="ltr" />
             </div>
           </div>
-          <p className="-mt-2 text-[11px] text-muted-foreground">
+          <p className="-mt-2 text-xs text-muted-foreground">
             {L('A reading outside the allowed range alerts you straight away.', 'أي قراءة خارج النطاق المسموح تنبّهك فوراً.')}
           </p>
 
@@ -116,7 +116,7 @@ export function NewShipmentDialog({
           </div>
 
           <div className="rounded-xl border border-border bg-muted/40 p-3">
-            <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{L('Route', 'المسار')}</div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">{L('Route', 'المسار')}</div>
             <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
               {FIXED_ROUTE.map((s, i) => (
                 <li key={s.nameEn} className="flex items-center gap-1.5">
@@ -125,7 +125,7 @@ export function NewShipmentDialog({
                 </li>
               ))}
             </ol>
-            <p className="mt-1.5 text-[11px] text-muted-foreground">{L('The driver can add extra stops on the way.', 'يمكن للسائق إضافة محطات إضافية في الطريق.')}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{L('The driver can add extra stops on the way.', 'يمكن للسائق إضافة محطات إضافية في الطريق.')}</p>
           </div>
         </div>
 

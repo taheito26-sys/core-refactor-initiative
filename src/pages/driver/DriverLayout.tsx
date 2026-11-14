@@ -20,7 +20,7 @@ export default function DriverLayout() {
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Snowflake className="h-5 w-5" aria-hidden="true" /></span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold">{me?.display_name ?? (lang === 'ar' ? 'السائق' : 'Driver')}</span>
-            <span className="block truncate text-[11px] text-muted-foreground" dir="ltr">{me?.truck_plate ?? ''}</span>
+            <span className="block truncate text-xs text-muted-foreground" dir="ltr">{me?.truck_plate ?? ''}</span>
           </span>
         </Link>
         <div className="ms-auto flex items-center gap-2">

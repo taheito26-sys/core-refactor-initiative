@@ -144,3 +144,62 @@ export function toggleSign(raw: string): string {
   if (t === '') return '-';
   return t.startsWith('-') ? t.slice(1) : `-${t}`;
 }
+
+export type Attention = 'alert' | 'overdue' | null;
+
+/**
+ * Why a truck on the road needs the customer's eyes: its latest temperature is out of range, or its
+ * next photo is late. Nothing else is "attention"; a shipment that is not moving never is.
+ */
+export function attentionState(
+  shipment: Pick<Shipment, 'status' | 'started_at' | 'reading_interval_hours'>,
+  last: Pick<ShipmentReading, 'is_alert' | 'taken_at'> | null,
+  now: number,
+): Attention {
+  if (shipment.status !== 'on_the_road') return null;
+  if (last?.is_alert) return 'alert';
+  return readingDue(shipment, last?.taken_at ?? null, now).state === 'overdue' ? 'overdue' : null;
+}
+
+export type Liveness = 'live' | 'stale' | 'none';
+
+/** Data is only called live when a reading is on time; a late one is labelled stale, and a parked shipment has no live feed. */
+export function liveness(due: ReadingDue): Liveness {
+  if (due.state === 'idle') return 'none';
+  return due.state === 'overdue' ? 'stale' : 'live';
+}
+
+export interface RangeScale {
+  min: number;
+  max: number;
+  /** Where the allowed band starts and ends, 0-100 along the scale. */
+  bandStartPct: number;
+  bandEndPct: number;
+  /** Where the reading sits, 0-100, or null with no reading. */
+  markerPct: number | null;
+  bandLow: number;
+  bandHigh: number;
+}
+
+const SCALE_MARGIN_C = 8;
+
+/** A thermometer-style scale around the allowed band that always has room for the reading, however far off it is. */
+export function rangeScale(target: number, tolerance: number, temperature: number | null): RangeScale {
+  const bandLow = target - tolerance;
+  const bandHigh = target + tolerance;
+  const min = Math.min(bandLow - SCALE_MARGIN_C, temperature == null ? Infinity : temperature - 2);
+  const max = Math.max(bandHigh + SCALE_MARGIN_C, temperature == null ? -Infinity : temperature + 2);
+  const pct = (v: number) => ((v - min) / (max - min)) * 100;
+  return {
+    min, max, bandLow, bandHigh,
+    bandStartPct: pct(bandLow),
+    bandEndPct: pct(bandHigh),
+    markerPct: temperature == null ? null : pct(temperature),
+  };
+}
+
+/** Where along the route line the truck is, 0-100: at the last confirmed stop, nowhere before the trip starts. */
+export function truckPositionPct(progress: Pick<StopProgress, 'reachedCount' | 'total'>): number | null {
+  if (progress.reachedCount === 0 || progress.total < 2) return null;
+  return ((progress.reachedCount - 1) / (progress.total - 1)) * 100;
+}

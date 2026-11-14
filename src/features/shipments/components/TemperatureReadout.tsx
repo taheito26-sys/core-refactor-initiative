@@ -24,7 +24,7 @@ export function TemperatureReadout({
 }) {
   if (!reading) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Thermometer className="h-3.5 w-3.5" aria-hidden="true" />
         {lang === 'ar' ? 'لا توجد قراءة بعد' : 'No reading yet'}
       </div>
@@ -36,7 +36,7 @@ export function TemperatureReadout({
       <span
         className={cn(
           'font-extrabold tabular-nums',
-          size === 'lg' ? 'text-4xl' : size === 'md' ? 'text-xl' : 'text-sm',
+          size === 'lg' ? 'text-5xl' : size === 'md' ? 'text-2xl' : 'text-base',
           alert ? 'text-destructive' : 'text-foreground',
         )}
         dir="ltr"
@@ -45,14 +45,14 @@ export function TemperatureReadout({
       </span>
       <span
         className={cn(
-          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
           alert ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
         )}
       >
         {alert ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <CheckCircle2 className="h-3 w-3" aria-hidden="true" />}
         {alert ? (lang === 'ar' ? 'خارج النطاق' : 'Out of range') : lang === 'ar' ? 'ضمن النطاق' : 'In range'}
       </span>
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {lang === 'ar' ? 'المطلوب' : 'Target'} <span dir="ltr">{fmt(targetC)}</span>
         {reading.set_point_c != null && reading.set_point_c !== targetC && (
           <> · {lang === 'ar' ? 'ضبط الجهاز' : 'Unit set'} <span dir="ltr">{fmt(reading.set_point_c)}</span></>

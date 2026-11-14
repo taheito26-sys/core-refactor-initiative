@@ -14,8 +14,8 @@ const STYLE: Record<ShipmentStatus, { icon: typeof Truck; className: string }> =
 export function StatusChip({ status, lang }: { status: ShipmentStatus; lang: Lang }) {
   const { icon: Icon, className } = STYLE[status];
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset', className)}>
-      <Icon className="h-3 w-3" aria-hidden="true" />
+    <span className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset', className)}>
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       {STATUS_LABELS[status][lang]}
     </span>
   );

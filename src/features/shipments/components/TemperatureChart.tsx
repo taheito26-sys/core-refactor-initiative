@@ -2,7 +2,7 @@ import type { Lang } from '../route';
 import type { ShipmentReading } from '../types';
 
 const W = 320;
-const H = 130;
+const H = 150;
 const PAD = { l: 34, r: 8, t: 8, b: 18 };
 
 /**
@@ -15,7 +15,7 @@ export function TemperatureChart({
   const points = [...readings].sort((a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime()).slice(-30);
   if (points.length < 2) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {lang === 'ar' ? 'يظهر الرسم البياني بعد قراءتين على الأقل.' : 'The chart appears after at least two readings.'}
       </p>
     );
@@ -32,11 +32,12 @@ export function TemperatureChart({
   const bandBottom = y(targetC - toleranceC);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={lang === 'ar' ? 'منحنى درجة الحرارة' : 'Temperature over time'} style={{ direction: 'ltr' }}>
+    <figure className="space-y-2">
+    <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto w-full max-w-md" role="img" aria-label={lang === 'ar' ? 'منحنى درجة الحرارة' : 'Temperature over time'} style={{ direction: 'ltr' }}>
       <rect x={PAD.l} y={bandTop} width={W - PAD.l - PAD.r} height={Math.max(0, bandBottom - bandTop)} className="fill-emerald-500/10" />
       <line x1={PAD.l} x2={W - PAD.r} y1={y(targetC)} y2={y(targetC)} className="stroke-emerald-500/60" strokeDasharray="4 3" />
       {[hi, targetC, lo].map((v) => (
-        <text key={v} x={PAD.l - 4} y={y(v) + 3} textAnchor="end" className="fill-muted-foreground text-[8px]">{Math.round(v)}°</text>
+        <text key={v} x={PAD.l - 4} y={y(v) + 3} textAnchor="end" className="fill-muted-foreground text-[9px]">{Math.round(v)}°</text>
       ))}
       <polyline points={line} fill="none" className="stroke-primary" strokeWidth={1.5} />
       {points.map((p) => {
@@ -49,5 +50,11 @@ export function TemperatureChart({
         );
       })}
     </svg>
+    <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-4 rounded-sm bg-emerald-500/30 ring-1 ring-emerald-500/60" aria-hidden="true" />{lang === 'ar' ? 'النطاق المسموح' : 'Allowed range'} ({Math.round(targetC - toleranceC)}° … {Math.round(targetC + toleranceC)}°)</span>
+      <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-primary" aria-hidden="true" />{lang === 'ar' ? 'ضمن النطاق' : 'In range'}</span>
+      <span className="inline-flex items-center gap-1.5"><svg width="12" height="12" viewBox="0 0 16 16" className="fill-destructive" aria-hidden="true"><path d="M8 1.5 15 14H1z" /></svg>{lang === 'ar' ? 'خارج النطاق' : 'Out of range'}</span>
+    </figcaption>
+    </figure>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FIXED_ROUTE, agoLabel, durationLabel, fixedRouteForRpc, isOutOfRange, latestReading, parseTemperatureInput,
+  FIXED_ROUTE, agoLabel, attentionState, liveness, rangeScale, truckPositionPct, durationLabel, fixedRouteForRpc, isOutOfRange, latestReading, parseTemperatureInput,
   readingDue, stopProgress, toggleSign,
 } from '@/features/shipments/route';
 import type { ShipmentReading, ShipmentStop } from '@/features/shipments/types';
@@ -102,5 +102,44 @@ describe('labels', () => {
     expect(durationLabel(135 * 60_000, 'en')).toBe('2 h 15 min');
     expect(durationLabel(120 * 60_000, 'en')).toBe('2 h');
     expect(durationLabel(20 * 60_000, 'ar')).toBe('20 دقيقة');
+  });
+});
+
+describe('attention, liveness and scales', () => {
+  const ship = { status: 'on_the_road' as const, started_at: '2026-11-14T08:00:00Z', reading_interval_hours: 3 };
+  const at = (iso: string) => new Date(iso).getTime();
+
+  it('flags a truck whose last reading is out of range, or whose next photo is late', () => {
+    expect(attentionState(ship, { is_alert: true, taken_at: '2026-11-14T11:50:00Z' }, at('2026-11-14T12:00:00Z'))).toBe('alert');
+    expect(attentionState(ship, { is_alert: false, taken_at: '2026-11-14T07:00:00Z' }, at('2026-11-14T12:00:00Z'))).toBe('overdue');
+    expect(attentionState(ship, { is_alert: false, taken_at: '2026-11-14T11:00:00Z' }, at('2026-11-14T12:00:00Z'))).toBeNull();
+    expect(attentionState({ ...ship, status: 'delivered' }, { is_alert: true, taken_at: '2026-11-14T11:00:00Z' }, at('2026-11-14T12:00:00Z'))).toBeNull();
+  });
+
+  it('calls data live only while on time, stale when late, and none when parked', () => {
+    expect(liveness({ state: 'ok', dueAt: 1, overdueMs: 0 })).toBe('live');
+    expect(liveness({ state: 'due_soon', dueAt: 1, overdueMs: 0 })).toBe('live');
+    expect(liveness({ state: 'overdue', dueAt: 1, overdueMs: 5 })).toBe('stale');
+    expect(liveness({ state: 'idle', dueAt: null, overdueMs: 0 })).toBe('none');
+  });
+
+  it('puts the allowed band and the reading on one scale, with room for a far-off reading', () => {
+    const inRange = rangeScale(-15, 3, -14);
+    expect(inRange.bandLow).toBe(-18);
+    expect(inRange.bandHigh).toBe(-12);
+    expect(inRange.markerPct as number).toBeGreaterThan(inRange.bandStartPct);
+    expect(inRange.markerPct as number).toBeLessThan(inRange.bandEndPct);
+    const hot = rangeScale(-15, 3, 8.5);
+    expect(hot.markerPct as number).toBeGreaterThan(hot.bandEndPct);
+    expect(hot.markerPct as number).toBeLessThanOrEqual(100);
+    expect(hot.max).toBeGreaterThanOrEqual(8.5);
+    expect(rangeScale(-15, 3, null).markerPct).toBeNull();
+  });
+
+  it('places the truck at the last confirmed stop', () => {
+    expect(truckPositionPct({ reachedCount: 0, total: 6 })).toBeNull();
+    expect(truckPositionPct({ reachedCount: 1, total: 6 })).toBe(0);
+    expect(truckPositionPct({ reachedCount: 3, total: 6 })).toBe(40);
+    expect(truckPositionPct({ reachedCount: 6, total: 6 })).toBe(100);
   });
 });

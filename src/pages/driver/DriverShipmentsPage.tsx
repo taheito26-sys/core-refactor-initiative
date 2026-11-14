@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from '@/lib/theme-context';
 import { DueBadge } from '@/features/shipments/components/DueBadge';
 import { StatusChip } from '@/features/shipments/components/StatusChip';
-import { StopSegments } from '@/features/shipments/components/StopSegments';
+import { RouteLine } from '@/features/shipments/components/RouteLine';
 import { useShipments } from '@/features/shipments/hooks';
 import { latestReading, readingDue, stopName, stopProgress } from '@/features/shipments/route';
 
@@ -38,7 +38,7 @@ export default function DriverShipmentsPage() {
               <span className="ms-auto"><StatusChip status={s.status} lang={lang} /></span>
             </div>
             <div className="truncate text-sm text-muted-foreground">{s.cargo}</div>
-            <StopSegments stops={p.stops} reachedCount={p.reachedCount} />
+            <RouteLine stops={s.stops} status={s.status} lang={lang} />
             <div className="flex items-center justify-between gap-2 text-xs">
               <span className="min-w-0 truncate text-muted-foreground">
                 {p.next ? `${L('Next', 'التالي')}: ${stopName(p.next, lang)}` : p.destination ? stopName(p.destination, lang) : ''}

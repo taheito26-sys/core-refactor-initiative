@@ -29,16 +29,16 @@ export function RouteTimeline({ stops, lang }: { stops: ShipmentStop[]; lang: La
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn('text-sm font-semibold', !reached && !isNext && 'text-muted-foreground')}>{stopName(s, lang)}</span>
+                <span className={cn('text-base font-semibold', !reached && !isNext && 'text-muted-foreground')}>{stopName(s, lang)}</span>
                 {s.kind === 'driver' && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     <UserPlus className="h-3 w-3" aria-hidden="true" />
                     {lang === 'ar' ? 'أضافه السائق' : 'Added by driver'}
                   </span>
                 )}
-                {isNext && <span className="text-[10px] font-semibold text-primary">{lang === 'ar' ? 'المحطة التالية' : 'Next stop'}</span>}
+                {isNext && <span className="text-xs font-semibold text-primary">{lang === 'ar' ? 'المحطة التالية' : 'Next stop'}</span>}
               </div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {reached ? time(s.reached_at as string, lang) : lang === 'ar' ? 'لم يصل بعد' : 'Not reached yet'}
               </div>
             </div>

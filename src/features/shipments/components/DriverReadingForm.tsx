@@ -112,7 +112,7 @@ export function DriverReadingForm({ shipment, lang }: { shipment: Pick<Shipment,
         {submit.isPending ? <Loader2 className="me-2 h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="me-2 h-5 w-5 rtl:-scale-x-100" aria-hidden="true" />}
         {submit.isPending ? L('Sending…', 'جارٍ الإرسال…') : L('Send reading', 'إرسال القراءة')}
       </Button>
-      {!ready && <p className="text-center text-[11px] text-muted-foreground">{L('Take the photo and type the temperature to send.', 'التقط الصورة واكتب الحرارة للإرسال.')}</p>}
+      {!ready && <p className="text-center text-xs text-muted-foreground">{L('Take the photo and type the temperature to send.', 'التقط الصورة واكتب الحرارة للإرسال.')}</p>}
     </section>
   );
 }

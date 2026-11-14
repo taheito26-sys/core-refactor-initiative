@@ -47,7 +47,7 @@ export function DriversDialog({ open, onOpenChange, lang }: { open: boolean; onO
               <div>{L('Username', 'اسم المستخدم')}: <b>{created.username}</b></div>
               <div>{L('Password', 'كلمة المرور')}: <b>{created.password}</b></div>
             </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">{L('The password is not shown again.', 'لن تظهر كلمة المرور مرة أخرى.')}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{L('The password is not shown again.', 'لن تظهر كلمة المرور مرة أخرى.')}</div>
           </div>
         )}
 
@@ -58,11 +58,11 @@ export function DriversDialog({ open, onOpenChange, lang }: { open: boolean; onO
             <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{d.display_name}</div>
-                <div className="truncate text-[11px] text-muted-foreground" dir="ltr">
+                <div className="truncate text-xs text-muted-foreground" dir="ltr">
                   {d.username}{d.truck_plate ? ` · ${d.truck_plate}` : ''}{d.phone ? ` · ${d.phone}` : ''}
                 </div>
               </div>
-              <label className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+              <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                 {d.active ? L('Active', 'نشط') : L('Off', 'متوقف')}
                 <Switch
                   checked={d.active}

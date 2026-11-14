@@ -14,7 +14,9 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
-import { FleetPulse } from '@/features/shipments/components/FleetPulse';
+import { RouteLine } from '@/features/shipments/components/RouteLine';
+import { TemperatureRange } from '@/features/shipments/components/TemperatureRange';
+import { LiveStamp } from '@/features/shipments/components/LiveStamp';
 
 const NOW = new Date('2026-11-14T12:00:00Z').getTime();
 const stop = (seq: number, name: string, reached: string | null) =>
@@ -41,34 +43,73 @@ describe('ShipmentCard', () => {
     expect(screen.getByText('Ahmed El-Sayed')).toBeTruthy();
     expect(screen.getByText('8.5°C')).toBeTruthy();
     expect(screen.getByText('Out of range')).toBeTruthy();
+    expect(screen.getByText('-15°C ±3')).toBeTruthy();
+    expect(screen.getByText('Live')).toBeTruthy();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');
   });
 
   it('reads in Arabic and says when a reading is overdue', () => {
     wrap(<ShipmentCard shipment={shipment()} lang="ar" now={NOW + 4 * 3600_000} onOpen={vi.fn()} />);
     expect(screen.getByText('خارج النطاق')).toBeTruthy();
+    expect(screen.getByText('قديمة')).toBeTruthy();
     expect(screen.getByText(/القراءة متأخرة/)).toBeTruthy();
   });
 
-  it('opens on click', () => {
+  it('opens from the follow button', () => {
     const onOpen = vi.fn();
     wrap(<ShipmentCard shipment={shipment()} lang="en" now={NOW} onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { name: /Follow the shipment/ }));
     expect(onOpen).toHaveBeenCalled();
   });
 });
 
-describe('FleetPulse', () => {
-  it('counts only trucks on the road and names the next stop', () => {
-    wrap(<FleetPulse shipments={[shipment(), shipment({ id: 'sh2', reference: 'SH-0002', status: 'preparing' })]} lang="en" now={NOW} onOpen={vi.fn()} />);
-    expect(screen.getByText('1 on the road')).toBeTruthy();
-    expect(screen.getByText(/→ Port Said/)).toBeTruthy();
-    expect(screen.queryByText('SH-0002')).toBeNull();
+describe('RouteLine', () => {
+  it('shows the route ends and how far the truck has got', () => {
+    wrap(<RouteLine stops={shipment().stops} status="on_the_road" lang="en" />);
+    expect(screen.getByText('Obour (Cairo)')).toBeTruthy();
+    expect(screen.getByText('Qatar (delivery)')).toBeTruthy();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toBe('2 / 4');
   });
 
-  it('says so when nothing is moving', () => {
-    wrap(<FleetPulse shipments={[shipment({ status: 'delivered' })]} lang="en" now={NOW} onOpen={vi.fn()} />);
-    expect(screen.getByText('No trucks are on the road right now.')).toBeTruthy();
+  it('puts no truck on the line before the trip starts or after delivery', () => {
+    const parked = shipment({ status: 'preparing', stops: shipment().stops.map((st) => ({ ...st, reached_at: null })) });
+    const { container } = wrap(<RouteLine stops={parked.stops} status="preparing" lang="en" />);
+    expect(container.querySelector('svg.lucide-truck')).toBeNull();
+  });
+});
+
+describe('TemperatureRange', () => {
+  it('names the allowed range in numbers and marks an out-of-range reading with a different shape', () => {
+    const { container } = wrap(<TemperatureRange temperature={8.5} targetC={-15} toleranceC={3} alert lang="en" />);
+    expect(screen.getByText('-15°C ±3')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Out of range' })).toBeTruthy();
+    expect(container.querySelector('path')).toBeTruthy();
+  });
+
+  it('uses a plain marker in range', () => {
+    const { container } = wrap(<TemperatureRange temperature={-14} targetC={-15} toleranceC={3} alert={false} lang="en" />);
+    expect(screen.getByRole('img', { name: 'In range' })).toBeTruthy();
+    expect(container.querySelector('path')).toBeNull();
+  });
+});
+
+describe('LiveStamp', () => {
+  const due = (state: 'ok' | 'overdue' | 'idle', over = 0) => ({ state, dueAt: NOW + 3600_000, overdueMs: over }) as const;
+  it('says live with the update time while readings are on time', () => {
+    wrap(<LiveStamp liveness="live" due={due('ok')} lastAt="2026-11-14T11:42:00Z" lang="en" now={NOW} />);
+    expect(screen.getByText('Live')).toBeTruthy();
+    expect(screen.getByText('updated 18 min ago')).toBeTruthy();
+  });
+  it('says stale, not live, once a reading is late', () => {
+    wrap(<LiveStamp liveness="stale" due={due('overdue', 3_600_000)} lastAt="2026-11-14T07:00:00Z" lang="en" now={NOW} />);
+    expect(screen.getByText('Stale')).toBeTruthy();
+    expect(screen.queryByText('Live')).toBeNull();
+    expect(screen.getByText(/reading overdue by 1 h/)).toBeTruthy();
+  });
+  it('claims nothing live for a shipment that is not moving', () => {
+    wrap(<LiveStamp liveness="none" due={due('idle')} lastAt={null} lang="en" now={NOW} />);
+    expect(screen.getByText('No reading yet')).toBeTruthy();
+    expect(screen.queryByText('Live')).toBeNull();
   });
 });
 

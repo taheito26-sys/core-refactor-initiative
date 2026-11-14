@@ -85,7 +85,7 @@ export default function DriverShipmentPage() {
           {progress.next ? (
             <>
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Next stop', 'المحطة التالية')}</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Next stop', 'المحطة التالية')}</div>
                 <div className="text-lg font-bold">{stopName(progress.next, lang)}</div>
               </div>
               <Button variant="secondary" className="h-12 w-full text-base" onClick={() => setConfirm('reach')} disabled={reach.isPending}>
