@@ -573,3 +573,14 @@ In practice that means shadcn components and theme CSS variables instead of the 
 returns, both `en` and `ar` strings, and `--rtl` on style and product searches because the app
 defaults to Arabic. Do not pass `--persist` (it writes a `design-system/` folder into the repo)
 unless the owner asks for one.
+
+## 17. taheito-ui skill (shared design, available to other projects)
+
+The card dashboard design of the Orders, Cash, Shipments and driver pages is documented as the `taheito-ui` skill
+(hero, main card, chips, KPI tiles, stripe cards, forms, tabs; palette tokens, RTL). It lives in
+`plugins/taheito-ui/skills/taheito-ui/` and is linked at `.claude/skills/taheito-ui`, so it loads here
+automatically. This repo is also a plugin marketplace (`.claude-plugin/marketplace.json`, name `taheito`), so
+other projects can install it from GitHub: `/plugin marketplace add taheito26-sys/core-refactor-initiative`
+then `/plugin install taheito-ui@taheito`; `plugins/taheito-ui/README.md` has the settings.json form that enables
+it for a whole project. When `src/styles/customer-*.css` change, copy them into the skill's `assets/` and bump
+the plugin version.

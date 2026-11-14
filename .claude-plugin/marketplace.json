@@ -1,0 +1,12 @@
+{
+  "name": "taheito",
+  "owner": { "name": "taheito26-sys" },
+  "metadata": { "description": "Taheito's shared Claude Code skills" },
+  "plugins": [
+    {
+      "name": "taheito-ui",
+      "source": "./plugins/taheito-ui",
+      "description": "Taheito's phone-first card dashboard design: gradient hero, floating main card, chips, KPI tiles and stripe cards, with palette tokens and RTL support."
+    }
+  ]
+}

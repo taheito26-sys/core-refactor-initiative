@@ -1,0 +1,6 @@
+{
+  "name": "taheito-ui",
+  "version": "1.0.0",
+  "description": "Taheito's phone-first card dashboard design (hero, main card, chips, KPI tiles, stripe cards, forms, tabs). Palette-switchable and RTL-ready.",
+  "author": { "name": "taheito26-sys" }
+}
