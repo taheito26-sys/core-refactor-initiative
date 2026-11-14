@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -35,17 +35,20 @@ export const useDrivers = () => {
 function useShipmentsRealtime() {
   const qc = useQueryClient();
   const { userId } = useAuth();
+  // Several components watch shipments at once; each needs its own channel, since a channel name is shared.
+  const instance = useId();
   useEffect(() => {
     if (!userId) return;
     const refresh = () => qc.invalidateQueries({ queryKey: SHIPMENTS_KEY });
     const channel = supabase
-      .channel(`shipments-${userId}`)
+      .channel(`shipments-${userId}-${instance}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_stops' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_readings' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shipment_locations' }, refresh)
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [qc, userId]);
+  }, [qc, userId, instance]);
 }
 
 /** Signed photo URLs last an hour, so they are cached for most of it. */
