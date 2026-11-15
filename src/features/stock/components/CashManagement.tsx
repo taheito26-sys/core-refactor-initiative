@@ -39,6 +39,7 @@ import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
+import { eventsFromEntries, findUnappliedClaims, type HistoryClaim } from '@/features/stock/utils/accountHistory';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
@@ -3160,7 +3161,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   }, [focusCustodyId, innerTab, pendingIncoming, pendingOutgoing]);
 
 
-  const { pending: pendingPaymentClaims, changeRequests: paymentChangeRequests, reviewClaim, resolveChange } = useLoanPaymentClaims('merchant');
+  const { claims: paymentClaims, pending: pendingPaymentClaims, changeRequests: paymentChangeRequests, reviewClaim, resolveChange } = useLoanPaymentClaims('merchant');
 
   const myMerchantId = merchantProfile?.merchant_id ?? '';
   const myUserId = user?.id ?? '';
@@ -6048,6 +6049,17 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             const target = findRepayment(entry);
             if (target) { setStatementKey(null); setDeletingRepayment(target); }
           }}
+          history={(() => {
+            // One buyer can be several customer records; the history covers all of them, with the balance recomputed across the lot.
+            const ids = claimCustomerIdGroup(openStatement.customerId);
+            const group = buyerStatements.filter(s => s.currency === openStatement.currency && ids.has(s.customerId));
+            const entries = group.flatMap(s => s.entries);
+            return {
+              events: eventsFromEntries(entries),
+              expectedBalance: group.reduce((sum, s) => sum + s.outstanding, 0),
+              unapplied: findUnappliedClaims(paymentClaims as HistoryClaim[], entries, ids, openStatement.currency),
+            };
+          })()}
         />
       )}
 

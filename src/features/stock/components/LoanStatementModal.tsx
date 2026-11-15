@@ -9,6 +9,8 @@ import {
 } from '@/features/stock/utils/loanStatementExport';
 import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { ModernSelect } from '@/components/shared/ModernSelect';
+import { AccountHistory } from '@/features/stock/components/AccountHistory';
+import { eventsFromEntries, type HistoryClaim, type HistoryEvent } from '@/features/stock/utils/accountHistory';
 
 type StatementLayout = 'classic' | 'compact';
 
@@ -23,6 +25,11 @@ interface LoanStatementModalProps {
   /** Opens a recorded payment for correction. Omit to keep the statement read-only. */
   onEditRepayment?: (entry: StatementEntry) => void;
   onDeleteRepayment?: (entry: StatementEntry) => void;
+  /**
+   * Everything the buyer owes across all of their customer records, for the account history tab. Without it the
+   * tab shows this one statement's own entries.
+   */
+  history?: { events: HistoryEvent[]; expectedBalance: number; unapplied: HistoryClaim[] };
 }
 
 /**
@@ -34,12 +41,14 @@ interface LoanStatementModalProps {
  * is exactly what was reviewed here.
  */
 export function LoanStatementModal({
-  statement, businessName, isMobile = false, onClose, onAddRepayment, onEditRepayment, onDeleteRepayment,
+  statement, businessName, isMobile = false, onClose, onAddRepayment, onEditRepayment, onDeleteRepayment, history,
 }: LoanStatementModalProps) {
   const t = useT();
   const labels = useMemo(() => statementLabels(t), [t]);
   const docOptions = useMemo(() => ({ businessName, lang: t.lang }), [businessName, t]);
   const [layout, setLayout] = useState<StatementLayout>('classic');
+  const [tab, setTab] = useState<'statement' | 'history'>('statement');
+  const historyEvents = useMemo(() => history?.events ?? eventsFromEntries(statement.entries), [history, statement]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (id: string) => setExpandedGroups(prev => {
     const next = new Set(prev);
@@ -150,6 +159,28 @@ export function LoanStatementModal({
           </button>
         </div>
 
+        <div role="tablist" style={{ display: 'flex', gap: 6, padding: isMobile ? '8px 12px 0' : '8px 20px 0' }}>
+          {(['statement', 'history'] as const).map(id => (
+            <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'btn' : 'rowBtn'} style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setTab(id)}>
+              {id === 'statement' ? t('loanStatementFor') : (t.lang === 'ar' ? 'كشف الحساب التفصيلي' : 'Account history')}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'history' && (
+          <div style={{ overflowY: 'auto', padding: isMobile ? '12px' : '14px 20px 20px' }}>
+            <AccountHistory
+              events={historyEvents}
+              currency={cur}
+              lang={t.lang === 'ar' ? 'ar' : 'en'}
+              expectedBalance={history?.expectedBalance ?? statement.outstanding}
+              unapplied={history?.unapplied}
+              fileBase={`${statementFileBase(statement)}-history`}
+            />
+          </div>
+        )}
+
+        <div style={{ display: tab === 'statement' ? 'contents' : 'none' }}>
         {/* Export bar — the whole point of the screen */}
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
@@ -424,6 +455,7 @@ export function LoanStatementModal({
           </div>
 
           <div style={{ marginTop: 10, fontSize: 9, color: 'var(--muted)' }}>{labels.footerNote}</div>
+        </div>
         </div>
       </div>
     </div>

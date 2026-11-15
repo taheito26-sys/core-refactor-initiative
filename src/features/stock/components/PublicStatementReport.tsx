@@ -1,4 +1,6 @@
-import type { CSSProperties } from 'react';
+import { useMemo, type CSSProperties } from 'react';
+import { AccountHistory } from '@/features/stock/components/AccountHistory';
+import { eventsFromPublicStatement } from '@/features/stock/utils/accountHistory';
 
 export interface PublicPayment {
   date: number;
@@ -84,6 +86,7 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
   const cur = currencySuffix(data.currency);
   const repaidPct = data.totalLoaned > 0 ? Math.min(100, Math.round((data.totalRepaid / data.totalLoaned) * 100)) : 0;
   const paymentsTotal = data.payments.reduce((sum, p) => sum + p.amount, 0);
+  const historyEvents = useMemo(() => eventsFromPublicStatement(data, 'تقريب'), [data]);
 
   const body = (
     <>
@@ -255,6 +258,11 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
         </>
         );
       })()}
+
+      {/* ── SECTION E (account history, any period, before/after each row) ── */}
+      <div style={{ marginTop: 28 }}>
+        <AccountHistory events={historyEvents} currency={data.currency} lang="ar" expectedBalance={data.outstanding} fileBase="account-history" />
+      </div>
 
       <div style={{ fontSize: 10, color: '#aaa', marginTop: 24, textAlign: 'center' }}>
         هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.

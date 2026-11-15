@@ -33,6 +33,9 @@ import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { statementKey, statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
+import { AccountHistory } from '@/features/stock/components/AccountHistory';
+import { eventsFromPublicStatement } from '@/features/stock/utils/accountHistory';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 /** The loan statement plus the opt-in sale rows returned for ?sales=1. */
 type HistoryStatement = PublicStatement & {
@@ -998,6 +1001,10 @@ export default function CustomerOrdersPage() {
   // repayment) is hidden for a buyer with no loaned order at all.
   const hasLoans = useMemo(() => historyOrders.some(o => o.loaned), [historyOrders]);
 
+  // The account as a bank statement: every order and payment with the unpaid amount before and after it.
+  const [accountHistoryOpen, setAccountHistoryOpen] = useState(false);
+  const loanStatements = useMemo(() => historyStatements.filter(st => !st.saleOnly), [historyStatements]);
+
   // Stand-in KPIs for a buyer with no loans: what the orders in view cost
   // and how good the rates were, all derived from the same filtered rows.
   const salesKpi = useMemo(() => {
@@ -1327,6 +1334,12 @@ export default function CustomerOrdersPage() {
                       </div>
                     )}
                   </div>
+
+                  {hasLoans && (
+                    <button type="button" className="co-btn" onClick={() => setAccountHistoryOpen(true)} style={{ alignSelf: 'flex-start', minHeight: 44 }}>
+                      <FileText aria-hidden="true" />{L('Account history', 'كشف الحساب التفصيلي')}
+                    </button>
+                  )}
 
                   {!hasLoans && (
                     <div className="co-kpis">
@@ -2548,6 +2561,26 @@ export default function CustomerOrdersPage() {
           onClose={() => setVerifyingOrder(null)}
         />
       )}
+
+      <Sheet open={accountHistoryOpen} onOpenChange={setAccountHistoryOpen}>
+        <SheetContent side="bottom" dir={lang === 'ar' ? 'rtl' : 'ltr'} className="max-h-[92dvh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{L('Account history', 'كشف الحساب التفصيلي')}</SheetTitle>
+            <SheetDescription className="sr-only">{L('Every order and payment with the unpaid amount before and after it', 'كل طلب ودفعة مع المبلغ غير المسدد قبلها وبعدها')}</SheetDescription>
+          </SheetHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingTop: 8 }}>
+            {loanStatements.map(st => (
+              <AccountHistory
+                key={st.currency}
+                events={eventsFromPublicStatement(st, L('Rounding', 'تقريب'))}
+                currency={st.currency}
+                lang={lang === 'ar' ? 'ar' : 'en'}
+                expectedBalance={st.outstanding}
+              />
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
