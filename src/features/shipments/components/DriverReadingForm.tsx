@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, CheckCircle2, Loader2, MapPin, RotateCcw, ScanLine, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
-import { deriveEntryMode, formatCoords, formatStampTime, isFreshFix, placeText, type Fix, type PlaceLabels } from '../geo';
+import { deriveEntryMode, formatStampTime, isFreshFix, placeText, type Fix, type PlaceLabels } from '../geo';
 import { useSubmitReading } from '../hooks';
 import { getFix, LocationError } from '../location';
 import { lookupPlace } from '../place';
@@ -193,7 +193,7 @@ export function DriverReadingForm({
               <MapPin aria-hidden="true" />
               <div>
                 {areaText && <b>{areaText}</b>}
-                <span>{formatStampTime(captured.capturedAt)} · {formatCoords(captured.fix.latitude, captured.fix.longitude)}{captured.fix.accuracy != null ? ` ±${Math.round(captured.fix.accuracy)} m` : ''}</span>
+                <span>{formatStampTime(captured.capturedAt)}{captured.fix.accuracy != null ? ` · ±${Math.round(captured.fix.accuracy)} m` : ''}</span>
               </div>
             </div>
             <button type="button" className="cs-cta soft" style={{ marginTop: 10 }} onClick={() => { reset(); fileRef.current?.click(); }}>

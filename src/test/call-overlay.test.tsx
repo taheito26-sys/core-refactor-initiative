@@ -1,7 +1,10 @@
 import { render, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CallOverlay } from '@/features/chat/components/CallOverlay';
 import type { UseWebRTCReturn } from '@/features/chat/hooks/useWebRTC';
+
+vi.mock('@/lib/theme-context', () => ({ useTheme: () => ({ settings: { language: 'en' } }) }));
 
 vi.mock('@/hooks/use-mobile', () => ({
   useIsMobile: () => false,
@@ -54,6 +57,7 @@ function createWebrtc(partial: Partial<UseWebRTCReturn>): UseWebRTCReturn {
     qualityStats: null,
     remoteStreams: new Map(),
     participantCount: 0,
+    remoteAudioRef: createRef<HTMLAudioElement>(),
     ...partial,
   };
 }
@@ -77,8 +81,8 @@ describe('CallOverlay', () => {
       remoteStream,
     });
 
-    const { container } = render(<CallOverlay webrtc={webrtc} />);
-    const audio = container.querySelector('audio') as HTMLAudioElement | null;
+    render(<CallOverlay webrtc={webrtc} />);
+    const audio = document.querySelector('audio') as HTMLAudioElement | null;
 
     expect(audio).not.toBeNull();
 
@@ -98,8 +102,8 @@ describe('CallOverlay', () => {
       remoteStream,
     });
 
-    const { container } = render(<CallOverlay webrtc={webrtc} />);
+    render(<CallOverlay webrtc={webrtc} />);
 
-    expect(container.querySelector('video')).not.toBeNull();
+    expect(document.querySelector('video')).not.toBeNull();
   });
 });

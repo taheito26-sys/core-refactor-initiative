@@ -12,6 +12,16 @@ export function cashChange(balance: number, previous: number) {
   return previous !== 0 ? (balance - previous) / Math.abs(previous) * 100 : null;
 }
 
+/** What the merchant owes in total per currency: every active account below zero, custody accounts excluded. */
+export function owedByCurrency(rows: { account: { currency: string; status: string; type: string }; balance: number }[]): { currency: string; amount: number }[] {
+  const owed = new Map<string, number>();
+  for (const { account, balance } of rows) {
+    if (account.status !== 'active' || account.type === 'merchant_custody' || balance >= 0) continue;
+    owed.set(account.currency, (owed.get(account.currency) || 0) - balance);
+  }
+  return [...owed].map(([currency, amount]) => ({ currency, amount: Math.round(amount * 100) / 100 }));
+}
+
 export function buildCashOverview(state: TrackerState, now: number) {
   const accounts = state.cashAccounts || [];
   const ledger = state.cashLedger || [];
@@ -52,5 +62,5 @@ export function buildCashOverview(state: TrackerState, now: number) {
   const loanRows = [...loanTotals.values()].sort((a, b) => b.remaining - a.remaining || b.given - a.given);
   const lead = loanRows[0] || { currency: 'QAR', given: 0, repaid: 0, remaining: 0 };
   const loanBalanceAt = (until: number) => loans.filter(l => l.currency === lead.currency && l.ts <= until).reduce((sum, l) => sum + Math.max(0, l.principal - (l.repayments || []).filter(r => r.ts <= until).reduce((paid, r) => paid + r.amount, 0)), 0);
-  return { rows, total: aggregate(), hand: aggregate(['hand']), banks: aggregate(['bank']), loan: { ...lead, change: cashChange(lead.remaining, loanBalanceAt(monthStart - 1)), trend: Array.from({ length: 10 }, (_, i) => loanBalanceAt(now - (9 - i) * 3 * 86400000)), percent: lead.given > 0 ? Math.min(100, Math.max(0, lead.repaid / lead.given * 100)) : 0 }, otherLoans: loanRows.slice(1) };
+  return { rows, owed: owedByCurrency(rows), total: aggregate(), hand: aggregate(['hand']), banks: aggregate(['bank']), loan: { ...lead, change: cashChange(lead.remaining, loanBalanceAt(monthStart - 1)), trend: Array.from({ length: 10 }, (_, i) => loanBalanceAt(now - (9 - i) * 3 * 86400000)), percent: lead.given > 0 ? Math.min(100, Math.max(0, lead.repaid / lead.given * 100)) : 0 }, otherLoans: loanRows.slice(1) };
 }

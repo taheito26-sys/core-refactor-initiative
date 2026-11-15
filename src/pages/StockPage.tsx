@@ -750,6 +750,17 @@ export default function StockPage() {
     const oldFundingId = existingBatch?.fundingAccountId;
     const newFundingId = editFundingAccountId && editFundingAccountId !== 'none' ? editFundingAccountId : undefined;
 
+    // A higher cost, or a new funding account, spends cash: refuse it when the account cannot cover it and may not go negative.
+    const extraSpend = oldFundingId === newFundingId ? delta : newCost;
+    if (newFundingId && extraSpend > 0.01) {
+      const spendAcc = (state.cashAccounts || []).find(a => a.id === newFundingId);
+      const spendBal = accountBalances.get(newFundingId) || 0;
+      if (!canSpendFromAccount(spendAcc, spendBal, extraSpend)) {
+        toast.error(`${t('insufficientInAcc')} "${spendAcc?.name}". ${t('availableLbl')}: ${fmtTotal(spendBal)} ${spendAcc?.currency}, ${t('requiredLbl')}: ${fmtTotal(extraSpend)} ${spendAcc?.currency}`);
+        return;
+      }
+    }
+
     // ── Ledger adjustment: consume/refund cash to reflect the edit ─────
     const nextCashLedger = [...(state.cashLedger || [])];
 

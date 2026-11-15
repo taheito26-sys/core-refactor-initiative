@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { TranslationKey } from '@/lib/i18n';
+import { negativeAccountTag } from '@/lib/tracker-helpers';
 import {
   allocateFee, exactCustomerMatch, legLoanPrincipal, legRevenue, matchCustomerOptions, round8,
   type SplitCashMode, type SplitCustomerOption, type SplitPlanError,
@@ -285,7 +286,7 @@ function LegCard({ index, t, leg, handlers, options, excludeId, accounts, feeSha
                     }}
                   >
                     <span>{account.type === 'hand' ? '💵' : account.type === 'bank' ? '🏦' : '🔐'} {account.name}</span>
-                    <span className="mono" style={{ fontSize: 9, opacity: 0.8 }}>{fmtMoney(account.balance)}</span>
+                    <span className="mono" style={{ fontSize: 9, opacity: 0.8, color: account.balance < 0 ? 'var(--bad)' : undefined }}>{fmtMoney(account.balance)}{negativeAccountTag(account.balance, t('owedTag'))}</span>
                   </button>
                 );
               })}

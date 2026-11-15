@@ -201,9 +201,9 @@ describe('isViewingConversationMessage', () => {
     )).toBe(false);
   });
 
-  it('returns false when activeConversationId is null', () => {
+  it('returns false when neither the active room nor the active conversation matches', () => {
     expect(isViewingConversationMessage(
-      { ...activeState, activeConversationId: null },
+      { ...activeState, activeRoomId: null, activeConversationId: null },
       'room-1',
     )).toBe(false);
   });

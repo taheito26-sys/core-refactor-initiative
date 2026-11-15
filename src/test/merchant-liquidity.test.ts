@@ -92,7 +92,7 @@ describe('merchant liquidity publishing', () => {
   it('board actions map into merchant workflows', () => {
     const actions = buildLiquidityActions('rel-555');
     expect(actions.workspacePath).toBe('/merchants/rel-555');
-    expect(actions.chatPath).toBe('/trading/merchants?tab=chat&relationship=rel-555');
+    expect(actions.chatPath).toBe('/chat');
     expect(actions.dealPath).toBe('/trading/orders?relationship=rel-555');
   });
 });

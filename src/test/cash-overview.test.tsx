@@ -32,6 +32,7 @@ describe('cash management reference layout', () => {
     expect(balance?.textContent).toContain('10,500');
     expect(balance?.className).toContain('cm-bad');
     expect(screen.getByRole('article', { name: 'Abu Auni' }).textContent).toContain('You owe 10,500');
+    expect(screen.getByRole('status').textContent).toBe('You owe 10,500 QAR');
   });
   it('routes account ledger, cash and transfer actions to the original handlers', () => {
     show(); const card = screen.getByRole('article', { name: 'Cash' });

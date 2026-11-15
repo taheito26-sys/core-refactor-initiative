@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canSpendFromAccount, getAccountBalance, type CashLedgerEntry } from '@/lib/tracker-helpers';
+import { owedByCurrency } from '@/features/cash/cash-overview-model';
 import { decodeOverdraftFlag, encodeOverdraftFlag } from '@/features/cash/account-overdraft';
 import { accountToRow, rowToAccount } from '@/lib/cash-sync';
 
@@ -43,5 +44,15 @@ describe('dropdown mark', () => {
     expect(negativeAccountTag(-10500, 'you owe')).toBe(' 🔻 you owe');
     expect(negativeAccountTag(0, 'you owe')).toBe('');
     expect(negativeAccountTag(500, 'you owe')).toBe('');
+  });
+});
+
+describe('total owed', () => {
+  const row = (currency: string, balance: number, status = 'active', type = 'bank') => ({ account: { currency, status, type }, balance });
+  it('adds up every active negative account per currency', () => {
+    expect(owedByCurrency([row('QAR', -10500), row('QAR', -500), row('QAR', 900), row('EGP', -20.5)])).toEqual([{ currency: 'QAR', amount: 11000 }, { currency: 'EGP', amount: 20.5 }]);
+  });
+  it('ignores inactive and custody accounts and gives nothing when nobody is owed', () => {
+    expect(owedByCurrency([row('QAR', -5, 'inactive'), row('QAR', -5, 'active', 'merchant_custody'), row('QAR', 10)])).toEqual([]);
   });
 });

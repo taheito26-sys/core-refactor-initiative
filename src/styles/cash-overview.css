@@ -61,6 +61,7 @@
 .cm-tabs button.is-active,.cm-view-toggle button[aria-pressed='true'] { border-color:var(--brand); background:linear-gradient(145deg,var(--brand),color-mix(in srgb,var(--brand2) 70%,var(--cm-surface))); color:hsl(var(--primary-foreground)); box-shadow:inset 0 0 calc(10 * var(--cm-u)) var(--glow),0 0 calc(10 * var(--cm-u)) var(--glow); }
 .cm-workspace { display:grid; grid-template-columns:minmax(0,1.62fr) minmax(0,1fr); gap:calc(13 * var(--cm-u)); align-items:start; }
 .cm-accounts-panel,.cm-insight-panel { min-width:0; border:1px solid var(--line); border-radius:calc(16 * var(--cm-u)); background:linear-gradient(145deg,var(--cm-tint),var(--cm-surface)); padding:calc(10 * var(--cm-u)); }
+.cm-owed-total { margin:0 2px calc(10 * var(--cm-u)); padding:calc(7 * var(--cm-u)) calc(10 * var(--cm-u)); border-radius:calc(10 * var(--cm-u)); font-size:calc(12 * var(--cm-u)); font-weight:750; color:var(--bad); background:color-mix(in srgb,var(--bad) 9%,transparent); }
 .cm-accounts-toolbar { display:flex; align-items:center; gap:calc(8 * var(--cm-u)); padding:0 2px calc(12 * var(--cm-u)); flex-wrap:wrap; }
 .cm-accounts-toolbar h2 { display:flex; align-items:center; gap:calc(8 * var(--cm-u)); font-size:calc(17 * var(--cm-u)); font-weight:750; margin-inline-end:auto; }
 .cm-accounts-toolbar h2 svg { color:var(--brand); }
