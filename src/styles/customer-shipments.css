@@ -247,9 +247,9 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .dr-shotmeta span { display: block; direction: ltr; text-align: start; }
 .dr-nav { z-index: 30; }
 
-/* The driver shell must paint the whole viewport, including empty lists and short pages. */
-.dr-shell { min-height: 100dvh; background: var(--th-page, #f1f8f5); }
-.dr-root { min-height: 100dvh; background: var(--th-page, #f1f8f5); color: var(--th-ink, #0f2a24); }
+/* CSS zoom scales viewport units too; compensate so short pages still fill the screen. */
+.dr-shell { min-height: calc(100dvh / var(--app-zoom, 1)); background: var(--th-page, #f1f8f5); }
+.dr-root { min-height: calc(100dvh / var(--app-zoom, 1)); background: var(--th-page, #f1f8f5); color: var(--th-ink, #0f2a24); }
 .cs-cta.danger { background: var(--th-bad, #e11d48); box-shadow: none; }
 /* Confirmation dialogs are portalled outside the driver/customer root. */
 .ch-root.cs-confirm { min-height: auto; background: #fff; color: var(--th-ink, #0f2a24); border-color: var(--th-edge); border-radius: calc(16 * var(--q)); padding: calc(22 * var(--q)); }

@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:driver-layout": "node node_modules/@playwright/test/cli.js test e2e/driver-shell-layout.spec.ts",
     "cap:add:android": "npx --no-install cap add android",
     "cap:add:ios": "npx --no-install cap add ios",
     "cap:copy": "npm run build && npx --no-install cap copy",
