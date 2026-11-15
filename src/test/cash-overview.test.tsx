@@ -14,36 +14,36 @@ const onSection = vi.fn(), onAccountAction = vi.fn(), onAddAccount = vi.fn(), on
 const show = () => render(<MemoryRouter><CashOverview state={state} section="accounts" onSection={onSection} onAccountAction={onAccountAction} onAddAccount={onAddAccount} onAddCash={onAddCash} onTransfer={onTransfer} onCustody={onCustody} loaded now={new Date(2026, 9, 29, 12).getTime()} /></MemoryRouter>);
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('cash management reference layout', () => {
-  it('shows real accounts, searches and switches cards/list view', () => {
+  it('shows real accounts and searches them', () => {
     show(); expect(screen.getByRole('heading', { name: 'Cash Management' })).toBeTruthy();
     expect(screen.getAllByRole('article')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Search accounts…' }));
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bank' } });
     expect(screen.getAllByRole('article')).toHaveLength(1);
     expect(screen.getByRole('article', { name: 'My Bank' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'List' }));
-    expect(screen.getByRole('button', { name: 'List' }).getAttribute('aria-pressed')).toBe('true');
-    expect(document.querySelector('.cm-list-view')).toBeTruthy();
   });
   it('shows a negative account balance in red', () => {
     const owed = buildStateFrom({ cashAccounts: [{ id: 'auni', name: 'Abu Auni', type: 'bank', currency: 'QAR', status: 'active', allowNegative: true, createdAt: ts }], cashLedger: [{ id: 'l1', ts, type: 'deposit', accountId: 'auni', direction: 'in', amount: 500, currency: 'QAR' }, { id: 'l2', ts, type: 'stock_purchase', accountId: 'auni', direction: 'out', amount: 11000, currency: 'QAR' }] } as never).state;
     render(<MemoryRouter><CashOverview state={owed} section="accounts" onSection={onSection} onAccountAction={onAccountAction} onAddAccount={onAddAccount} onAddCash={onAddCash} onTransfer={onTransfer} onCustody={onCustody} loaded now={new Date(2026, 8, 26, 12).getTime()} /></MemoryRouter>);
-    const balance = screen.getByRole('article', { name: 'Abu Auni' }).querySelector('.cm-balance strong');
+    const row = screen.getByRole('article', { name: 'Abu Auni' });
+    const balance = row.querySelector('.cm-row-amount strong');
     expect(balance?.textContent).toContain('10,500');
     expect(balance?.className).toContain('cm-bad');
-    expect(screen.getByRole('article', { name: 'Abu Auni' }).textContent).toContain('You owe 10,500');
-    expect(screen.getByRole('status').textContent).toBe('You owe 10,500 QAR');
+    expect(row.textContent).toContain('You owe');
+    expect(screen.getByRole('status').textContent).toBe('You owe Abu Auni 10,500 QAR');
+    fireEvent.click(screen.getByRole('button', { name: 'Settle' }));
+    expect(onAccountAction).toHaveBeenLastCalledWith(owed.cashAccounts[0], 'deposit');
   });
   it('routes account ledger, cash and transfer actions to the original handlers', () => {
     show(); const card = screen.getByRole('article', { name: 'Cash' });
-    fireEvent.click(within(card).getByRole('button', { name: 'View Ledger' }));
+    fireEvent.click(within(card).getByRole('button', { name: /View Ledger/ }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'ledger');
-    fireEvent.click(within(card).getByRole('button', { name: 'Add Cash' }));
+    const manage = () => { fireEvent.click(within(card).getByRole('button', { name: 'Manage · Cash' })); return within(screen.getByRole('dialog')); };
+    fireEvent.click(manage().getByRole('button', { name: 'Add Cash' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'deposit');
-    fireEvent.click(within(card).getByRole('button', { name: 'Remove Cash' }));
+    fireEvent.click(manage().getByRole('button', { name: 'Remove Cash' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'withdrawal');
-    fireEvent.click(within(card).getByRole('button', { name: 'Manage · Cash' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Transfer' }));
+    fireEvent.click(manage().getByRole('button', { name: 'Transfer' }));
     expect(onAccountAction).toHaveBeenLastCalledWith(state.cashAccounts[0], 'transfer');
   });
   it('filters account type and exports the selected account ledger only', () => {

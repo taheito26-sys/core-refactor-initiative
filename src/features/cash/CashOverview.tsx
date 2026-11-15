@@ -1,10 +1,10 @@
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowLeftRight, ArrowUp, Banknote, CalendarDays, ChevronRight, ClipboardList, Clock3, Coins, Layers, CheckCircle2, ChevronDown, FileText, Filter, HandCoins, Landmark, LayoutGrid, List, MoreVertical, PieChart, Plus, Scale, Search, Settings, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Banknote, CalendarDays, ChevronDown, ChevronRight, Filter, HandCoins, Landmark, Plus, Scale, Search, Settings, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
 import { CashAccountActions } from './CashAccountActions';
 import { useTheme } from '@/lib/theme-context';
 import { CashInsights } from './CashInsights';
-import { cashFlowWindow } from './cash-flow-model';
+import { buildCashFlow, cashFlowWindow } from './cash-flow-model';
 import { useT } from '@/lib/i18n';
 import { fmtTotal, type CashAccount, type CashAccountType, type TrackerState } from '@/lib/tracker-helpers';
 import { csvCell, downloadTextFile } from '@/features/stock/utils/loanStatementExport';
@@ -29,19 +29,23 @@ interface Props {
   loaded: boolean;
   now?: number;
 }
+const COLLAPSED_ACCOUNTS = 5;
 const TYPE_ICONS: Record<CashAccountType, LucideIcon> = { hand: Wallet, bank: Landmark, vault: ShieldCheck, merchant_custody: HandCoins };
+const TYPE_TONES: Record<CashAccountType, string> = { hand: 'good', bank: 'brand', vault: 'warn', merchant_custody: 'warn' };
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtTotal(Math.abs(n))}`;
 const clean = (s: string) => s.replace(/^[^\p{L}\p{N}]+\s*/u, '');
 
-function Trend({ values, bars = false }: { values: number[]; bars?: boolean }) {
-  const id = useId().replace(/:/g, '');
-  const low = Math.min(...values, 0), high = Math.max(...values, 1), span = high - low || 1;
-  const points = values.map((n, i) => `${i * 100 / Math.max(1, values.length - 1)},${39 - (n - low) / span * 35}`).join(' ');
-  return <svg viewBox="0 0 100 42" className="cm-spark" aria-hidden="true" preserveAspectRatio="none"><defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".75" /><stop offset="1" stopColor="currentColor" stopOpacity=".04" /></linearGradient></defs>{bars ? values.map((n, i) => <rect key={i} x={i * 10 + 2} y={39 - (n - low) / span * 35} width="6" height={Math.max(1, (n - low) / span * 35)} rx="2" fill={`url(#${id})`} />) : <><polygon points={`0,42 ${points} 100,42`} fill={`url(#${id})`} /><polyline points={points} stroke="currentColor" fill="none" strokeWidth="2" strokeLinejoin="round" /></>}</svg>;
+/** A filled line chart that stretches to its box and takes its colour from the surrounding text. */
+function Sparkline({ values }: { values: number[] }) {
+  const low = Math.min(...values), high = Math.max(...values), span = high - low || 1;
+  const points = values.map((n, i) => `${(i * 100 / Math.max(1, values.length - 1)).toFixed(2)},${(36 - (n - low) / span * 32).toFixed(2)}`);
+  return <svg className="cm-spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+    <polygon points={`0,40 ${points.join(' ')} 100,40`} fill="currentColor" fillOpacity=".14" />
+    <polyline points={points.join(' ')} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+  </svg>;
 }
-function Badge({ icon: Icon }: { icon: LucideIcon }) { return <span className="cm-icon"><Icon size={17} strokeWidth={2} /></span>; }
 
-function NetPosition({ state, onOpen }: { state: TrackerState; onOpen: () => void }) {
+function NetPosition({ state, onOpen, netFlow, rangeLabel }: { state: TrackerState; onOpen: () => void; netFlow: number; rangeLabel: string }) {
   const t = useT();
   const { settings, loaded, unavailable } = useNetPositionSettings();
   const { loans, loaded: loansLoaded, unavailable: loansUnavailable } = usePersonalLoans();
@@ -52,9 +56,14 @@ function NetPosition({ state, onOpen }: { state: TrackerState; onOpen: () => voi
     if (!loaded || !loansLoaded || !exchange.isSuccess || unavailable || loansUnavailable) return null;
     const sums = { binance: 0, okx: 0 };
     for (const b of exchange.data || []) if (b.asset === 'USDT') sums[b.exchange] += b.free + b.locked;
-    return computePosition({ accounts: state.cashAccounts || [], ledger: state.cashLedger || [], includedAccountIds: new Set(settings?.includedAccounts || []), customerLoans: state.customerLoans || [], deletedLoanIds: state.deletedLoanIds, customerName: id => id, personalLoans: loans, exchange: sums, batches: state.batches || [], trades: state.trades || [], usdtTransfers: state.usdtTransfers, usdRateOverride: settings?.usdRate, egpRateOverride: settings?.egpRate });
+    return computePosition({ accounts: state.cashAccounts || [], ledger: state.cashLedger || [], includedAccountIds: new Set(settings?.includedAccounts || []), customerLoans: state.customerLoans || [], deletedLoanIds: state.deletedLoanIds, customerName: id => id, personalLoans: loans, exchange: sums, batches: state.batches || [] });
   }, [state, settings, loaded, unavailable, loans, loansLoaded, loansUnavailable, exchange.data, exchange.isSuccess]);
-  return <button className="cm-net" type="button" onClick={onOpen}><Badge icon={Scale} /><span><small>{t('cmNetPosition')}</small><strong className={position && position.netQAR < 0 ? 'cm-bad' : 'cm-good'}>{position ? signed(position.netQAR) : '—'} <em>QAR</em></strong></span>{history.length > 1 ? <span className="cm-net-history" aria-label={t('cmSavedHistory')}><Trend values={history.map(d => d.net)} /></span> : <Scale className="cm-net-watermark" aria-hidden="true" />}<ChevronRight size={15} /></button>;
+  return <button className="cm-hero-main" type="button" onClick={onOpen}>
+    <span className="cm-hero-label"><Scale size={15} />{t('cmNetPosition')}<ChevronRight size={14} className="cm-flip" /></span>
+    <span className="cm-hero-value"><strong className={position && position.netQAR < 0 ? 'cm-bad' : ''}>{position ? signed(position.netQAR) : '—'}</strong><em>QAR</em></span>
+    <span className={`cm-hero-flow ${netFlow < 0 ? 'cm-bad' : netFlow > 0 ? 'cm-good' : ''}`}>{signed(netFlow)} {t('cmNetFlowLbl')} · {rangeLabel}</span>
+    {history.length > 1 && <Sparkline values={history.map(d => d.net)} />}
+  </button>;
 }
 
 export function CashOverview({ state, section, onSection, onAddAccount, onAddCash, onTransfer, onCustody, onNewLoan, onAccountAction, loaded, now = Date.now() }: Props) {
@@ -66,22 +75,28 @@ export function CashOverview({ state, section, onSection, onAddAccount, onAddCas
   const dateLabel = (ts: number) => new Date(ts).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-GB', { month: 'short', day: 'numeric' });
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [view, setView] = useState<'cards' | 'list'>('cards');
+  const [showAll, setShowAll] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [type, setType] = useState('all'), [currency, setCurrency] = useState('all'), [status, setStatus] = useState('all');
   const data = useMemo(() => buildCashOverview(state, now), [state, now]);
+  const flow = useMemo(() => buildCashFlow(state, now, range), [state, now, range]);
   const typeLabels: Record<CashAccountType, string> = { hand: t('inHandLbl'), bank: t('banksLbl'), vault: t('vaultLbl'), merchant_custody: t('kpiCustody') };
   const visible = data.rows.filter(({ account: a }) => (!query.trim() || [a.name, a.bankName, a.branch, a.currency].filter(Boolean).join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) && (type === 'all' || a.type === type) && (currency === 'all' || a.currency === currency) && (status === 'all' || a.status === status));
   const hasFilters = type !== 'all' || currency !== 'all' || status !== 'all';
+  const narrowed = !!query.trim() || hasFilters;
+  const shown = narrowed || showAll ? visible : visible.slice(0, COLLAPSED_ACCOUNTS);
+  const hidden = visible.length - shown.length;
   const change = (n: number | null) => n === null ? '—' : `${n > 0 ? '+' : ''}${Math.round(n)}%`;
-  const tabs: { id: CashSection; label: string; Icon: LucideIcon }[] = [
-    { id: 'accounts', label: clean(t('cashAccountsTab')), Icon: Landmark }, { id: 'flow', label: clean(t('cashFlowTab')), Icon: ArrowLeftRight }, { id: 'loans', label: clean(t('cashLoansTab')), Icon: HandCoins }, { id: 'position', label: clean(t('cashPositionTab')), Icon: Scale }, { id: 'statements', label: clean(t('cashStatementsTab')), Icon: FileText },
+  const activeCount = (state.cashAccounts || []).filter(a => a.status === 'active').length;
+  const owedRows = data.rows.filter(r => r.account.status === 'active' && r.account.type !== 'merchant_custody' && r.balance < 0).sort((a, b) => a.balance - b.balance);
+  const tabs: { id: CashSection; label: string }[] = [
+    { id: 'accounts', label: clean(t('cashAccountsTab')) }, { id: 'flow', label: clean(t('cashFlowTab')) }, { id: 'loans', label: clean(t('cashLoansTab')) }, { id: 'position', label: clean(t('cashPositionTab')) }, { id: 'statements', label: clean(t('cashStatementsTab')) },
   ];
-  const kpis = [
-    { key: 'total', label: t('totalCashLbl'), Icon: Wallet, tone: 'brand', ...data.total, currency: 'QAR' },
-    { key: 'hand', label: t('inHandLbl'), Icon: Coins, tone: 'blue', ...data.hand, currency: 'QAR' },
-    { key: 'bank', label: t('banksLbl'), Icon: Landmark, tone: 'purple', ...data.banks, currency: 'QAR' },
-    { key: 'loans', label: t('kpiLoansOut'), Icon: ArrowDown, tone: 'red', balance: data.loan.remaining, change: data.loan.change, trend: data.loan.trend, currency: data.loan.currency },
+  const actions = [
+    { key: 'cash', label: t('cmAddCash'), Icon: Banknote, onClick: onAddCash, primary: true, disabled: false },
+    { key: 'transfer', label: t('transferLbl'), Icon: ArrowLeftRight, onClick: onTransfer, primary: false, disabled: activeCount < 2 },
+    { key: 'loan', label: t('newLoan').replace(/^\+\s*/, ''), Icon: HandCoins, onClick: onNewLoan || (() => onSection('loans')), primary: false, disabled: false },
+    { key: 'custody', label: t('kpiCustody'), Icon: ShieldCheck, onClick: onCustody, primary: false, disabled: false },
   ];
   const exportStatement = (account: CashAccount) => {
     const entries = (state.cashLedger || []).filter(e => e.accountId === account.id).sort((a, b) => a.ts - b.ts);
@@ -90,32 +105,74 @@ export function CashOverview({ state, section, onSection, onAddAccount, onAddCas
     downloadTextFile(`account-${account.id}-${new Date(now).toISOString().slice(0, 10)}.csv`, csv);
   };
 
-
   return <div className="cm-overview" dir={t.isRTL ? 'rtl' : 'ltr'}>
-    <header className="cm-heading"><span className="cm-heading-icon"><Coins /></span><div><h1>{t('cashManagement')}</h1><p>{t('cmSubtitle')}</p></div><label className="cm-period"><CalendarDays size={20} /><span><select aria-label={t('cmPeriod')} value={range} onChange={e => update({ range: e.target.value as typeof settings.range })}>{Object.entries(rangeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{dateLabel(window.start)} – {dateLabel(window.end)}</small></span><ChevronDown size={14} /></label></header>
-    <section className="cm-kpis" aria-label={t('cashManagement')}><NetPosition state={state} onOpen={() => onSection('position')} />{kpis.map(k => <button type="button" key={k.key} className={`cm-kpi cm-tone-${k.tone}`} onClick={() => onSection(k.key === 'loans' ? 'loans' : 'accounts')}><div className="cm-kpi-heading"><Badge icon={k.Icon} /><div><span>{k.label}</span><strong>{fmtTotal(k.balance)} <small>{k.currency}</small></strong></div></div><p className={k.change !== null && k.change < 0 ? 'cm-bad' : 'cm-good'}>{k.change !== null && (k.change < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}{change(k.change)} <span>{k.change === null ? t('cmNoBaseline') : t('cmLastMonth')}</span></p></button>)}</section>
-    <section className="cm-repayments" aria-label={t('kpiLoansRepaid')}><div><span><Coins size={15} />{t('kpiLoansGiven')} <b>{fmtTotal(data.loan.given)} {data.loan.currency}</b></span><span><CheckCircle2 size={15} />{t('kpiLoansRepaid')} <b>{fmtTotal(data.loan.repaid)} {data.loan.currency}</b> <em>({Math.round(data.loan.percent)}%)</em></span><span><Clock3 size={15} />{t('cmRemaining')} <b>{fmtTotal(data.loan.remaining)} {data.loan.currency}</b></span></div><div className="cm-progress" role="progressbar" aria-label={t('kpiLoansRepaid')} aria-valuenow={Math.round(data.loan.percent)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${data.loan.percent}%` }} /></div>{data.otherLoans.map(l => <p key={l.currency}>{l.currency} · {t('kpiLoansGiven')} {fmtTotal(l.given)} · {t('kpiLoansRepaid')} {fmtTotal(l.repaid)} · {t('cmRemaining')} {fmtTotal(l.remaining)}</p>)}</section>
-    <nav className="cm-tabs" aria-label={t('cashManagement')}>{tabs.map(({ id, label, Icon }) => <button key={id} type="button" className={section === id ? 'is-active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => onSection(id)}><Icon size={15} />{label}</button>)}<button type="button" onClick={() => navigate('/settings')}><Settings size={15} />{t('settings')}</button></nav>
+    <header className="cm-heading">
+      <div><h1>{t('cashManagement')}</h1>
+        <label className="cm-period"><CalendarDays size={14} /><span><select aria-label={t('cmPeriod')} value={range} onChange={e => update({ range: e.target.value as typeof settings.range })}>{Object.entries(rangeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{dateLabel(window.start)} – {dateLabel(window.end)}</small></span><ChevronDown size={14} /></label>
+      </div>
+      <button type="button" className="cm-icon-button" aria-label={t('settings')} onClick={() => navigate('/settings')}><Settings size={19} /></button>
+    </header>
+
+    <nav className="cm-tabs" aria-label={t('cashManagement')}>{tabs.map(({ id, label }) => <button key={id} type="button" className={section === id ? 'is-active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => onSection(id)}>{label}</button>)}</nav>
+
     {section === 'accounts' && <>
-      <div className="cm-workspace"><section className="cm-accounts-panel">
-      {data.owed.length > 0 && <p className="cm-owed-total" role="status">{t('youOweAmount')} {data.owed.map(o => `${fmtTotal(o.amount)} ${o.currency}`).join(' · ')}</p>}
-      <div className="cm-accounts-toolbar"><h2><Layers size={18} />{clean(t('cashAccountsTab'))} ({data.rows.length + (data.loan.given > 0 ? 1 : 0)})</h2><div className="cm-view-toggle"><button type="button" aria-pressed={view === 'cards'} onClick={() => setView('cards')}><LayoutGrid size={14} />{t('cmCards')}</button><button type="button" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={14} />{t('cmList')}</button></div><button type="button" className="cm-filter cm-search-toggle" aria-label={t('cmSearch')} aria-expanded={searchOpen} onClick={() => setSearchOpen(v => !v)}><Search size={16} /></button>{searchOpen && <><label className="cm-search"><Search size={15} /><input data-update-passive type="search" value={query} onChange={e => setQuery(e.target.value)} aria-label={t('cmSearch')} placeholder={t('cmSearch')} /></label><button type="button" className={`cm-filter ${hasFilters ? 'is-active' : ''}`} onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen} aria-label={t('cmFilter')}><Filter size={16} /></button></>}</div>
-      {filtersOpen && <div className="cm-filters"><label>{t('cmAccountType')}<select data-update-passive value={type} onChange={e => setType(e.target.value)}><option value="all">{t('cmAllTypes')}</option>{Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>{t('currency')}<select data-update-passive value={currency} onChange={e => setCurrency(e.target.value)}><option value="all">{t('cmAllCurrencies')}</option>{[...new Set(data.rows.map(r => r.account.currency))].map(c => <option key={c}>{c}</option>)}</select></label><label>{t('cmStatus')}<select data-update-passive value={status} onChange={e => setStatus(e.target.value)}><option value="all">{t('cmAllStatuses')}</option><option value="active">{t('cv2Active')}</option><option value="inactive">{t('cv2Inactive')}</option></select></label></div>}
-      {!loaded && !data.rows.length ? <p className="cm-empty" role="status">{t('cmLoading')}</p> : !data.rows.length ? <div className="cm-empty"><Wallet size={25} /><h3>{t('noCashAccountsTitle')}</h3><p>{t('noCashAccountsDesc')}</p><button type="button" className="is-primary" onClick={onAddAccount}><Plus size={14} />{t('addFirstAccountBtn')}</button></div> : !visible.length ? <p className="cm-empty">{t('cmNoResults')}</p> : <div className={`cm-account-list ${view === 'list' ? 'cm-list-view' : ''}`}>{visible.map(row => {
-        const { account: a } = row; const Icon = TYPE_ICONS[a.type]; const tone = a.type === 'hand' ? 'brand' : a.type === 'bank' ? (data.rows.filter(r => r.account.type === 'bank').findIndex(r => r.account.id === a.id) % 2 ? 'purple' : 'blue') : 'purple';
-        return <article key={a.id} className={`cm-account cm-tone-${tone} ${a.status === 'inactive' ? 'is-inactive' : ''}`} aria-label={a.name}>
-          <div className="cm-account-header"><span className="cm-avatar"><Icon size={24} /></span><div className="cm-account-identity"><div><h3>{a.name}</h3><span className="cm-currency">{a.currency}</span><span className={`cm-status ${a.status === 'active' ? 'is-active' : ''}`}>{a.status === 'active' ? t('cv2Active') : t('cv2Inactive')}</span></div><p>{[typeLabels[a.type], a.bankName, a.branch].filter(Boolean).join(' · ')}</p></div></div>
-          <div className="cm-account-metrics"><div className="cm-balance"><Badge icon={Icon} /><div><span>{t('cv2Balance')}</span><strong className={row.balance < 0 ? 'cm-bad' : ''}>{fmtTotal(row.balance)} <small>{a.currency}</small></strong>{row.balance < 0 && <small className="cm-bad cm-owed">{t('youOweAmount')} {fmtTotal(Math.abs(row.balance))} {a.currency}</small>}</div><div className="cm-account-change"><b className={row.change !== null && row.change < 0 ? 'cm-bad' : 'cm-good'}>{row.change !== null && (row.change < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}{change(row.change)}</b><small>{row.change === null ? t('cmNoBaseline') : t('cmLastMonth')}</small></div><Trend values={row.trend} /></div><div className="cm-account-stat"><span><ClipboardList size={14} />{t('cv2Batches')}</span><strong>{row.batches}</strong></div><div className="cm-account-stat"><span><PieChart size={14} />{t('cv2Share')}</span><strong>{row.share === null ? '—' : `${Math.round(row.share)}%`}</strong></div><div className="cm-account-stat"><span><Clock3 size={14} />{t('cm24hChange')}</span><strong className={row.movement < 0 ? 'cm-bad' : row.movement > 0 ? 'cm-good' : ''}>{row.movement ? signed(row.movement) : '—'}</strong></div></div>
-          <CashAccountActions account={a} balance={row.balance} canTransfer={(state.cashAccounts || []).filter(a => a.status === 'active').length > 1} onAction={onAccountAction} onStatement={exportStatement} />
-          <button type="button" className="cm-account-open" aria-label={t('cmViewLedger')} onClick={() => onAccountAction(a, 'ledger')}><ChevronRight size={17} /></button>
-        </article>;
-      })}</div>}
-      {data.loan.given > 0 && !query && !hasFilters && <article className="cm-account cm-loan-card cm-tone-gold" aria-label={t('cmLoanPortfolio')}>
-        <div className="cm-account-header"><span className="cm-avatar"><HandCoins size={24} /></span><div className="cm-account-identity"><div><h3>{t('cmLoanPortfolio')}</h3><span className="cm-currency">{data.loan.currency}</span></div><p>{t('kpiLoansOut')}</p></div><button type="button" className="cm-menu-button" aria-label={t('cmLoanPortfolio')} onClick={() => onSection('loans')}><MoreVertical size={17} /></button></div>
-        <div className="cm-account-metrics"><div className="cm-balance"><div><strong>{fmtTotal(data.loan.remaining)} <small>{data.loan.currency}</small></strong></div><div className="cm-account-change"><b className={data.loan.change !== null && data.loan.change < 0 ? 'cm-bad' : 'cm-good'}>{change(data.loan.change)}</b></div><Trend values={data.loan.trend} /></div><div className="cm-account-stat"><span><ClipboardList size={14} />{t('cmActiveLoans')}</span><strong>{(state.customerLoans || []).filter(l => !(state.deletedLoanIds || []).includes(l.id) && l.currency === data.loan.currency && l.principal > (l.repayments || []).reduce((sum, r) => sum + r.amount, 0)).length}</strong></div><div className="cm-account-stat"><span><PieChart size={14} />{t('kpiLoansRepaid')}</span><strong>{Math.round(data.loan.percent)}%</strong></div><div className="cm-account-stat"><span><Clock3 size={14} />{t('cmRemaining')}</span><strong>{fmtTotal(data.loan.remaining)}</strong></div></div>
-        <button type="button" className="cm-account-open" aria-label={t('cashLoansTab')} onClick={() => onSection('loans')}><ChevronRight size={17} /></button>
-      </article>}
-      </section><CashInsights state={state} now={now} range={range} rangeLabel={rangeLabels[range]} onSection={onSection} onAddAccount={onAddAccount} onAddCash={onAddCash} onTransfer={onTransfer} onCustody={onCustody} onNewLoan={onNewLoan} /></div>
+      <section className="cm-hero" aria-label={t('cmNetPosition')}>
+        <NetPosition state={state} onOpen={() => onSection('position')} netFlow={flow.inflow - flow.outflow} rangeLabel={rangeLabels[range]} />
+        <div className="cm-hero-split">
+          <button type="button" onClick={() => onSection('accounts')}><span>{t('totalCashLbl')}</span><strong>{fmtTotal(data.total.balance)}</strong><small className={data.total.change !== null && data.total.change < 0 ? 'cm-bad' : 'cm-good'}>{data.total.change !== null && (data.total.change < 0 ? '▼ ' : '▲ ')}{change(data.total.change)} {data.total.change === null ? t('cmNoBaseline') : t('cmLastMonth')}</small></button>
+          <button type="button" onClick={() => onSection('loans')}><span>{t('kpiLoansOut')}</span><strong>{fmtTotal(data.loan.remaining)}</strong><small className={data.loan.change !== null && data.loan.change < 0 ? 'cm-muted' : 'cm-good'}>{data.loan.change !== null && (data.loan.change < 0 ? '▼ ' : '▲ ')}{change(data.loan.change)} {data.loan.change === null ? t('cmNoBaseline') : t('cmLastMonth')}</small></button>
+        </div>
+      </section>
+
+      <div className="cm-actions" role="group" aria-label={t('cmQuickActions')}>{actions.map(({ key, label, Icon, onClick, primary, disabled }) => <button key={key} type="button" className={primary ? 'is-primary' : ''} onClick={onClick} disabled={disabled}><Icon size={20} /><span>{label}</span></button>)}</div>
+
+      {owedRows.length > 0 && <div className="cm-owed-strip">
+        <p role="status">{t('youOweAmount')} {owedRows.length === 1 ? `${owedRows[0].account.name} ${fmtTotal(-owedRows[0].balance)} ${owedRows[0].account.currency}` : data.owed.map(o => `${fmtTotal(o.amount)} ${o.currency}`).join(' · ')}</p>
+        <button type="button" onClick={() => onAccountAction(owedRows[0].account, 'deposit')}>{t('cmSettle')}</button>
+      </div>}
+
+      <div className="cm-columns">
+        <section className="cm-accounts-panel" aria-label={clean(t('cashAccountsTab'))}>
+          <div className="cm-section-head"><h2>{clean(t('cashAccountsTab'))} <span>{data.rows.length}</span></h2>
+            <button type="button" className="cm-icon-button is-small" aria-label={t('cmSearch')} aria-expanded={searchOpen} onClick={() => setSearchOpen(v => !v)}><Search size={16} /></button>
+            <button type="button" className="cm-link" onClick={onAddAccount}><Plus size={14} />{t('addAccountBtn').replace(/^\+\s*/, '')}</button>
+          </div>
+          {searchOpen && <div className="cm-search-row"><label className="cm-search"><Search size={15} /><input data-update-passive type="search" value={query} onChange={e => setQuery(e.target.value)} aria-label={t('cmSearch')} placeholder={t('cmSearch')} /></label><button type="button" className={`cm-icon-button is-small ${hasFilters ? 'is-active' : ''}`} onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen} aria-label={t('cmFilter')}><Filter size={16} /></button></div>}
+          {searchOpen && filtersOpen && <div className="cm-filters"><label>{t('cmAccountType')}<select data-update-passive value={type} onChange={e => setType(e.target.value)}><option value="all">{t('cmAllTypes')}</option>{Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>{t('currency')}<select data-update-passive value={currency} onChange={e => setCurrency(e.target.value)}><option value="all">{t('cmAllCurrencies')}</option>{[...new Set(data.rows.map(r => r.account.currency))].map(c => <option key={c}>{c}</option>)}</select></label><label>{t('cmStatus')}<select data-update-passive value={status} onChange={e => setStatus(e.target.value)}><option value="all">{t('cmAllStatuses')}</option><option value="active">{t('cv2Active')}</option><option value="inactive">{t('cv2Inactive')}</option></select></label></div>}
+          {!loaded && !data.rows.length ? <p className="cm-empty" role="status">{t('cmLoading')}</p> : !data.rows.length ? <div className="cm-empty"><Wallet size={25} /><h3>{t('noCashAccountsTitle')}</h3><p>{t('noCashAccountsDesc')}</p><button type="button" className="is-primary" onClick={onAddAccount}><Plus size={14} />{t('addFirstAccountBtn')}</button></div> : !visible.length ? <p className="cm-empty">{t('cmNoResults')}</p> : <div className="cm-account-list">
+            {shown.map(row => {
+              const { account: a } = row; const Icon = TYPE_ICONS[a.type]; const owed = row.balance < 0;
+              const sub = [typeLabels[a.type], a.bankName, a.currency, row.batches ? `${row.batches} ${t('cv2Batches').toLocaleLowerCase()}` : ''].filter(Boolean).join(' · ');
+              return <article key={a.id} className={`cm-row ${a.status === 'inactive' ? 'is-inactive' : ''}`} style={{ ['--cm-tone' as string]: `var(--${owed ? 'bad' : TYPE_TONES[a.type]})` }} aria-label={a.name}>
+                <button type="button" className="cm-row-main" aria-label={`${t('cmViewLedger')} · ${a.name}`} onClick={() => onAccountAction(a, 'ledger')}>
+                  <span className="cm-row-icon"><Icon size={20} /></span>
+                  <span className="cm-row-text"><b>{a.name}{a.status === 'inactive' && <em>{t('cv2Inactive')}</em>}</b><small>{sub}</small></span>
+                  <span className="cm-row-amount"><strong className={owed ? 'cm-bad' : ''}>{fmtTotal(row.balance)}</strong>
+                    {owed ? <small className="cm-owe">{t('youOweAmount')}</small>
+                      : row.movement ? <small className={row.movement > 0 ? 'cm-good' : 'cm-bad'}>{signed(row.movement)} {t('today')}</small>
+                      : row.change !== null && row.change !== 0 ? <small className={row.change < 0 ? 'cm-bad' : 'cm-good'}>{row.change < 0 ? '▼' : '▲'} {change(Math.abs(row.change))}</small>
+                      : <small className="cm-muted">{t('cmNoChange')}</small>}
+                  </span>
+                </button>
+                <CashAccountActions account={a} balance={row.balance} canTransfer={activeCount > 1} onAction={onAccountAction} onStatement={exportStatement} />
+              </article>;
+            })}
+            {hidden > 0 && <button type="button" className="cm-more" onClick={() => setShowAll(true)}>{t('cmShowMore').replace('{n}', String(hidden))}</button>}
+            {showAll && !narrowed && visible.length > COLLAPSED_ACCOUNTS && <button type="button" className="cm-more" onClick={() => setShowAll(false)}>{t('cmShowLess')}</button>}
+          </div>}
+        </section>
+
+        <aside className="cm-side">
+          {data.loan.given > 0 && <section className="cm-card" aria-label={t('cmLoanPortfolio')}>
+            <div className="cm-section-head"><h2>{t('cashLoansTab').replace(/^[^\p{L}\p{N}]+\s*/u, '')}</h2><span className="cm-good cm-head-note">{Math.round(data.loan.percent)}% {t('kpiLoansRepaid').toLocaleLowerCase()}</span></div>
+            <div className="cm-progress" role="progressbar" aria-label={t('kpiLoansRepaid')} aria-valuenow={Math.round(data.loan.percent)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${data.loan.percent}%` }} /></div>
+            <div className="cm-loan-figures"><div><span>{t('kpiLoansGiven')}</span><strong>{fmtTotal(data.loan.given)}</strong></div><div><span>{t('kpiLoansRepaid')}</span><strong>{fmtTotal(data.loan.repaid)}</strong></div><div><span>{t('cmRemaining')}</span><strong className="cm-warn">{fmtTotal(data.loan.remaining)}</strong></div></div>
+            {data.otherLoans.map(l => <p key={l.currency} className="cm-loan-other">{l.currency} · {t('kpiLoansGiven')} {fmtTotal(l.given)} · {t('kpiLoansRepaid')} {fmtTotal(l.repaid)} · {t('cmRemaining')} {fmtTotal(l.remaining)}</p>)}
+            <button type="button" className="cm-more" onClick={() => onSection('loans')}>{t('cashLoansTab').replace(/^[^\p{L}\p{N}]+\s*/u, '')} <ChevronRight size={14} className="cm-flip" /></button>
+          </section>}
+          <CashInsights flow={flow} rangeLabel={rangeLabels[range]} onSection={onSection} />
+        </aside>
+      </div>
     </>}
   </div>;
 }
