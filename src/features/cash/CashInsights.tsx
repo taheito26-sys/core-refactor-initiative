@@ -11,6 +11,11 @@ interface Props {
   range: string;
   rangeLabel: string;
   onSection: (section: CashSection) => void;
+}
+
+interface ActionProps {
+  state: TrackerState;
+  onSection: (section: CashSection) => void;
   onAddAccount: () => void;
   onAddCash: () => void;
   onTransfer: () => void;
@@ -18,11 +23,9 @@ interface Props {
   onNewLoan?: () => void;
 }
 
-export function CashInsights({ state, now, range, rangeLabel, onSection, onAddAccount, onAddCash, onTransfer, onCustody, onNewLoan }: Props) {
+/** The six shortcuts, laid out as one full-width strip above the accounts. */
+export function CashQuickActions({ state, onSection, onAddAccount, onAddCash, onTransfer, onCustody, onNewLoan }: ActionProps) {
   const t = useT();
-  const flow = useMemo(() => buildCashFlow(state, now, range), [state, now, range]);
-  const max = Math.max(1, ...flow.bins.flatMap(b => [b.inflow, b.outflow]));
-  const date = (ts: number) => new Date(ts).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-GB', { month: 'short', day: 'numeric' });
   const actions = [
     { key: 'account', label: t('addAccountBtn').replace(/^\+\s*/, ''), Icon: Plus, onClick: onAddAccount, tone: 'blue' },
     { key: 'cash', label: t('cmAddCash'), Icon: Banknote, onClick: onAddCash, tone: 'brand' },
@@ -31,6 +34,14 @@ export function CashInsights({ state, now, range, rangeLabel, onSection, onAddAc
     { key: 'loan', label: t('newLoan').replace(/^\+\s*/, ''), Icon: HandCoins, onClick: onNewLoan || (() => onSection('loans')), tone: 'blue' },
     { key: 'statement', label: t('cmStatement'), Icon: FileText, onClick: () => onSection('statements'), tone: 'slate' },
   ];
+  return <section className="cm-insight-panel cm-quick-panel"><h2><Zap size={19} />{t('cmQuickActions')}</h2><div className="cm-quick-actions">{actions.map(({ key, label, Icon, onClick, tone }) => <button key={key} type="button" className={`cm-tone-${tone}`} onClick={onClick} disabled={key === 'transfer' && (state.cashAccounts || []).filter(a => a.status === 'active').length < 2}><Icon size={22} /><span>{label}</span></button>)}</div></section>
+}
+
+export function CashInsights({ state, now, range, rangeLabel, onSection }: Props) {
+  const t = useT();
+  const flow = useMemo(() => buildCashFlow(state, now, range), [state, now, range]);
+  const max = Math.max(1, ...flow.bins.flatMap(b => [b.inflow, b.outflow]));
+  const date = (ts: number) => new Date(ts).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-GB', { month: 'short', day: 'numeric' });
   return <aside className="cm-insights">
     <section className="cm-insight-panel cm-flow-panel" aria-label={t('cmCashFlow')}>
       <h2><ArrowLeftRight size={19} />{t('cmCashFlow')} <small>({rangeLabel})</small></h2>
@@ -42,7 +53,6 @@ export function CashInsights({ state, now, range, rangeLabel, onSection, onAddAc
       <div className="cm-flow-dates">{[0, .33, .66, 1].map(part => <span key={part}>{date(flow.start + (flow.end - flow.start) * part)}</span>)}</div>
       {!flow.inflow && !flow.outflow && <p className="cm-no-flow">{t('cmNoFlow')}</p>}
     </section>
-    <section className="cm-insight-panel"><h2><Zap size={19} />{t('cmQuickActions')}</h2><div className="cm-quick-actions">{actions.map(({ key, label, Icon, onClick, tone }) => <button key={key} type="button" className={`cm-tone-${tone}`} onClick={onClick} disabled={key === 'transfer' && (state.cashAccounts || []).filter(a => a.status === 'active').length < 2}><Icon size={22} /><span>{label}</span></button>)}</div></section>
     <section className="cm-insight-panel cm-recent"><h2><Clock3 size={19} />{t('recentActivity')}<button type="button" onClick={() => onSection('flow')}>{t('viewAllNotifications')}<ChevronRight size={12} /></button></h2>
       {flow.recent.length ? flow.recent.map(e => {
         const a = flow.accounts.get(e.accountId);

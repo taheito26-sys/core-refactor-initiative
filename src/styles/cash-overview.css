@@ -59,7 +59,9 @@
 .cm-tabs { display:flex; gap:calc(9 * var(--cm-u)); padding:2px 0 calc(5 * var(--cm-u)); }
 .cm-tabs button { display:flex; flex:1; justify-content:center; align-items:center; gap:calc(8 * var(--cm-u)); white-space:nowrap; padding:calc(12 * var(--cm-u)) calc(9 * var(--cm-u)); background:var(--cm-surface); border:1px solid var(--line); border-radius:calc(17 * var(--cm-u)); font-size:calc(11 * var(--cm-u)); }
 .cm-tabs button.is-active,.cm-view-toggle button[aria-pressed='true'] { border-color:var(--brand); background:linear-gradient(145deg,var(--brand),color-mix(in srgb,var(--brand2) 70%,var(--cm-surface))); color:hsl(var(--primary-foreground)); box-shadow:inset 0 0 calc(10 * var(--cm-u)) var(--glow),0 0 calc(10 * var(--cm-u)) var(--glow); }
-.cm-workspace { display:grid; grid-template-columns:minmax(0,1.62fr) minmax(0,1fr); gap:calc(13 * var(--cm-u)); align-items:start; }
+.cm-workspace { display:flex; flex-direction:column; gap:calc(13 * var(--cm-u)); }
+.cm-quick-panel .cm-quick-actions { grid-template-columns:repeat(6,minmax(0,1fr)); }
+@media (max-width:640px) { .cm-quick-panel .cm-quick-actions { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 .cm-accounts-panel,.cm-insight-panel { min-width:0; border:1px solid var(--line); border-radius:calc(16 * var(--cm-u)); background:linear-gradient(145deg,var(--cm-tint),var(--cm-surface)); padding:calc(10 * var(--cm-u)); }
 .cm-owed-total { margin:0 2px calc(10 * var(--cm-u)); padding:calc(7 * var(--cm-u)) calc(10 * var(--cm-u)); border-radius:calc(10 * var(--cm-u)); font-size:calc(12 * var(--cm-u)); font-weight:750; color:var(--bad); background:color-mix(in srgb,var(--bad) 9%,transparent); }
 .cm-accounts-toolbar { display:flex; align-items:center; gap:calc(8 * var(--cm-u)); padding:0 2px calc(12 * var(--cm-u)); flex-wrap:wrap; }
@@ -75,7 +77,8 @@
 .cm-filters { display:flex; flex-wrap:wrap; gap:calc(8 * var(--cm-u)); padding:0 0 calc(8 * var(--cm-u)); }
 .cm-filters label { flex:1; min-width:0; font-size:calc(9 * var(--cm-u)); color:var(--muted); }
 .cm-filters select { display:block; width:100%; padding:calc(5 * var(--cm-u)); background:var(--panel2); border:1px solid var(--line); border-radius:calc(5 * var(--cm-u)); }
-.cm-account-list { display:grid; gap:calc(9 * var(--cm-u)); }
+.cm-account-list { display:grid; gap:calc(9 * var(--cm-u)); grid-template-columns:repeat(auto-fill,minmax(max(260px,calc(300 * var(--cm-u))),1fr)); }
+.cm-account-list.cm-list-view { grid-template-columns:minmax(0,1fr); }
 .cm-account { position:relative; border:1px solid color-mix(in srgb,var(--cm-tone) 30%,var(--line)); border-inline-start:calc(4 * var(--cm-u)) solid var(--cm-tone); border-radius:calc(13 * var(--cm-u)); padding:calc(11 * var(--cm-u)) calc(10 * var(--cm-u)) calc(9 * var(--cm-u)); background:linear-gradient(125deg,color-mix(in srgb,var(--cm-tone) 5%,var(--cm-surface)),var(--cm-surface)); min-width:0; }
 .cm-account.is-inactive { opacity:.6; }
 .cm-account-header { display:flex; align-items:center; gap:calc(9 * var(--cm-u)); }
@@ -112,6 +115,7 @@
 .cm-list-view .cm-balance { min-height:calc(28 * var(--cm-u)); }
 .cm-list-view .cm-spark { height:calc(25 * var(--cm-u)); }
 .cm-insights { min-width:0; display:flex; flex-direction:column; gap:calc(11 * var(--cm-u)); }
+.cm-flow-chart { display:block; width:100%; max-height:calc(200 * var(--cm-u)); }
 .cm-insight-panel { padding:calc(12 * var(--cm-u)); }
 .cm-insight-panel h2 { font-size:calc(14 * var(--cm-u)); font-weight:750; display:flex; align-items:center; gap:calc(8 * var(--cm-u)); }
 .cm-insight-panel h2 > svg { flex-shrink:0; color:var(--brand); }
@@ -158,7 +162,6 @@
 .cm-account-stat > span > svg { position:absolute; inset-inline-start:calc(12 * var(--cm-u)); width:calc(19 * var(--cm-u)); height:calc(19 * var(--cm-u)); top:50%; transform:translateY(-50%); }
 .cm-account-stat strong { padding-inline-start:0; margin-top:calc(2 * var(--cm-u)); }
 .cm-flow-panel { min-height:calc(230 * var(--cm-u)); }
-.cm-insights > section:nth-child(2) { min-height:calc(180 * var(--cm-u)); }
 .cm-recent { min-height:calc(225 * var(--cm-u)); }
 .cm-recent h2 { white-space:nowrap; gap:calc(6 * var(--cm-u)); }
 .cm-activity { position:relative; min-height:calc(65 * var(--cm-u)); padding-block:calc(10 * var(--cm-u)); }
