@@ -2583,6 +2583,7 @@ const translations = {
   branchPh:              { en: 'Main Branch, USD acc...',       ar: 'الفرع الرئيسي، حساب USD...' },
   allowNegativeLbl:      { en: 'Allow this account to go negative', ar: 'السماح لهذا الحساب بالرصيد السالب' },
   allowNegativeHint:     { en: 'Spending more than the balance is allowed. The negative amount is what you owe the account owner.', ar: 'يُسمح بالصرف أكثر من الرصيد. المبلغ السالب هو ما تدين به لصاحب الحساب.' },
+  owedTag:               { en: 'you owe', ar: 'مستحق عليك' },
   youOweAccountOwner:    { en: 'You owe the account owner this amount', ar: 'هذا المبلغ مستحق عليك لصاحب الحساب' },
   notesOptionalAcc:      { en: 'Notes (optional)',              ar: 'ملاحظات (اختياري)' },
   notesAccPh:            { en: 'Any notes about this account...', ar: 'أي ملاحظات عن هذا الحساب...' },

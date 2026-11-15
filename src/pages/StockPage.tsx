@@ -24,6 +24,7 @@ import {
   getAccountNoteTotals,
   allocateBanknoteWithdrawal,
   canSpendFromAccount,
+  negativeAccountTag,
   deriveCashQAR,
   totalStock,
   type TrackerState,
@@ -1886,7 +1887,7 @@ export default function StockPage() {
                     <option value="none">🚫 {t('noFundingSource')}</option>
                     {activeAccounts.map(a => {
                       const bal = accountBalances.get(a.id) || 0;
-                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}{negativeAccountTag(bal, t('owedTag'))}</option>;
                     })}
                   </ModernSelect>
                   {fundingAccountId && fundingAccountId !== 'none' && (() => {
@@ -2122,7 +2123,7 @@ export default function StockPage() {
                         <option value="none">🚫 {t('noFundingSource')}</option>
                         {activeAccounts.map(a => {
                           const bal = accountBalances.get(a.id) || 0;
-                          return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                          return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}{negativeAccountTag(bal, t('owedTag'))}</option>;
                         })}
                       </ModernSelect>
                       {fundingAccountId && fundingAccountId !== 'none' && (() => {
@@ -2257,7 +2258,7 @@ export default function StockPage() {
                     <option value="none">🚫 {t('noFundingSource')}</option>
                     {activeAccounts.map(a => {
                       const bal = accountBalances.get(a.id) || 0;
-                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}{negativeAccountTag(bal, t('owedTag'))}</option>;
                     })}
                   </ModernSelect>
                   {editFundingAccountId && editFundingAccountId !== 'none' && (() => {

@@ -208,6 +208,11 @@ export function canSpendFromAccount(account: Pick<CashAccount, 'allowNegative'> 
   return !!account?.allowNegative || balance + 1e-9 >= amount;
 }
 
+/** Suffix for a dropdown option of an account that is below zero, so the merchant sees at a glance that this is money owed. */
+export function negativeAccountTag(balance: number, label: string): string {
+  return balance < 0 ? ` 🔻 ${label}` : '';
+}
+
 export interface CashLedgerEntry {
   id: string;
   ts: number;

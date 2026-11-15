@@ -13,7 +13,7 @@ import {
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
   type CustomerLoan, type LoanRepayment, type RepaymentMethod, type Customer, type Trade,
-  getAccountBalance, getAllAccountBalances, deriveCashQAR, canSpendFromAccount,
+  getAccountBalance, getAllAccountBalances, deriveCashQAR, canSpendFromAccount, negativeAccountTag,
   getLoanRepaid, getLoanRemaining, customerNameVariants, resolveCustomerName,
 } from '@/lib/tracker-helpers';
 import { useT, type TranslationKey } from '@/lib/i18n';
@@ -739,7 +739,7 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <div className="lbl">{t('transferFromLbl' as any)}</div>
             <ModernSelect value={fromId} onChange={e => setFromId(e.target.value)} style={selectStyle}>
-              {active.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
+              {active.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency}){negativeAccountTag(balances.get(a.id) || 0, t('owedTag'))}</option>)}
             </ModernSelect>
           </div>
           <div className="field2">
@@ -1151,7 +1151,7 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
           <div className="lbl">{t('loanFundingSource')}</div>
           <ModernSelect value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)} style={selectStyle}>
             <option value="" style={optionStyle}>—</option>
-            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
+            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency}){negativeAccountTag(balances.get(a.id) || 0, t('owedTag'))}</option>)}
           </ModernSelect>
           <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>{t('loanFundingSourceHint')}</div>
         </div>
@@ -1761,7 +1761,7 @@ function CashCounterModal({
               <div className="lbl">{t('cashAccountsTab')}</div>
               <ModernSelect value={accountId || account.id} onChange={e => { setAccountId(e.target.value); setCounts({}); }} style={selectStyle}>
                 {countableAccounts.map(a => (
-                  <option key={a.id} value={a.id} style={optionStyle}>{a.name} — {fmtTotal(balances.get(a.id) || 0)} {a.currency}</option>
+                  <option key={a.id} value={a.id} style={optionStyle}>{a.name} — {fmtTotal(balances.get(a.id) || 0)} {a.currency}{negativeAccountTag(balances.get(a.id) || 0, t('owedTag'))}</option>
                 ))}
               </ModernSelect>
             </div>

@@ -36,3 +36,12 @@ describe('accounts that may go negative', () => {
     expect(back.notes).toBe('n');
   });
 });
+
+describe('dropdown mark', () => {
+  it('tags only accounts below zero', async () => {
+    const { negativeAccountTag } = await import('@/lib/tracker-helpers');
+    expect(negativeAccountTag(-10500, 'you owe')).toBe(' 🔻 you owe');
+    expect(negativeAccountTag(0, 'you owe')).toBe('');
+    expect(negativeAccountTag(500, 'you owe')).toBe('');
+  });
+});
