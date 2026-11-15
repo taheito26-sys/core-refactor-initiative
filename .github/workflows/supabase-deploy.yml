@@ -22,7 +22,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.1.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
@@ -43,4 +43,4 @@ jobs:
         run: supabase db push --remote="$SUPABASE_PROJECT_ID" --yes
 
       - name: Deploy edge functions
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
+        run: supabase functions deploy --remote="$SUPABASE_PROJECT_ID" --yes
