@@ -18,15 +18,16 @@ function Tile({ cls, icon: Icon, label, value, hint }: { cls: string; icon: type
 /** The measures of one trip as six tiles: time on the road, stops, distance, share in range, temperature range, readings. */
 export function TripTiles({ summary: s, lang }: { summary: TripSummary; lang: Lang }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  const timeHint = [s.timingEstimated ? L('Includes estimated earlier history', 'يشمل تقديرًا للسجل السابق') : '', s.waitingApprovalMs > 0 ? L(`Awaiting approval: ${durationLabel(s.waitingApprovalMs, lang)}`, `انتظار الموافقة: ${durationLabel(s.waitingApprovalMs, lang)}`) : ''].filter(Boolean).join(' · ');
   return (
-    <div className="cs-kv">
-      <Tile cls="t3" icon={Timer} label={L('Time on the road', 'مدة الرحلة')} value={s.elapsedMs === null ? '—' : durationLabel(s.elapsedMs, lang)} />
+    <><div className="cs-kv">
+      <Tile cls="t3" icon={Timer} label={L('Active trip time', 'وقت الرحلة الفعلي')} value={s.elapsedMs === null ? '—' : durationLabel(s.elapsedMs, lang)} hint={timeHint || undefined} />
       <Tile cls="t2" icon={MapPinned} label={L('Stops reached', 'المحطات')} value={`${s.stopsDone}/${s.stopsTotal}`} />
-      <Tile cls="t4" icon={RouteIcon} label={L('Distance', 'المسافة')} value={s.distanceKm > 0 ? `${s.distanceKm} km` : '—'} hint={s.distanceKm > 0 ? L('Approximate', 'تقريبية') : undefined} />
-      <Tile cls={s.alertCount > 0 ? 'bad' : 't4'} icon={Gauge} label={L('Kept in range', 'ضمن النطاق')} value={s.inRangePct === null ? '—' : `${s.inRangePct}%`} hint={s.alertCount > 0 ? L(`${s.alertCount} out of range`, `${s.alertCount} خارج النطاق`) : undefined} />
+      <Tile cls="t4" icon={RouteIcon} label={L('Recorded GPS distance', 'المسافة المسجلة بالموقع')} value={s.distanceKm > 0 ? `${s.distanceKm} km` : '—'} hint={L(`${s.gpsSamples} GPS points · ${s.distanceIncomplete ? 'incomplete coverage' : 'sampled trail'}`, `${s.gpsSamples} نقاط · ${s.distanceIncomplete ? 'تغطية غير مكتملة' : 'مسار تقريبي'}`)} />
+      <Tile cls={s.alertCount > 0 ? 'bad' : 't4'} icon={Gauge} label={L('Readings in range', 'القراءات ضمن النطاق')} value={s.inRangePct === null ? '—' : `${s.inRangePct}%`} hint={L(`${s.readingsCount-s.alertCount}/${s.readingsCount} recorded readings`, `${s.readingsCount-s.alertCount}/${s.readingsCount} من القراءات المسجلة`)} />
       <Tile cls="t1" icon={Thermometer} label={L('Lowest … highest', 'الأدنى … الأعلى')} value={s.minC === null || s.maxC === null ? '—' : `${temp(s.minC)}…${temp(s.maxC)}`} hint={s.avgC !== null ? `${L('Average', 'المتوسط')} ${temp(s.avgC)}°C` : undefined} />
       <Tile cls="t3" icon={ScanLine} label={L('Readings', 'القراءات')} value={String(s.readingsCount)} />
-    </div>
+    </div><p className="cs-sampling-note">{L('Based on submitted readings and sampled GPS points—not continuous temperature monitoring or an odometer.', 'الإحصاءات من القراءات المرسلة ونقاط الموقع المتاحة، وليست مراقبة مستمرة للحرارة أو عداد مسافة.')}</p></>
   );
 }
 

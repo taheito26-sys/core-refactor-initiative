@@ -18,6 +18,7 @@ export function RouteList({ stops, status, lang }: { stops: ShipmentStop[]; stat
             <span className="pt">{reached && <Check aria-hidden="true" />}</span>
             <div>
               <div className="nm">{stopName(s, lang)}{s.kind === 'driver' && <span className="tag">{L('added by driver', 'أضافها السائق')}</span>}</div>
+              {reached && <div className="cs-arrival-method">{s.arrival_method === 'gps' ? L('GPS verified', 'تأكد بالموقع') : s.arrival_method === 'override' ? L('Driver override', 'تأكيد بتوضيح السائق') : s.arrival_method === 'start' ? L('Confirmed at start', 'تأكد عند البدء') : L('Earlier confirmation', 'تأكيد سابق')}{s.arrival_reason && <p>{s.arrival_reason}</p>}</div>}
               <div className="tm">{reached && s.reached_at ? dateFmt(s.reached_at) : next ? L('Next stop', 'المحطة التالية') : L('Not reached yet', 'لم يصل بعد')}</div>
             </div>
           </li>

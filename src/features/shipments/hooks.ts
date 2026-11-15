@@ -1,3 +1,4 @@
+import { enqueueReading, sendQueuedReading } from './reading-outbox';
 import { useEffect, useId } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +19,7 @@ export function useShipments() {
 }
 
 export function useShipment(id: string | null) {
+  useShipmentsRealtime();
   return useQuery({
     queryKey: [...SHIPMENTS_KEY, 'one', id],
     queryFn: () => getShipment(id as string),
@@ -52,6 +54,8 @@ function useShipmentsRealtime() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_stops' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_readings' }, refresh)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shipment_locations' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_sessions' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shipment_events' }, refresh)
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [qc, userId, instance]);
@@ -82,7 +86,13 @@ export const useSetDriverActive = () =>
 export const useStartShipment = () => useShipmentMutation(startShipment);
 export const useReachStop = () => useShipmentMutation(reachStop);
 export const useAddStop = () => useShipmentMutation(({ shipmentId, name }: { shipmentId: string; name: string }) => addStop(shipmentId, name));
-export const useSubmitReading = () => useShipmentMutation(submitReading);
+export const useSubmitReading = () => {
+  const { userId } = useAuth();
+  return useShipmentMutation(async (input: Parameters<typeof submitReading>[0]) => {
+    const queued = await enqueueReading(userId ?? '', input);
+    return sendQueuedReading(userId ?? '', queued.id, submitReading);
+  });
+};
 
 export const useStopShipment = () => useShipmentMutation(stopShipment);
 export const useApproveShipmentRestart = () => useShipmentMutation(approveShipmentRestart);

@@ -1,6 +1,6 @@
 import { ReadingFreshness } from './ReadingFreshness';
 import { useState } from 'react';
-import { Activity, ExternalLink, Loader2, MapPin, MapPinned, Phone, Route as RouteIcon, ScanLine, Thermometer, Timer, Truck, User } from 'lucide-react';
+import { Activity, ExternalLink, Loader2, MapPin, MapPinned, Phone, ScanLine, Thermometer, Timer, Truck, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -12,7 +12,8 @@ import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATU
 import { tripSummary } from '../trip-summary';
 import { PhotoThumb } from './PhotoThumb';
 import { ReadingProof, ReadingRow } from './ReadingRow';
-import { RouteList } from './RouteList';
+import { RouteSummary } from './RouteSummary';
+import { TripHistory } from './TripHistory';
 import { TripTiles } from './TripTiles';
 import { RangeStrip } from './ShipmentCard';
 import { TrendChart } from './TrendChart';
@@ -141,10 +142,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 )}
               </section>
 
-              <section className="ch-card cs-box">
-                <h3><RouteIcon aria-hidden="true" />{L('Route', 'المسار')}<small>{progress.reachedCount}/{progress.total}</small></h3>
-                <RouteList stops={shipment.stops} status={shipment.status} lang={lang} />
-              </section>
+              <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
+              <TripHistory shipment={shipment} now={now} lang={lang} />
 
               <section className="ch-card cs-box">
                 <h3><User aria-hidden="true" />{L('Driver', 'السائق')}</h3>
@@ -171,10 +170,10 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
               </section>
 
               <section className="ch-card cs-box">
-                <h3><ScanLine aria-hidden="true" />{L('Readings', 'القراءات')}<small>{shipment.readings.length}</small></h3>
-                {shipment.readings.length === 0 && <p style={{ margin: 0, fontSize: 11.5, color: '#6b7a9c' }}>{L('Nothing yet.', 'لا شيء بعد.')}</p>}
+                <h3><ScanLine aria-hidden="true" />{L('Earlier readings', 'القراءات السابقة')}<small>{Math.max(0, shipment.readings.length - 1)}</small></h3>
+                {shipment.readings.length < 2 && <p style={{ margin: 0, fontSize: 11.5, color: '#6b7a9c' }}>{L('No earlier readings.', 'لا توجد قراءات سابقة.')}</p>}
                 <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>
-                  {shipment.readings.map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
+                  {shipment.readings.slice(1).map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
                 </ul>
               </section>
 

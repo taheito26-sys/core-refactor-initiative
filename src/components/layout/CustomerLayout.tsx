@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePushRegistration } from '@/hooks/usePushRegistration';
 import { useNotifications } from '@/hooks/useNotifications';
 import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
 import { CustomerHomeNav } from '@/features/customer/home/CustomerHomeNav';
@@ -49,6 +50,7 @@ export function CustomerLayout() {
   const { settings, update } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { unreadCount } = useNotifications();
+  usePushRegistration();
 
   const isRTL = settings.language === 'ar';
   const lang  = isRTL ? 'ar' : 'en';

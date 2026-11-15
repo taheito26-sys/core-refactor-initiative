@@ -60,7 +60,7 @@ describe('Shipment detail panel', () => {
     expect(within(box).getByText('2/3')).toBeTruthy();
     expect(within(box).getByText('67%')).toBeTruthy();
     expect(within(box).getByText('-15…8.5')).toBeTruthy();
-    expect(within(box).getByText('1 out of range')).toBeTruthy();
+    expect(within(box).getByText('2/3 recorded readings')).toBeTruthy();
   });
 
   it('shows where the truck is by name with a map, and the earlier positions', () => {
@@ -89,7 +89,9 @@ describe('Shipment detail panel', () => {
 
   it('marks reached stops and names the next one', () => {
     open();
-    const route = screen.getByText('Route', { selector: 'h3' }).closest('section') as HTMLElement;
+    const route = screen.getByText('Expand route').closest('details') as HTMLElement;
+    fireEvent.click(within(route).getByText('Expand route'));
+    expect(route.hasAttribute('open')).toBe(true);
     expect(within(route).getByText('Next stop')).toBeTruthy();
     expect(within(route).queryAllByText('Not reached yet')).toHaveLength(0);
     expect(route.querySelectorAll('li.reached')).toHaveLength(2);
@@ -97,8 +99,8 @@ describe('Shipment detail panel', () => {
 
   it('lists every reading, and offers to cancel a shipment that is on the road', () => {
     open();
-    const box = screen.getByText('Readings', { selector: 'h3' }).closest('section') as HTMLElement;
-    expect(within(box).getAllByRole('listitem')).toHaveLength(3);
+    const box = screen.getByText('Earlier readings', { selector: 'h3' }).closest('section') as HTMLElement;
+    expect(within(box).getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Cancel this shipment' })).toBeTruthy();
   });
 

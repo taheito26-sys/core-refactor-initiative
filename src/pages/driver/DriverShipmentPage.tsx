@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
-import { Activity, ArrowLeft, Flag, Loader2, MapPin, MapPinPlus, Package, Play, Route as RouteIcon, ScanLine, Scale, Thermometer, Timer } from 'lucide-react';
+import { Activity, ArrowLeft, Flag, Loader2, MapPin, MapPinPlus, Package, Play, ScanLine, Scale, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -9,12 +9,14 @@ import {
 import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshness';
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
-import { RouteList } from '@/features/shipments/components/RouteList';
+import { RouteSummary } from '@/features/shipments/components/RouteSummary';
+import { TripHistory } from '@/features/shipments/components/TripHistory';
+import { ArrivalDialog } from '@/features/shipments/components/ArrivalDialog';
+import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
 import { RangeStrip } from '@/features/shipments/components/ShipmentCard';
 import { TripTiles } from '@/features/shipments/components/TripTiles';
 import { placeText } from '@/features/shipments/geo';
-import { useAddStop, useReachStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
-import { reportStopLocation } from '@/features/shipments/reporting';
+import { useAddStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
 import { agoLabel, durationLabel, latestReading, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG } from '@/features/shipments/route';
 import { tripSummary } from '@/features/shipments/trip-summary';
 import { useTheme } from '@/lib/theme-context';
@@ -33,11 +35,11 @@ export default function DriverShipmentPage() {
   const { data: shipment, isLoading } = useShipment(id);
   const start = useStartShipment();
   const stop = useStopShipment();
-  const reach = useReachStop();
   const addStop = useAddStop();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
-  const [confirm, setConfirm] = useState<'start' | 'stop' | 'reach' | null>(null);
+  const [confirm, setConfirm] = useState<'start' | 'stop' | null>(null);
+  const [showArrival, setShowArrival] = useState(false);
   const [newStop, setNewStop] = useState('');
 
   const onError = (e: unknown) => toast.error((e as Error).message || L('Something went wrong', 'حدث خطأ ما'));
@@ -87,6 +89,7 @@ export default function DriverShipmentPage() {
             {shipment.weight_tons != null && <div className="cs-state mute"><Scale style={{ width: 11, height: 11, verticalAlign: '-1px' }} aria-hidden="true" /> {shipment.weight_tons} t</div>}
           </div>
         </div>
+        {last && <details className="cs-latest-proof"><summary>{L('Latest photo and proof', 'آخر صورة وإثبات')}</summary><PhotoThumb path={last.photo_path} alt={L('Latest temperature photo', 'آخر صورة للحرارة')} /><ReadingProof reading={last} lang={lang} /></details>}
         <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={onTheRoad} now={now} lang={lang} />
         <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
         {(
@@ -94,16 +97,6 @@ export default function DriverShipmentPage() {
             <MapPin aria-hidden="true" />
             <div>{L('Last known location', 'آخر موقع معروف')} <b>{area ?? (where ? L('Area name unavailable', 'اسم المنطقة غير متاح') : L('No location recorded yet', 'لم يُسجل موقع بعد'))}</b></div>
             {where && <span>{agoLabel(where.recorded_at, now, lang)}</span>}
-          </div>
-        )}
-        {onTheRoad && due.dueAt != null && (
-          <div className="cs-meta" style={{ marginTop: 8 }}>
-            <div className={due.state === 'overdue' ? 'warn' : undefined}>
-              <Timer aria-hidden="true" />
-              {due.state === 'overdue'
-                ? L(`Reading overdue by ${durationLabel(due.overdueMs, lang)}`, `القراءة متأخرة ${durationLabel(due.overdueMs, lang)}`)
-                : L(`Next reading in ${durationLabel(due.dueAt - now, lang)} (every ${shipment.reading_interval_hours} h)`, `القراءة القادمة بعد ${durationLabel(due.dueAt - now, lang)} (كل ${shipment.reading_interval_hours} ساعات)`)}
-            </div>
           </div>
         )}
       </section>
@@ -119,6 +112,10 @@ export default function DriverShipmentPage() {
         </button>
       )}
 
+      {onTheRoad && due.dueAt != null && <div className={`cs-banner ${due.state === 'overdue' || due.state === 'due_soon' ? 'warn' : ''}`} role="status"><Timer aria-hidden="true" /><div>
+        <b>{L('Next reading due', 'موعد القراءة القادمة')}: {new Date(due.dueAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b>
+        {due.state === 'overdue' ? L(`Overdue by ${durationLabel(due.overdueMs, lang)}`, `متأخرة ${durationLabel(due.overdueMs, lang)}`) : L(`In ${durationLabel(due.dueAt - now, lang)}`, `بعد ${durationLabel(due.dueAt - now, lang)}`)}
+      </div></div>}
       {active && <DriverReadingForm shipment={shipment} driverName={driverName} access={access} lang={lang} />}
 
       {onTheRoad && (
@@ -133,8 +130,8 @@ export default function DriverShipmentPage() {
             <div className="dr-next">{L('Next stop', 'المحطة التالية')}</div>
             <div className="dr-nextname">{stopName(progress.next, lang)}</div>
           </div>
-          <button type="button" className="cs-cta soft" onClick={() => setConfirm('reach')} disabled={reach.isPending}>
-            {reach.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Flag aria-hidden="true" />}
+          <button type="button" className="cs-cta soft" onClick={() => setShowArrival(true)}>
+            <Flag aria-hidden="true" />
             {L('I reached this stop', 'وصلت إلى هذه المحطة')}
           </button>
           <form
@@ -155,13 +152,6 @@ export default function DriverShipmentPage() {
         </section>
       )}
 
-      {last && (
-        <section className="ch-card cs-box">
-          <h3><Thermometer aria-hidden="true" />{L('Last proof sent', 'آخر إثبات أُرسل')}</h3>
-          <ReadingProof reading={last} lang={lang} />
-        </section>
-      )}
-
       {shipment.status !== 'preparing' && (
         <section className="ch-card cs-box">
           <h3><Activity aria-hidden="true" />{L('This trip so far', 'رحلتك حتى الآن')}</h3>
@@ -169,16 +159,15 @@ export default function DriverShipmentPage() {
         </section>
       )}
 
-      <section className="ch-card cs-box">
-        <h3><RouteIcon aria-hidden="true" />{L('Route', 'المسار')}<small>{progress.reachedCount}/{progress.total}</small></h3>
-        <RouteList stops={shipment.stops} status={shipment.status} lang={lang} />
-      </section>
+      <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
+      <TripHistory shipment={shipment} now={now} lang={lang} />
+      {showArrival && progress.next && <ArrivalDialog stop={progress.next} lang={lang} onClose={() => setShowArrival(false)} />}
 
-      {shipment.readings.length > 0 && (
+      {shipment.readings.length > 1 && (
         <section className="ch-card cs-box">
-          <h3><ScanLine aria-hidden="true" />{L('Sent readings', 'القراءات المرسلة')}<small>{shipment.readings.length}</small></h3>
+          <h3><ScanLine aria-hidden="true" />{L('Earlier readings', 'القراءات السابقة')}<small>{shipment.readings.length - 1}</small></h3>
           <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>
-            {shipment.readings.slice(0, 8).map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
+            {shipment.readings.slice(1, 9).map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
           </ul>
         </section>
       )}
@@ -201,7 +190,6 @@ export default function DriverShipmentPage() {
               onClick={() => {
                 if (confirm === 'stop') stop.mutate(shipment.id, { onError });
                 else if (confirm === 'start') start.mutate(shipment.id, { onError });
-                else if (progress.next) reach.mutate(progress.next.id, { onError, onSuccess: () => { void reportStopLocation(shipment.id); } });
                 setConfirm(null);
               }}
             >

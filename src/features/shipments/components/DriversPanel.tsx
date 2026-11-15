@@ -60,9 +60,9 @@ function DriverCard({ s, lang, now, expanded, onToggle, onSwitch, switching }: {
 
       <div className="cs-stats">
         <Stat lang={lang} cls="t3" icon={Package} label={L('Trips', 'الرحلات')} value={`${stats.tripsDelivered}/${stats.tripsStarted}`} hint={L('delivered / started', 'مسلّمة / بدأت')} />
-        <Stat lang={lang} cls="t4" icon={RouteIcon} label={L('Distance', 'المسافة')} value={stats.distanceKm > 0 ? `${stats.distanceKm} km` : '—'} hint={stats.tons > 0 ? `${stats.tons} t` : undefined} />
-        <Stat lang={lang} cls="t2" icon={Timer} label={L('Average trip', 'متوسط الرحلة')} value={stats.avgTripHours === null ? '—' : durationHoursLabel(stats.avgTripHours, lang)} />
-        <Stat lang={lang} cls={gradeOf(stats.inRangePct) === 'poor' ? 'bad' : 't4'} icon={Gauge} label={L('Kept in range', 'ضمن النطاق')} value={pctText(stats.inRangePct)} grade={gradeOf(stats.inRangePct)} />
+        <Stat lang={lang} cls="t4" icon={RouteIcon} label={L('Recorded GPS distance', 'المسافة المسجلة بالموقع')} value={stats.distanceKm > 0 ? `${stats.distanceKm} km` : '—'} hint={stats.tons > 0 ? `${stats.tons} t` : undefined} />
+        <Stat lang={lang} cls="t2" icon={Timer} label={L('Average active trip', 'متوسط الوقت الفعلي')} value={stats.avgTripHours === null ? '—' : durationHoursLabel(stats.avgTripHours, lang)} hint={stats.timingEstimated ? L('Includes estimated earlier history', 'يشمل تقديرًا للسجل السابق') : undefined} />
+        <Stat lang={lang} cls={gradeOf(stats.inRangePct) === 'poor' ? 'bad' : 't4'} icon={Gauge} label={L('Readings in range', 'القراءات ضمن النطاق')} value={pctText(stats.inRangePct)} grade={gradeOf(stats.inRangePct)} hint={L(`${stats.readings-stats.alerts}/${stats.readings} recorded readings`, `${stats.readings-stats.alerts}/${stats.readings} من القراءات المسجلة`)} />
         <Stat lang={lang} cls={gradeOf(stats.onTimePct) === 'poor' ? 'bad' : 't1'} icon={Timer} label={L('Readings on time', 'قراءات في وقتها')} value={pctText(stats.onTimePct)} grade={gradeOf(stats.onTimePct)} hint={stats.missedReadings > 0 ? L(`${stats.missedReadings} missed`, `${stats.missedReadings} فائتة`) : undefined} />
         <Stat lang={lang} cls={stats.alerts > 0 ? 'bad' : 't3'} icon={TriangleAlert} label={L('Alerts', 'التنبيهات')} value={String(stats.alerts)} hint={L(`of ${stats.readings} readings`, `من ${stats.readings} قراءة`)} />
       </div>
@@ -168,8 +168,8 @@ export function DriversPanel({ lang, now, tabs, onAdd }: { lang: Lang; now: numb
               <div className="co-tiles">
                 <div className="co-t t3"><div className="co-t-top"><span className="co-t-l">{L('Drivers', 'السائقون')}</span><span className="co-t-ic"><Users /></span></div><div className="co-t-v">{team.drivers}</div><div className="co-t-c">{L(`${team.onTheRoad} on the road`, `${team.onTheRoad} في الطريق`)}</div></div>
                 <div className="co-t t2"><div className="co-t-top"><span className="co-t-l">{L('Trips', 'الرحلات')}</span><span className="co-t-ic"><Package /></span></div><div className="co-t-v">{team.stats.tripsStarted}</div><div className="co-t-c">{L(`${team.stats.tripsDelivered} delivered`, `${team.stats.tripsDelivered} مسلّمة`)}</div></div>
-                <div className="co-t t4"><div className="co-t-top"><span className="co-t-l">{L('Distance', 'المسافة')}</span><span className="co-t-ic"><MapPinned /></span></div><div className="co-t-v" dir="ltr" style={{ textAlign: 'start' }}>{team.stats.distanceKm > 0 ? `${team.stats.distanceKm} km` : '—'}</div></div>
-                <div className={cn('co-t', gradeOf(team.stats.inRangePct) === 'poor' ? 'bad' : 't1')}><div className="co-t-top"><span className="co-t-l">{L('Kept in range', 'ضمن النطاق')}</span><span className="co-t-ic"><ScanLine /></span></div><div className="co-t-v">{pctText(team.stats.inRangePct)}</div><div className="co-t-c">{L(`${team.stats.alerts} alerts`, `${team.stats.alerts} تنبيه`)}</div></div>
+                <div className="co-t t4"><div className="co-t-top"><span className="co-t-l">{L('Recorded GPS distance', 'المسافة المسجلة بالموقع')}</span><span className="co-t-ic"><MapPinned /></span></div><div className="co-t-v" dir="ltr" style={{ textAlign: 'start' }}>{team.stats.distanceKm > 0 ? `${team.stats.distanceKm} km` : '—'}</div></div>
+                <div className={cn('co-t', gradeOf(team.stats.inRangePct) === 'poor' ? 'bad' : 't1')}><div className="co-t-top"><span className="co-t-l">{L('Readings in range', 'القراءات ضمن النطاق')}</span><span className="co-t-ic"><ScanLine /></span></div><div className="co-t-v">{pctText(team.stats.inRangePct)}</div><div className="co-t-c">{L(`${team.stats.alerts} alerts`, `${team.stats.alerts} تنبيه`)}</div></div>
               </div>
             </>
           )}

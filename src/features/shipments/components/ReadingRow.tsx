@@ -26,7 +26,8 @@ export function ReadingProof({ reading, lang }: { reading: ShipmentReading; lang
         </div>
       )}
       <div><ScanLine aria-hidden="true" />{lang === 'ar' ? mode.ar : mode.en}</div>
-      {reading.time_mismatch && <div className="warn"><TriangleAlert aria-hidden="true" />{L('Phone clock differs from the server', 'ساعة الهاتف تختلف عن الخادم')}</div>}
+      {reading.uploaded_at && Date.parse(reading.uploaded_at) - Date.parse(reading.taken_at) > 600_000 && <div><Timer aria-hidden="true" />{L('Uploaded later', 'رُفعت لاحقًا')}: {formatStampTime(Date.parse(reading.uploaded_at))}</div>}
+      {reading.time_mismatch && !reading.client_request_id && <div className="warn"><TriangleAlert aria-hidden="true" />{L('Phone clock differs from the server', 'ساعة الهاتف تختلف عن الخادم')}</div>}
     </div>
   );
 }

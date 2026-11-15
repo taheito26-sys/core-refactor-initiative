@@ -44,15 +44,16 @@ export interface ShipmentDetail extends ShipmentWithDetails {
   readings: ShipmentReading[];
 }
 
-export async function getShipment(id: string): Promise<ShipmentDetail | null> {
+export async function getShipment(id: string, withHistory = true): Promise<ShipmentDetail | null> {
   const { data, error } = await db
     .from('shipments')
-    .select(LIST_SELECT)
+    .select(LIST_SELECT + (withHistory ? ', sessions:shipment_sessions(*), events:shipment_events(*)' : ''))
     .eq('id', id)
     .order('taken_at', { ascending: false, referencedTable: 'readings' })
     .order('recorded_at', { ascending: false, referencedTable: 'locations' })
     .limit(30, { referencedTable: 'locations' })
     .maybeSingle();
+  if (error && withHistory && ['PGRST200', 'PGRST205', '42P01'].includes((error as Error & { code?: string }).code ?? '')) return getShipment(id, false);
   if (error) throw error;
   return (data as ShipmentDetail | null) ?? null;
 }
@@ -120,13 +121,19 @@ export const approveShipmentRestart = (shipmentId: string) => rpc<Shipment>('cus
 
 export const startShipment = (shipmentId: string) => rpc<Shipment>('driver_start_shipment', { p_shipment_id: shipmentId });
 
-export const reachStop = (stopId: string) => rpc<Shipment>('driver_reach_stop', { p_stop_id: stopId });
+export interface ArrivalInput { stopId: string; fix: Fix | null; reason: string }
+export const reachStop = (input: ArrivalInput) => rpc<Shipment>('driver_confirm_arrival', {
+  p_stop_id: input.stopId, p_lat: input.fix?.latitude ?? null, p_lng: input.fix?.longitude ?? null,
+  p_accuracy: input.fix?.accuracy ?? null, p_recorded_at: input.fix ? new Date(input.fix.timestamp).toISOString() : null,
+  p_override_reason: input.reason.trim() || null,
+});
 
 export const addStop = (shipmentId: string, name: string) =>
   rpc<ShipmentStop>('driver_add_stop', { p_shipment_id: shipmentId, p_name: name });
 
 export interface ReadingInput {
   shipmentId: string;
+  clientRequestId?: string;
   /** The photo with the time and position already stamped onto it. */
   photo: Blob;
   temperatureC: number;
@@ -144,12 +151,14 @@ export interface ReadingInput {
 
 /** Uploads the stamped photo, then records the reading with the phone's time and position. */
 export async function submitReading(input: ReadingInput): Promise<ShipmentReading> {
-  const path = `${input.shipmentId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
+  const requestId = input.clientRequestId ?? crypto.randomUUID();
+  const path = `${input.shipmentId}/${requestId}.jpg`;
   const { error: uploadError } = await supabase.storage
     .from('shipment-photos')
     .upload(path, input.photo, { contentType: input.photo.type || 'image/jpeg', upsert: false });
-  if (uploadError) throw uploadError;
-  return rpc<ShipmentReading>('driver_submit_reading', {
+  if (uploadError && String((uploadError as { statusCode?: string }).statusCode) !== '409' && !/already exists|duplicate/i.test(uploadError.message)) throw uploadError;
+  return rpc<ShipmentReading>('driver_submit_reading_v2', {
+    p_client_request_id: requestId,
     p_shipment_id: input.shipmentId,
     p_temperature: input.temperatureC,
     p_set_point: input.setPointC,
@@ -197,11 +206,12 @@ export interface TripData extends Shipment {
 }
 
 /** Everything trip statistics are worked out from: the trips the caller can see, started since a date (all of them with ''). A driver sees their own, a customer their own shipments. */
-export async function listDriverTrips(sinceIso: string): Promise<TripData[]> {
+export async function listDriverTrips(sinceIso: string, withSessions = true): Promise<TripData[]> {
   const { data, error } = await db
     .from('shipments')
-    .select('*, stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, recorded_at, place_ar, place_en)')
+    .select('*, stops:shipment_stops(*), readings:shipment_readings(*), locations:shipment_locations(latitude, longitude, recorded_at, place_ar, place_en)' + (withSessions ? ', sessions:shipment_sessions(*)' : ''))
     .order('created_at', { ascending: false });
+  if (error && withSessions && ['PGRST200', 'PGRST205', '42P01'].includes((error as Error & { code?: string }).code ?? '')) return listDriverTrips(sinceIso, false);
   if (error) throw error;
   return ((data ?? []) as TripData[]).filter((t) => (t.started_at ?? t.created_at) >= sinceIso);
 }

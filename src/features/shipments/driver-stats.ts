@@ -1,7 +1,8 @@
+import { activeTripMs } from './timing';
 import { haversineKm } from './geo';
 import type { Shipment, ShipmentLocation, ShipmentReading, ShipmentStop } from './types';
 
-export interface TripLike extends Pick<Shipment, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'weight_tons' | 'reading_interval_hours'> {
+export interface TripLike extends Pick<Shipment, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'weight_tons' | 'reading_interval_hours' | 'sessions' | 'events'> {
   stops: Pick<ShipmentStop, 'reached_at'>[];
   readings: Pick<ShipmentReading, 'taken_at' | 'is_alert'>[];
   locations: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at'>[];
@@ -15,6 +16,7 @@ export interface MonthStats {
   distanceKm: number;
   /** Hours from start to delivery, averaged over delivered trips; null with none. */
   avgTripHours: number | null;
+  timingEstimated?: boolean;
   readings: number;
   alerts: number;
   /** Share of readings inside the allowed range, 0-100; null with no readings. */
@@ -66,6 +68,11 @@ export function routeDistanceKm(points: Pick<ShipmentLocation, 'latitude' | 'lon
  * that should have come in between as missed. A trip still on the road is measured up to `now`.
  */
 export function tripPunctuality(trip: TripLike, now: number): { onTime: number; late: number; missed: number } {
+  if (trip.sessions !== undefined) return trip.sessions.reduce((sum, session) => {
+    const part = tripPunctuality({ ...trip, sessions: undefined, started_at: session.started_at, ended_at: session.ended_at, delivered_at: null,
+      readings: trip.readings.filter(r => Date.parse(r.taken_at)>=Date.parse(session.started_at) && (!session.ended_at || Date.parse(r.taken_at)<=Date.parse(session.ended_at))) }, now);
+    return { onTime: sum.onTime+part.onTime, late: sum.late+part.late, missed: sum.missed+part.missed };
+  }, { onTime: 0, late: 0, missed: 0 });
   const result = { onTime: 0, late: 0, missed: 0 };
   if (!trip.started_at) return result;
   const interval = trip.reading_interval_hours * HOUR;
@@ -96,9 +103,10 @@ export function tripSetStats(trips: TripLike[], now: number): Omit<MonthStats, '
   const onTime = punctual.reduce((s, p) => s + p.onTime, 0);
   const late = punctual.reduce((s, p) => s + p.late, 0);
   const missed = punctual.reduce((s, p) => s + p.missed, 0);
-  const durations = delivered.filter((t) => t.delivered_at).map((t) => (new Date(t.delivered_at as string).getTime() - new Date(t.started_at as string).getTime()) / HOUR);
+  const durations = delivered.filter((t) => t.delivered_at).map((t) => (activeTripMs(t, now) ?? 0) / HOUR);
 
   return {
+    timingEstimated: counted.some(t => t.sessions === undefined || t.sessions.some(session => session.is_legacy)),
     tripsStarted: counted.length,
     tripsDelivered: delivered.length,
     tons: Math.round(delivered.reduce((s, t) => s + (t.weight_tons ?? 0), 0) * 10) / 10,
@@ -132,3 +140,15 @@ export const durationHoursLabel = (hours: number, lang: 'en' | 'ar'): string => 
   const h = Math.round(hours - d * 24);
   return d > 0 ? (lang === 'ar' ? `${d} يوم ${h} ساعة` : `${d} d ${h} h`) : lang === 'ar' ? `${h} ساعة` : `${h} h`;
 };
+
+/** Coverage is sampled GPS evidence, not an odometer or a continuously traced road. */
+export function gpsCoverage(points: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at'>[], activeMs: number | null): { samples: number; percent: number | null; incomplete: boolean } {
+  const sorted = [...points].filter(p => Number.isFinite(Date.parse(p.recorded_at))).sort((a,b) => Date.parse(a.recorded_at)-Date.parse(b.recorded_at));
+  let covered = 0;
+  for (let i=1;i<sorted.length;i++) {
+    const gap=Date.parse(sorted[i].recorded_at)-Date.parse(sorted[i-1].recorded_at);
+    if(gap>0 && gap<=2*HOUR && haversineKm(sorted[i-1],sorted[i])/(gap/HOUR)<=MAX_PLAUSIBLE_KMH) covered+=gap;
+  }
+  const percent=activeMs && activeMs>0 ? Math.min(100, Math.round(covered/activeMs*100)) : null;
+  return { samples: sorted.length, percent, incomplete: sorted.length<2 || percent===null || percent<80 };
+}

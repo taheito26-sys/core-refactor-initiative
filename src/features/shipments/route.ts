@@ -79,12 +79,13 @@ const DUE_SOON_MS = 30 * 60 * 1000;
  * the trip started when there is none yet. Only a shipment on the road is ever due.
  */
 export function readingDue(
-  shipment: Pick<Shipment, 'status' | 'started_at' | 'reading_interval_hours'>,
+  shipment: Pick<Shipment, 'status' | 'started_at' | 'reading_interval_hours' | 'current_started_at'>,
   lastReadingAt: string | null,
   now: number,
 ): ReadingDue {
   if (shipment.status !== 'on_the_road') return { state: 'idle', dueAt: null, overdueMs: 0 };
-  const base = lastReadingAt ?? shipment.started_at;
+  const start = shipment.current_started_at ?? shipment.started_at;
+  const base = lastReadingAt && (!start || Date.parse(lastReadingAt) > Date.parse(start)) ? lastReadingAt : start;
   if (!base) return { state: 'idle', dueAt: null, overdueMs: 0 };
   const dueAt = new Date(base).getTime() + shipment.reading_interval_hours * 3600_000;
   if (now > dueAt) return { state: 'overdue', dueAt, overdueMs: now - dueAt };
@@ -156,7 +157,7 @@ export type Attention = 'alert' | 'overdue' | null;
  * next photo is late. Nothing else is "attention"; a shipment that is not moving never is.
  */
 export function attentionState(
-  shipment: Pick<Shipment, 'status' | 'started_at' | 'reading_interval_hours'>,
+  shipment: Pick<Shipment, 'status' | 'started_at' | 'reading_interval_hours' | 'current_started_at'>,
   last: Pick<ShipmentReading, 'is_alert' | 'taken_at'> | null,
   now: number,
 ): Attention {

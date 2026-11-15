@@ -1,8 +1,13 @@
+import { usePushRegistration } from '@/hooks/usePushRegistration';
+import { useState } from 'react';
+import { useNotifications } from '@/hooks/useNotifications';
+import { DriverNotifications } from '@/features/shipments/components/DriverNotifications';
+import { ReadingUploads } from '@/features/shipments/components/ReadingUploads';
+import { useReadingOutboxWorker } from '@/features/shipments/useReadingOutbox';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BarChart3, LogOut, Truck } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { PortalHero } from '@/features/customer/components/PortalHero';
-import { LocationAccessCard } from '@/features/shipments/components/LocationAccessCard';
 import { useDrivers } from '@/features/shipments/hooks';
 import { useLocationAccess, type LocationAccess } from '@/features/shipments/useLocationAccess';
 import { useTheme } from '@/lib/theme-context';
@@ -23,9 +28,14 @@ export interface DriverOutletContext {
  */
 export default function DriverLayout() {
   const { logout } = useAuth();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { data: notifications = [] } = useNotifications();
+  const unreadCount = notifications.filter(n => n.entity_type === 'shipment' && !n.read_at).length;
+  usePushRegistration();
   const { settings, update } = useTheme();
   const location = useLocation();
   const lang = settings.language === 'ar' ? 'ar' : 'en';
+  useReadingOutboxWorker(lang);
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { data: drivers = [] } = useDrivers();
   const me = drivers[0];
@@ -44,6 +54,8 @@ export default function DriverLayout() {
     <div className="dr-shell"><div className="ch-root co-root cs-root dr-root" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <PortalHero
         lang={lang}
+        onBell={() => setNotificationsOpen(true)}
+        unreadCount={unreadCount}
         displayName={me?.display_name ?? L('Driver', 'السائق')}
         onLanguage={(l) => update({ language: l })}
         extra={<button type="button" className="ch-bell" onClick={() => logout()} aria-label={L('Sign out', 'تسجيل الخروج')}><LogOut strokeWidth={2} /></button>}
@@ -55,6 +67,8 @@ export default function DriverLayout() {
         trendText={locationOn ? L('Photos are stamped with it', 'تُختم به الصور') : L('Allow it to send readings', 'اسمح به لإرسال القراءات')}
       />
 
+      <ReadingUploads lang={lang} />
+      <DriverNotifications open={notificationsOpen} onClose={() => setNotificationsOpen(false)} lang={lang} notifications={notifications} />
       <Outlet context={{ access, driverName: me?.display_name ?? null } satisfies DriverOutletContext} />
 
       <nav className="ch-nav dr-nav" dir={lang === 'ar' ? 'rtl' : 'ltr'} aria-label={L('Driver menu', 'قائمة السائق')}>

@@ -1,4 +1,5 @@
-import { routeDistanceKm } from './driver-stats';
+import { activeTripMs, approvalWaitMs } from './timing';
+import { gpsCoverage, routeDistanceKm } from './driver-stats';
 import { placeText } from './geo';
 import { stopProgress, type Lang } from './route';
 import type { ShipmentWithDetails } from './types';
@@ -6,6 +7,9 @@ import type { ShipmentWithDetails } from './types';
 export interface TripSummary {
   /** Time on the road so far, or the whole trip once delivered. Null before the trip starts. */
   elapsedMs: number | null;
+  waitingApprovalMs: number;
+  timingEstimated: boolean;
+  gpsSamples: number; gpsCoveragePct: number | null; distanceIncomplete: boolean;
   stopsDone: number;
   stopsTotal: number;
   readingsCount: number;
@@ -21,18 +25,21 @@ export interface TripSummary {
   lastPlace: string | null;
 }
 
-type Source = Pick<ShipmentWithDetails, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'stops' | 'readings' | 'locations'>;
+type Source = Pick<ShipmentWithDetails, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'stops' | 'readings' | 'locations' | 'sessions' | 'events'>;
 
 export function tripSummary(s: Source, now: number, lang: Lang): TripSummary {
   const readings = s.readings;
   const temps = readings.map((r) => Number(r.temperature_c)).filter(Number.isFinite);
   const alerts = readings.filter((r) => r.is_alert).length;
   const progress = stopProgress(s.stops);
-  const start = s.started_at ? new Date(s.started_at).getTime() : null;
-  const end = s.ended_at ? new Date(s.ended_at).getTime() : s.delivered_at ? new Date(s.delivered_at).getTime() : s.status === 'cancelled' ? null : now;
+  const active = activeTripMs(s, now);
+  const coverage = gpsCoverage(s.locations, active);
   const newest = [...s.locations].sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())[0];
   return {
-    elapsedMs: start !== null && end !== null ? Math.max(0, end - start) : null,
+    elapsedMs: active,
+    timingEstimated: s.sessions === undefined ? !!s.started_at : s.sessions.some(session => session.is_legacy),
+    waitingApprovalMs: approvalWaitMs(s.events, now, s.status === 'ended_early' ? s.ended_at : null),
+    gpsSamples: coverage.samples, gpsCoveragePct: coverage.percent, distanceIncomplete: coverage.incomplete,
     stopsDone: progress.reachedCount,
     stopsTotal: progress.total,
     readingsCount: readings.length,

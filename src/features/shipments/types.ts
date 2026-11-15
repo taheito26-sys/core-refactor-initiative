@@ -8,6 +8,10 @@ export interface ShipmentStop {
   name_ar: string;
   kind: 'fixed' | 'driver';
   reached_at: string | null;
+  latitude?: number | null; longitude?: number | null; radius_km?: number;
+  arrival_method?: 'gps' | 'override' | 'start' | null;
+  arrival_reason?: string | null;
+  arrival_latitude?: number | null; arrival_longitude?: number | null; arrival_accuracy_m?: number | null;
 }
 
 export interface ShipmentReading {
@@ -19,6 +23,8 @@ export interface ShipmentReading {
   note: string | null;
   is_alert: boolean;
   taken_at: string;
+  uploaded_at?: string | null;
+  client_request_id?: string | null;
   /** Where the phone was and what its clock said when the photo was taken. */
   latitude: number | null;
   longitude: number | null;
@@ -69,6 +75,9 @@ export interface Shipment {
   started_at: string | null;
   delivered_at: string | null;
   ended_at?: string | null;
+  current_started_at?: string | null;
+  sessions?: ShipmentSession[];
+  events?: ShipmentEvent[];
   created_at: string;
 }
 
@@ -79,4 +88,11 @@ export interface ShipmentWithDetails extends Shipment {
   readings: ShipmentReading[];
   /** The newest known position, if the driver has shared one. */
   locations: ShipmentLocation[];
+}
+
+export interface ShipmentSession { id?: string; shipment_id?: string; started_at: string; ended_at: string | null; end_reason?: string | null; is_legacy?: boolean }
+export interface ShipmentEvent {
+  id: string; shipment_id: string; actor_user_id: string | null;
+  event_type: 'created' | 'started' | 'ended_early' | 'restart_approved' | 'delivered' | 'cancelled' | 'arrival' | 'legacy';
+  occurred_at: string; details: { stop?: string; stop_ar?: string; method?: string; reason?: string | null; distance_km?: number | null; note?: string };
 }
