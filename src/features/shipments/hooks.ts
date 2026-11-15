@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
-  addStop, assignShipmentDriver, cancelShipment, createDriver, createShipment, getShipment, listDrivers,
+  addStop, approveShipmentRestart, stopShipment, assignShipmentDriver, cancelShipment, createDriver, createShipment, getShipment, listDrivers,
   listDriverTrips, listShipments, reachStop, setDriverActive, signedPhotoUrl, startShipment, submitReading,
 } from './api';
 
@@ -83,3 +83,6 @@ export const useStartShipment = () => useShipmentMutation(startShipment);
 export const useReachStop = () => useShipmentMutation(reachStop);
 export const useAddStop = () => useShipmentMutation(({ shipmentId, name }: { shipmentId: string; name: string }) => addStop(shipmentId, name));
 export const useSubmitReading = () => useShipmentMutation(submitReading);
+
+export const useStopShipment = () => useShipmentMutation(stopShipment);
+export const useApproveShipmentRestart = () => useShipmentMutation(approveShipmentRestart);

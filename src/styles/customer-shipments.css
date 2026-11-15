@@ -246,3 +246,14 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .dr-shotmeta b { display: block; color: var(--th-ink, #0f1f5e); font-size: calc(11.5 * var(--q)); }
 .dr-shotmeta span { display: block; direction: ltr; text-align: start; }
 .dr-nav { z-index: 30; }
+
+/* The driver shell must paint the whole viewport, including empty lists and short pages. */
+.dr-shell { min-height: 100dvh; background: var(--th-page, #f1f8f5); }
+.dr-root { min-height: 100dvh; background: var(--th-page, #f1f8f5); color: var(--th-ink, #0f2a24); }
+.cs-cta.danger { background: var(--th-bad, #e11d48); box-shadow: none; }
+/* Confirmation dialogs are portalled outside the driver/customer root. */
+.ch-root.cs-confirm { min-height: auto; background: #fff; color: var(--th-ink, #0f2a24); border-color: var(--th-edge); border-radius: calc(16 * var(--q)); padding: calc(22 * var(--q)); }
+.cs-confirm [id$="description"] { color: #4d5d88; }
+.ch-root.cs-confirm button { min-height: calc(40 * var(--q)); padding: calc(8 * var(--q)) calc(14 * var(--q)); border-radius: calc(10 * var(--q)); }
+.ch-root.cs-confirm button:last-child { color: #fff; background: var(--th-a); }
+.ch-root.cs-confirm button:first-child { color: var(--th-ad); background: var(--th-all); }

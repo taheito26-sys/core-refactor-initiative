@@ -41,7 +41,7 @@ export default function DriverLayout() {
   );
 
   return (
-    <div className="ch-root co-root cs-root" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div className="dr-shell"><div className="ch-root co-root cs-root dr-root" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <PortalHero
         lang={lang}
         displayName={me?.display_name ?? L('Driver', 'السائق')}
@@ -63,6 +63,6 @@ export default function DriverLayout() {
           {tab('/d/stats', L('My month', 'شهري'), BarChart3)}
         </div>
       </nav>
-    </div>
+    </div></div>
   );
 }

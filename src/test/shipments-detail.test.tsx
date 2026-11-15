@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ShipmentWithDetails } from '@/features/shipments/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const withQuery = (ui: React.ReactElement) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
 
+const restart = vi.hoisted(() => vi.fn());
 const state: { data: ShipmentWithDetails | null } = { data: null };
 vi.mock('@/features/shipments/hooks', () => ({
   useShipment: () => ({ data: state.data, isLoading: false }),
   useDrivers: () => ({ data: [{ id: 'd', display_name: 'Ahmed', truck_plate: 'T1', active: true }] }),
   useAssignDriver: () => ({ mutate: vi.fn(), isPending: false }),
+  useApproveShipmentRestart: () => ({ mutate: restart, isPending: false }),
   useCancelShipment: () => ({ mutate: vi.fn(), isPending: false }),
   usePhotoUrl: () => ({ data: 'https://example.test/p.jpg', isLoading: false, isError: false }),
 }));
@@ -119,5 +121,21 @@ describe('Shipment detail panel', () => {
     state.data = base({ status: 'delivered', delivered_at: iso(1) });
     open();
     expect(screen.queryByRole('button', { name: 'Cancel this shipment' })).toBeNull();
+  });
+});
+
+
+describe('Client restart approval', () => {
+  it('offers approval only for an ended shipment, then confirms before authorizing', () => {
+    state.data = base({ status: 'delivered', delivered_at: iso(1) });
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve restart' }));
+    expect(restart).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Approve restart' }));
+    expect(restart).toHaveBeenCalledWith('x', expect.any(Object));
+  });
+  it('does not offer restart while the trip is running', () => {
+    open();
+    expect(screen.queryByRole('button', { name: 'Approve restart' })).toBeNull();
   });
 });

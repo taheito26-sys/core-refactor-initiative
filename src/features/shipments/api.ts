@@ -114,6 +114,10 @@ export async function createDriver(input: NewDriverInput): Promise<{ driverId: s
   return data as { driverId: string; username: string };
 }
 
+export const stopShipment = (shipmentId: string) => rpc<Shipment>('driver_stop_shipment', { p_shipment_id: shipmentId });
+
+export const approveShipmentRestart = (shipmentId: string) => rpc<Shipment>('customer_approve_shipment_restart', { p_shipment_id: shipmentId });
+
 export const startShipment = (shipmentId: string) => rpc<Shipment>('driver_start_shipment', { p_shipment_id: shipmentId });
 
 export const reachStop = (stopId: string) => rpc<Shipment>('driver_reach_stop', { p_stop_id: stopId });

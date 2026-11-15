@@ -12,7 +12,7 @@ import { RouteList } from '@/features/shipments/components/RouteList';
 import { RangeStrip } from '@/features/shipments/components/ShipmentCard';
 import { TripTiles } from '@/features/shipments/components/TripTiles';
 import { placeText } from '@/features/shipments/geo';
-import { useAddStop, useReachStop, useShipment, useStartShipment } from '@/features/shipments/hooks';
+import { useAddStop, useReachStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
 import { reportStopLocation } from '@/features/shipments/reporting';
 import { agoLabel, durationLabel, latestReading, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG } from '@/features/shipments/route';
 import { tripSummary } from '@/features/shipments/trip-summary';
@@ -31,11 +31,12 @@ export default function DriverShipmentPage() {
   const { access, driverName } = useOutletContext<DriverOutletContext>();
   const { data: shipment, isLoading } = useShipment(id);
   const start = useStartShipment();
+  const stop = useStopShipment();
   const reach = useReachStop();
   const addStop = useAddStop();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
-  const [confirm, setConfirm] = useState<'start' | 'reach' | null>(null);
+  const [confirm, setConfirm] = useState<'start' | 'stop' | 'reach' | null>(null);
   const [newStop, setNewStop] = useState('');
 
   const onError = (e: unknown) => toast.error((e as Error).message || L('Something went wrong', 'حدث خطأ ما'));
@@ -59,7 +60,7 @@ export default function DriverShipmentPage() {
   const stats = tripSummary(shipment, now, lang);
   const where = shipment.locations[0] ?? null;
   const area = placeText(where, lang);
-  const active = shipment.status === 'preparing' || shipment.status === 'on_the_road';
+  const active = shipment.status === 'on_the_road';
   const onTheRoad = shipment.status === 'on_the_road';
   const alert = !!last?.is_alert;
 
@@ -105,13 +106,19 @@ export default function DriverShipmentPage() {
         )}
       </section>
 
-      {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><div><b>{L('Delivered. Thank you.', 'تم التسليم. شكرًا لك.')}</b></div></div>}
+      {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><div><b>{L('Trip ended. Client approval is required before you can start again.', 'انتهت الرحلة. يلزم موافقة العميل قبل أن تتمكن من البدء مجددًا.')}</b></div></div>}
       {shipment.status === 'cancelled' && <div className="cs-banner" role="status"><div>{L('This shipment was cancelled.', 'تم إلغاء هذه الشحنة.')}</div></div>}
 
       {shipment.status === 'preparing' && (
         <button type="button" className="cs-cta" onClick={() => setConfirm('start')} disabled={start.isPending}>
           {start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play className="rtl:-scale-x-100" aria-hidden="true" />}
-          {L('Start the trip', 'ابدأ الرحلة')}
+          {L('Accept and start shipment', 'قبول الشحنة وبدء الرحلة')}
+        </button>
+      )}
+
+      {onTheRoad && (
+        <button type="button" className="cs-cta danger" onClick={() => setConfirm('stop')} disabled={stop.isPending}>
+          <Flag aria-hidden="true" />{L('Stop and end shipment', 'إيقاف الشحنة وإنهاء الرحلة')}
         </button>
       )}
 
@@ -174,11 +181,13 @@ export default function DriverShipmentPage() {
       )}
 
       <AlertDialog open={confirm !== null} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
-        <AlertDialogContent dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <AlertDialogContent className="ch-root co-root cs-confirm" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirm === 'start' ? L('Start the trip?', 'بدء الرحلة؟') : L('Confirm the stop', 'تأكيد المحطة')}</AlertDialogTitle>
+            <AlertDialogTitle>{confirm === 'stop' ? L('End this shipment?', 'إنهاء هذه الشحنة؟') : confirm === 'start' ? L('Accept and start shipment?', 'قبول الشحنة وبدء الرحلة؟') : L('Confirm the stop', 'تأكيد المحطة')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm === 'start'
+              {confirm === 'stop'
+                ? L('This ends the trip now. You cannot resume until the client approves another start.', 'سيتم إنهاء الرحلة الآن. لا يمكنك استئنافها حتى يوافق العميل على البدء مجددًا.')
+                : confirm === 'start'
                 ? L('The customer will see the truck is on the road.', 'سيرى العميل أن الشاحنة في الطريق.')
                 : L(`You are at ${progress.next ? stopName(progress.next, lang) : ''}. The customer will see it.`, `أنت الآن في ${progress.next ? stopName(progress.next, lang) : ''}. سيراها العميل.`)}
             </AlertDialogDescription>
@@ -187,7 +196,8 @@ export default function DriverShipmentPage() {
             <AlertDialogCancel>{L('Back', 'رجوع')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirm === 'start') start.mutate(shipment.id, { onError });
+                if (confirm === 'stop') stop.mutate(shipment.id, { onError });
+                else if (confirm === 'start') start.mutate(shipment.id, { onError });
                 else if (progress.next) reach.mutate(progress.next.id, { onError, onSuccess: () => { void reportStopLocation(shipment.id); } });
                 setConfirm(null);
               }}

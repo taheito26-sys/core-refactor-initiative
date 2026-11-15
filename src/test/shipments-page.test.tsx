@@ -11,6 +11,7 @@ vi.mock('@/features/shipments/hooks', () => ({
   useDrivers: () => ({ data: [], isLoading: false }),
   useCreateShipment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAssignDriver: () => ({ mutate: vi.fn(), isPending: false }),
+  useApproveShipmentRestart: () => ({ mutate: vi.fn(), isPending: false }),
   useCancelShipment: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateDriver: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetDriverActive: () => ({ mutate: vi.fn(), isPending: false }),

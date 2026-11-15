@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
+import { useApproveShipmentRestart, useAssignDriver, useCancelShipment, useDrivers, useShipment } from '../hooks';
 import { LOCATION_SOURCE_LABELS, mapEmbedUrl, mapsLink } from '../geo';
 import { AreaText, useAreaText } from './AreaText';
 import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
@@ -25,6 +25,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
   const { data: drivers = [] } = useDrivers();
   const assign = useAssignDriver();
   const cancel = useCancelShipment();
+  const restart = useApproveShipmentRestart();
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const last = shipment ? latestReading(shipment.readings) : null;
@@ -174,6 +176,13 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 </ul>
               </section>
 
+              {shipment.status === 'delivered' && (
+                <section className="ch-card cs-box dr-actions">
+                  <h3>{L('Trip ended', 'انتهت الرحلة')}</h3>
+                  <p>{L('The driver cannot resume until you approve. Approval lets the driver accept and start again.', 'لا يمكن للسائق الاستئناف حتى توافق. تتيح الموافقة للسائق قبول الرحلة وبدءها مجددًا.')}</p>
+                  <button type="button" className="cs-cta" disabled={restart.isPending} onClick={() => setConfirmRestart(true)}>{L('Approve restart', 'الموافقة على البدء مجددًا')}</button>
+                </section>
+              )}
               {canCancel && (
                 <button type="button" className="co-btn bad cs-danger" onClick={() => setConfirmCancel(true)}>{L('Cancel this shipment', 'إلغاء هذه الشحنة')}</button>
               )}
@@ -181,8 +190,24 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
           )}
         </div>
 
+        <AlertDialog open={confirmRestart} onOpenChange={setConfirmRestart}>
+          <AlertDialogContent className="ch-root co-root cs-confirm" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{L('Approve another start?', 'الموافقة على البدء مجددًا؟')}</AlertDialogTitle>
+              <AlertDialogDescription>{L('The shipment will wait for the assigned driver to accept and start again.', 'ستنتظر الشحنة قبول السائق المعيّن وبدء الرحلة مجددًا.')}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={restart.isPending}>{L('Back', 'رجوع')}</AlertDialogCancel>
+              <AlertDialogAction disabled={restart.isPending} onClick={(e) => {
+                e.preventDefault();
+                if (shipment) restart.mutate(shipment.id, { onSuccess: () => setConfirmRestart(false), onError: (err) => toast.error((err as Error).message) });
+              }}>{L('Approve restart', 'الموافقة على البدء مجددًا')}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
-          <AlertDialogContent dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+          <AlertDialogContent className="ch-root co-root cs-confirm" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
             <AlertDialogHeader>
               <AlertDialogTitle>{L('Cancel this shipment?', 'إلغاء هذه الشحنة؟')}</AlertDialogTitle>
               <AlertDialogDescription>{L('The driver will no longer be able to send readings for it.', 'لن يتمكن السائق من إرسال قراءات لها بعد الآن.')}</AlertDialogDescription>
