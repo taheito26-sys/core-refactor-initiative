@@ -32,7 +32,10 @@ export function CashAccountActions({ account, balance, canTransfer, onAction, on
   ];
   const select = (run: () => void) => { setOpen(false); run(); };
   return <>
-    <button type="button" className="cm-row-more" aria-label={`${t('cmManageAccount')} · ${account.name}`} onClick={() => setOpen(true)}><Settings2 size={18} /></button>
+    <div className="cm-touch-actions" aria-label={account.name}>
+      {active && <><button type="button" className="cm-touch-add" onClick={add}><ArrowDownLeft size={18} />{t('cmAddCash')}</button><button type="button" className="cm-touch-remove" onClick={remove}><ArrowUpRight size={18} />{custody ? t('saleProceeds') : t('cmRemoveCash')}</button></>}
+      <button type="button" className="cm-touch-manage" aria-label={`${t('cmManageAccount')} · ${account.name}`} onClick={() => setOpen(true)}><Settings2 size={18} />{t('cmManageAccount')}</button>
+    </div>
     <Sheet open={open} onOpenChange={setOpen}><SheetContent side="bottom" className="tracker-root cm-account-sheet" dir={t.isRTL ? 'rtl' : 'ltr'}>
       <SheetHeader><SheetTitle>{account.name}</SheetTitle><SheetDescription>{fmtTotal(balance)} {account.currency} · {t('cmManageAccount')}</SheetDescription></SheetHeader>
       <div className="cm-sheet-actions">{actions.map(({ label, Icon, run, disabled }) => <button type="button" key={label} disabled={disabled} onClick={() => select(run)}><Icon size={21} /><span>{label}</span></button>)}</div>

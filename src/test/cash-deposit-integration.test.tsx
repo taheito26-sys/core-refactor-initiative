@@ -176,7 +176,7 @@ describe('cash management sale_deposit visibility', () => {
     );
 
     expect(screen.getAllByText('150').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: /cmViewLedger/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'cmViewLedger' }));
     expect(screen.getAllByText('Sale deposit').length).toBeGreaterThan(0);
   });
 });
@@ -205,8 +205,7 @@ it('routes Add Cash on a custody card into the shared request workflow without a
   const state = makeState({ cashAccounts: [{ id: 'zakaria', name: 'Zakaria', type: 'merchant_custody', merchantId: 'zakaria', currency: 'QAR', status: 'active', createdAt: 1 }] });
   render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><CashManagement redesigned state={state} applyState={applyState} /></MemoryRouter></QueryClientProvider>);
   const card = screen.getByRole('article', { name: 'Zakaria' });
-  fireEvent.click(within(card).getByRole('button', { name: /cmManageAccount/ }));
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'cmAddCash' }));
+  fireEvent.click(within(card).getByRole('button', { name: 'cmAddCash' }));
   expect(screen.getByText('custodyRequestDesc')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'sendCustodyRequest' })).toBeTruthy();
   expect(applyState).not.toHaveBeenCalled();
