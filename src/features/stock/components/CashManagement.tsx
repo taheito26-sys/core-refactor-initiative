@@ -4475,6 +4475,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                       <div className="mono" style={{ fontSize: isMobile ? 'clamp(18px, 5vw, 24px)' : 18, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
                         {fmtTotal(bal)}<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
                       </div>
+                      {bal < 0 && <div style={{ fontSize: 10, fontWeight: 700, marginTop: 2, color: 'var(--bad)' }}>{t('youOweAmount')} {fmtTotal(Math.abs(bal))} {acc.currency}</div>}
                       {mov24h !== 0 && (
                         <div style={{ fontSize: 10, marginTop: 2, color: mov24h > 0 ? 'var(--good)' : 'var(--bad)' }}>
                           {mov24h > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(mov24h))} {t('in24h')}

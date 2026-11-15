@@ -92,6 +92,7 @@
 .cm-balance { grid-column:1 / -1; min-width:0; position:relative; min-height:calc(39 * var(--cm-u)); display:flex; align-items:center; gap:calc(12 * var(--cm-u)); padding-inline-start:calc(49 * var(--cm-u)); padding-bottom:calc(6 * var(--cm-u)); }
 .cm-balance > .cm-icon,.cm-balance > div > span,.cm-account-change > small { display:none; }
 .cm-balance strong { white-space:nowrap; font-size:calc(21 * var(--cm-u)); line-height:1.2; font-weight:800; letter-spacing:-.5px; }
+.cm-balance .cm-owed { display:block; font-size:calc(10 * var(--cm-u)); font-weight:700; }
 .cm-balance strong small { font-size:calc(10 * var(--cm-u)); font-weight:400; color:var(--muted); }
 .cm-account-change b { display:flex; align-items:center; gap:2px; border-radius:calc(12 * var(--cm-u)); padding:calc(3 * var(--cm-u)) calc(6 * var(--cm-u)); font-size:calc(10 * var(--cm-u)); background:color-mix(in srgb,var(--good) 8%,transparent); }
 .cm-account-change b.cm-bad { background:color-mix(in srgb,var(--bad) 9%,transparent); }
