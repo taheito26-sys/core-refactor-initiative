@@ -40,6 +40,7 @@ import { extractFunctionErrorMessage } from '@/lib/edge-function-error';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 import { eventsFromEntries, findUnappliedClaims, type HistoryClaim } from '@/features/stock/utils/accountHistory';
+import { acceptClaimAtomically, removeBatchRepayments } from '@/features/stock/utils/claimAcceptance';
 import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import { canonicalizeName } from '@/lib/text-normalize';
 import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
@@ -3272,10 +3273,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   }, [loans]);
 
   // ── Mutation helpers ───────────────────────────────────────────
+  /** The state this component last saved, so an undo works on what is really stored, not on a render that has gone stale. */
+  const committedState = useRef<TrackerState | null>(null);
+  /** Claim id to the batch of repayments saved for it when confirming the claim failed and the undo failed too. */
+  const unfinishedClaimBatches = useRef(new Map<string, string>());
   const commit = async (next: TrackerState): Promise<boolean> => {
     if (applyStateAndCommit) {
       try {
         await applyStateAndCommit(next);
+        committedState.current = next;
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -3284,6 +3290,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       }
     }
     applyState(next);
+    committedState.current = next;
     return true;
   };
 
@@ -3568,20 +3575,38 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     // Stamped on every repayment this claim produces and stored back on the
     // claim, so a later correction request from the customer can find
     // exactly these rows instead of guessing from amount and date.
-    const batchId = uid();
-    try {
-      if (allocations.length === 1) {
-        await addLoanRepayment(allocations[0].loan, accountId, allocations[0].amount, ts, note, undefined, batchId);
-      } else {
-        const ok = await addSplitLoanRepayment(allocations, accountId, ts, note, undefined, batchId);
-        if (!ok) throw new Error('Save failed');
-      }
-      reviewClaim.mutate({ id: claim.id, action: 'accept', appliedBatchId: batchId });
+    // A try that was left half done (repayments saved, claim not confirmed, and the undo failed too) is finished
+    // under its own batch instead of applying the payment a second time.
+    const unfinished = unfinishedClaimBatches.current.get(claim.id);
+    const alreadySaved = !!unfinished && loans.some(l => (l.repayments || []).some(r => r.batchId === unfinished));
+    const batchId = alreadySaved ? unfinished! : uid();
+
+    // Both halves or neither: the repayments are saved first, the claim is accepted only if the database can see
+    // them, and a claim that cannot be accepted takes the repayments back out.
+    const result = await acceptClaimAtomically({
+      apply: async () => alreadySaved || addSplitLoanRepayment(allocations, accountId, ts, note, undefined, batchId),
+      confirm: () => reviewClaim.mutateAsync({ id: claim.id, action: 'accept', appliedBatchId: batchId }),
+      rollback: async () => {
+        const base = committedState.current ?? state;
+        const undone = removeBatchRepayments(base.customerLoans || [], base.cashLedger || [], batchId);
+        if (undone.removed === 0) return true;
+        return commit({ ...base, customerLoans: undone.loans, cashLedger: undone.ledger, cashQAR: deriveCashQAR(base.cashAccounts || [], undone.ledger) });
+      },
+    });
+    if (result.ok) {
+      unfinishedClaimBatches.current.delete(claim.id);
+      toast.success(t('loanRepaymentAdded') || t('loanAddRepayment'));
       return true;
-    } catch (err) {
-      console.error('[CashManagement] acceptPaymentClaim failed:', err);
-      return false;
     }
+    console.error('[CashManagement] acceptPaymentClaim failed:', result.reason);
+    if (result.rolledBack) {
+      unfinishedClaimBatches.current.delete(claim.id);
+      toast.error(`${t('loanPaymentClaimNotAccepted') || 'The payment was not accepted and nothing was changed.'} ${result.reason}`);
+    } else {
+      unfinishedClaimBatches.current.set(claim.id, batchId);
+      toast.error(t('loanPaymentClaimHalfSaved') || 'The payment was saved but could not be confirmed. Press Accept again to finish it; it will not be counted twice.');
+    }
+    return false;
   };
 
   /**

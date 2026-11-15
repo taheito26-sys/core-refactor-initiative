@@ -17,6 +17,30 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** True when the database has no such function yet, so the app can still accept claims before the migration lands. */
+function isMissingFunction(err: { code?: string; message?: string } | null): boolean {
+  return !!err && (err.code === 'PGRST202' || err.code === '42883' || /could not find the function/i.test(err.message ?? ''));
+}
+
+/**
+ * Marks a claim accepted, and only if it is still waiting: the database function also checks that the repayments
+ * for `batchId` are already saved. Where that function is not installed yet, the same status guard is applied
+ * with a plain update, and an update that touches no row is an error, never a silent success.
+ */
+export async function acceptClaimRecord(id: string, batchId: string): Promise<void> {
+  const { error } = await supabase.rpc('accept_loan_payment_claim' as any, { p_claim_id: id, p_batch_id: batchId });
+  if (!error) return;
+  if (!isMissingFunction(error)) throw error;
+  const { data, error: updateError } = await supabase
+    .from('loan_payment_claims' as any)
+    .update({ status: 'accepted', reviewed_at: new Date().toISOString(), applied_batch_id: batchId })
+    .eq('id', id)
+    .eq('status', 'pending')
+    .select('id');
+  if (updateError) throw updateError;
+  if (!data || data.length === 0) throw new Error('This payment claim was already reviewed');
+}
+
 export interface LoanPaymentClaim {
   id: string;
   merchantUserId: string;
@@ -187,6 +211,7 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
 
   const reviewClaim = useMutation({
     mutationFn: async (input: { id: string; action: 'accept' | 'reject'; appliedBatchId?: string }) => {
+      if (input.action === 'accept' && input.appliedBatchId) return acceptClaimRecord(input.id, input.appliedBatchId);
       const { error } = await supabase
         .from('loan_payment_claims' as any)
         .update({
@@ -200,7 +225,8 @@ export function useLoanPaymentClaims(role: 'customer' | 'merchant') {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['loan-payment-claims', 'merchant', user?.id] });
     },
-    onError: (err: unknown) => toast.error(errorMessage(err, 'Could not update payment claim')),
+    // An acceptance that carries a batch is reported by whoever applied the repayments, which also has to undo them.
+    onError: (err: unknown, input) => { if (!input.appliedBatchId) toast.error(errorMessage(err, 'Could not update payment claim')); },
   });
 
   /**

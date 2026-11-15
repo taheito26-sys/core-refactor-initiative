@@ -2417,6 +2417,8 @@ const translations = {
 
   // Customer-reported loan payment claims (customer portal -> merchant review)
   loanPaymentClaimsTitle: { en: 'Customer-Reported Payments', ar: 'دفعات أبلغ عنها العملاء' },
+  loanPaymentClaimNotAccepted: { en: 'The payment was not accepted and nothing was changed.', ar: 'لم يتم قبول الدفعة ولم يتغير شيء.' },
+  loanPaymentClaimHalfSaved: { en: 'The payment was saved but could not be confirmed. Press Accept again to finish it; it will not be counted twice.', ar: 'تم حفظ الدفعة لكن تعذر تأكيدها. اضغط قبول مرة أخرى لإكمالها؛ لن تُحتسب مرتين.' },
   loanPaymentClaimNoOpenLoans: { en: 'No open loan found for this customer in that currency — nothing to apply.', ar: 'لا يوجد قرض مفتوح لهذا العميل بهذه العملة — لا شيء لتطبيقه.' },
   loanPaymentClaimNotFound: { en: 'Could not find the payment this request refers to — adjust it manually, then decline the request.', ar: 'تعذر العثور على الدفعة المقصودة بهذا الطلب — عدّلها يدوياً ثم ارفض الطلب.' },
   loanPaymentClaimChangeRequested: { en: 'Change requested', ar: 'طلب تعديل' },
