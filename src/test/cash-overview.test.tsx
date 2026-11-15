@@ -25,6 +25,13 @@ describe('cash management reference layout', () => {
     expect(screen.getByRole('button', { name: 'List' }).getAttribute('aria-pressed')).toBe('true');
     expect(document.querySelector('.cm-list-view')).toBeTruthy();
   });
+  it('shows a negative account balance in red', () => {
+    const owed = buildStateFrom({ cashAccounts: [{ id: 'auni', name: 'Abu Auni', type: 'bank', currency: 'QAR', status: 'active', allowNegative: true, createdAt: ts }], cashLedger: [{ id: 'l1', ts, type: 'deposit', accountId: 'auni', direction: 'in', amount: 500, currency: 'QAR' }, { id: 'l2', ts, type: 'stock_purchase', accountId: 'auni', direction: 'out', amount: 11000, currency: 'QAR' }] } as never).state;
+    render(<MemoryRouter><CashOverview state={owed} section="accounts" onSection={onSection} onAccountAction={onAccountAction} onAddAccount={onAddAccount} onAddCash={onAddCash} onTransfer={onTransfer} onCustody={onCustody} loaded now={new Date(2026, 8, 26, 12).getTime()} /></MemoryRouter>);
+    const balance = screen.getByRole('article', { name: 'Abu Auni' }).querySelector('.cm-balance strong');
+    expect(balance?.textContent).toContain('10,500');
+    expect(balance?.className).toContain('cm-bad');
+  });
   it('routes account ledger, cash and transfer actions to the original handlers', () => {
     show(); const card = screen.getByRole('article', { name: 'Cash' });
     fireEvent.click(within(card).getByRole('button', { name: 'View Ledger' }));
