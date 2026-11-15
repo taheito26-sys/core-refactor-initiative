@@ -5,7 +5,7 @@ import { useTheme } from '@/lib/theme-context';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { useShipments } from '@/features/shipments/hooks';
 
-const ORDER = { on_the_road: 0, preparing: 1, delivered: 2, cancelled: 3 } as const;
+const ORDER = { on_the_road: 0, preparing: 1, ended_early: 2, delivered: 3, cancelled: 4 } as const;
 
 /** The driver's shipments: the one on the road first, then the ones waiting to start, then the finished ones. */
 export default function DriverShipmentsPage() {

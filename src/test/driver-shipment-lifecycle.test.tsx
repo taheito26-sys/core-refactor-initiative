@@ -34,7 +34,7 @@ describe('Driver shipment lifecycle', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm' }));
     expect(mocks.stop).toHaveBeenCalledWith('trip', expect.any(Object));
   });
-  it.each(['delivered', 'cancelled'])('locks the driver out after %s', (status) => {
+  it.each(['delivered', 'ended_early', 'cancelled'])('locks the driver out after %s', (status) => {
     mocks.status = status; open();
     expect(screen.queryByRole('button', { name: 'Accept and start shipment' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Stop and end shipment' })).toBeNull();

@@ -40,7 +40,7 @@ export function LocationAccessCard({ access, lang }: { access: LocationAccess; l
               : L('Allow location to send readings', 'اسمح بالموقع لإرسال القراءات')}
         </b>
         {denied
-          ? L('Open your phone’s settings for this app and set Location to Allow. Temperature photos cannot be sent without it.', 'افتح إعدادات الهاتف لهذا التطبيق واجعل الموقع «سماح». لا يمكن إرسال صور الحرارة بدونه.')
+          ? L('Open this site’s permissions in Chrome (or the app’s settings) and allow Location, then check again here. Photos cannot be sent without it.', 'افتح أذونات هذا الموقع في Chrome (أو إعدادات التطبيق) واسمح بالموقع، ثم تحقق هنا مجددًا. لا يمكن إرسال الصور بدونه.')
           : L('Every temperature photo is stamped with the time and your position.', 'تُختم كل صورة حرارة بالوقت وموقعك.')}
         {!unsupported && (
           <div className="row" style={{ marginTop: 10 }}>

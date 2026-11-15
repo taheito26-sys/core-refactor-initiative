@@ -1,4 +1,4 @@
-export type ShipmentStatus = 'preparing' | 'on_the_road' | 'delivered' | 'cancelled';
+export type ShipmentStatus = 'preparing' | 'on_the_road' | 'delivered' | 'ended_early' | 'cancelled';
 
 export interface ShipmentStop {
   id: string;
@@ -68,6 +68,7 @@ export interface Shipment {
   note: string | null;
   started_at: string | null;
   delivered_at: string | null;
+  ended_at?: string | null;
   created_at: string;
 }
 

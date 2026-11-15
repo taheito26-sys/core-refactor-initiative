@@ -89,6 +89,11 @@ describe('driverMonthStats', () => {
     expect(s.tripsStarted).toBe(1);
   });
 
+  it('does not count an early-ended trip as a delivery or delivered tonnage', () => {
+    const ended = trip({ status: 'ended_early', delivered_at: null, ended_at: iso(now - 3600_000) });
+    expect(driverMonthStats([ended], month, now)).toMatchObject({ tripsStarted: 1, tripsDelivered: 0, tons: 0, avgTripHours: null });
+  });
+
   it('only counts tons for delivered trips', () => {
     const onRoad = trip({ status: 'on_the_road', delivered_at: null });
     expect(driverMonthStats([onRoad], month, now).tons).toBe(0);

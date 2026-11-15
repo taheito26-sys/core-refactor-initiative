@@ -112,7 +112,7 @@ describe('Shipment detail panel', () => {
 
   it('reads in Arabic', () => {
     open('ar');
-    expect(screen.getByText('الحرارة الآن', { selector: 'h3' })).toBeTruthy();
+    expect(screen.getByText('آخر حرارة مسجلة', { selector: 'h3' })).toBeTruthy();
     expect(screen.getByText('الرحلة بالأرقام')).toBeTruthy();
     expect(screen.getAllByText('بورسعيد').length).toBeGreaterThan(0);
   });
@@ -127,7 +127,7 @@ describe('Shipment detail panel', () => {
 
 describe('Client restart approval', () => {
   it('offers approval only for an ended shipment, then confirms before authorizing', () => {
-    state.data = base({ status: 'delivered', delivered_at: iso(1) });
+    state.data = base({ status: 'ended_early', ended_at: iso(1) });
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Approve restart' }));
     expect(restart).not.toHaveBeenCalled();
@@ -138,4 +138,11 @@ describe('Client restart approval', () => {
     open();
     expect(screen.queryByRole('button', { name: 'Approve restart' })).toBeNull();
   });
+});
+
+
+it('does not offer restart for a genuine delivery', () => {
+  state.data = base({ status: 'delivered', delivered_at: iso(1) });
+  open();
+  expect(screen.queryByRole('button', { name: 'Approve restart' })).toBeNull();
 });

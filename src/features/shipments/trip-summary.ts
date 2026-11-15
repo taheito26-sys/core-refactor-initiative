@@ -21,7 +21,7 @@ export interface TripSummary {
   lastPlace: string | null;
 }
 
-type Source = Pick<ShipmentWithDetails, 'status' | 'started_at' | 'delivered_at' | 'stops' | 'readings' | 'locations'>;
+type Source = Pick<ShipmentWithDetails, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'stops' | 'readings' | 'locations'>;
 
 export function tripSummary(s: Source, now: number, lang: Lang): TripSummary {
   const readings = s.readings;
@@ -29,7 +29,7 @@ export function tripSummary(s: Source, now: number, lang: Lang): TripSummary {
   const alerts = readings.filter((r) => r.is_alert).length;
   const progress = stopProgress(s.stops);
   const start = s.started_at ? new Date(s.started_at).getTime() : null;
-  const end = s.delivered_at ? new Date(s.delivered_at).getTime() : s.status === 'cancelled' ? null : now;
+  const end = s.ended_at ? new Date(s.ended_at).getTime() : s.delivered_at ? new Date(s.delivered_at).getTime() : s.status === 'cancelled' ? null : now;
   const newest = [...s.locations].sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())[0];
   return {
     elapsedMs: start !== null && end !== null ? Math.max(0, end - start) : null,

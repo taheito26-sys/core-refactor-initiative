@@ -120,12 +120,13 @@ export function durationLabel(ms: number, lang: Lang): string {
 }
 
 /** The tag colour each status takes on the portal's order-style cards. */
-export const STATUS_TAG: Record<ShipmentStatus, string> = { preparing: 'warn', on_the_road: 'blue', delivered: 'ok', cancelled: 'grey' };
+export const STATUS_TAG: Record<ShipmentStatus, string> = { preparing: 'warn', on_the_road: 'blue', delivered: 'ok', ended_early: 'warn', cancelled: 'grey' };
 
 export const STATUS_LABELS: Record<ShipmentStatus, { en: string; ar: string }> = {
   preparing: { en: 'Preparing', ar: 'قيد التجهيز' },
   on_the_road: { en: 'On the road', ar: 'في الطريق' },
   delivered: { en: 'Delivered', ar: 'تم التسليم' },
+  ended_early: { en: 'Ended early', ar: 'انتهت مبكرًا' },
   cancelled: { en: 'Cancelled', ar: 'ملغاة' },
 };
 
@@ -205,4 +206,14 @@ export function rangeScale(target: number, tolerance: number, temperature: numbe
 export function truckPositionPct(progress: Pick<StopProgress, 'reachedCount' | 'total'>): number | null {
   if (progress.reachedCount === 0 || progress.total < 2) return null;
   return ((progress.reachedCount - 1) / (progress.total - 1)) * 100;
+}
+
+/** A saved photo is never a live sensor measurement. Its age follows the shipment's reading interval. */
+export function isReadingStale(takenAt: string | null, intervalHours: number, now: number): boolean {
+  return !takenAt || !Number.isFinite(Date.parse(takenAt)) || now - Date.parse(takenAt) >= intervalHours * 3600_000;
+}
+
+/** Require an explicit sign/photo check for large deviations without rejecting genuine hot readings. */
+export function needsTemperatureConfirmation(temperature: number, target: number, tolerance = 3): boolean {
+  return Math.abs(temperature - target) >= Math.max(10, tolerance);
 }

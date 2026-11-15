@@ -1,7 +1,7 @@
 import { haversineKm } from './geo';
 import type { Shipment, ShipmentLocation, ShipmentReading, ShipmentStop } from './types';
 
-export interface TripLike extends Pick<Shipment, 'status' | 'started_at' | 'delivered_at' | 'weight_tons' | 'reading_interval_hours'> {
+export interface TripLike extends Pick<Shipment, 'status' | 'started_at' | 'delivered_at' | 'ended_at' | 'weight_tons' | 'reading_interval_hours'> {
   stops: Pick<ShipmentStop, 'reached_at'>[];
   readings: Pick<ShipmentReading, 'taken_at' | 'is_alert'>[];
   locations: Pick<ShipmentLocation, 'latitude' | 'longitude' | 'recorded_at'>[];
@@ -70,7 +70,7 @@ export function tripPunctuality(trip: TripLike, now: number): { onTime: number; 
   if (!trip.started_at) return result;
   const interval = trip.reading_interval_hours * HOUR;
   const start = new Date(trip.started_at).getTime();
-  const end = trip.delivered_at ? new Date(trip.delivered_at).getTime() : now;
+  const end = trip.ended_at ? new Date(trip.ended_at).getTime() : trip.delivered_at ? new Date(trip.delivered_at).getTime() : now;
   const times = trip.readings.map((r) => new Date(r.taken_at).getTime()).filter((t) => t >= start && t <= end).sort((a, b) => a - b);
   const missedIn = (gap: number) => Math.max(0, Math.floor((gap - GRACE_MS) / interval));
   let prev = start;

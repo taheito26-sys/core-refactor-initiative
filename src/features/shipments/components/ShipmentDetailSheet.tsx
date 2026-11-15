@@ -1,3 +1,4 @@
+import { ReadingFreshness } from './ReadingFreshness';
 import { useState } from 'react';
 import { Activity, ExternalLink, Loader2, MapPin, MapPinned, Phone, Route as RouteIcon, ScanLine, Thermometer, Timer, Truck, User } from 'lucide-react';
 import { toast } from 'sonner';
@@ -68,7 +69,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
           {shipment && stats && progress && due && (
             <div className="cs-dbody">
               <section className="ch-card cs-box">
-                <h3><Thermometer aria-hidden="true" />{L('Temperature now', 'الحرارة الآن')}{last && <small>{agoLabel(last.taken_at, now, lang)}</small>}</h3>
+                <h3><Thermometer aria-hidden="true" />{L('Last recorded temperature', 'آخر حرارة مسجلة')}{last && <small>{agoLabel(last.taken_at, now, lang)}</small>}</h3>
+                <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={shipment.status === 'on_the_road'} now={now} lang={lang} />
                 {last ? (
                   <>
                     <div className="cs-now">
@@ -176,9 +178,9 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 </ul>
               </section>
 
-              {shipment.status === 'delivered' && (
+              {shipment.status === 'ended_early' && (
                 <section className="ch-card cs-box dr-actions">
-                  <h3>{L('Trip ended', 'انتهت الرحلة')}</h3>
+                  <h3>{L('Trip ended early', 'انتهت الرحلة مبكرًا')}</h3>
                   <p>{L('The driver cannot resume until you approve. Approval lets the driver accept and start again.', 'لا يمكن للسائق الاستئناف حتى توافق. تتيح الموافقة للسائق قبول الرحلة وبدءها مجددًا.')}</p>
                   <button type="button" className="cs-cta" disabled={restart.isPending} onClick={() => setConfirmRestart(true)}>{L('Approve restart', 'الموافقة على البدء مجددًا')}</button>
                 </section>

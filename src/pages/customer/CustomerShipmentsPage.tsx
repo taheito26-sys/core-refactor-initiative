@@ -21,7 +21,7 @@ import '@/styles/customer-orders.css';
 import '@/styles/customer-theme.css';
 import '@/styles/customer-shipments.css';
 
-type Filter = 'all' | 'on_the_road' | 'attention' | 'preparing' | 'delivered';
+type Filter = 'all' | 'on_the_road' | 'attention' | 'preparing' | 'delivered' | 'ended_early';
 
 /** Customer portal: dispatch Egypt → Qatar shipments and follow each truck and its temperature. */
 export default function CustomerShipmentsPage() {
@@ -54,8 +54,8 @@ export default function CustomerShipmentsPage() {
         : s.status === f;
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: shipments.length, on_the_road: 0, attention: 0, preparing: 0, delivered: 0 };
-    shipments.forEach((s) => (['on_the_road', 'attention', 'preparing', 'delivered'] as const).forEach((k) => { if (matches(s, k)) c[k] += 1; }));
+    const c: Record<Filter, number> = { all: shipments.length, on_the_road: 0, attention: 0, preparing: 0, delivered: 0, ended_early: 0 };
+    shipments.forEach((s) => (['on_the_road', 'attention', 'preparing', 'delivered', 'ended_early'] as const).forEach((k) => { if (matches(s, k)) c[k] += 1; }));
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipments, now]);
@@ -74,6 +74,7 @@ export default function CustomerShipmentsPage() {
     { key: 'on_the_road', en: 'On the road', ar: 'في الطريق' },
     { key: 'attention', en: 'Needs attention', ar: 'تحتاج متابعة', alert: counts.attention > 0 },
     { key: 'preparing', en: 'Preparing', ar: 'قيد التجهيز' },
+    { key: 'ended_early', en: 'Ended early', ar: 'انتهت مبكرًا' },
     { key: 'delivered', en: 'Delivered', ar: 'تم التسليم' },
   ];
   const tiles: { key: Exclude<Filter, 'all'>; cls: string; icon: typeof Truck; en: string; ar: string }[] = [

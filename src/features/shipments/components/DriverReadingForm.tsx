@@ -6,7 +6,8 @@ import { useSubmitReading } from '../hooks';
 import { getFix, LocationError } from '../location';
 import { lookupPlace } from '../place';
 import { readScreen, type ScreenReading } from '../read-screen';
-import { parseTemperatureInput, toggleSign, type Lang } from '../route';
+import { LocationAccessCard } from './LocationAccessCard';
+import { needsTemperatureConfirmation, parseTemperatureInput, toggleSign, type Lang } from '../route';
 import { stampPhoto } from '../stamp';
 import type { Shipment } from '../types';
 import type { LocationAccess } from '../useLocationAccess';
@@ -32,7 +33,7 @@ type Phase = 'idle' | 'working' | 'location-failed';
  */
 export function DriverReadingForm({
   shipment, driverName, access, lang,
-}: { shipment: Pick<Shipment, 'id' | 'reference' | 'target_temp_c'>; driverName: string | null; access: LocationAccess; lang: Lang }) {
+}: { shipment: Pick<Shipment, 'id' | 'reference' | 'target_temp_c' | 'tolerance_c'>; driverName: string | null; access: LocationAccess; lang: Lang }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const submit = useSubmitReading();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,15 +44,16 @@ export function DriverReadingForm({
   const [read, setRead] = useState<ScreenReading | null>(null);
   const [readState, setReadState] = useState<'none' | 'read' | 'failed'>('none');
   const [temperature, setTemperature] = useState('');
-  const [setPoint, setSetPoint] = useState(String(shipment.target_temp_c));
+  const [setPoint, setSetPoint] = useState('');
+  const [confirmedReading, setConfirmedReading] = useState('');
   const [note, setNote] = useState('');
   const [locationReason, setLocationReason] = useState<string | null>(null);
 
   useEffect(() => () => { if (captured) URL.revokeObjectURL(captured.previewUrl); }, [captured]);
 
   const reset = useCallback(() => {
-    setCaptured(null); setRead(null); setReadState('none'); setTemperature(''); setNote('');
-    setSetPoint(String(shipment.target_temp_c)); setPhase('idle'); setLocationReason(null); pending.current = null;
+    setConfirmedReading(''); setCaptured(null); setRead(null); setReadState('none'); setTemperature(''); setNote('');
+    setSetPoint(''); setPhase('idle'); setLocationReason(null); pending.current = null;
   }, [shipment.target_temp_c]);
 
   /** A fix taken now; failing that, a recent one; failing that, nothing, and the driver cannot proceed. */
@@ -114,10 +116,14 @@ export function DriverReadingForm({
 
   const temp = parseTemperatureInput(temperature);
   const setPointValue = setPoint.trim() ? parseTemperatureInput(setPoint) : null;
-  const ready = !!captured && temp !== null && (setPoint.trim() === '' || setPointValue !== null) && phase === 'idle';
+  const entryMode = temp === null ? null : deriveEntryMode(read, temp, setPointValue);
+  const needsConfirmation = temp !== null && needsTemperatureConfirmation(temp, shipment.target_temp_c, shipment.tolerance_c);
+  const confirmationKey = `${captured?.capturedAt}|${temperature}|${setPoint}`;
+  const signedTemp = temp === null ? '—' : `${temp > 0 ? '+' : ''}${temp}°C`;
+  const ready = (!needsConfirmation || confirmedReading === confirmationKey) && !!captured && temp !== null && (setPoint.trim() === '' || setPointValue !== null) && phase === 'idle';
 
   const send = async () => {
-    if (!captured || temp === null) return;
+    if (!ready || submit.isPending || !captured || temp === null) return;
     try {
       await submit.mutateAsync({
         shipmentId: shipment.id, photo: captured.stamped, temperatureC: temp, setPointC: setPointValue, note: note.trim(),
@@ -137,6 +143,9 @@ export function DriverReadingForm({
   return (
     <section className="ch-card cs-box" aria-label={L('Temperature reading', 'قراءة الحرارة')}>
       <h3><Camera aria-hidden="true" />{L('Temperature check', 'فحص الحرارة')}</h3>
+
+      <LocationAccessCard access={access} lang={lang} />
+      {access.permission === 'checking' && <p role="status">{L('Checking location access…', 'جارٍ التحقق من إذن الموقع…')}</p>}
 
       <input
         ref={fileRef}
@@ -175,7 +184,11 @@ export function DriverReadingForm({
 
         {phase === 'idle' && captured && (
           <div>
-            <img src={captured.previewUrl} alt={L('Your stamped photo of the temperature screen', 'صورتك المختومة لشاشة الحرارة')} className="dr-shot" />
+            <div className="dr-reading-review"><img src={captured.previewUrl} alt={L('Your stamped photo of the temperature screen', 'صورتك المختومة لشاشة الحرارة')} className="dr-shot" />
+              <div><span>{L('Temperature shown', 'الحرارة المعروضة')}</span><strong dir="ltr">{signedTemp}</strong><small>{L('Target', 'المطلوب')}: <b dir="ltr">{shipment.target_temp_c}°C</b></small>
+                <small>{entryMode === 'auto' ? L('Read from photo', 'قُرئت من الصورة') : entryMode === 'auto_edited' ? L('Corrected by driver', 'صححها السائق') : L('Entered manually', 'أدخلها السائق يدويًا')}</small>
+              </div>
+            </div>
             <div className="dr-shotmeta">
               <MapPin aria-hidden="true" />
               <div>
@@ -193,7 +206,7 @@ export function DriverReadingForm({
           <button type="button" className="dr-photo-btn" disabled={locked} onClick={() => fileRef.current?.click()}>
             <Camera aria-hidden="true" />
             <b>{L('Photograph the screen', 'صوّر الشاشة')}</b>
-            <span>{locked ? L('Allow location above first.', 'اسمح بالموقع أعلاه أولًا.') : L('Fill the frame with the unit’s display. Time and location are added automatically.', 'اجعل شاشة الوحدة تملأ الصورة. يُضاف الوقت والموقع تلقائيًا.')}</span>
+            <span>{locked ? L('Enable location here first to stamp the photo.', 'فعّل الموقع هنا أولًا لختم الصورة.') : L('Fill the frame with the unit’s display. Time and location are added automatically.', 'اجعل شاشة الوحدة تملأ الصورة. يُضاف الوقت والموقع تلقائيًا.')}</span>
           </button>
         )}
 
@@ -229,6 +242,17 @@ export function DriverReadingForm({
           <input id="rd-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />
         </div>
 
+        {captured && temp !== null && needsConfirmation && (
+          <div className="cs-banner warn dr-sign-check" role="alert">
+            <TriangleAlert aria-hidden="true" />
+            <div>
+              <b>{L('Large deviation: check the photo and temperature sign', 'فرق كبير: راجع الصورة وإشارة الحرارة')}</b>
+              <p>{L('Reading', 'القراءة')}: <strong dir="ltr">{signedTemp}</strong> · {L('Target', 'المطلوب')}: <strong dir="ltr">{shipment.target_temp_c}°C</strong></p>
+              <span>{L('Check the photo and the +/− sign. A genuine out-of-range reading can still be sent.', 'راجع الصورة وإشارة +/−. يمكنك إرسال القراءة الفعلية حتى إن كانت خارج النطاق.')}</span>
+              <label><input type="checkbox" checked={confirmedReading === confirmationKey} onChange={e => setConfirmedReading(e.target.checked ? confirmationKey : '')} />{L('I checked the photo and temperature sign', 'راجعت الصورة وإشارة الحرارة')}</label>
+            </div>
+          </div>
+        )}
         <button type="button" className="cs-cta" disabled={!ready || submit.isPending} onClick={send}>
           {submit.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : captured ? <CheckCircle2 aria-hidden="true" /> : <Send className="rtl:-scale-x-100" aria-hidden="true" />}
           {submit.isPending ? L('Sending…', 'جارٍ الإرسال…') : L('Send reading', 'إرسال القراءة')}

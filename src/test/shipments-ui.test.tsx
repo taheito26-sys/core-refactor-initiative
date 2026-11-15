@@ -66,6 +66,8 @@ describe('ShipmentCard', () => {
     const fine = shipment({ readings: [{ ...shipment().readings[0], temperature_c: -15, is_alert: false }] });
     wrap(<ShipmentCard shipment={fine} lang="en" now={NOW + 4 * 3600_000} onOpen={vi.fn()} />);
     expect(screen.getByText('Reading overdue')).toBeTruthy();
+    expect(screen.getByText('Last recorded temperature')).toBeTruthy();
+    expect(screen.getByText('Current temperature unknown — new reading required')).toBeTruthy();
   });
 
   it('says there is no reading yet and shows no area for a shipment still being prepared', () => {
@@ -89,10 +91,11 @@ const granted: LocationAccess = { permission: 'granted', backgroundDenied: false
 const FIX = { latitude: 25.2854, longitude: 51.531, accuracy: 12, timestamp: Date.now() };
 
 describe('DriverReadingForm', () => {
-  const form = (access: LocationAccess = granted) => wrap(<DriverReadingForm shipment={{ id: 'sh1', reference: 'SH-0001', target_temp_c: -15 }} driverName="Ahmed" access={access} lang="en" />);
+  const form = (access: LocationAccess = granted) => wrap(<DriverReadingForm shipment={{ id: 'sh1', reference: 'SH-0001', target_temp_c: -15, tolerance_c: 3 }} driverName="Ahmed" access={access} lang="en" />);
   const photo = (lastModified = Date.now()) => new File(['x'], 'screen.jpg', { type: 'image/jpeg', lastModified });
   const pick = (f = photo()) => fireEvent.change(screen.getByLabelText('Photo of the temperature screen'), { target: { files: [f] } });
   const sendButton = () => screen.getByRole('button', { name: /Send reading/ }) as HTMLButtonElement;
+  const confirmSign = () => { const checkbox = screen.queryByRole('checkbox', { name: 'I checked the photo and temperature sign' }); if (checkbox && !(checkbox as HTMLInputElement).checked) fireEvent.click(checkbox); };
   const tempInput = () => screen.getByLabelText('Temperature shown (°C)') as HTMLInputElement;
 
   beforeEach(() => {
@@ -107,7 +110,32 @@ describe('DriverReadingForm', () => {
 
   it('cannot send before a photo is taken', () => {
     form();
+    expect((screen.getByLabelText('Set point shown (°C)') as HTMLInputElement).value).toBe('');
     expect(sendButton().disabled).toBe(true);
+  });
+
+  it('requires an explicit photo/sign check for a hot reading, while preserving the genuine reading', async () => {
+    form(); pick();
+    await waitFor(() => expect(tempInput().value).toBe('8.5'));
+    expect(sendButton().disabled).toBe(true);
+    expect(screen.getByText('Read from photo')).toBeTruthy();
+    fireEvent.click(sendButton());
+    expect(submitReading).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I checked the photo and temperature sign' }));
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.change(tempInput(), { target: { value: '9' } });
+    expect(sendButton().disabled).toBe(true);
+    expect(screen.getByText('Corrected by driver')).toBeTruthy();
+    confirmSign(); fireEvent.click(sendButton());
+    await waitFor(() => expect(submitReading).toHaveBeenCalled());
+    expect(submitReading.mock.calls[0][0]).toMatchObject({ temperatureC: 9, entryMode: 'auto_edited' });
+  });
+
+  it('offers location access next to the blocked camera', () => {
+    const request = vi.fn();
+    form({ ...granted, permission: 'prompt', request });
+    fireEvent.click(screen.getByRole('button', { name: 'Allow location' }));
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it('stamps the photo, reads the screen and fills the fields, then sends with the proof attached', async () => {
@@ -117,8 +145,10 @@ describe('DriverReadingForm', () => {
     expect(stampMock).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ reference: 'SH-0001', driverName: 'Ahmed', fix: expect.objectContaining({ latitude: 25.2854 }), place: 'Al-Arab, Port Said' }));
     expect(screen.getByText(/read automatically/i)).toBeTruthy();
     expect((screen.getByLabelText('Set point shown (°C)') as HTMLInputElement).value).toBe('-15');
+    confirmSign();
     expect(sendButton().disabled).toBe(false);
 
+    confirmSign();
     fireEvent.click(sendButton());
     await waitFor(() => expect(submitReading).toHaveBeenCalled());
     expect(submitReading.mock.calls[0][0]).toMatchObject({
@@ -135,6 +165,7 @@ describe('DriverReadingForm', () => {
     pick();
     await waitFor(() => expect(tempInput().value).toBe('8.5'));
     expect(stampMock).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ place: null }));
+    confirmSign();
     fireEvent.click(sendButton());
     await waitFor(() => expect(submitReading).toHaveBeenCalled());
     expect(submitReading.mock.calls[0][0].place).toBeNull();
@@ -148,6 +179,7 @@ describe('DriverReadingForm', () => {
     expect(tempInput().value).toBe('');
     expect(sendButton().disabled).toBe(true);
     fireEvent.change(tempInput(), { target: { value: '-14,5' } });
+    confirmSign();
     fireEvent.click(sendButton());
     await waitFor(() => expect(submitReading).toHaveBeenCalled());
     expect(submitReading.mock.calls[0][0]).toMatchObject({ temperatureC: -14.5, entryMode: 'manual', read: null });
@@ -158,6 +190,7 @@ describe('DriverReadingForm', () => {
     pick();
     await waitFor(() => expect(tempInput().value).toBe('8.5'));
     fireEvent.change(tempInput(), { target: { value: '8' } });
+    confirmSign();
     fireEvent.click(sendButton());
     await waitFor(() => expect(submitReading).toHaveBeenCalled());
     expect(submitReading.mock.calls[0][0]).toMatchObject({ temperatureC: 8, entryMode: 'auto_edited', read: { temperature: 8.5, setPoint: -15 } });
@@ -196,16 +229,18 @@ describe('DriverReadingForm', () => {
     form();
     pick();
     await waitFor(() => expect(tempInput().value).toBe('8.5'));
+    confirmSign();
     fireEvent.click(sendButton());
     await waitFor(() => expect(submitReading).toHaveBeenCalledTimes(1));
     expect(tempInput().value).toBe('8.5');
+    confirmSign();
     expect(sendButton().disabled).toBe(false);
   });
 
   it('cannot take a photo until location is allowed', () => {
     form({ ...granted, permission: 'prompt' });
     expect((screen.getByRole('button', { name: /Photograph the screen/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText('Allow location above first.')).toBeTruthy();
+    expect(screen.getByText('Enable location here first to stamp the photo.')).toBeTruthy();
   });
 
   it('types a minus with the ± button for keypads that have none', async () => {

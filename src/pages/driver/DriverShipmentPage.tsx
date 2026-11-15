@@ -6,6 +6,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshness';
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
 import { RouteList } from '@/features/shipments/components/RouteList';
@@ -76,7 +77,7 @@ export default function DriverShipmentPage() {
         </div>
         <div className="co-card-mid">
           <div className="co-amt-col">
-            <div className="k">{L('Temperature now', 'الحرارة الآن')}</div>
+            <div className="k">{L('Last recorded temperature', 'آخر حرارة مسجلة')}</div>
             <div className={cn('cs-big', alert && 'bad')}>{last ? `${temp(last.temperature_c)}°C` : '—'}</div>
             {last && <div className={cn('cs-state', alert ? 'bad' : 'ok')} style={{ fontSize: 11 }}>{alert ? L('Out of range', 'خارج النطاق') : L('In range', 'ضمن النطاق')} · {agoLabel(last.taken_at, now, lang)}</div>}
           </div>
@@ -86,11 +87,12 @@ export default function DriverShipmentPage() {
             {shipment.weight_tons != null && <div className="cs-state mute"><Scale style={{ width: 11, height: 11, verticalAlign: '-1px' }} aria-hidden="true" /> {shipment.weight_tons} t</div>}
           </div>
         </div>
+        <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={onTheRoad} now={now} lang={lang} />
         <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
-        {(area || where) && (
+        {(
           <div className="cs-where">
             <MapPin aria-hidden="true" />
-            <div>{L('You are in', 'أنت في')} <b>{area ?? L('—', '—')}</b></div>
+            <div>{L('Last known location', 'آخر موقع معروف')} <b>{area ?? (where ? L('Area name unavailable', 'اسم المنطقة غير متاح') : L('No location recorded yet', 'لم يُسجل موقع بعد'))}</b></div>
             {where && <span>{agoLabel(where.recorded_at, now, lang)}</span>}
           </div>
         )}
@@ -106,7 +108,8 @@ export default function DriverShipmentPage() {
         )}
       </section>
 
-      {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><div><b>{L('Trip ended. Client approval is required before you can start again.', 'انتهت الرحلة. يلزم موافقة العميل قبل أن تتمكن من البدء مجددًا.')}</b></div></div>}
+      {shipment.status === 'ended_early' && <div className="cs-banner warn" role="status"><Package aria-hidden="true" /><div><b>{L('Trip ended early. Client approval is required before you can start again.', 'انتهت الرحلة مبكرًا. يلزم موافقة العميل قبل أن تتمكن من البدء مجددًا.')}</b></div></div>}
+      {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><b>{L('Delivered', 'تم التسليم')}</b></div>}
       {shipment.status === 'cancelled' && <div className="cs-banner" role="status"><div>{L('This shipment was cancelled.', 'تم إلغاء هذه الشحنة.')}</div></div>}
 
       {shipment.status === 'preparing' && (
@@ -116,13 +119,13 @@ export default function DriverShipmentPage() {
         </button>
       )}
 
+      {active && <DriverReadingForm shipment={shipment} driverName={driverName} access={access} lang={lang} />}
+
       {onTheRoad && (
-        <button type="button" className="cs-cta danger" onClick={() => setConfirm('stop')} disabled={stop.isPending}>
+        <button type="button" className="co-btn bad dr-end" onClick={() => setConfirm('stop')} disabled={stop.isPending}>
           <Flag aria-hidden="true" />{L('Stop and end shipment', 'إيقاف الشحنة وإنهاء الرحلة')}
         </button>
       )}
-
-      {active && <DriverReadingForm shipment={shipment} driverName={driverName} access={access} lang={lang} />}
 
       {onTheRoad && progress.next && (
         <section className="ch-card cs-box dr-actions">

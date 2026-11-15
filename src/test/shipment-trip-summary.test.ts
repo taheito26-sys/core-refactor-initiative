@@ -46,3 +46,9 @@ describe('tripSummary', () => {
     expect(s.elapsedMs).toBe(40 * 3600_000);
   });
 });
+
+
+it('freezes an early-ended trip at its end time instead of continuing the timer', () => {
+  const s = tripSummary({ status: 'ended_early', started_at: iso(0), delivered_at: null, ended_at: iso(2), stops: [], readings: [], locations: [] }, T0 + 24 * 3600_000, 'en');
+  expect(s.elapsedMs).toBe(2 * 3600_000);
+});

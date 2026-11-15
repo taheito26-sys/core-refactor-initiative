@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FIXED_ROUTE, agoLabel, attentionState, liveness, rangeScale, truckPositionPct, durationLabel, fixedRouteForRpc, isOutOfRange, latestReading, parseTemperatureInput,
-  readingDue, stopProgress, toggleSign,
+  isReadingStale, needsTemperatureConfirmation, readingDue, stopProgress, toggleSign,
 } from '@/features/shipments/route';
 import type { ShipmentReading, ShipmentStop } from '@/features/shipments/types';
 
@@ -141,5 +141,22 @@ describe('attention, liveness and scales', () => {
     expect(truckPositionPct({ reachedCount: 1, total: 6 })).toBe(0);
     expect(truckPositionPct({ reachedCount: 3, total: 6 })).toBe(40);
     expect(truckPositionPct({ reachedCount: 6, total: 6 })).toBe(100);
+  });
+});
+
+
+describe('reading evidence freshness and sign checks', () => {
+  it('treats old and missing readings as unknown rather than live temperature', () => {
+    const now = Date.parse('2026-11-15T12:00:00Z');
+    expect(isReadingStale('2026-11-14T16:00:00Z', 3, now)).toBe(true);
+    expect(isReadingStale(null, 3, now)).toBe(true);
+    expect(isReadingStale('invalid', 3, now)).toBe(true);
+    expect(isReadingStale('2026-11-15T11:00:00Z', 3, now)).toBe(false);
+    expect(isReadingStale('2026-11-15T09:00:00Z', 3, now)).toBe(true);
+  });
+  it('requires confirmation for a missing minus without changing the measured temperature', () => {
+    expect(needsTemperatureConfirmation(8.5, -15, 3)).toBe(true);
+    expect(needsTemperatureConfirmation(15, -15, 3)).toBe(true);
+    expect(needsTemperatureConfirmation(-14.5, -15, 3)).toBe(false);
   });
 });
