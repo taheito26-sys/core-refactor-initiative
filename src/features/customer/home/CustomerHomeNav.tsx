@@ -23,10 +23,10 @@ export function CustomerHomeNav({ lang, chatUnread, notificationsUnread = 0, onN
     { key: 'more', label: t('More', 'المزيد'), icon: <Menu strokeWidth={1.9} />, go: onMore },
   ];
   return (
-    <nav className="ch-nav" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <nav className="ch-nav" dir={lang === 'ar' ? 'rtl' : 'ltr'} aria-label={lang === 'ar' ? 'التنقل الرئيسي' : 'Main navigation'}>
       <div className="ch-nav-in">
         {items.map(i => (
-          <button key={i.key} type="button" className={`ch-nav-item ${i.on ? 'on' : ''}`} onClick={i.go}>
+          <button key={i.key} type="button" className={`ch-nav-item ${i.on ? 'on' : ''}`} aria-current={i.on ? 'page' : undefined} onClick={i.go}>
             <span className="ch-nav-ic">{i.icon}</span>
             {i.badge ? <span className="ch-badge">{i.badge > 9 ? '9+' : i.badge}</span> : null}
             <span className="ch-nav-lbl">{i.label}</span>

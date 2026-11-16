@@ -40,10 +40,10 @@ function initials(name: string): string {
 }
 
 // Phase 14: Smart preview
-function smartPreview(preview: string, type?: string): string {
+function smartPreview(preview: string, isRTL: boolean, type?: string): string {
   if (!preview) return '';
-  if (preview.startsWith('🖼')) return '📷 Photo';
-  if (preview.startsWith('🎙')) return '🎤 Voice message';
+  if (preview.startsWith('🖼')) return isRTL ? '📷 صورة' : '📷 Photo';
+  if (preview.startsWith('🎙')) return isRTL ? '🎤 رسالة صوتية' : '🎤 Voice message';
   if (preview.startsWith('📎')) return preview;
   return preview.length > 45 ? preview.slice(0, 45) + '…' : preview;
 }
@@ -82,7 +82,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
       <div className="px-4 py-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="font-bold text-sm text-foreground">Messages</h2>
+            <h2 className="font-bold text-sm text-foreground">{isRTL ? 'الرسائل' : 'Messages'}</h2>
             {totalUnread > 0 && (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-[9px] font-black text-primary-foreground px-1.5 animate-in zoom-in-50 duration-200">
                 {totalUnread > 99 ? '99+' : totalUnread}
@@ -119,10 +119,10 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
                   : 'text-muted-foreground hover:bg-muted',
               )}
             >
-              {f === 'all' ? 'All'
+              {f === 'all' ? (isRTL ? 'الكل' : 'All')
                 : f === 'merchant_private' ? '🔒 P2P'
-                : f === 'merchant_client'  ? '💼 Client'
-                : '👥 Hub'}
+                : f === 'merchant_client'  ? (isRTL ? '💼 عميل' : '💼 Client')
+                : (isRTL ? '👥 مركز' : '👥 Hub')}
             </button>
           ))}
         </div>
@@ -193,7 +193,7 @@ function RoomRow({
 }) {
   const Icon = TYPE_ICONS[room.room_type];
   const displayName = room.display_name ?? room.name ?? 'Unnamed room';
-  const preview = smartPreview(room.last_message_preview ?? '');
+  const preview = smartPreview(room.last_message_preview ?? '', isRTL);
   const timeStr = room.last_message_at
     ? new Date(room.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';

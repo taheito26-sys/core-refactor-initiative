@@ -76,18 +76,18 @@ export function CustomerLayout() {
   const allNav = [...PRIMARY_NAV, ...DRAWER_NAV];
 
   const sidebar = (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border/50 bg-background">
+    <aside aria-label={isRTL ? 'القائمة الجانبية' : 'Sidebar'} className="flex h-full w-60 shrink-0 flex-col border-r border-border/50 bg-background">
       <div className="flex items-center justify-between px-4 py-4">
         <span className="text-sm font-black uppercase tracking-widest">Tracker</span>
-        {isMobile && <button onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>}
+        {isMobile && <button aria-label={isRTL ? 'إغلاق القائمة' : 'Close menu'} onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>}
       </div>
       <div className="mx-3 mb-3 rounded-xl bg-muted/60 px-3 py-2.5">
         <p className="text-sm font-semibold truncate">{displayName ?? '—'}</p>
         <p className="text-xs text-muted-foreground">{customerProfile?.country ?? ''}</p>
       </div>
-      <nav className="flex-1 space-y-0.5 px-2">
+      <nav aria-label={isRTL ? 'التنقل الرئيسي' : 'Main navigation'} className="flex-1 space-y-0.5 px-2">
         {allNav.map(item => (
-          <button key={item.path} onClick={() => go(item.path)} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', isActive(item.path) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
+          <button key={item.path} aria-current={isActive(item.path) ? 'page' : undefined} onClick={() => go(item.path)} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', isActive(item.path) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
             <item.icon className="h-4 w-4 shrink-0" />
             <span className="truncate">{item[lang]}</span>
             {item.path === '/c/notifications' && unreadCount > 0 && (
@@ -120,7 +120,7 @@ export function CustomerLayout() {
       <div className="main-shell flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         {!ownsShell && <header className="app-topbar sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border/50 bg-background/95 px-3 backdrop-blur">
-          {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
+          {isMobile && <button aria-label={isRTL ? 'فتح القائمة' : 'Open menu'} aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{displayName ?? 'Customer'}</span>
           <div className="flex-1" />
           <LiveClock isRTL={isRTL} />
@@ -171,13 +171,14 @@ export function CustomerLayout() {
         )}
         {isMobile && !ownsShell && (
           <nav
+            aria-label={isRTL ? 'التنقل الرئيسي' : 'Main navigation'}
             className="fixed inset-x-0 bottom-0 z-30 flex h-14 items-stretch border-t border-border/50 bg-background/95 backdrop-blur"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
             {PRIMARY_NAV.map(item => {
               const active = isActive(item.path);
               return (
-                <button key={item.path} onClick={() => go(item.path)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', active ? 'text-primary' : 'text-muted-foreground')}>
+                <button key={item.path} aria-current={active ? 'page' : undefined} onClick={() => go(item.path)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', active ? 'text-primary' : 'text-muted-foreground')}>
                   <span className="relative">
                     <item.icon className="h-[18px] w-[18px]" />
                     {item.path === '/c/notifications' && unreadCount > 0 && (
@@ -188,7 +189,7 @@ export function CustomerLayout() {
                 </button>
               );
             })}
-            <button onClick={() => setDrawerOpen(true)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', moreActive ? 'text-primary' : 'text-muted-foreground')}>
+            <button aria-current={moreActive ? 'page' : undefined} aria-expanded={drawerOpen} aria-haspopup="dialog" onClick={() => setDrawerOpen(true)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', moreActive ? 'text-primary' : 'text-muted-foreground')}>
               <span className="relative">
                 <Menu className="h-[18px] w-[18px]" />
               </span>

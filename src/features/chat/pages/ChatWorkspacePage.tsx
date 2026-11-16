@@ -283,16 +283,16 @@ export default function ChatWorkspacePage() {
   // ── Clear chat handler ──────────────────────────────────────────────────
   const handleClearChat = useCallback(async () => {
     if (!activeRoomId) return;
-    const confirmed = window.confirm('Clear this chat? Messages will be hidden for you.');
+    const confirmed = window.confirm(isRTL ? 'مسح هذه المحادثة؟ ستُخفى الرسائل لك فقط.' : 'Clear this chat? Messages will be hidden for you.');
     if (!confirmed) return;
     try {
       await clearChatForMe(activeRoomId);
       qc.invalidateQueries({ queryKey: ['chat', 'messages', activeRoomId] });
-      toast.success('Chat cleared');
+      toast.success(isRTL ? 'تم مسح المحادثة' : 'Chat cleared');
     } catch {
-      toast.error('Failed to clear chat');
+      toast.error(isRTL ? 'تعذّر مسح المحادثة' : 'Failed to clear chat');
     }
-  }, [activeRoomId, qc]);
+  }, [activeRoomId, isRTL, qc]);
 
   // ── Mute toggle handler ─────────────────────────────────────────────────
   const handleMuteToggle = useCallback(async () => {
