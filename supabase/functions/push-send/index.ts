@@ -8,8 +8,10 @@
  *
  * Transports
  *   • Web Push (VAPID) for browsers and installed PWAs — always available
- *   • FCM v1 for the Capacitor Android/iOS app — used when
+ *   • FCM v1 for Android (and Firebase-iOS tokens) — used when
  *     FCM_SERVICE_ACCOUNT_JSON is configured
+ *   • APNs for iOS — the Capacitor Push Notifications plugin returns a raw
+ *     APNs token on iOS, so it is delivered through APNs when APNS_* is set
  *
  * The function enforces the user's master switch, per-category preferences,
  * quiet hours and foreground presence before touching a transport.
@@ -26,6 +28,12 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const FCM_JSON = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
+const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID');
+const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID');
+const APNS_PRIVATE_KEY = Deno.env.get('APNS_PRIVATE_KEY');
+const APNS_BUNDLE_ID = Deno.env.get('APNS_BUNDLE_ID') ?? 'com.taheito26sys.corerefactorinitiative';
+const APNS_USE_SANDBOX = (Deno.env.get('APNS_USE_SANDBOX') ?? '').toLowerCase() === 'true';
+const APNS_CONFIGURED = Boolean(APNS_KEY_ID && APNS_TEAM_ID && APNS_PRIVATE_KEY);
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -44,6 +52,7 @@ interface SendResult {
   skipped?: string;
   stale_removed: number;
   fcm_configured: boolean;
+  apns_configured: boolean;
 }
 
 interface SendOptions {
@@ -56,6 +65,7 @@ interface SendOptions {
 let configCache: PushConfig | null = null;
 let vapidConfigured = false;
 let fcmTokenCache: { token: string; expiresAt: number } | null = null;
+let apnsJwtCache: { token: string; expiresAt: number } | null = null;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -415,6 +425,130 @@ async function sendFcm(
   return { sent, stale, configured: true };
 }
 
+// ── APNs (iOS) ─────────────────────────────────────────────────────────────
+
+/** APNs device tokens are 32 bytes rendered as 64 hexadecimal characters. */
+function isApnsToken(token: string): boolean {
+  return /^[0-9a-fA-F]{64}$/.test(token);
+}
+
+function pemToPkcs8(pem: string): Uint8Array<ArrayBuffer> {
+  const body = pem
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function getApnsJwt(): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  if (apnsJwtCache && apnsJwtCache.expiresAt > now + 60) return apnsJwtCache.token;
+
+  const header = base64url(new TextEncoder().encode(JSON.stringify({
+    alg: 'ES256',
+    kid: APNS_KEY_ID,
+  })));
+  const payload = base64url(new TextEncoder().encode(JSON.stringify({
+    iss: APNS_TEAM_ID,
+    iat: now,
+  })));
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    pemToPkcs8(APNS_PRIVATE_KEY!),
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    new TextEncoder().encode(`${header}.${payload}`),
+  );
+
+  const jwt = `${header}.${payload}.${base64url(new Uint8Array(signature))}`;
+  // APNs accepts a provider token for up to an hour; refresh with margin.
+  apnsJwtCache = { token: jwt, expiresAt: now + 3000 };
+  return jwt;
+}
+
+async function sendApns(
+  tokens: Array<{ token: string }>,
+  title: string,
+  body: string,
+  data: Record<string, string>,
+  badge: number,
+): Promise<{ sent: number; stale: string[]; configured: boolean }> {
+  if (!APNS_CONFIGURED) return { sent: 0, stale: [], configured: false };
+  if (!tokens.length) return { sent: 0, stale: [], configured: true };
+
+  let jwt: string;
+  try {
+    jwt = await getApnsJwt();
+  } catch (err) {
+    console.error('[push-send] APNs auth failed:', err);
+    return { sent: 0, stale: [], configured: false };
+  }
+
+  const host = APNS_USE_SANDBOX
+    ? 'https://api.sandbox.push.apple.com'
+    : 'https://api.push.apple.com';
+  const expiration = Math.floor(Date.now() / 1000) + 86_400;
+
+  let sent = 0;
+  const stale: string[] = [];
+
+  for (const { token } of tokens) {
+    const payload = {
+      aps: {
+        alert: { title, body },
+        sound: 'default',
+        badge: Math.max(1, badge),
+        'content-available': 1,
+      },
+      ...data,
+    };
+
+    try {
+      const res = await fetch(`${host}/3/device/${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: {
+          authorization: `bearer ${jwt}`,
+          'apns-topic': APNS_BUNDLE_ID,
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+          'apns-expiration': String(expiration),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        sent++;
+        continue;
+      }
+
+      const err = await res.json().catch(() => ({}));
+      const reason = String(err?.reason ?? '');
+      if (
+        [400, 410].includes(res.status)
+        && ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason)
+      ) {
+        stale.push(token);
+      }
+      console.error('[push-send] APNs error:', res.status, reason, token.slice(0, 10));
+    } catch (err) {
+      console.error('[push-send] APNs request failed:', err);
+    }
+  }
+
+  return { sent, stale, configured: true };
+}
+
 // ── core delivery ──────────────────────────────────────────────────────────
 
 async function deliver(
@@ -428,7 +562,14 @@ async function deliver(
   const config = await getConfig();
   const skipped = await skipReason(userId, category, options);
   if (skipped) {
-    return { web: 0, native: 0, skipped, stale_removed: 0, fcm_configured: Boolean(FCM_JSON) };
+    return {
+      web: 0,
+      native: 0,
+      skipped,
+      stale_removed: 0,
+      fcm_configured: Boolean(FCM_JSON),
+      apns_configured: APNS_CONFIGURED,
+    };
   }
 
   const [tokenResult, subResult, badgeResult] = await Promise.all([
@@ -483,18 +624,28 @@ async function deliver(
     }
   }
 
-  // Native Push
-  const fcm = await sendFcm(tokens, safeTitle, safeBody, data, badge);
-  if (fcm.stale.length) {
-    await admin.from('push_device_tokens').delete().in('token', fcm.stale);
+  // Native Push: raw 64-hex iOS tokens go to APNs; everything else goes to
+  // FCM (Android tokens, or an FCM token from a Firebase iOS integration).
+  const apnsTokens = tokens.filter((t) => t.platform === 'ios' && isApnsToken(t.token));
+  const fcmTokens = tokens.filter((t) => !(t.platform === 'ios' && isApnsToken(t.token)));
+
+  const [fcm, apns] = await Promise.all([
+    sendFcm(fcmTokens, safeTitle, safeBody, data, badge),
+    sendApns(apnsTokens, safeTitle, safeBody, data, badge),
+  ]);
+
+  const staleTokens = [...fcm.stale, ...apns.stale];
+  if (staleTokens.length) {
+    await admin.from('push_device_tokens').delete().in('token', staleTokens);
   }
 
   return {
     web: webSent,
-    native: fcm.sent,
-    skipped: suppressedByPresence > 0 && !webSent && !fcm.sent ? 'app_active' : undefined,
-    stale_removed: staleEndpoints.length + fcm.stale.length,
+    native: fcm.sent + apns.sent,
+    skipped: suppressedByPresence > 0 && !webSent && !fcm.sent && !apns.sent ? 'app_active' : undefined,
+    stale_removed: staleEndpoints.length + staleTokens.length,
     fcm_configured: fcm.configured,
+    apns_configured: apns.configured,
   };
 }
 

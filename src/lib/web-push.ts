@@ -191,6 +191,7 @@ export interface TestPushResult {
   web?: number;
   native?: number;
   fcm_configured?: boolean;
+  apns_configured?: boolean;
   skipped?: string;
 }
 

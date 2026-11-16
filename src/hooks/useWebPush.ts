@@ -143,16 +143,17 @@ export function useWebPush() {
 
       const result = await sendTestPush();
       const delivered = (result.web ?? 0) + (result.native ?? 0);
+      const nativeConfigured = Boolean(result.fcm_configured || result.apns_configured);
 
       if (delivered > 0) {
         toast({
           title: 'Test notification sent',
           description: `Delivered to ${result.web ?? 0} browser(s) and ${result.native ?? 0} native device(s).`,
         });
-      } else if (result.fcm_configured === false && (result.web ?? 0) === 0) {
+      } else if (!nativeConfigured && (result.web ?? 0) === 0) {
         toast({
           title: 'No delivery endpoint registered',
-          description: 'Enable push notifications on this device first. Native push also needs the FCM service account on the server.',
+          description: 'Enable push notifications on this device first. Native push also needs FCM (Android) or APNs (iOS) configured on the server.',
           variant: 'destructive',
         });
       } else {
