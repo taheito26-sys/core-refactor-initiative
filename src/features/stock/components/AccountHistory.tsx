@@ -30,8 +30,8 @@ const TEXT = {
   cash: { en: 'Cash', ar: 'نقدًا' },
   bank: { en: 'Bank transfer', ar: 'تحويل بنكي' },
   credit: { en: 'credit', ar: 'رصيد دائن' },
-  debit: { en: 'Debit', ar: 'مدين' },
-  credit_: { en: 'Credit', ar: 'دائن' },
+  debit: { en: 'Out', ar: 'صادر' },
+  credit_: { en: 'In', ar: 'وارد' },
   cashTitle: { en: 'Account statement', ar: 'كشف الحساب' },
   cashHint: { en: 'Money in and out of this account, with the balance after every transaction.', ar: 'الوارد والصادر في هذا الحساب مع الرصيد بعد كل حركة.' },
   cashBalanceOn: { en: 'Balance on', ar: 'الرصيد بتاريخ' },
@@ -39,8 +39,8 @@ const TEXT = {
   cashAfter: { en: 'Balance after', ar: 'الرصيد بعد' },
   moneyIn: { en: 'Money in', ar: 'وارد' },
   moneyOut: { en: 'Money out', ar: 'صادر' },
-  totalDebit: { en: 'Total debit', ar: 'إجمالي المدين' },
-  totalCredit: { en: 'Total credit', ar: 'إجمالي الدائن' },
+  totalDebit: { en: 'Total out', ar: 'إجمالي الصادر' },
+  totalCredit: { en: 'Total in', ar: 'إجمالي الوارد' },
   differs: { en: 'The unpaid total on the account is', ar: 'إجمالي غير المسدد في الحساب هو' },
   differsWhy: { en: 'The difference is an overpayment on an order that is already closed.', ar: 'الفرق دفعة زائدة على طلب مغلق.' },
   unappliedOne: { en: 'A payment that was accepted is not reflected in the balance:', ar: 'دفعة تم قبولها ولم تنعكس على الرصيد:' },
@@ -70,8 +70,8 @@ export interface AccountHistoryProps {
   fileBase?: string;
   now?: number;
   /**
-   * 'owed' (default): what the buyer still owes, where a new order is a debit and a payment a credit.
-   * 'cash': money in and out of an account the person holds, where money in is a credit and money out a debit.
+   * 'owed' (default): what the buyer still owes, where a new order is out (the balance grows) and a payment is in.
+   * 'cash': money in and out of an account the person holds.
    */
   mode?: 'owed' | 'cash';
 }
@@ -114,10 +114,10 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
   const methodLabel = (m?: 'cash' | 'bank' | null) => (m === 'cash' ? T('cash') : m === 'bank' ? T('bank') : '');
 
   const exportCsv = () => {
-    const head = ['Date', 'Type', 'Reference', 'Note', `Debit (${currency})`, `Credit (${currency})`, `Balance (${currency})`].map(csvCell).join(',');
+    const head = ['Date', 'Type', 'Reference', 'Note', `Out (${currency})`, `In (${currency})`, `Balance (${currency})`].map(csvCell).join(',');
     const rows = view.lines.map(l => {
       const increase = l.kind === 'charge';
-      // A new order is a debit and a payment a credit; for money held, money in is a credit and money out a debit.
+      // A new order goes out of the account and a payment comes in; for money held, money in is in and money out is out.
       const isDebit = cash ? !increase : increase;
       const type = cash ? (increase ? 'Money in' : 'Money out') : (increase ? 'New order' : 'Payment');
       return [new Date(l.ts).toISOString().slice(0, 16).replace('T', ' '), type, l.refs.join(' '), l.description, isDebit ? l.amount : '', isDebit ? '' : l.amount, l.after].map(csvCell).join(',');

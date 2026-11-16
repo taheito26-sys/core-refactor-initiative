@@ -55,7 +55,7 @@ describe('AccountHistory', () => {
     const csv = vi.mocked(downloadTextFile).mock.calls[0][1] as string;
     expect(csv).toContain('Opening balance');
     expect(csv).toContain('Closing balance');
-    expect(csv).toContain('"Debit (QAR)","Credit (QAR)","Balance (QAR)"');
+    expect(csv).toContain('"Out (QAR)","In (QAR)","Balance (QAR)"');
     expect(csv).toMatch(/"Payment",.*,"","50000","21000"/);
   });
 
@@ -77,19 +77,19 @@ describe('AccountHistory as a statement of money held', () => {
     { id: 'b', ts: at(10, 5), kind: 'payment', amount: 1200, ref: 'Withdrawal', description: '' },
   ];
 
-  it('speaks of money in and out, credit and debit, and the balance', () => {
+  it('speaks of money in and out and the balance', () => {
     render(<AccountHistory events={rows} currency="EGP" lang="en" now={NOW} mode="cash" />);
     expect(screen.getByRole('region', { name: 'Account statement' })).toBeTruthy();
     const [dep, wd] = screen.getAllByRole('listitem');
     expect(within(dep).getByText('Deposit')).toBeTruthy();
-    expect(within(dep).getByText('Credit')).toBeTruthy();
+    expect(within(dep).getByText('In')).toBeTruthy();
     expect(within(dep).getByText('+5,000')).toBeTruthy();
-    expect(within(wd).getByText('Debit')).toBeTruthy();
+    expect(within(wd).getByText('Out')).toBeTruthy();
     expect(within(wd).getByText('Balance after 3,800')).toBeTruthy();
     expect(screen.getByText('Balance on')).toBeTruthy();
   });
 
-  it('exports money in as a credit and money out as a debit', () => {
+  it('exports money in under In and money out under Out', () => {
     render(<AccountHistory events={rows} currency="EGP" lang="en" now={NOW} mode="cash" />);
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     const csv = vi.mocked(downloadTextFile).mock.calls[0][1] as string;

@@ -16,13 +16,13 @@ const statement = (over: Partial<PublicStatement> = {}): PublicStatement => ({
 });
 
 describe('LoanStatementSheet', () => {
-  it('lists the orders as debits and the payments as credits, with the balance after each', () => {
+  it('lists the orders as out and the payments as in, with the balance after each', () => {
     render(<LoanStatementSheet open onOpenChange={() => {}} lang="en" statements={[statement()]} />);
     const dialog = screen.getByRole('dialog');
     const rows = within(dialog).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
-    expect(within(rows[0]).getByText('Debit')).toBeTruthy();
-    expect(within(rows[1]).getByText('Credit')).toBeTruthy();
+    expect(within(rows[0]).getByText('Out')).toBeTruthy();
+    expect(within(rows[1]).getByText('In')).toBeTruthy();
     expect(within(rows[2]).getByText('Unpaid after 35,000')).toBeTruthy();
   });
 
@@ -43,20 +43,20 @@ describe('CashStatementSheet', () => {
     { id: 'b', ts: NOW - 3 * 86400000, direction: 'out' as const, amount: 2500, type: 'withdrawal', note: null },
   ];
 
-  it('shows money in as a credit and money out as a debit with the balance after', () => {
+  it('shows money in as In and money out as Out with the balance after', () => {
     render(<CashStatementSheet open onOpenChange={() => {}} lang="en" accountName="Savings" currency="EGP" ledger={ledger} typeLabel={t => ({ deposit: 'Deposit', withdrawal: 'Withdrawal' } as Record<string, string>)[t] ?? t} />);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Savings')).toBeTruthy();
     const [dep, wd] = within(dialog).getAllByRole('listitem');
     expect(within(dep).getByText('Deposit')).toBeTruthy();
-    expect(within(dep).getByText('Credit')).toBeTruthy();
-    expect(within(wd).getByText('Debit')).toBeTruthy();
+    expect(within(dep).getByText('In')).toBeTruthy();
+    expect(within(wd).getByText('Out')).toBeTruthy();
     expect(within(wd).getByText('Balance after 7,500')).toBeTruthy();
   });
 
   it('reads in Arabic', () => {
     render(<CashStatementSheet open onOpenChange={() => {}} lang="ar" accountName="التوفير" currency="EGP" ledger={ledger} />);
-    expect(within(screen.getByRole('dialog')).getByText('دائن')).toBeTruthy();
+    expect(within(screen.getByRole('dialog')).getByText('وارد')).toBeTruthy();
   });
 });
 
