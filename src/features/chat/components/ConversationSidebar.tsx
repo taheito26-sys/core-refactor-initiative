@@ -160,6 +160,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
                     unread={unreadCounts[room.room_id] ?? room.unread_count}
                     onClick={() => onSelectRoom(room.room_id)}
                     meId={meId}
+                    isRTL={isRTL}
                   />
                 ))}
                 <div className="h-px bg-border/30 mx-4 my-1" />
@@ -173,6 +174,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
                 unread={unreadCounts[room.room_id] ?? room.unread_count}
                 onClick={() => onSelectRoom(room.room_id)}
                 meId={meId}
+                isRTL={isRTL}
               />
             ))}
           </>
@@ -183,13 +185,14 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
 }
 
 function RoomRow({
-  room, isActive, unread, onClick, meId,
+  room, isActive, unread, onClick, meId, isRTL,
 }: {
   room: ChatRoomListItem;
   isActive: boolean;
   unread: number;
   onClick: () => void;
   meId: string;
+  isRTL: boolean;
 }) {
   const Icon = TYPE_ICONS[room.room_type];
   const displayName = room.display_name ?? room.name ?? 'Unnamed room';
