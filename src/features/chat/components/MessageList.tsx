@@ -18,6 +18,7 @@ import { OfferCard } from './OfferCard';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
 import { resolveMessageSenderLabel } from '../lib/identity';
+import { useTheme } from '@/lib/theme-context';
 
 interface Props {
   messages:  ChatMessage[];
@@ -53,12 +54,16 @@ function avatarGradient(userId: string): string {
   return `linear-gradient(135deg, hsl(${h1} 65% 55%), hsl(${h2} 60% 45%))`;
 }
 
-function groupByDay(messages: ChatMessage[]) {
+function groupByDay(messages: ChatMessage[], isRTL: boolean) {
   const groups: { label: string; messages: ChatMessage[] }[] = [];
   let current: { label: string; messages: ChatMessage[] } | null = null;
   for (const m of messages) {
     const d = new Date(m.created_at);
-    const label = isToday(d) ? 'Today' : isYesterday(d) ? 'Yesterday' : format(d, 'MMMM d, yyyy');
+    const label = isToday(d)
+      ? (isRTL ? 'اليوم' : 'Today')
+      : isYesterday(d)
+        ? (isRTL ? 'أمس' : 'Yesterday')
+        : d.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     if (!current || current.label !== label) {
       current = { label, messages: [] };
       groups.push(current);
@@ -443,6 +448,8 @@ function ScrollProgress({ progress }: { progress: number }) {
 }
 
 export function MessageList({ messages, meId, isLoading, roomType, watermarkEnabled: roomWatermarkEnabled, typingUserIds, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark, onImageOpen }: Props) {
+  const { settings } = useTheme();
+  const isRTL = settings.language === 'ar';
   const bottomRef        = useRef<HTMLDivElement>(null);
   const containerRef     = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -521,7 +528,7 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
     if (m.expires_at && new Date(m.expires_at) < new Date()) return false;
     return true;
   });
-  const groups = groupByDay(filtered);
+  const groups = groupByDay(filtered, isRTL);
 
   return (
     <div className="flex-1 relative overflow-hidden">

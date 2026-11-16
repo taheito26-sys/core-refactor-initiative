@@ -150,7 +150,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
               <>
                 <div className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
                   <Pin className="h-2.5 w-2.5" />
-                  Pinned
+                  {isRTL ? 'مثبّتة' : 'Pinned'}
                 </div>
                 {pinned.map((room) => (
                   <RoomRow
@@ -195,7 +195,7 @@ function RoomRow({
   isRTL: boolean;
 }) {
   const Icon = TYPE_ICONS[room.room_type];
-  const displayName = room.display_name ?? room.name ?? 'Unnamed room';
+  const displayName = room.display_name ?? room.name ?? (isRTL ? 'محادثة بلا اسم' : 'Unnamed room');
   const preview = smartPreview(room.last_message_preview ?? '', isRTL);
   const timeStr = room.last_message_at
     ? new Date(room.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

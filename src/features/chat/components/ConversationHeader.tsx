@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 import { useQuery } from '@tanstack/react-query';
 import { getRoomOnlineCount } from '../api/chat';
+import { useTheme } from '@/lib/theme-context';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
@@ -24,11 +25,11 @@ function roomTypeIcon(type: ChatRoomType) {
   }
 }
 
-function roomTypeLabel(type: ChatRoomType): string {
+function roomTypeLabel(type: ChatRoomType, isRTL: boolean): string {
   switch (type) {
-    case 'merchant_private': return 'End-to-end encrypted';
-    case 'merchant_client':  return 'Secure business chat';
-    case 'merchant_collab':  return 'Merchants Hub';
+    case 'merchant_private': return isRTL ? 'تشفير من الطرف إلى الطرف' : 'End-to-end encrypted';
+    case 'merchant_client':  return isRTL ? 'محادثة أعمال آمنة' : 'Secure business chat';
+    case 'merchant_collab':  return isRTL ? 'مركز التجار' : 'Merchants Hub';
   }
 }
 
@@ -85,6 +86,9 @@ export function ConversationHeader({
   onPrivacyDashboard,
   isMuted = false,
 }: Props) {
+  const { settings } = useTheme();
+  const isRTL = settings.language === 'ar';
+  const tx = (en: string, ar: string) => (isRTL ? ar : en);
   const otherUserId = room.other_user_id ?? '';
   const presence    = useChatStore(presenceOf(otherUserId));
   const isMobile    = useIsMobile();
@@ -116,7 +120,7 @@ export function ConversationHeader({
           <button
             onClick={onToggleSidebar}
             className="w-9 h-9 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-accent"
-            title={isMobile ? 'Back' : sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            title={isMobile ? tx('Back', 'رجوع') : sidebarOpen ? tx('Hide sidebar', 'إخفاء القائمة') : tx('Show sidebar', 'إظهار القائمة')}
           >
             {isMobile
               ? <ArrowLeft size={20} />
@@ -156,21 +160,21 @@ export function ConversationHeader({
                 presence === 'away'   ? 'text-amber-400'   :
                                         'text-muted-foreground'
               }`}>
-                {presence === 'online' ? 'Active now' :
-                 presence === 'away'   ? 'Away'        :
-                                        'Offline'}
+                {presence === 'online' ? tx('Active now', 'متصل الآن') :
+                 presence === 'away'   ? tx('Away', 'بعيد')        :
+                                        tx('Offline', 'غير متصل')}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground font-medium truncate">
-                {room.member_count} member{room.member_count !== 1 ? 's' : ''}
+                {isRTL ? `${room.member_count} عضو` : `${room.member_count} member${room.member_count !== 1 ? 's' : ''}`}
                 {onlineCount > 0 && (
-                  <span className="text-emerald-500"> · {onlineCount} online</span>
+                  <span className="text-emerald-500"> · {isRTL ? `${onlineCount} متصل` : `${onlineCount} online`}</span>
                 )}
               </span>
             )}
             <span className="text-[9px] text-border hidden sm:inline">•</span>
             <span className="text-[9px] text-muted-foreground font-medium truncate hidden sm:inline">
-              {roomTypeLabel(room.room_type)}
+              {roomTypeLabel(room.room_type, isRTL)}
             </span>
           </div>
         </div>
@@ -184,7 +188,7 @@ export function ConversationHeader({
           <button
             onClick={onStartCall}
             className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
-            title="Voice call"
+            title={tx('Voice call', 'مكالمة صوتية')}
           >
             <Phone size={15} className="sm:h-4 sm:w-4" />
           </button>
@@ -195,7 +199,7 @@ export function ConversationHeader({
           <button
             onClick={onStartVideoCall}
             className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
-            title="Video call"
+            title={tx('Video call', 'مكالمة فيديو')}
           >
             <Video size={15} className="sm:h-4 sm:w-4" />
           </button>
@@ -206,7 +210,7 @@ export function ConversationHeader({
           <button
             onClick={onToggleCallHistory}
             className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
-            title="Call history"
+            title={tx('Call history', 'سجل المكالمات')}
           >
             <History size={15} className="sm:h-4 sm:w-4" />
           </button>
@@ -217,7 +221,7 @@ export function ConversationHeader({
           <button
             onClick={onSearchToggle}
             className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
-            title="Search messages"
+            title={tx('Search messages', 'بحث في الرسائل')}
           >
             <Search size={15} className="sm:h-4 sm:w-4" />
           </button>
@@ -231,7 +235,7 @@ export function ConversationHeader({
               'w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center',
               menuOpen && 'text-foreground bg-accent',
             )}
-            title="More options"
+            title={tx('More options', 'خيارات أخرى')}
           >
             <MoreVertical size={18} />
           </button>
@@ -246,7 +250,7 @@ export function ConversationHeader({
                     className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
                   >
                     <Info size={15} className="text-muted-foreground" />
-                    <span>Room info</span>
+                    <span>{tx('Room info', 'معلومات المحادثة')}</span>
                   </button>
                 )}
                 {onSearchToggle && (
@@ -255,7 +259,7 @@ export function ConversationHeader({
                     className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
                   >
                     <Search size={15} className="text-muted-foreground" />
-                    <span>Search messages</span>
+                    <span>{tx('Search messages', 'بحث في الرسائل')}</span>
                   </button>
                 )}
                 {onMuteToggle && (
@@ -264,7 +268,7 @@ export function ConversationHeader({
                     className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
                   >
                     <BellOff size={15} className="text-muted-foreground" />
-                    <span>{isMuted ? 'Unmute' : 'Mute notifications'}</span>
+                    <span>{isMuted ? tx('Unmute', 'إلغاء كتم الصوت') : tx('Mute notifications', 'كتم التنبيهات')}</span>
                   </button>
                 )}
                 <button
@@ -272,7 +276,7 @@ export function ConversationHeader({
                   className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
                 >
                   <ImageIcon size={15} className="text-muted-foreground" />
-                  <span>Media & files</span>
+                  <span>{tx('Media & files', 'الوسائط والملفات')}</span>
                 </button>
                 {onClearChat && (
                   <>
@@ -282,7 +286,7 @@ export function ConversationHeader({
                       className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-destructive/10 transition-colors text-destructive"
                     >
                       <Trash2 size={15} />
-                      <span>Clear chat</span>
+                      <span>{tx('Clear chat', 'مسح المحادثة')}</span>
                     </button>
                   </>
                 )}
