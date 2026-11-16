@@ -25,6 +25,27 @@ supabase/functions/push-send
 The trigger never blocks a notification insert: any dispatch error is caught and
 logged as a warning, and the notification is saved regardless.
 
+## Current Firebase project
+
+The production project is `p2ptracker-833b9` (project number
+`168365677974`).
+
+| Platform | Firebase app | Local config |
+| --- | --- | --- |
+| Android | `1:168365677974:android:a7afdba41d2a6ed8c211b7` (`com.taheito26sys.corerefactorinitiative`) | `android/app/google-services.json` |
+| iOS | `1:168365677974:ios:ad397a6791a0a8c7c211b7` (same bundle ID) | `ios/App/App/GoogleService-Info.plist` |
+
+`FCM_SERVICE_ACCOUNT_JSON` is stored as a Supabase Edge Function secret. A live
+FCM v1 probe with an invalid token returned the expected
+`INVALID_ARGUMENT / The registration token is not a valid FCM registration token`,
+which confirms the service account, quota project, and FCM API are working.
+
+Android native delivery is therefore fully configured. The iOS Firebase app is
+registered and its plist is available for a future Firebase iOS SDK integration,
+but the current Capacitor plugin returns raw APNs tokens. iOS delivery still
+requires the Apple Developer APNs key and the `APNS_*` Supabase secrets described
+below.
+
 ## Database objects
 
 | Object | Purpose |
