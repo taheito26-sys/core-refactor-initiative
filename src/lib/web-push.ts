@@ -112,9 +112,18 @@ async function saveSubscription(subscription: PushSubscription): Promise<void> {
  * it for the current account.
  */
 export async function ensureWebPushSubscription(): Promise<PushSubscription | null> {
-  if (!getWebPushSupport().supported) return null;
-  if (isPushOptedOut()) return null;
-  if (Notification.permission !== 'granted') return null;
+  if (!getWebPushSupport().supported) {
+    webPushActive = false;
+    return null;
+  }
+  if (isPushOptedOut()) {
+    webPushActive = false;
+    return null;
+  }
+  if (Notification.permission !== 'granted') {
+    webPushActive = false;
+    return null;
+  }
 
   try {
     const subscription = await subscribe();
@@ -122,6 +131,7 @@ export async function ensureWebPushSubscription(): Promise<PushSubscription | nu
     webPushActive = true;
     return subscription;
   } catch (err) {
+    webPushActive = false;
     console.warn('[web-push] Could not refresh the subscription:', err);
     return null;
   }
