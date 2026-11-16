@@ -30,6 +30,8 @@ export interface CustomerHomeViewProps {
   onSetLang: (lang: 'en' | 'ar') => void;
   onOpenMenu?: () => void;
   onToggleEmergencyInfo: () => void;
+  /** Opens the account statement of what is owed. */
+  onOpenStatement?: () => void;
   /** Alerts and notes that sit between the hero and the first card. */
   belowHero?: ReactNode;
 }
@@ -251,11 +253,23 @@ export function CustomerHomeView(p: CustomerHomeViewProps) {
         {/* Settlement summary */}
         {s && (
           <section className="ch-card ch-settle">
-            <div className="ch-set-cols">
+            <div
+              className="ch-set-cols"
+              {...(p.onOpenStatement ? {
+                role: 'button', tabIndex: 0, style: { cursor: 'pointer' }, 'aria-label': t('Open the account statement', 'فتح كشف الحساب'),
+                onClick: p.onOpenStatement,
+                onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.onOpenStatement?.(); } },
+              } : {})}
+            >
               {setCol(<FileText strokeWidth={2.2} />, '#e6f0fe', '#1760f0', '#1760f0', p.fmt(s.total), t('Total Debt', 'إجمالي المستحقات'))}
               {setCol(<TrendingUp className="ch-flip" strokeWidth={2.2} />, '#e9f9f4', '#0b8a68', '#0b8a68', p.fmt(s.paid), t('Paid', 'المدفوع'))}
               {setCol(<ArrowDown strokeWidth={2} />, '#ffedf2', '#f0245b', '#f0245b', p.fmt(s.remaining), t('Remaining', 'المتبقي'))}
             </div>
+            {p.onOpenStatement && (
+              <button type="button" className="ch-all" onClick={p.onOpenStatement} style={{ alignSelf: 'flex-start' }}>
+                <span>{t('Account statement', 'كشف الحساب')}</span><Chev strokeWidth={2.6} />
+              </button>
+            )}
             <div className="ch-mint">
               <div className="ch-mint-t">
                 <div className="ch-mint-pct">{s.pct}%</div>

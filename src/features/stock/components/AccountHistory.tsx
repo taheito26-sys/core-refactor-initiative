@@ -30,6 +30,17 @@ const TEXT = {
   cash: { en: 'Cash', ar: 'نقدًا' },
   bank: { en: 'Bank transfer', ar: 'تحويل بنكي' },
   credit: { en: 'credit', ar: 'رصيد دائن' },
+  debit: { en: 'Debit', ar: 'مدين' },
+  credit_: { en: 'Credit', ar: 'دائن' },
+  cashTitle: { en: 'Account statement', ar: 'كشف الحساب' },
+  cashHint: { en: 'Money in and out of this account, with the balance after every transaction.', ar: 'الوارد والصادر في هذا الحساب مع الرصيد بعد كل حركة.' },
+  cashBalanceOn: { en: 'Balance on', ar: 'الرصيد بتاريخ' },
+  cashBefore: { en: 'Balance before', ar: 'الرصيد قبل' },
+  cashAfter: { en: 'Balance after', ar: 'الرصيد بعد' },
+  moneyIn: { en: 'Money in', ar: 'وارد' },
+  moneyOut: { en: 'Money out', ar: 'صادر' },
+  totalDebit: { en: 'Total debit', ar: 'إجمالي المدين' },
+  totalCredit: { en: 'Total credit', ar: 'إجمالي الدائن' },
   differs: { en: 'The unpaid total on the account is', ar: 'إجمالي غير المسدد في الحساب هو' },
   differsWhy: { en: 'The difference is an overpayment on an order that is already closed.', ar: 'الفرق دفعة زائدة على طلب مغلق.' },
   unappliedOne: { en: 'A payment that was accepted is not reflected in the balance:', ar: 'دفعة تم قبولها ولم تنعكس على الرصيد:' },
@@ -58,6 +69,11 @@ export interface AccountHistoryProps {
   unapplied?: HistoryClaim[];
   fileBase?: string;
   now?: number;
+  /**
+   * 'owed' (default): what the buyer still owes, where a new order is a debit and a payment a credit.
+   * 'cash': money in and out of an account the person holds, where money in is a credit and money out a debit.
+   */
+  mode?: 'owed' | 'cash';
 }
 
 /**
@@ -66,7 +82,8 @@ export interface AccountHistoryProps {
  * needs no app providers, so the merchant's statement dialog, the buyer's portal and the shared statement page
  * all render the same thing.
  */
-export function AccountHistory({ events, currency, lang, expectedBalance, unapplied = [], fileBase = 'account-history', now = Date.now() }: AccountHistoryProps) {
+export function AccountHistory({ events, currency, lang, expectedBalance, unapplied = [], fileBase = 'account-history', now = Date.now(), mode = 'owed' }: AccountHistoryProps) {
+  const cash = mode === 'cash';
   const T = <K extends keyof typeof TEXT>(k: K) => TEXT[k][lang];
   const id = useId();
   const [preset, setPreset] = useState<Preset>('30d');
@@ -97,17 +114,23 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
   const methodLabel = (m?: 'cash' | 'bank' | null) => (m === 'cash' ? T('cash') : m === 'bank' ? T('bank') : '');
 
   const exportCsv = () => {
-    const head = ['Date', 'Type', 'Reference', 'Note', `Unpaid before (${currency})`, `Amount (${currency})`, `Unpaid after (${currency})`].map(csvCell).join(',');
-    const rows = view.lines.map(l => [new Date(l.ts).toISOString().slice(0, 16).replace('T', ' '), l.kind === 'charge' ? 'New order' : 'Payment', l.refs.join(' '), l.description, l.before, l.kind === 'charge' ? l.amount : -l.amount, l.after].map(csvCell).join(','));
+    const head = ['Date', 'Type', 'Reference', 'Note', `Debit (${currency})`, `Credit (${currency})`, `Balance (${currency})`].map(csvCell).join(',');
+    const rows = view.lines.map(l => {
+      const increase = l.kind === 'charge';
+      // A new order is a debit and a payment a credit; for money held, money in is a credit and money out a debit.
+      const isDebit = cash ? !increase : increase;
+      const type = cash ? (increase ? 'Money in' : 'Money out') : (increase ? 'New order' : 'Payment');
+      return [new Date(l.ts).toISOString().slice(0, 16).replace('T', ' '), type, l.refs.join(' '), l.description, isDebit ? l.amount : '', isDebit ? '' : l.amount, l.after].map(csvCell).join(',');
+    });
     const edge = (label: string, n: number) => ['', label, '', '', '', '', n].map(csvCell).join(',');
     downloadTextFile(`${fileBase}.csv`, [head, edge('Opening balance', view.opening), ...rows, edge('Closing balance', view.closing)].join('\r\n'));
   };
 
   return (
-    <section dir={lang === 'ar' ? 'rtl' : 'ltr'} aria-label={T('title')} style={{ display: 'flex', flexDirection: 'column', gap: 12, fontFamily: 'inherit' }}>
+    <section dir={lang === 'ar' ? 'rtl' : 'ltr'} aria-label={T(cash ? 'cashTitle' : 'title')} style={{ display: 'flex', flexDirection: 'column', gap: 12, fontFamily: 'inherit' }}>
       <div>
-        <div style={{ fontSize: 16, fontWeight: 800 }}>{T('title')}</div>
-        <div style={css.muted}>{T('hint')}</div>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{T(cash ? 'cashTitle' : 'title')}</div>
+        <div style={css.muted}>{T(cash ? 'cashHint' : 'hint')}</div>
       </div>
 
       {unapplied.length > 0 && (
@@ -119,10 +142,10 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
 
       <div style={{ ...css.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <label htmlFor={`${id}-asof`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={css.muted}>{T('balanceOn')}</span>
+          <span style={css.muted}>{T(cash ? 'cashBalanceOn' : 'balanceOn')}</span>
           <input id={`${id}-asof`} type="date" value={asOf} max={toIso(now)} onChange={e => setAsOf(e.target.value)} style={css.input} />
         </label>
-        <div style={{ fontSize: 24, fontWeight: 800, color: asOfValue > 0.005 ? 'var(--bad, #c0392b)' : 'var(--good, #1a7a3c)' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: (cash ? asOfValue < -0.005 : asOfValue > 0.005) ? 'var(--bad, #c0392b)' : 'var(--good, #1a7a3c)' }}>
           <span dir="ltr">{withCur(asOfValue)}</span>
         </div>
       </div>
@@ -148,19 +171,34 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, border: '1px solid var(--line, #e5e7eb)', borderRadius: 14, overflow: 'hidden' }}>
           {view.lines.map((l, i) => (
             <li key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderTop: i ? '1px solid var(--line, #e5e7eb)' : 0, color: 'var(--text, #111827)' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>
-                  {l.kind === 'charge' ? T('charge') : T('payment')}
-                  {l.parts > 1 && <span style={css.muted}> · {l.parts} {T('orders')}</span>}
-                </div>
-                <div style={css.muted}>{date(l.ts)}{methodLabel(l.method) ? ` · ${methodLabel(l.method)}` : ''}</div>
-                {(l.refs.length > 0 || l.description) && <div style={{ ...css.muted, overflowWrap: 'anywhere' }}>{[l.refs.slice(0, 3).join(' '), l.description].filter(Boolean).join(' · ')}</div>}
-              </div>
-              <div style={{ textAlign: 'end', flexShrink: 0 }} dir="ltr">
-                <div style={css.muted}>{T('before')} {money(l.before)}</div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: l.kind === 'charge' ? 'var(--bad, #c0392b)' : 'var(--good, #1a7a3c)' }}>{l.kind === 'charge' ? '+' : '−'}{fmt(l.amount)}</div>
-                <div style={{ fontSize: 13, fontWeight: 800 }}>{T('after')} {money(l.after)}{l.after < 0 ? ` (${T('credit')})` : ''}</div>
-              </div>
+              {(() => {
+                const increase = l.kind === 'charge';
+                const isDebit = cash ? !increase : increase;
+                // A balance that grows is bad for what is owed and good for money held.
+                const tone = (cash ? increase : !increase) ? 'var(--good, #1a7a3c)' : 'var(--bad, #c0392b)';
+                const title = cash ? (l.refs[0] || T(increase ? 'moneyIn' : 'moneyOut')) : T(increase ? 'charge' : 'payment');
+                const detail = cash ? l.description : [l.refs.slice(0, 3).join(' '), l.description].filter(Boolean).join(' · ');
+                return (
+                  <>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        {title}
+                        {l.parts > 1 && <span style={css.muted}> · {l.parts} {T('orders')}</span>}
+                      </div>
+                      <div style={css.muted}>
+                        {date(l.ts)}{methodLabel(l.method) ? ` · ${methodLabel(l.method)}` : ''}
+                        <span style={{ marginInlineStart: 6, padding: '1px 6px', borderRadius: 999, border: '1px solid var(--line, #e5e7eb)', fontSize: 10, fontWeight: 700 }}>{T(isDebit ? 'debit' : 'credit_')}</span>
+                      </div>
+                      {detail && <div style={{ ...css.muted, overflowWrap: 'anywhere' }}>{detail}</div>}
+                    </div>
+                    <div style={{ textAlign: 'end', flexShrink: 0 }} dir="ltr">
+                      <div style={css.muted}>{T(cash ? 'cashBefore' : 'before')} {money(l.before)}</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: tone }}>{increase ? '+' : '−'}{fmt(l.amount)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800 }}>{T(cash ? 'cashAfter' : 'after')} {money(l.after)}{!cash && l.after < 0 ? ` (${T('credit')})` : ''}</div>
+                    </div>
+                  </>
+                );
+              })()}
             </li>
           ))}
         </ol>
@@ -168,8 +206,8 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
 
       <div style={css.bar}><span>{T('closing')}</span><span dir="ltr">{withCur(view.closing)}</span></div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', ...css.muted }}>
-        <span>{T('charges')}: <b dir="ltr">{fmt(view.charges)}</b></span>
-        <span>{T('payments')}: <b dir="ltr">{fmt(view.payments)}</b></span>
+        <span>{T(cash ? 'totalCredit' : 'totalDebit')}: <b dir="ltr">{fmt(cash ? view.charges : view.charges)}</b></span>
+        <span>{T(cash ? 'totalDebit' : 'totalCredit')}: <b dir="ltr">{fmt(view.payments)}</b></span>
       </div>
       {Math.abs(gap) >= 0.01 && <div style={css.muted}>{T('differs')} <b dir="ltr">{fmt(expectedBalance as number)} {currency}</b>. {T('differsWhy')}</div>}
     </section>

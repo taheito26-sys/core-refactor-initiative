@@ -1,5 +1,6 @@
 import { monthlyPaymentNumbers, monthlyGiverPaymentNumbers } from '@/features/customer/payment-sequence';
 import { statementQueryOptions } from "@/features/customer/statements-api";
+import { CashStatementSheet, LoanStatementSheet } from "@/features/customer/components/StatementSheets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, User, Bell, Info, FilePlus, Users, UserPlus, ArrowUpRight, ArrowDownRight } from "lucide-react";
@@ -608,6 +609,8 @@ export default function CustomerWalletPage() {
   // Ledger is no longer its own tab — it shows inline as a sub-section under
   // whichever account it belongs to, expanded on click.
   const [expandedLedgerAccountId, setExpandedLedgerAccountId] = useState<string | null>(null);
+  /** Which statement is open: what is owed, or one cash account. */
+  const [statementView, setStatementView] = useState<null | "loans" | { accountId: string }>(null);
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [showLogPayment, setShowLogPayment] = useState(false);
@@ -1428,8 +1431,10 @@ export default function CustomerWalletPage() {
                               <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{acc.currency}</span>
                               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">{L("active", "نشط")}</span>
                             </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{L("Available Balance", "الرصيد المتاح")}</p>
-                            <p className="text-2xl font-black tabular-nums mt-0.5">{fmtTotal(bal)} <span className="text-sm font-semibold text-muted-foreground">{acc.currency}</span></p>
+                            <button type="button" className="block text-start" onClick={() => setStatementView({ accountId: acc.id })} aria-label={`${L("Open the account statement", "فتح كشف الحساب")} · ${acc.name}`}>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{L("Available Balance", "الرصيد المتاح")}</p>
+                              <p className="text-2xl font-black tabular-nums mt-0.5">{fmtTotal(bal)} <span className="text-sm font-semibold text-muted-foreground">{acc.currency}</span></p>
+                            </button>
                             {mv !== 0 && (
                               <p className={cn("text-[10px] mt-0.5", mv > 0 ? "text-emerald-600" : "text-rose-600")}>
                                 {mv > 0 ? "+" : ""}{fmtTotal(mv)} {L("24h", "24س")}
@@ -1462,6 +1467,10 @@ export default function CustomerWalletPage() {
                               ⇄ {L("Transfer", "تحويل")}
                             </button>
                           )}
+                          <button onClick={() => setStatementView({ accountId: acc.id })}
+                            className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">
+                            🧾 {L("Statement", "كشف الحساب")}
+                          </button>
                           <button onClick={() => setExpandedLedgerAccountId(id => id === acc.id ? null : acc.id)}
                             className="flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80">
                             📋 {L("Ledger", "السجل")}
@@ -1657,7 +1666,12 @@ export default function CustomerWalletPage() {
                   { cls: "t2", label: L("Paid", "المدفوع"), value: loanTotals.totalPaid, icon: <ArrowLeftRight />, bg: "#d3e3ff", fg: "#1d4ed8", bar: loanTotals.settledPct, barFill: "linear-gradient(90deg,#3b82f6,#60a5fa)" },
                   { cls: "t3", label: L("Remaining", "المتبقي"), value: loanTotals.outstanding, icon: <MoneyBagIcon />, bg: "#cdf1de", fg: "#15803d", bar: 100 - loanTotals.settledPct, barFill: "linear-gradient(90deg,#10b981,#34d399)" },
                 ].map(c => (
-                  <div key={c.label} className={`cw-card cw-stat ${c.cls}`}>
+                  <div
+                    key={c.label} className={`cw-card cw-stat ${c.cls}`}
+                    role="button" tabIndex={0} style={{ cursor: "pointer" }} aria-label={L("Open the account statement", "فتح كشف الحساب")}
+                    onClick={() => setStatementView("loans")}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStatementView("loans"); } }}
+                  >
                     <div className="cw-stat-t">
                       <div className="cw-stat-l">{c.label}</div>
                       <div className="cw-stat-v">{fmtTotal(c.value)}</div>
@@ -1953,6 +1967,22 @@ export default function CustomerWalletPage() {
       )}
 
       {/* ── Modals ── */}
+      <LoanStatementSheet open={statementView === "loans"} onOpenChange={o => { if (!o) setStatementView(null); }} lang={lang === "ar" ? "ar" : "en"} statements={loanStatements} />
+      {(() => {
+        const acc = statementView && statementView !== "loans" ? accounts.find(x => x.id === statementView.accountId) : undefined;
+        return (
+          <CashStatementSheet
+            open={!!acc}
+            onOpenChange={o => { if (!o) setStatementView(null); }}
+            lang={lang === "ar" ? "ar" : "en"}
+            accountName={acc?.name ?? ""}
+            currency={acc?.currency ?? ""}
+            ledger={acc ? ledger.filter(e => e.account_id === acc.id) : []}
+            typeLabel={type => { const l = LEDGER_TYPE_LABELS[type]; return l ? (lang === "ar" ? l.ar : l.en) : type; }}
+          />
+        );
+      })()}
+
       {showAddAccount && (
         <AccountModal lang={lang} onClose={() => setShowAddAccount(false)}
           onSave={data => { createAccount.mutate(data); }} />

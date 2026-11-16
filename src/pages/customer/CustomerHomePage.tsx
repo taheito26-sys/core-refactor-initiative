@@ -1,6 +1,7 @@
 import { useLoanPaymentClaims } from '@/hooks/useLoanPaymentClaims';
 import { statementQueryOptions } from '@/features/customer/statements-api';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { LoanStatementSheet } from '@/features/customer/components/StatementSheets';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Plus, X, Wallet, Clock, Loader2 } from 'lucide-react';
@@ -43,6 +44,7 @@ export default function CustomerHomePage() {
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showStatement, setShowStatement] = useState(false);
   const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
     queryFn: async () => { if (!userId) return []; return await listSharedOrdersForActor({ customerUserId: userId }); },
@@ -409,8 +411,11 @@ export default function CustomerHomePage() {
         onSetLang={l => update({ language: l })}
         onOpenMenu={shell?.openMenu}
         onToggleEmergencyInfo={() => setShowEmergencyInfo(v => !v)}
+        onOpenStatement={() => setShowStatement(true)}
         belowHero={belowHero}
       />
+
+      <LoanStatementSheet open={showStatement} onOpenChange={setShowStatement} lang={lang === 'ar' ? 'ar' : 'en'} statements={historyStatements} />
 
       {/* Create Cash Account Modal — step by step */}
       {showCreateAccount && (

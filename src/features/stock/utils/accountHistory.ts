@@ -138,6 +138,17 @@ export function eventsFromPublicStatement(data: {
   return events;
 }
 
+/**
+ * A cash account's ledger as events, for the statement of money held. Money in raises the balance, which the
+ * engine calls a charge (an event that increases the balance); money out lowers it, which it calls a payment.
+ */
+export function eventsFromLedger(rows: Array<{ id: string; ts: number | string; direction: 'in' | 'out'; amount: number | string; type: string; note: string | null }>, typeLabel: (type: string) => string = t => t): HistoryEvent[] {
+  return rows.map(r => ({
+    id: r.id, ts: Number(r.ts), kind: r.direction === 'in' ? 'charge' as const : 'payment' as const,
+    amount: Number(r.amount), ref: typeLabel(r.type), description: r.note || '',
+  })).filter(e => Number.isFinite(e.ts));
+}
+
 export interface HistoryClaim {
   id: string;
   customerId: string;

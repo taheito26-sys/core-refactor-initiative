@@ -33,9 +33,7 @@ import { PeriodPicker } from '@/components/shared/PeriodPicker';
 import { statementKey, statementQueryOptions } from '@/features/customer/statements-api';
 import { growth, monthFigures, previousMonth } from '@/features/customer/orders/orders-growth';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
-import { AccountHistory } from '@/features/stock/components/AccountHistory';
-import { eventsFromPublicStatement } from '@/features/stock/utils/accountHistory';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { LoanStatementSheet } from '@/features/customer/components/StatementSheets';
 
 /** The loan statement plus the opt-in sale rows returned for ?sales=1. */
 type HistoryStatement = PublicStatement & {
@@ -1324,7 +1322,13 @@ export default function CustomerOrdersPage() {
                       {!dayActive && gTotal && <GrowthLine g={gTotal} percent />}
                     </div>
                     {hasLoans && (
-                      <div className={cn('co-t co-t-out', debtKpi.outstanding > 0.5 ? 'owed' : 'clear')}>
+                      <div
+                        className={cn('co-t co-t-out', debtKpi.outstanding > 0.5 ? 'owed' : 'clear')}
+                        role="button" tabIndex={0} style={{ cursor: 'pointer' }}
+                        aria-label={L('Open the account statement', 'فتح كشف الحساب')}
+                        onClick={() => setAccountHistoryOpen(true)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAccountHistoryOpen(true); } }}
+                      >
                         <span className="co-t-ic"><Banknote /></span>
                         <div className="co-t-out-txt">
                           <span className="co-t-l">{L('Outstanding balance', 'الرصيد المستحق')} ({debtKpi.currency === 'QAR' ? L('QAR', 'ريال') : debtKpi.currency})</span>
@@ -1337,7 +1341,7 @@ export default function CustomerOrdersPage() {
 
                   {hasLoans && (
                     <button type="button" className="co-btn" onClick={() => setAccountHistoryOpen(true)} style={{ alignSelf: 'flex-start', minHeight: 44 }}>
-                      <FileText aria-hidden="true" />{L('Account history', 'كشف الحساب التفصيلي')}
+                      <FileText aria-hidden="true" />{L('Account statement', 'كشف الحساب')}
                     </button>
                   )}
 
@@ -2562,25 +2566,7 @@ export default function CustomerOrdersPage() {
         />
       )}
 
-      <Sheet open={accountHistoryOpen} onOpenChange={setAccountHistoryOpen}>
-        <SheetContent side="bottom" dir={lang === 'ar' ? 'rtl' : 'ltr'} className="max-h-[92dvh] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{L('Account history', 'كشف الحساب التفصيلي')}</SheetTitle>
-            <SheetDescription className="sr-only">{L('Every order and payment with the unpaid amount before and after it', 'كل طلب ودفعة مع المبلغ غير المسدد قبلها وبعدها')}</SheetDescription>
-          </SheetHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingTop: 8 }}>
-            {loanStatements.map(st => (
-              <AccountHistory
-                key={st.currency}
-                events={eventsFromPublicStatement(st, L('Rounding', 'تقريب'))}
-                currency={st.currency}
-                lang={lang === 'ar' ? 'ar' : 'en'}
-                expectedBalance={st.outstanding}
-              />
-            ))}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <LoanStatementSheet open={accountHistoryOpen} onOpenChange={setAccountHistoryOpen} lang={lang === 'ar' ? 'ar' : 'en'} statements={loanStatements} />
     </div>
   );
 }
