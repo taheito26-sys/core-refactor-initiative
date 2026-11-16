@@ -35,9 +35,18 @@ export function useNotificationPresence() {
     let timer: ReturnType<typeof setInterval> | null = null;
 
     const ping = () => {
-      if (!stopped && document.visibilityState === 'visible') {
-        void setPresence(true, endpoint);
+      if (stopped || document.visibilityState !== 'visible') return;
+
+      if (!endpoint) {
+        // The service worker can finish registering after this hook mounts.
+        void getExistingSubscription().then((subscription) => {
+          endpoint = subscription?.endpoint ?? null;
+          if (endpoint) void setPresence(true, endpoint);
+        });
+        return;
       }
+
+      void setPresence(true, endpoint);
     };
 
     const clear = () => {
