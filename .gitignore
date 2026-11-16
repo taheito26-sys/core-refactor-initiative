@@ -46,3 +46,8 @@ ios/DerivedData
 # Browser regression output
 /test-results/
 /playwright-report/
+
+# Firebase Admin SDK service-account private keys — never commit
+firebase-sa.json
+*firebase-adminsdk*.json
+service-account*.json

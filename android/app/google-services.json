@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "168365677974",
+    "project_id": "p2ptracker-833b9",
+    "storage_bucket": "p2ptracker-833b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168365677974:android:a7afdba41d2a6ed8c211b7",
+        "android_client_info": {
+          "package_name": "com.taheito26sys.corerefactorinitiative"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAousJxXJRQSXZiyKmBIMuouP5llzK3Ifw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
