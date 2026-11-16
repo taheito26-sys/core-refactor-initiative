@@ -69,6 +69,8 @@ export function CustomerLayout() {
   const displayName = resolveCustomerDisplayName(customerProfile, lang);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
+  // Merchants, Settings and any other drawer-only page belong to More.
+  const moreActive = !PRIMARY_NAV.some(item => isActive(item.path));
   const go = (path: string) => { navigate(path); setDrawerOpen(false); };
 
   const allNav = [...PRIMARY_NAV, ...DRAWER_NAV];
@@ -186,7 +188,7 @@ export function CustomerLayout() {
                 </button>
               );
             })}
-            <button onClick={() => setDrawerOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold text-muted-foreground">
+            <button onClick={() => setDrawerOpen(true)} className={cn('flex flex-1 flex-col items-center justify-center gap-0.5 text-[9px] font-semibold transition-colors', moreActive ? 'text-primary' : 'text-muted-foreground')}>
               <span className="relative">
                 <Menu className="h-[18px] w-[18px]" />
               </span>
