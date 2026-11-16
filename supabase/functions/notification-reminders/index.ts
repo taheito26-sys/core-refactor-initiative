@@ -248,44 +248,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── 4. Trigger push notifications for all newly created reminders ──────
-    // (The push-send function handles this if FCM is configured)
-    const pushUrl = `${supabaseUrl}/functions/v1/push-send`;
-    const recentNotifs = await supabase
-      .from('notifications')
-      .select('id, user_id, title, body, category, target_path')
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
-      .is('read_at', null)
-      .limit(20);
-
-    let pushSent = 0;
-    if (recentNotifs.data?.length) {
-      for (const n of recentNotifs.data) {
-        try {
-          await fetch(pushUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({
-              user_id: n.user_id,
-              title: n.title,
-              body: n.body,
-              data: { notification_id: n.id, path: n.target_path ?? '/notifications' },
-            }),
-          });
-          pushSent++;
-        } catch (e) {
-          console.error('[notification-reminders] Push error:', e);
-        }
-      }
-    }
-
+    // Every notification inserted above is delivered by the
+    // trg_notifications_dispatch_push trigger; this function no longer talks
+    // to push-send directly (that path rejected the service-role token).
     return new Response(JSON.stringify({
       reminders_created: remindersCreated,
       reminders_sent: remindersSent,
-      push_attempted: pushSent,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -1,4 +1,6 @@
 import { usePushRegistration } from '@/hooks/usePushRegistration';
+import { useWebPushRegistration } from '@/hooks/useWebPush';
+import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { DriverNotifications } from '@/features/shipments/components/DriverNotifications';
@@ -32,6 +34,8 @@ export default function DriverLayout() {
   const { data: notifications = [] } = useNotifications();
   const unreadCount = notifications.filter(n => n.entity_type === 'shipment' && !n.read_at).length;
   usePushRegistration();
+  useWebPushRegistration();
+  useNotificationPresence();
   const { settings, update } = useTheme();
   const location = useLocation();
   const lang = settings.language === 'ar' ? 'ar' : 'en';

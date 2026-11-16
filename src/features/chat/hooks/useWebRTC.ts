@@ -577,28 +577,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── fire push notification for incoming call ──────────────────────────
   const sendCallPush = useCallback(async (callId: string, targetRoomId: string) => {
     try {
-      // Get room members to notify
-      const { data: members } = await supabase
-        .from('chat_room_members' as never)
-        .select('user_id')
-        .eq('room_id', targetRoomId)
-        .is('removed_at', null);
-
-      if (!members) return;
-      const others = (members as { user_id: string }[]).filter((m) => m.user_id !== userId);
-
-      for (const m of others) {
-        supabase.functions.invoke('push-send', {
-          body: {
-            user_id: m.user_id,
-            title: '📞 Incoming call',
-            body: 'Someone is calling you',
-            data: { type: 'incoming_call', call_id: callId, room_id: targetRoomId },
-          },
-        }).catch(() => {});
-      }
+      // The server verifies that the caller is a member of the room and fans
+      // the push out to every other member. The client cannot name arbitrary
+      // recipients.
+      await supabase.functions.invoke('push-send', {
+        body: {
+          action: 'call',
+          call_id: callId,
+          room_id: targetRoomId,
+        },
+      });
     } catch { /* non-fatal */ }
-  }, [userId]);
+  }, []);
 
   // ── START CALL ────────────────────────────────────────────────────────
   const startCallFn = useCallback(async (video = false) => {

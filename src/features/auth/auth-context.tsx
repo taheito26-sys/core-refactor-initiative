@@ -10,6 +10,7 @@ import {
 } from '@/features/auth/auth-redirects';
 import { getNativePlugin } from '@/platform/runtime';
 import { startAppActivityTracking } from '@/lib/app-activity';
+import { unregisterPushDevicesOnSignOut } from '@/lib/push-cleanup';
 
 export interface Profile {
   id: string;
@@ -425,6 +426,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Remove this browser's subscription and this device's FCM token while the
+    // session is still valid, so a shared device stops receiving pushes for
+    // the account that is signing out.
+    await unregisterPushDevicesOnSignOut();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     // Drop this user's device-local caches and in-memory sync state so the

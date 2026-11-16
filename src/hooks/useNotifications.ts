@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { playNotificationSound, requestPushPermission, showBrowserNotification } from '@/lib/notification-sound';
+import { showBrowserNotification } from '@/lib/notification-sound';
 import { playCategoryChime, triggerHaptic } from '@/lib/notification-sounds';
 import { buildNotificationNavigationTarget } from '@/lib/notification-router';
 import { mapNotificationRowToModel, normalizeNotificationCategory, type AppNotification, type NotificationCategoryGroup, type NotificationRow } from '@/types/notifications';
 import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
+import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
+import { isWebPushActive } from '@/lib/web-push';
 
 export type Notification = AppNotification;
 
@@ -17,6 +19,7 @@ interface SharedNotificationRealtimeState {
   teardownTimer: ReturnType<typeof setTimeout> | null;
   statusListeners: Map<symbol, (isSubscribed: boolean) => void>;
   suppressors: Map<symbol, (notification: Notification) => boolean>;
+  preferences: Array<{ category: string; in_app_enabled: boolean; push_enabled: boolean; sound_enabled: boolean }> | undefined;
 }
 
 const notificationRealtimeRegistry = new Map<string, SharedNotificationRealtimeState>();
@@ -69,6 +72,8 @@ function ensureSharedNotificationRealtimeChannel(
 
   const topic = nextNotificationRealtimeTopic(userId);
   const channel = supabase.channel(topic);
+  // Assigned before subscribe(); the callback only runs after that.
+  // eslint-disable-next-line prefer-const
   let shared!: SharedNotificationRealtimeState;
 
   channel.on(
@@ -86,10 +91,25 @@ function ensureSharedNotificationRealtimeChannel(
       const notification = mapNotificationRowToModel(row);
       if (shouldSuppressSharedRealtimeNotification(shared, notification)) return;
 
-      playCategoryChime(notification.category);
-      triggerHaptic();
+      const preference = shared.preferences?.find(
+        (pref) => pref.category === normalizeNotificationCategory(notification.category),
+      );
+
+      // "In-app" controls the realtime alert (chime, haptic, browser popup).
+      // The notification still stays in the Activity Center list.
+      if (preference?.in_app_enabled === false) return;
+
+      if (preference?.sound_enabled !== false) {
+        playCategoryChime(notification.category);
+        triggerHaptic();
+      }
 
       const nav = buildNotificationNavigationTarget(notification);
+
+      // A hidden tab with a live Web Push subscription is served by the
+      // service worker; showing a second Notification here would duplicate it.
+      if (document.visibilityState === 'hidden' && isWebPushActive()) return;
+
       showBrowserNotification(notification.title ?? 'New notification', {
         body: notification.body ?? undefined,
         tag: `notif-${notification.id}-${notification.target.kind}-${notification.target.entityId ?? notification.target.conversationId ?? 'generic'}`,
@@ -108,6 +128,7 @@ function ensureSharedNotificationRealtimeChannel(
     teardownTimer: null,
     statusListeners: new Map(),
     suppressors: new Map(),
+    preferences: undefined,
   };
 
   notificationRealtimeRegistry.set(userId, shared);
@@ -176,12 +197,18 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     staleTime: 15_000,
   });
 
-  useEffect(() => {
-    if (userId) requestPushPermission();
-  }, [userId]);
-
   const suppressRef = useRef(shouldSuppressRealtimeNotification);
   suppressRef.current = shouldSuppressRealtimeNotification;
+
+  const { data: preferences } = useNotificationPreferences();
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+
+  useEffect(() => {
+    if (!userId) return;
+    const shared = notificationRealtimeRegistry.get(userId);
+    if (shared) shared.preferences = preferences;
+  }, [userId, preferences]);
 
   useEffect(() => {
     if (!userId) {
@@ -192,6 +219,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     const listenerId = Symbol('notifications-realtime-listener');
     const shared = ensureSharedNotificationRealtimeChannel(userId, queryClient);
 
+    shared.preferences = preferencesRef.current;
     shared.statusListeners.set(listenerId, setHasLiveNotificationChannel);
     shared.suppressors.set(listenerId, (notification) => Boolean(suppressRef.current?.(notification)));
 

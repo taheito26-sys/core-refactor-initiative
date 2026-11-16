@@ -1,3 +1,5 @@
+import { isDndActive } from './notification-sounds';
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
@@ -53,6 +55,7 @@ interface BrowserNotificationOptions {
 
 export function showBrowserNotification(title: string, options: BrowserNotificationOptions = {}) {
   if (options.suppress) return;
+  if (isDndActive()) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   if (document.hasFocus()) return;
 

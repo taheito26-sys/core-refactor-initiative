@@ -36,7 +36,7 @@ export function setDndSchedule(schedule: DndSchedule) {
   localStorage.setItem(DND_KEY, JSON.stringify(schedule));
 }
 
-function isDndActive(): boolean {
+export function isDndActive(): boolean {
   const s = getDndSchedule();
   if (!s.enabled) return false;
   const now = new Date();

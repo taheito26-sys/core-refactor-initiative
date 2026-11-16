@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Bell, BellOff,
   Handshake, Package, Mail, ShieldCheck, FileText,
@@ -11,7 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { getDndSchedule, setDndSchedule, type DndSchedule } from '@/lib/notification-sounds';
+import { PushNotificationsCard } from './PushNotificationsCard';
 
 const CATEGORY_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   deal:       { icon: Handshake,    label: 'Deals',        color: 'text-accent' },
@@ -24,14 +26,61 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; label: string; co
   system:     { icon: Zap,          label: 'System',       color: 'text-muted-foreground' },
 };
 
+function currentTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
 export function NotificationPreferencesPanel() {
   const { data: prefs, isLoading, upsert } = useNotificationPreferences();
-  const [dnd, setLocalDnd] = useState<DndSchedule>(getDndSchedule);
+  const { data: settings, upsert: upsertSettings } = useNotificationSettings();
+  const migratedLocalDnd = useRef(false);
+
+  const dnd: DndSchedule = {
+    enabled: settings?.dnd_enabled ?? false,
+    startTime: settings?.dnd_start ?? '22:00',
+    endTime: settings?.dnd_end ?? '07:00',
+  };
+
+  // The server is the source of truth so quiet hours also apply to push. Mirror
+  // it locally, where the Web Audio chimes read it synchronously.
+  useEffect(() => {
+    if (!settings?.exists) return;
+    setDndSchedule({
+      enabled: settings.dnd_enabled,
+      startTime: settings.dnd_start,
+      endTime: settings.dnd_end,
+    });
+  }, [settings?.exists, settings?.dnd_enabled, settings?.dnd_start, settings?.dnd_end]);
+
+  // One-time migration of a quiet-hours schedule that only existed in this
+  // browser's localStorage before push settings were stored server-side.
+  useEffect(() => {
+    if (migratedLocalDnd.current || !settings || settings.exists) return;
+    migratedLocalDnd.current = true;
+    const local = getDndSchedule();
+    if (local.enabled) {
+      upsertSettings.mutate({
+        dnd_enabled: true,
+        dnd_start: local.startTime,
+        dnd_end: local.endTime,
+        timezone: currentTimezone(),
+      });
+    }
+  }, [settings, upsertSettings]);
 
   const handleDndChange = (partial: Partial<DndSchedule>) => {
     const updated = { ...dnd, ...partial };
-    setLocalDnd(updated);
     setDndSchedule(updated);
+    upsertSettings.mutate({
+      dnd_enabled: updated.enabled,
+      dnd_start: updated.startTime,
+      dnd_end: updated.endTime,
+      timezone: currentTimezone(),
+    });
   };
 
   const handleToggle = (category: string, field: 'in_app_enabled' | 'push_enabled' | 'sound_enabled', value: boolean) => {
@@ -52,6 +101,9 @@ export function NotificationPreferencesPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Master push switch + this device */}
+      <PushNotificationsCard />
+
       {/* Category Preferences */}
       <Card className="glass">
         <CardHeader className="pb-2">
@@ -155,7 +207,8 @@ export function NotificationPreferencesPanel() {
           )}
 
           <p className="text-[10px] text-muted-foreground">
-            During DND hours, all notification sounds and haptics are suppressed. In-app alerts still appear.
+            During DND hours, push notifications, sounds and haptics are suppressed on every device. In-app
+            alerts still appear. Times use this device's timezone ({currentTimezone()}).
           </p>
         </CardContent>
       </Card>

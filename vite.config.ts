@@ -60,6 +60,9 @@ export default defineConfig(({ mode }) => {
             "robots.txt",
           ],
           workbox: {
+            // Push + notification-click handlers live in /public/push-sw.js so
+            // they are available even when no app tab is open.
+            importScripts: ["push-sw.js"],
             globIgnores: ["**/app-version.json", "**/auth/refresh.html"],
             // Install only startup JavaScript; page modules are cached as they are opened.
             manifestTransforms: [async entries => ({

@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsModal';
 import { useAuth } from '@/features/auth/auth-context';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
+import { useWebPushRegistration } from '@/hooks/useWebPush';
+import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
 
@@ -19,6 +21,8 @@ export function AppLayout() {
 
   // App-level hooks: push registration + cross-device read sync
   usePushRegistration();
+  useWebPushRegistration();
+  useNotificationPresence();
   useReadReceiptSync();
   useAutoVaultBackup();
 
