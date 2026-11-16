@@ -25,8 +25,16 @@ interface PushNotificationAction {
 
 type PushPlugin = {
   addListener?: (event: string, cb: (data: unknown) => void) => Promise<{ remove: () => void }>;
+  checkPermissions?: () => Promise<{ receive: string }>;
   requestPermissions?: () => Promise<{ receive: string }>;
   register?: () => Promise<void>;
+};
+
+type AppPlugin = {
+  addListener?: (
+    event: 'appStateChange',
+    cb: (state: { isActive: boolean }) => void,
+  ) => Promise<{ remove: () => void }>;
 };
 
 const DEVICE_ID_KEY = 'push_device_id';
@@ -57,17 +65,19 @@ export function usePushRegistration() {
 
     const listeners: Array<{ remove: () => void }> = [];
 
+    const setNativePresence = (active: boolean) => {
+      const token = localStorage.getItem(NATIVE_PUSH_TOKEN_KEY);
+      if (!token) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (supabase.rpc as any)('set_notification_presence', {
+        _active: active,
+        _token: token,
+      });
+    };
+
     const setup = async () => {
       // The user explicitly turned push off on this device.
       if (isPushOptedOut()) return;
-      try {
-        const perm = await push.requestPermissions!();
-        if (perm.receive !== 'granted') return;
-        await push.register!();
-      } catch {
-        // Push not available (missing google-services.json / APNs capability).
-        return;
-      }
 
       // Token received → register it for the signed-in account.
       const tokenListener = await push.addListener!('registration', async (data: unknown) => {
@@ -90,6 +100,7 @@ export function usePushRegistration() {
             localStorage.setItem(NATIVE_PUSH_TOKEN_KEY, token);
           } catch { /* storage may be unavailable */ }
           window.dispatchEvent(new CustomEvent('push-token-registered'));
+          setNativePresence(true);
           console.info('[push-reg] Token registered for', platform);
         }
       });
@@ -129,12 +140,33 @@ export function usePushRegistration() {
         }
       );
       listeners.push(actionListener);
+
+      // Foreground app = in-app alert is enough; do not also raise an OS push.
+      const app = getNativePlugin<AppPlugin>('App');
+      if (app?.addListener) {
+        const appListener = await app.addListener('appStateChange', ({ isActive }) => {
+          setNativePresence(isActive);
+        });
+        listeners.push(appListener);
+      }
+
+      try {
+        // Do not prompt on launch. Register only after permission has been
+        // granted; the Settings card is the explicit request gesture.
+        const perm = push.checkPermissions
+          ? await push.checkPermissions()
+          : await push.requestPermissions!();
+        if (perm.receive === 'granted') await push.register!();
+      } catch {
+        // Push not available (missing google-services.json / APNs capability).
+      }
     };
 
     void setup();
 
     return () => {
       listeners.forEach(l => l.remove());
+      setNativePresence(false);
     };
   }, [userId, navigate]);
 }

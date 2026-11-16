@@ -20,6 +20,7 @@ import webpush from 'npm:web-push@3.6.7';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-push-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -437,6 +438,8 @@ async function deliver(
   ]);
 
   const now = Date.now();
+  const safeTitle = title.slice(0, 120) || 'The Tracker';
+  const safeBody = body.slice(0, 500);
   const isActive = (row: { active_until?: string | null }) =>
     Boolean(row.active_until && new Date(row.active_until).getTime() > now);
 
@@ -456,7 +459,7 @@ async function deliver(
   const staleEndpoints: string[] = [];
   if (subscriptions.length) {
     configureWebPush(config);
-    const payload = JSON.stringify({ title, body, data, badge, tag: data.notification_id || 'tracker' });
+    const payload = JSON.stringify({ title: safeTitle, body: safeBody, data, badge, tag: data.notification_id || 'tracker' });
 
     for (const sub of subscriptions) {
       try {
@@ -467,7 +470,7 @@ async function deliver(
         );
         webSent++;
       } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
+        if ([401, 403, 404, 410].includes(Number(err?.statusCode))) {
           staleEndpoints.push(sub.endpoint);
         } else {
           console.error('[push-send] Web push error:', err?.statusCode, err?.body ?? err?.message);
@@ -481,7 +484,7 @@ async function deliver(
   }
 
   // Native Push
-  const fcm = await sendFcm(tokens, title, body, data, badge);
+  const fcm = await sendFcm(tokens, safeTitle, safeBody, data, badge);
   if (fcm.stale.length) {
     await admin.from('push_device_tokens').delete().in('token', fcm.stale);
   }
