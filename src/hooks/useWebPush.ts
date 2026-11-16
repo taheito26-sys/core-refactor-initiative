@@ -62,6 +62,32 @@ export function useWebPush() {
         await push.register();
         setPushOptedOut(false);
         setPermission('granted');
+
+        // register() resolves before FCM necessarily delivers the token. Wait
+        // briefly so a missing google-services.json is reported honestly.
+        const tokenReady = await new Promise<boolean>((resolve) => {
+          if (localStorage.getItem(NATIVE_PUSH_TOKEN_KEY)) {
+            resolve(true);
+            return;
+          }
+          let timer: ReturnType<typeof setTimeout>;
+          const onRegistered = () => {
+            clearTimeout(timer);
+            window.removeEventListener('push-token-registered', onRegistered);
+            resolve(true);
+          };
+          timer = setTimeout(() => {
+            window.removeEventListener('push-token-registered', onRegistered);
+            resolve(false);
+          }, 6000);
+          window.addEventListener('push-token-registered', onRegistered);
+        });
+
+        if (!tokenReady) {
+          throw new Error('The device token was not received. Check that google-services.json and the FCM service account are configured.');
+        }
+
+        setSubscribed(true);
         toast({ title: 'Push notifications enabled', description: 'This device will now receive alerts.' });
       } else {
         await enableWebPush();
