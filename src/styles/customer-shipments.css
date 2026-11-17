@@ -336,3 +336,13 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .jp-switch button { display: inline-flex; align-items: center; gap: calc(5 * var(--q)); border: 0; background: transparent; font: inherit; font-size: calc(10 * var(--q)); font-weight: 800; color: var(--th-ad, #047857); padding: calc(4 * var(--q)) calc(10 * var(--q)); border-radius: 99px; cursor: pointer; }
 .jp-switch button.on { background: var(--th-a, #10b981); color: var(--th-pillfg, #fff); }
 .jp-switch svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); }
+
+/* Temperature, in plain words: the limits as one figure, a marked target on the strip, and a one-line verdict. */
+.cs-range .tick { position: absolute; top: calc(-2 * var(--q)); bottom: calc(-2 * var(--q)); width: 2px; margin-left: -1px; background: var(--th-ad, #047857); border-radius: 1px; }
+.cs-range-l span.t { font-weight: 800; color: var(--th-ad, #047857); }
+.cs-verdict { display: flex; flex-direction: column; gap: calc(1 * var(--q)); margin-top: calc(8 * var(--q)); border-radius: calc(10 * var(--q)); padding: calc(7 * var(--q)) calc(10 * var(--q)); font-size: calc(10.5 * var(--q)); }
+.cs-verdict b { font-size: calc(12 * var(--q)); font-weight: 800; }
+.cs-verdict span { color: #6b7a9c; }
+.cs-verdict.ok { background: var(--th-all, #ecfaf4); } .cs-verdict.ok b { color: #0b9a68; }
+.cs-verdict.bad { background: var(--th-badl, #ffe4ea); } .cs-verdict.bad b { color: var(--th-bad, #e11d48); }
+.cs-verdict.mute { background: transparent; padding: 0; }

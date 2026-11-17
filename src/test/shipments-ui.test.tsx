@@ -48,7 +48,7 @@ describe('ShipmentCard', () => {
     expect(screen.getByText('SH-0001')).toBeTruthy();
     expect(screen.getByText('8.5')).toBeTruthy();
     expect(screen.getAllByText('Out of range').length).toBeGreaterThan(0);
-    expect(screen.getByText('-15')).toBeTruthy();
+    expect(screen.getByText('-18…-12')).toBeTruthy();
     expect(screen.getByText('Ahmed El-Sayed')).toBeTruthy();
     expect(screen.getAllByText('Port Said').length).toBeGreaterThan(0);
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');

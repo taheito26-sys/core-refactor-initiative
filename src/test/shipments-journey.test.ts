@@ -51,3 +51,13 @@ describe('journey', () => {
     expect(fitTrail([{ latitude: 1, longitude: 1 }, { latitude: 1, longitude: 1 }], 300, 180)).toBeNull();
   });
 });
+
+import { temperatureVerdict } from '@/features/shipments/route';
+describe('temperatureVerdict', () => {
+  it('says how far past the nearest limit a reading is', () => {
+    expect(temperatureVerdict(-15, -15, 3)).toMatchObject({ state: 'ok', offBy: 0, low: -18, high: -12 });
+    expect(temperatureVerdict(-12, -15, 3).state).toBe('ok');
+    expect(temperatureVerdict(8.5, -15, 3)).toMatchObject({ state: 'warm', offBy: 20.5 });
+    expect(temperatureVerdict(-22, -15, 3)).toMatchObject({ state: 'cold', offBy: 4 });
+  });
+});

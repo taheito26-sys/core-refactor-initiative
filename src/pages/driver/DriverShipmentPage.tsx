@@ -14,7 +14,7 @@ import { JourneyPanel } from '@/features/shipments/components/JourneyPanel';
 import { TripHistory } from '@/features/shipments/components/TripHistory';
 import { ArrivalDialog } from '@/features/shipments/components/ArrivalDialog';
 import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
-import { RangeStrip } from '@/features/shipments/components/ShipmentCard';
+import { RangeStrip, TempLimits, TempVerdict } from '@/features/shipments/components/ShipmentCard';
 import { TripTiles } from '@/features/shipments/components/TripTiles';
 import { placeText } from '@/features/shipments/geo';
 import { useAddStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
@@ -85,14 +85,14 @@ export default function DriverShipmentPage() {
             {last && <div className={cn('cs-state', alert ? 'bad' : 'ok')} style={{ fontSize: 11 }}>{alert ? L('Out of range', 'خارج النطاق') : L('In range', 'ضمن النطاق')} · {agoLabel(last.taken_at, now, lang)}</div>}
           </div>
           <div className="co-amt-col end">
-            <div className="k">{L('Keep at', 'المطلوب')}</div>
-            <div className="co-amt cs-temp"><small>±{shipment.tolerance_c}</small><b>{temp(shipment.target_temp_c)}</b></div>
+            <TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />
             {shipment.weight_tons != null && <div className="cs-state mute"><Scale style={{ width: 11, height: 11, verticalAlign: '-1px' }} aria-hidden="true" /> {shipment.weight_tons} t</div>}
           </div>
         </div>
         {last && <details className="cs-latest-proof"><summary>{L('Latest photo and proof', 'آخر صورة وإثبات')}</summary><PhotoThumb path={last.photo_path} alt={L('Latest temperature photo', 'آخر صورة للحرارة')} /><ReadingProof reading={last} lang={lang} /></details>}
         <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={onTheRoad} now={now} lang={lang} />
         <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
+        {last && <TempVerdict temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />}
         {(
           <div className="cs-where">
             <MapPin aria-hidden="true" />

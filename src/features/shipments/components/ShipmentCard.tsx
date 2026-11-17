@@ -3,7 +3,7 @@ import { ChevronRight, MapPin, Scale, Timer, Truck, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { placeText } from '../geo';
 import {
-  agoLabel, attentionState, durationLabel, latestReading, liveness, rangeScale, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang,
+  agoLabel, attentionState, temperatureVerdict, durationLabel, latestReading, liveness, rangeScale, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang,
 } from '../route';
 import type { ShipmentStatus, ShipmentWithDetails } from '../types';
 
@@ -11,19 +11,52 @@ const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 const KIND: Record<ShipmentStatus, string> = { preparing: 'prep', on_the_road: 'road', delivered: 'done', ended_early: 'prep', cancelled: 'void' };
 
-/** The thermometer strip: the allowed band in green, the latest reading as a dot. */
+/** The thermometer strip: the allowed band in green with its two limits and the target, the latest reading as a dot. */
 export function RangeStrip({ temperature, target, tolerance, alert }: { temperature: number | null; target: number; tolerance: number; alert: boolean }) {
   const s = rangeScale(target, tolerance, temperature);
+  const targetPct = ((target - s.min) / (s.max - s.min)) * 100;
   return (
     <>
       <div className="cs-range" aria-hidden="true">
         <span className="band" style={{ left: `${s.bandStartPct}%`, width: `${s.bandEndPct - s.bandStartPct}%` }} />
+        <span className="tick" style={{ left: `${targetPct}%` }} />
         {s.markerPct !== null && <span className={cn('dot', alert && 'bad')} style={{ left: `${Math.min(100, Math.max(0, s.markerPct))}%` }} />}
       </div>
       <div className="cs-range-l" aria-hidden="true">
         <span style={{ left: `${s.bandStartPct}%` }}>{temp(s.bandLow)}°</span>
+        <span className="t" style={{ left: `${targetPct}%` }}>{temp(target)}°</span>
         <span style={{ left: `${s.bandEndPct}%` }}>{temp(s.bandHigh)}°</span>
       </div>
+    </>
+  );
+}
+
+/** One plain sentence: right on target, or too warm / too cold by how many degrees, and what the limits are. */
+export function TempVerdict({ temperature, target, tolerance, lang }: { temperature: number | null; target: number; tolerance: number; lang: Lang }) {
+  const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  if (temperature == null) return <div className="cs-verdict mute">{L('No reading yet', 'لا توجد قراءة بعد')}</div>;
+  const v = temperatureVerdict(temperature, target, tolerance);
+  const limits = <span dir="ltr">{temp(v.low)}° … {temp(v.high)}°</span>;
+  return (
+    <div className={cn('cs-verdict', v.state === 'ok' ? 'ok' : 'bad')}>
+      <b>
+        {v.state === 'ok' && L('Within the allowed range', 'ضمن النطاق المسموح')}
+        {v.state === 'warm' && <>{L('Too warm by', 'أدفأ من المسموح بـ')} <span dir="ltr">{temp(v.offBy)}°</span></>}
+        {v.state === 'cold' && <>{L('Too cold by', 'أبرد من المسموح بـ')} <span dir="ltr">{temp(v.offBy)}°</span></>}
+      </b>
+      <span>{L('It must stay between', 'يجب أن تبقى بين')} {limits}</span>
+    </div>
+  );
+}
+
+/** The allowed band as one figure, with the target it is built from, so nobody has to add and subtract. */
+export function TempLimits({ target, tolerance, lang }: { target: number; tolerance: number; lang: Lang }) {
+  const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  return (
+    <>
+      <div className="k">{L('Must stay between', 'يجب أن تبقى بين')}</div>
+      <div className="co-amt cs-temp"><small>°C</small><b>{temp(target - tolerance)}…{temp(target + tolerance)}</b></div>
+      <div className="cs-state mute">{L(`Target ${temp(target)}° ± ${temp(tolerance)}°`, `المطلوب ${temp(target)}° ± ${temp(tolerance)}°`)}</div>
     </>
   );
 }
@@ -69,14 +102,11 @@ export function ShipmentCard({ shipment, lang, now, onOpen, audience = 'customer
           <div className={cn('co-amt cs-temp', alert && 'bad')}><small>°C</small><b>{last ? temp(last.temperature_c) : '—'}</b></div>
           {last && <div className={cn('cs-state', alert ? 'bad' : 'ok')}>{alert ? L('Out of range', 'خارج النطاق') : L('In range', 'ضمن النطاق')}</div>}
         </div>
-        <div className="co-amt-col end">
-          <div className="k">{L('Target', 'المطلوب')}</div>
-          <div className="co-amt cs-temp"><small>±{shipment.tolerance_c}</small><b>{temp(shipment.target_temp_c)}</b></div>
-          <div className="cs-state mute">{L('allowed', 'النطاق المسموح')}</div>
-        </div>
+        <div className="co-amt-col end"><TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} /></div>
       </div>
       <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={shipment.status === 'on_the_road'} now={now} lang={lang} />
       <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
+      {last && <TempVerdict temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />}
 
       <div className="cs-chips">
         {audience === 'customer' && shipment.driver && <span className="co-rate"><User style={{ width: 11, height: 11 }} aria-hidden="true" /> <b dir="auto">{shipment.driver.display_name}</b></span>}

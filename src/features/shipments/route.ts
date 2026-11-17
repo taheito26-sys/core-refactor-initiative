@@ -218,3 +218,21 @@ export function isReadingStale(takenAt: string | null, intervalHours: number, no
 export function needsTemperatureConfirmation(temperature: number, target: number, tolerance = 3): boolean {
   return Math.abs(temperature - target) >= Math.max(10, tolerance);
 }
+
+export interface TempVerdict {
+  state: 'ok' | 'warm' | 'cold';
+  /** How far past the nearest edge of the allowed band, in degrees; 0 when inside. */
+  offBy: number;
+  low: number;
+  high: number;
+}
+
+/** In plain terms: inside the allowed band, or too warm / too cold and by how much. */
+export function temperatureVerdict(temperature: number, target: number, tolerance: number): TempVerdict {
+  const low = target - tolerance;
+  const high = target + tolerance;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  if (temperature > high + 1e-9) return { state: 'warm', offBy: round(temperature - high), low, high };
+  if (temperature < low - 1e-9) return { state: 'cold', offBy: round(low - temperature), low, high };
+  return { state: 'ok', offBy: 0, low, high };
+}

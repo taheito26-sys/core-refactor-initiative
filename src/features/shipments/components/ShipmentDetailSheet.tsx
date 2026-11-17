@@ -16,7 +16,7 @@ import { RouteSummary } from './RouteSummary';
 import { JourneyPanel } from './JourneyPanel';
 import { TripHistory } from './TripHistory';
 import { TripTiles } from './TripTiles';
-import { RangeStrip } from './ShipmentCard';
+import { RangeStrip, TempVerdict } from './ShipmentCard';
 import { TrendChart } from './TrendChart';
 
 const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -87,6 +87,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                       </div>
                     </div>
                     <RangeStrip temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
+                    <TempVerdict temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />
                     <ReadingProof reading={last} lang={lang} />
                   </>
                 ) : (

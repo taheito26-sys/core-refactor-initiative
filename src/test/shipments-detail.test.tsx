@@ -60,7 +60,7 @@ describe('Shipment detail panel', () => {
     expect(within(box).getByText('2/3')).toBeTruthy();
     expect(within(box).getByText('67%')).toBeTruthy();
     expect(within(box).getByText('-15…8.5')).toBeTruthy();
-    expect(within(box).getByText('2/3 recorded readings')).toBeTruthy();
+    expect(within(box).getByText('2 of 3 readings were inside the allowed range · 1 outside')).toBeTruthy();
   });
 
   it('shows where the truck is by name with a map, and the earlier positions', () => {
