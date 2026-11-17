@@ -10,6 +10,7 @@ import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshne
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
 import { RouteSummary } from '@/features/shipments/components/RouteSummary';
+import { JourneyPanel } from '@/features/shipments/components/JourneyPanel';
 import { TripHistory } from '@/features/shipments/components/TripHistory';
 import { ArrivalDialog } from '@/features/shipments/components/ArrivalDialog';
 import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
@@ -159,6 +160,7 @@ export default function DriverShipmentPage() {
         </section>
       )}
 
+      {shipment.status !== 'cancelled' && <JourneyPanel shipment={shipment} lang={lang} now={now} />}
       <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
       <TripHistory shipment={shipment} now={now} lang={lang} />
       {showArrival && progress.next && <ArrivalDialog stop={progress.next} lang={lang} onClose={() => setShowArrival(false)} />}

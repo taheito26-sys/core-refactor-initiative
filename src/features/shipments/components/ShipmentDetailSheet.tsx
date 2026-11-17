@@ -13,6 +13,7 @@ import { tripSummary } from '../trip-summary';
 import { PhotoThumb } from './PhotoThumb';
 import { ReadingProof, ReadingRow } from './ReadingRow';
 import { RouteSummary } from './RouteSummary';
+import { JourneyPanel } from './JourneyPanel';
 import { TripHistory } from './TripHistory';
 import { TripTiles } from './TripTiles';
 import { RangeStrip } from './ShipmentCard';
@@ -142,6 +143,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 )}
               </section>
 
+              {shipment.status !== 'cancelled' && <JourneyPanel shipment={shipment} lang={lang} now={now} />}
               <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
               <TripHistory shipment={shipment} now={now} lang={lang} />
 
