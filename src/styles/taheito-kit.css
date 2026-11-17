@@ -164,3 +164,21 @@
 .tracker-root .dh.th-dh { max-width: none; padding: 0; margin: 0; display: flex; --s: 1 !important; }
 .tracker-root .dh.th-dh > .dh-card { flex: 1; min-width: 0; margin: 0; background: #fff; border: 0; border-radius: calc(14 * var(--q)); box-shadow: 0 1px 0 rgba(15, 42, 36, .04), 0 6px 18px -10px rgba(var(--th-rgb), .35); }
 .tracker-root .dh.th-dh .dh-trend-chart { height: calc(190 * var(--q)); }
+
+/* Phone: the figures in three columns, everything tighter, so far more fits on one screen. */
+@media (max-width: 639px) {
+  .th-dash .co-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(5 * var(--q)); }
+  .th-dash .co-t-l { font-size: calc(8.5 * var(--q)); }
+  .th-dash .co-t-v { font-size: min(calc(11.5 * var(--q)), 13cqw); }
+  .th-dg { gap: calc(6 * var(--q)); padding-top: calc(6 * var(--q)); }
+  .th-dc { padding: calc(8 * var(--q)) calc(9 * var(--q)); gap: calc(4 * var(--q)); }
+  .th-dc-big b { font-size: calc(20 * var(--q)); }
+  .th-dc-accts { gap: calc(4 * var(--q)); }
+  .th-dc-row { padding: calc(3 * var(--q)) 0; }
+  .th-dc-months { flex-direction: row; gap: calc(10 * var(--q)); }
+  .th-dc-months > div { flex: 1; min-width: 0; }
+  .th-dc-months .th-dc-row { flex-direction: column; align-items: flex-start; gap: 0; }
+  .tracker-root .dh.th-dh .dh-trend-chart { height: calc(150 * var(--q)); }
+  .tracker-root .dh.th-dh .dh-kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) { .th-dash .co-tiles > :last-child:nth-child(3n+2) { grid-column: span 2; } }
