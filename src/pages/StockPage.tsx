@@ -63,13 +63,17 @@ import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDial
 import { usePendingExchangeItems } from '@/features/stock/hooks/usePendingExchangeItems';
 import { batchUntaggedUSDT } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
-import { Coins, Factory, Handshake, Layers, Package, TrendingUp, Wallet } from 'lucide-react';
+import { Coins, Factory, Handshake, Layers, Package, Plus as PlusIcon, TrendingUp, Wallet } from 'lucide-react';
+import {
+  MerchantHero, ThBox, ThCard, ThChips, ThEmpty, ThHead, ThList, ThMain, ThRoot, ThSearch, ThSheet, ThTabs, ThTiles, ThTools,
+  type ThStripe, type ThTone,
+} from '@/features/taheito/kit';
 import {
   OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, bucketSeries, initialOf, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
-import { useStockDesign, usesNewLayout } from '@/features/orders/v2/design';
+import { useStockDesign } from '@/features/orders/v2/design';
 import '@/styles/orders-v2.css';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -150,7 +154,11 @@ export default function StockPage() {
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
   // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
   const [design] = useStockDesign();
-  const v2 = isMobile && usesNewLayout(design);
+  const v2 = isMobile && design === 'v2';
+  // The Taheito design draws its own page at every width: hero, main card, stripe cards and a detail sheet.
+  const taheito = design === 'taheito';
+  const [thOpen, setThOpen] = useState<string | null>(null);
+  const [thShown, setThShown] = useState(40);
   const [v2FilterOpen, setV2FilterOpen] = useState(false);
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');
@@ -698,7 +706,7 @@ export default function StockPage() {
     setBatchSupplier('');
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
-    if (isMobile) {
+    if (isMobile || design === 'taheito') {
       setBatchMsg('');
       setBatchConfirmDetails({ qty: totalUSDT, price: px, source, total: batchCostQAR, fundingAccName });
       setTimeout(() => {
@@ -1045,20 +1053,20 @@ export default function StockPage() {
   const v2Invested = perf.reduce((sum, b) => sum + b.initialUSDT * b.buyPriceQAR, 0);
   const v2Spark = (pick: (b: typeof perf[number]) => number) => bucketSeries(perf.map(b => ({ ts: b.ts, value: pick(b) })));
   const v2Money = (v: number, signed = false) => { const { n, u } = splitMoney(fmtC(v)); return { value: `${signed && v >= 0 ? '+' : ''}${n}`, unit: u || undefined }; };
-  const v2Kpis: V2Kpi[] = !v2 ? [] : [
+  const v2Kpis: V2Kpi[] = !(v2 || taheito) ? [] : [
     { key: 'avail', label: t('availableUsdtShort'), Icon: Layers, tone: 'good', value: fmtU(availableUsdt), unit: 'USDT', spark: v2Spark(b => b.remaining) },
     { key: 'invested', label: t('totalInvestedQar'), Icon: Wallet, tone: 'brand', ...v2Money(v2Invested), spark: v2Spark(b => b.initialUSDT * b.buyPriceQAR) },
     ...(wacop > 0 ? [{ key: 'est', label: t('estValue'), Icon: TrendingUp, tone: 'brand2' as const, ...v2Money(availableUsdt * wacop), sparkWide: true, kind: 'line' as const, spark: v2Spark(b => b.remaining * b.buyPriceQAR) }] : []),
     { key: 'avg', label: t('monthAvgBuyPrice'), Icon: Coins, tone: 'warn', value: monthAvgBuyPrice != null ? fmtP(monthAvgBuyPrice) : '—', unit: monthAvgBuyPrice != null ? `${localCur(baseFiat, t.lang)}/${localCur('USDT', t.lang)}` : undefined, kind: 'line', spark: perf.length > 1 ? [...perf].reverse().map(b => b.buyPriceQAR) : undefined },
   ];
-  const v2Extras = !v2 ? [] : [
+  const v2Extras = !(v2 || taheito) ? [] : [
     ...(reconcileExchangesEnabled ? [{ key: 'delta', label: t('reconciliationDelta'), value: `${reconciliationDelta >= 0 ? '+' : ''}${fmtU(reconciliationDelta)} USDT` }] : []),
     ...(activeFifoBatch ? [{ key: 'fifo', label: t('activeFifoLayer'), value: `${activeFifoBatch.source || '—'} · ${fmtP(activeFifoBatch.buyPriceQAR)}` }] : []),
     { key: 'binance', label: `${EXCHANGE_LABELS.binance} USDT`, value: fmtU(exchangeUsdtTotals.binance) },
     { key: 'okx', label: `${EXCHANGE_LABELS.okx} USDT`, value: fmtU(exchangeUsdtTotals.okx) },
   ];
   const v2SearchValue = settings.searchQuery || '';
-  const v2Refs = v2 ? orderReferences(state.batches, 'BAT') : new Map<string, string>();
+  const v2Refs = (v2 || taheito) ? orderReferences(state.batches, 'BAT') : new Map<string, string>();
 
   const renderBatchV2Card = (b: typeof perf[number]) => {
     const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
@@ -1142,11 +1150,163 @@ export default function StockPage() {
     );
   };
 
+
+  // ═══ Taheito design ═══ the page drawn from the kit: hero, main card (tabs, months, tools, tiles), stripe cards, detail sheet.
+  const thLang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
+  const thTone = (kind: 'good' | 'warn' | 'bad'): ThTone => (kind === 'good' ? 'ok' : kind);
+  const thMoney = (n: number) => splitMoney(fmtC(n));
+
+  /** A batch's figures, shared by its card and its sheet. */
+  const batchFigures = (b: typeof perf[number]) => {
+    const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
+    const consumed = Math.max(0, b.initialUSDT - rem);
+    const left = Math.max(0, Math.min(100, (b.initialUSDT > 0 ? rem / b.initialUSDT : 0) * 100));
+    const status = rem <= 1e-9
+      ? { label: t('depleted'), kind: 'bad' as const, stripe: 'void' as ThStripe }
+      : rem < b.initialUSDT ? { label: t('partial'), kind: 'warn' as const, stripe: 'prep' as ThStripe } : { label: t('fresh'), kind: 'good' as const, stripe: 'done' as ThStripe };
+    return { rem, consumed, left, status, profit: b.profit || 0, reference: v2Refs.get(b.id) ?? '', when: new Date(b.ts), locale: t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-US' };
+  };
+
+  const thBatchCard = (b: typeof perf[number]) => {
+    const f = batchFigures(b);
+    const profit = thMoney(f.profit);
+    return (
+      <ThCard
+        key={`th-batch-${b.id}`} id={b.id} stripe={f.status.stripe} no={f.reference || undefined} name={b.source || '—'}
+        date={f.when.toLocaleDateString(f.locale)} tag={{ label: f.status.label, tone: thTone(f.status.kind) }}
+        columns={[
+          { k: t('qty'), v: fmtU(b.initialUSDT), unit: 'USDT' },
+          { k: t('buyPrice'), v: fmtP(b.buyPriceQAR), unit: localCur(baseFiat, t.lang) },
+          { k: t('rem'), v: fmtU(f.rem), unit: 'USDT' },
+          { k: t('profit'), v: f.profit !== 0 ? `${f.profit >= 0 ? '+' : ''}${profit.n}` : '—', unit: f.profit !== 0 ? profit.u || undefined : undefined, tone: f.profit === 0 ? 'muted' : f.profit >= 0 ? 'good' : 'bad', end: true },
+        ]}
+        foot={<>
+          {b.importedFrom ? <ImportedBadge exchange={b.importedFrom} /> : <ManualBadge />}
+          {borrowTagByBatchId.has(b.id) && <span className="pill">🤝 {borrowTagByBatchId.get(b.id)}</span>}
+          <span className="th-bar"><div className="co-track"><i className={f.left > 0 ? 'a' : 'g'} style={{ width: `${f.left.toFixed(0)}%` }} /></div><b>{f.left.toFixed(0)}%</b></span>
+        </>}
+        goLabel={t('ov2Details')} onOpen={() => setThOpen(b.id)}
+      />
+    );
+  };
+
+  const renderTaheitoStockList = () => {
+    if (perf.length === 0) {
+      return <ThEmpty icon={<Package aria-hidden="true" />} title={t('noBatchesShort')} text={t('addFirstPurchase')}>
+        <button type="button" className="co-new" onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}><PlusIcon strokeWidth={2.2} />{t('addBatchTitle')}</button>
+      </ThEmpty>;
+    }
+    const ordered = v2Oldest ? [...perf].reverse() : perf;
+    return (
+      <>
+        <ThHead title={t('sv2BatchesWord')} count={perf.length} action={hasActiveStockFilters ? { label: t('clearFilters'), onClick: clearStockFilters } : undefined} />
+        <ThList>{ordered.slice(0, thShown).map(thBatchCard)}</ThList>
+        {ordered.length > thShown && (
+          <div style={{ textAlign: 'center', marginTop: 12 }}><button type="button" className="co-tool" onClick={() => setThShown(n => n + 40)}>{t('thShowMore').replace('{n}', String(ordered.length - thShown))}</button></div>
+        )}
+      </>
+    );
+  };
+
+  const renderTaheitoStockPage = () => {
+    const tones = ['t3', 't1', 't2', 't4', 't1', 't3', 't2', 't4'];
+    const tiles = [...v2Kpis.map(k => ({ key: k.key, icon: k.Icon, label: k.label, value: k.value, unit: k.unit })),
+      ...v2Extras.map((x, i) => ({ key: x.key, icon: x.key === 'delta' ? TrendingUp : x.key === 'fifo' ? Coins : Layers, label: x.label, value: x.value, unit: undefined as string | undefined, tone: x.key === 'delta' && reconciliationMismatch ? (mismatchExplained ? undefined : 'bad' as const) : undefined, i }))]
+      .map((x, i) => ({ ...x, cls: tones[i % tones.length] }));
+    const chips = [{ key: 'all', label: t('allMonths') }, ...v2Months.map(m => ({ key: m.key, label: m.label }))];
+    return (
+      <ThRoot lang={thLang} className="th-stock-page">
+        {isMobile && (
+          <MerchantHero
+            lang={thLang} icon={<Package className="co-ttl-ic" strokeWidth={1.7} />} title={t('stock')} subtitle={t('thStockSub')}
+            trendDown={reconcileExchangesEnabled && reconciliationMismatch && !mismatchExplained}
+            trendTitle={`${fmtU(availableUsdt)} USDT`}
+            trendText={reconcileExchangesEnabled ? (!reconciliationMismatch ? t('reconciliationMatch') : mismatchExplained ? t('reconcileExplainedStatus') : t('reconciliationMismatch')) : t('availableUsdtShort')}
+          />
+        )}
+        <ThMain
+          label={t('stock')}
+          primary={activeStockSection === 'batches' ? { label: t('addBatchTitle'), icon: <PlusIcon strokeWidth={2.2} />, onClick: () => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); } } : undefined}
+          tabs={
+            <ThTabs
+              label={t('stock')} active={activeStockSection}
+              onSelect={id => { setThShown(40); setActiveStockSection(id); }}
+              tabs={[
+                { id: 'batches', label: t('stock'), icon: Package },
+                { id: 'suppliers', label: t('suppliers'), icon: Factory },
+                { id: 'transfers', label: t('mloanTab'), icon: Handshake },
+              ]}
+            />
+          }
+        >
+          {activeStockSection === 'batches' && (
+            <>
+              <ThChips chips={chips} selected={selectedMonth} onSelect={k => { setThShown(40); setSelectedMonth(k); }} />
+              <ThTools>
+                <ThSearch value={v2SearchValue} onChange={v => update({ searchQuery: v })} placeholder={t('sv2Search')} label={t('sv2Search')} />
+                <ExchangeReferenceSearch state={state} scope="stock" compact value={v2SearchValue} onValueChange={v => update({ searchQuery: v })} hideInput />
+                <span className="th-select">
+                  <ModernSelect compact value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
+                    <option value="">{t('allSuppliers')}</option>
+                    {supplierFilterOptions.map(supplier => <option key={supplier} value={supplier}>{supplier}</option>)}
+                  </ModernSelect>
+                </span>
+                <P2PAuditButton state={state} monthKey={selectedMonth} lang={thLang} side="buy" onRegister={applyExchangeOrderPrefill} />
+              </ThTools>
+              <ThTiles tiles={tiles} />
+            </>
+          )}
+        </ThMain>
+      </ThRoot>
+    );
+  };
+
+  const renderTaheitoStockSheet = () => {
+    if (!thOpen) return null;
+    const b = perf.find(x => x.id === thOpen);
+    if (!b) return null;
+    const f = batchFigures(b);
+    const ct = batchCycleTime(state, derived, b.id);
+    const untagged = batchUntaggedUSDT(state, b.id);
+    const close = () => setThOpen(null);
+    const profit = thMoney(f.profit);
+    const actions: Array<{ key: string; label: string; run: () => void }> = [
+      { key: 'edit', label: t('edit'), run: () => { close(); openEdit(b.id); } },
+      ...(untagged > 1e-6 ? [{ key: 'loan', label: `🤝 ${t('mloanTitle')}`, run: () => { close(); setLoanSources([{ type: 'batch', batchId: b.id, available: untagged, ts: b.ts }]); } }] : []),
+      { key: 'copy', label: t('sv2Copy'), run: () => { void navigator.clipboard?.writeText(f.reference); toast.success(t('sv2Copied')); } },
+    ];
+    const row = (label: string, value: React.ReactNode) => <div className="th-row"><span>{label}</span><strong>{value}</strong></div>;
+    return (
+      <ThSheet open lang={thLang} onClose={close} title={f.reference || b.source || '—'} tag={{ label: f.status.label, tone: thTone(f.status.kind) }} subtitle={`⁨${b.source || '—'}⁩ · ${f.when.toLocaleString(f.locale)}`}>
+        <ThBox>
+          <ThTiles tiles={[
+            { key: 'qty', cls: 't1', icon: Layers, label: t('qty'), value: fmtU(b.initialUSDT), unit: 'USDT' },
+            { key: 'price', cls: 't2', icon: Coins, label: t('buyPrice'), value: fmtP(b.buyPriceQAR), unit: localCur(baseFiat, t.lang) },
+            { key: 'rem', cls: 't3', icon: Package, label: t('rem'), value: fmtU(f.rem), unit: 'USDT' },
+            { key: 'profit', cls: 't4', icon: TrendingUp, label: t('profit'), value: f.profit !== 0 ? `${f.profit >= 0 ? '+' : ''}${profit.n}` : '—', unit: f.profit !== 0 ? profit.u || undefined : undefined, tone: f.profit === 0 ? undefined : f.profit >= 0 ? 'good' : 'bad' },
+          ]} />
+        </ThBox>
+        <ThBox title={t('batchUtilization')} note={`${f.left.toFixed(0)}% ${t('remainingPct')}`}>
+          <BatchConsumption initial={b.initialUSDT} remaining={f.rem} />
+          <div className="co-track" style={{ marginTop: 8 }}><i className={f.left > 0 ? 'a' : 'g'} style={{ width: `${f.left.toFixed(0)}%` }} /></div>
+        </ThBox>
+        <ThBox title={t('ov2Details')}>
+          {row(t('cost'), fmtC(b.initialUSDT * b.buyPriceQAR))}
+          {row(t('batchConsumedQty'), <>{fmtU(f.consumed)} USDT</>)}
+          {ct !== null && row(t('cycleTime'), fmtDur(ct))}
+          {b.note && row(t('batchNotes'), b.note)}
+          {borrowTagByBatchId.has(b.id) && row(t('mloanTitle'), borrowTagByBatchId.get(b.id))}
+        </ThBox>
+        <ThBox><div className="th-actions">{actions.map(a => <button key={a.key} type="button" className="co-tool" onClick={a.run}>{a.label}</button>)}</div></ThBox>
+      </ThSheet>
+    );
+  };
+
   return (
-    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile && !taheito ? ' stock-mobile-root' : ''}${v2 ? ' ov2' : ''}${taheito ? ' th-stock' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
 
-      {v2 ? (
+      {taheito ? renderTaheitoStockPage() : v2 ? (
         <>
           {activeStockSection === 'batches' && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
@@ -1202,23 +1362,23 @@ export default function StockPage() {
 
       {/* ── SUPPLIERS TAB — moved here from the old combined CRM page ── */}
       {activeStockSection === 'suppliers' && (
-        <SuppliersPanel state={state} applyState={applyState} />
+        <div className={taheito ? 'th-embed th-panel' : undefined}><SuppliersPanel state={state} applyState={applyState} /></div>
       )}
 
       {activeStockSection === 'transfers' && (
-        <LoansPanel
+        <div className={taheito ? 'th-embed th-panel' : undefined}><LoansPanel
           state={state}
           derived={derived}
           applyStateAndCommit={applyStateAndCommit}
           onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
           onManualFix={setManualFixItems}
-        />
+        /></div>
       )}
 
       {stockTab === 'batches' && (
       <div className="twoColPage" style={{ ...(isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined), ...(activeStockSection !== 'batches' ? { display: 'none' } : undefined) }}>
         <div>
-          {v2 ? (
+          {taheito ? null : v2 ? (
             <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={setSelectedMonth} allLabel={t('allMonths')} />
           ) : (
           <div 
@@ -1256,7 +1416,7 @@ export default function StockPage() {
           </div>
           )}
 
-          <div className={v2 ? 'orders-filter-row' : undefined} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+          <div className={v2 ? 'orders-filter-row' : undefined} style={{ display: taheito ? 'none' : 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
             <ModernSelect compact
               value={supplierFilter}
               onChange={e => setSupplierFilter(e.target.value)}
@@ -1272,7 +1432,7 @@ export default function StockPage() {
             <P2PAuditButton state={state} monthKey={selectedMonth} lang={t.lang === 'ar' ? 'ar' : 'en'} side="buy" onRegister={applyExchangeOrderPrefill} />
           </div>
 
-          <div style={{ display: v2 ? 'none' : 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
+          <div style={{ display: v2 || taheito ? 'none' : 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
             {reconcileExchangesEnabled && kpiChip({
               label: t('reconciliationDelta') || 'Delta',
               value: <>{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} {localCur('USDT', t.lang)}</>,
@@ -1317,7 +1477,7 @@ export default function StockPage() {
             })}
           </div>
 
-          <div style={{ marginBottom: 9 }}>
+          <div className={taheito ? 'th-recon' : undefined} style={{ marginBottom: 9 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
               <Checkbox checked={reconcileExchangesEnabled} onCheckedChange={(v) => setReconcileExchangesEnabled(v === true)} />
               {t('checkExchangeReconciliation') || 'Check tracker vs. exchange balances'}
@@ -1453,7 +1613,7 @@ export default function StockPage() {
             )}
           </div>
 
-          {perf.length === 0 ? (
+          {taheito ? <ThRoot lang={thLang} className="th-stock-list">{renderTaheitoStockList()}</ThRoot> : perf.length === 0 ? (
             <div className="empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -1682,7 +1842,7 @@ export default function StockPage() {
 
         </div>
 
-        {!isMobile && (<div>
+        {!isMobile && !taheito && (<div>
           <div className="formPanel salePanel">
             <div className="hdr" style={addBatchAccent.header}>
               <span style={addBatchAccent.headerIcon}>➕</span>
@@ -1927,7 +2087,7 @@ export default function StockPage() {
       )} {/* end batches tab */}
 
       {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
-      {isMobile && stockTab === 'batches' && activeStockSection === 'batches' && (
+      {isMobile && !taheito && stockTab === 'batches' && activeStockSection === 'batches' && (
         <button
           aria-label={t('addBatchTitle')}
           onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
@@ -1960,7 +2120,9 @@ export default function StockPage() {
       )}
 
       {/* ── Mobile Add Batch Bottom Sheet ──────────────────────────── */}
-      {isMobile && addBatchSheetOpen && (
+      {taheito && renderTaheitoStockSheet()}
+
+      {(isMobile || taheito) && addBatchSheetOpen && (
         <div
           className="batch-sheet-overlay"
           onClick={(e) => { if (e.target === e.currentTarget && !batchConfirmDetails) setAddBatchSheetOpen(false); }}

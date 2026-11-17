@@ -652,6 +652,7 @@ const translations = {
   ov2Try: { en: 'Try the new layout', ar: 'جرّب العرض الجديد' },
   ov2LayoutNew: { en: 'New', ar: 'جديد' },
   ov2LayoutClassic: { en: 'Classic', ar: 'كلاسيكي' },
+  thStockSub: { en: 'Every purchase batch, what is left of it and what it earned', ar: 'كل دفعة شراء، وما تبقى منها، وما حققته من ربح' },
   thOrdersSub: { en: 'Every sale, loan and partner deal in one place', ar: 'كل عملية بيع وقرض وصفقة شريك في مكان واحد' },
   thHeroWaiting: { en: '{n} waiting for approval', ar: '{n} بانتظار الموافقة' },
   thHeroWaitingHint: { en: 'Check Incoming and the pending orders', ar: 'راجع الواردة والطلبات المعلقة' },
