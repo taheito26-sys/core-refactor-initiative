@@ -1,13 +1,25 @@
 /* Taheito kit for the merchant app: the few things the portal stylesheets do not cover. Everything else is the
    portal's own co-*, cs-* and ch-* classes (customer-home, customer-orders, customer-shipments, customer-theme). */
 
-/* The merchant pages use the width of the screen: a wider column, two-up lists and four tiles across. */
-.th-root { max-width: 1120px; padding-bottom: calc(24 * var(--q)); background: var(--th-page, #f1f6fc); }
-.th-root .co-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (min-width: 640px) { .th-root .co-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (min-width: 1024px) { .th-root .cs-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.th-root .co-tools { flex-wrap: wrap; align-items: center; }
+/* Edge to edge and dense: the page uses the whole screen, the tiles run across it, and the controls share rows, so
+   as much as possible is visible without scrolling. The shell's own padding is removed for these pages. */
+.app-page-shell:has(.th-root) { padding: 0 !important; }
+.th-root { --pad: 8px; max-width: none; width: 100%; padding-bottom: calc(8 * var(--q)); background: var(--th-page, #f1f6fc); }
+.th-root .co-mainwrap { padding: 0; }
+.th-root .co-main { padding: calc(8 * var(--q)) calc(8 * var(--q)) calc(10 * var(--q)); border-radius: 0 0 calc(14 * var(--q)) calc(14 * var(--q)); }
+.th-root .co-mtop { flex-wrap: wrap; gap: calc(6 * var(--q)) calc(10 * var(--q)); }
+.th-root .co-mtop .cs-tabs { order: 2; flex: 1 1 calc(260 * var(--q)); max-width: calc(560 * var(--q)); min-width: 0; padding: 0; }
+.th-root .co-mtop .co-new { order: 3; }
+.th-bar { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6 * var(--q)) calc(8 * var(--q)); margin-top: calc(8 * var(--q)); }
+.th-bar .co-months { padding: 0; flex: 0 1 auto; }
+.th-bar .co-tools { padding: 0; flex: 1 1 calc(300 * var(--q)); justify-content: flex-start; }
+.th-root .co-tiles { grid-template-columns: repeat(auto-fit, minmax(calc(128 * var(--q)), 1fr)); gap: calc(6 * var(--q)); margin-top: calc(8 * var(--q)); }
+.th-root .cs-list { grid-template-columns: repeat(auto-fill, minmax(calc(330 * var(--q)), 1fr)); gap: calc(6 * var(--q)); margin-top: calc(8 * var(--q)); }
+.th-root .cs-head { margin-top: calc(10 * var(--q)); }
 .th-root .co-tools > * { min-width: 0; }
+/* The merchant's name and the title are enough on the phone: the avatar row goes, so the hero is shorter. */
+.th-root .co-idrow { display: none; }
+.th-root .co-hero2 { height: calc(84 * var(--q)); }
 
 .th-tabs { overflow-x: auto; scrollbar-width: none; }
 .th-tabs::-webkit-scrollbar { display: none; }
@@ -45,8 +57,8 @@
   .th-orders.th-sale-open #new-sale-form { inset: auto 0 0 0; width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; }
   .th-orders.th-sale-open #new-sale-form .hdr { border-radius: 20px 20px 0 0; }
 }
-.th-orders .twoColPage { display: block; }
-.th-orders .twoColPage > div { max-width: 1120px; margin-inline: auto; padding-inline: 16px; }
+.tracker-root.th-orders .twoColPage { display: block; grid-template-columns: none; }
+.th-orders .twoColPage > div { padding-inline: 8px; }
 .th-orders .twoColPage > div:empty { display: none; }
 .th-orders .formPanel:not(#new-sale-form) {
   background: #fff; border: 0; border-radius: 14px; margin-top: 12px; overflow: hidden;
@@ -59,7 +71,7 @@
 .th-actions { display: flex; flex-wrap: wrap; gap: calc(8 * var(--q)); }
 .co-tool.th-bad { color: var(--th-bad, #e11d48) !important; }
 .co-tool.th-warn { color: #b45309; }
-.th-customers { margin: calc(12 * var(--q)) var(--pad) 0; }
+.th-customers { margin: calc(8 * var(--q)) var(--pad) 0; }
 
 /* Tracker buttons that sit in the tools row (the P2P check, the period picker) take the portal's tool look. */
 .th-tools .rowBtn, .th-tools button.rowBtn {
@@ -71,19 +83,21 @@
 @media (max-width: 639px) {
   .th-tools .cs-search { flex: 1 1 100%; }
   .th-tabs { gap: calc(5 * var(--q)); }
+  .th-root .co-mtop .co-new { order: 2; margin-inline-start: auto; }
+  .th-root .co-mtop .cs-tabs { order: 3; flex: 1 1 100%; max-width: none; }
   .th-tabs .cs-tab { flex: 0 0 auto; padding-inline: calc(12 * var(--q)); }
 }
 
 /* ── Stock: the page's columns stack, the exchange check sits under the main card, the add-batch form is a sheet ── */
-.th-stock .twoColPage { display: block; }
-.th-stock .twoColPage > div { max-width: 1120px; margin-inline: auto; padding-inline: 0; width: 100%; }
+.tracker-root.th-stock .twoColPage { display: block; grid-template-columns: none; }
+.th-stock .twoColPage > div { padding-inline: 0; width: 100%; }
 .th-stock .twoColPage > div:empty { display: none; }
 .th-stock .th-stock-list { min-height: 0; padding-bottom: calc(24 * var(--q)); }
 .th-recon {
-  margin: 12px 16px 0; padding: 12px 14px; border-radius: 14px; background: #fff; color: var(--th-ink, #0f1f5e);
+  margin: 8px; padding: 8px 12px; border-radius: 14px; background: #fff; color: var(--th-ink, #0f1f5e);
   box-shadow: 0 2px 8px rgba(36, 72, 140, .08), 0 0 0 1px rgba(220, 230, 245, .5);
 }
-.th-panel { max-width: 1120px; margin: 12px auto 0; padding-inline: 16px; }
+.th-panel { margin: 8px 0 0; padding-inline: 8px; }
 .th-row { display: flex; justify-content: space-between; gap: calc(10 * var(--q)); padding: calc(6 * var(--q)) 0; font-size: calc(11.5 * var(--q)); border-bottom: 1px solid #edf2fa; }
 .th-row:last-child { border-bottom: 0; }
 .th-row span { color: #6b7a9c; }
@@ -95,3 +109,17 @@
   .th-stock .batch-sheet-overlay { justify-content: center; align-items: center; }
   .th-stock .batch-sheet { border-radius: 20px; border: 0; max-height: 90dvh; }
 }
+
+/* ─── Dashboard: figures edge to edge, the cards in a dense grid ─── */
+.th-dash .co-tiles + .co-tiles { margin-top: calc(6 * var(--q)); }
+.th-dash-body { padding: 0 var(--pad, 8px) calc(14 * var(--q)); }
+.tracker-root .dh.th-dh { max-width: none; padding: 0; margin: 0; display: grid; gap: calc(8 * var(--q)); grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(340 * var(--q))), 1fr)); align-items: stretch; grid-auto-flow: dense; }
+.tracker-root .dh.th-dh > * { min-width: 0; }
+.tracker-root .dh.th-dh > .dh-trend, .tracker-root .dh.th-dh > .dh-top { grid-column: span 2; }
+.tracker-root .dh.th-dh .th-pair { display: contents; }
+@media (max-width: 760px) {
+  .tracker-root .dh.th-dh > .dh-trend, .tracker-root .dh.th-dh > .dh-top { grid-column: auto; }
+}
+.tracker-root .dh.th-dh { --s: 1 !important; }
+.tracker-root .dh.th-dh > .dh-kpis { grid-column: span 2; }
+@media (max-width: 760px) { .tracker-root .dh.th-dh > .dh-kpis { grid-column: auto; } }

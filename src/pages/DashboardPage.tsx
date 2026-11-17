@@ -25,6 +25,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { CustomKpis, type KpiPeriod } from '@/features/dashboard/components/CustomKpis';
 import type { KpiOption } from '@/features/dashboard/kpi-catalog';
 import { DashboardHome, type HomeTile } from '@/features/dashboard/components/home/DashboardHome';
+import { TaheitoDashboard } from '@/features/dashboard/components/home/TaheitoDashboard';
 import { useBanqueMisrRate } from '@/features/dashboard/hooks/useBanqueMisrRate';
 import { useDashboardFilters } from '@/features/dashboard/dashboard-filters';
 import {
@@ -60,6 +61,8 @@ export default function DashboardPage(props: DashboardPageProps = {}) {
 function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, topSlot }: DashboardPageProps & { topSlot?: ReactNode }) {
   const { settings } = useTheme();
   const t = useT();
+  const [pageDesign] = useHomeDesign();
+  const DashboardView = pageDesign === 'taheito' ? TaheitoDashboard : DashboardHome;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAdminWorkspace = Boolean(isAdminView);
@@ -693,7 +696,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
   return (
     <div className="tracker-root dashboard-home-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100%' }}>
       {topSlot}
-      <DashboardHome
+      <DashboardView
         points={points}
         allPoints={allPoints}
         win={win}
@@ -711,7 +714,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
         onGo={navigate}
       >
         <CustomKpis trackerOptions={homeKpiOptions} lang={t.lang === 'ar' ? 'ar' : 'en'} period={kpiPeriod} onPeriod={setKpiPeriod} />
-      </DashboardHome>
+      </DashboardView>
 
       {showCashBox && !isAdminView && (
         <CashBoxManager

@@ -1241,6 +1241,7 @@ export default function StockPage() {
         >
           {activeStockSection === 'batches' && (
             <>
+              <div className="th-bar">
               <ThChips chips={chips} selected={selectedMonth} onSelect={k => { setThShown(40); setSelectedMonth(k); }} />
               <ThTools>
                 <ThSearch value={v2SearchValue} onChange={v => update({ searchQuery: v })} placeholder={t('sv2Search')} label={t('sv2Search')} />
@@ -1253,6 +1254,7 @@ export default function StockPage() {
                 </span>
                 <P2PAuditButton state={state} monthKey={selectedMonth} lang={thLang} side="buy" onRegister={applyExchangeOrderPrefill} />
               </ThTools>
+              </div>
               <ThTiles tiles={tiles} />
             </>
           )}

@@ -50,9 +50,9 @@ export function ThMain({ label, primary, tabs, children }: {
       <div className="ch-card co-main">
         <div className="co-mtop">
           <div className="co-mlabel">{label}</div>
+          {tabs}
           {primary && <button type="button" className="co-new" onClick={primary.onClick} disabled={primary.disabled}>{primary.icon}{primary.label}</button>}
         </div>
-        {tabs}
         {children}
       </div>
     </div>

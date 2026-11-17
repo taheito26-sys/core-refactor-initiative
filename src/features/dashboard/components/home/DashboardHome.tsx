@@ -62,6 +62,8 @@ interface DashboardHomeProps {
   fees: number;
   cash: HomeCash;
   onGo: (path: string) => void;
+  /** The Taheito page supplies the headline figures and tiles itself, so only the cards are drawn. */
+  bare?: boolean;
   /** The My KPIs card. */
   children?: ReactNode;
 }
@@ -96,7 +98,7 @@ function Delta({ pct, label }: { pct: number | null; label: string }) {
 
 /** The merchant dashboard home: every colour comes from the active theme's variables. */
 export function DashboardHome({
-  points, allPoints, win, rangeText, comparisonText, now, lang, isAdminView, money, parts, tiles, moreTiles, fees, cash, onGo, children,
+  points, allPoints, win, rangeText, comparisonText, now, lang, isAdminView, money, parts, tiles, moreTiles, fees, cash, onGo, bare, children,
 }: DashboardHomeProps) {
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -166,9 +168,9 @@ export function DashboardHome({
   );
 
   return (
-    <div className="dh" ref={rootRef} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div className={bare ? 'dh th-dh' : 'dh'} ref={rootRef} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       {/* Three headline figures */}
-      <div className="dh-stats">
+      {!bare && <div className="dh-stats">
         {stats.map(s => {
           const p = parts(s.value);
           return (
@@ -181,7 +183,7 @@ export function DashboardHome({
             </section>
           );
         })}
-      </div>
+      </div>}
 
       <ProfitTrendCard
         points={allPoints}
@@ -192,7 +194,7 @@ export function DashboardHome({
       />
 
       {/* Six figures */}
-      <div className="dh-tiles">{tiles.map(renderTile)}</div>
+      {!bare && <div className="dh-tiles">{tiles.map(renderTile)}</div>}
 
       {/* Cash */}
       <section className="dh-card dh-cash" style={{ ['--tone' as string]: 'var(--dh-cash, var(--warn))' }}>
@@ -259,12 +261,14 @@ export function DashboardHome({
       </section>
 
       {/* More metrics */}
-      <section className="dh-more">
-        <h2 className="dh-sec-t">{t('dhMoreMetrics')}</h2>
-        <div className="dh-tiles">{moreTiles.map(renderTile)}</div>
-      </section>
+      {!bare && (
+        <section className="dh-more">
+          <h2 className="dh-sec-t">{t('dhMoreMetrics')}</h2>
+          <div className="dh-tiles">{moreTiles.map(renderTile)}</div>
+        </section>
+      )}
 
-      <div className="dh-pair">
+      <div className="dh-pair th-pair">
         <section className="dh-card dh-stats-list">
           <h2 className="dh-sec-t">{t('dhPeriodStats')}<span>{rangeText}</span></h2>
           {[

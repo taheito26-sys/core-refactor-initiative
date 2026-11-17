@@ -4351,6 +4351,7 @@ export default function OrdersPage() {
         >
           {activeTab !== 'customers' && (
             <>
+              <div className="th-bar">
               <ThChips chips={chips} selected={selectedMonth} onSelect={k => { setThShown(40); if (k === 'all') selectAllMonths(); else selectMonth(k); }} />
               {activeTab === 'my' && (
                 <ThTools>
@@ -4371,6 +4372,7 @@ export default function OrdersPage() {
                   <button type="button" className="co-tool pdf" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}><FileTextIcon />{exportingPdf ? t('exporting') : t('exportPdf')}</button>
                 </ThTools>
               )}
+              </div>
               {tiles.length > 0 && <ThTiles tiles={tiles} />}
             </>
           )}
