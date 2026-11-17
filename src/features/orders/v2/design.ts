@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
+import { APP_DESIGN_EVENT, APP_DESIGN_KEY, DEFAULT_APP_DESIGN, isAppDesign, usesNewLayout, type AppDesign } from '@/lib/app-design';
 
 // ─── Which layout the app is shown in ───
-// The redesigned phone layout ships next to the classic one. One switch, at the top of the home page, picks it for
+// The redesigned phone layout ships next to the classic one, and the Taheito design (the portal's card look with
+// its palettes) is a third choice that shows the same new layouts. One switch, at the top of the home page, picks it for
 // every page (home, Orders, Stock, Cash Management), so going back never needs a release. `?home=classic` in the
 // address does the same; the older per-page `?orders=`, `?stock=` and `?cash=` still work and set the same choice.
 
-export type OrdersDesign = 'v2' | 'classic';
+export type OrdersDesign = AppDesign;
+export { usesNewLayout };
 
-const KEY = 'home-design';
+const KEY = APP_DESIGN_KEY;
 const PARAMS = ['home', 'orders', 'stock', 'cash'];
-export const DEFAULT_ORDERS_DESIGN: OrdersDesign = 'v2';
+export const DEFAULT_ORDERS_DESIGN: OrdersDesign = DEFAULT_APP_DESIGN;
 
 /** The app's chosen layout: a `?home=classic` (or `=v2`) in the address wins and is remembered. */
 export function readPageDesign(storageKey: string, params: string | string[], search = typeof window !== 'undefined' ? window.location.search : ''): OrdersDesign {
@@ -17,19 +20,19 @@ export function readPageDesign(storageKey: string, params: string | string[], se
     const query = new URLSearchParams(search);
     for (const param of Array.isArray(params) ? params : [params]) {
       const forced = query.get(param);
-      if (forced === 'classic' || forced === 'v2') {
+      if (isAppDesign(forced)) {
         localStorage.setItem(storageKey, forced);
         return forced;
       }
     }
     const saved = localStorage.getItem(storageKey);
-    return saved === 'classic' || saved === 'v2' ? saved : DEFAULT_ORDERS_DESIGN;
+    return isAppDesign(saved) ? saved : DEFAULT_ORDERS_DESIGN;
   } catch {
     return DEFAULT_ORDERS_DESIGN;
   }
 }
 
-const CHANGE_EVENT = 'app-design-change';
+const CHANGE_EVENT = APP_DESIGN_EVENT;
 
 /** The chosen layout; a choice made anywhere (the switch in the top bar) reaches every mounted page at once. */
 export function usePageDesign(storageKey: string, params: string | string[]): [OrdersDesign, (next: OrdersDesign) => void] {

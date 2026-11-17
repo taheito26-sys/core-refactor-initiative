@@ -652,6 +652,8 @@ const translations = {
   ov2Try: { en: 'Try the new layout', ar: 'جرّب العرض الجديد' },
   ov2LayoutNew: { en: 'New', ar: 'جديد' },
   ov2LayoutClassic: { en: 'Classic', ar: 'كلاسيكي' },
+  ov2LayoutTaheito: { en: 'Taheito', ar: 'تاهيتو' },
+  taheitoPalette: { en: 'Palette', ar: 'الألوان' },
   themeColors: { en: 'Colours', ar: 'الألوان' },
   themeFeatured: { en: 'Featured colours', ar: 'ألوان مختارة' },
   ov2LayoutLabel: { en: 'Page layout', ar: 'تصميم الصفحة' },

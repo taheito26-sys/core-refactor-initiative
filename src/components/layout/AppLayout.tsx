@@ -12,6 +12,7 @@ import { useWebPushRegistration } from '@/hooks/useWebPush';
 import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
+import '@/styles/taheito-merchant.css';
 
 export function AppLayout() {
   const isMobile = useIsMobile();

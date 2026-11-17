@@ -69,7 +69,7 @@ import {
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, bucketSeries, initialOf, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
-import { useStockDesign } from '@/features/orders/v2/design';
+import { useStockDesign, usesNewLayout } from '@/features/orders/v2/design';
 import '@/styles/orders-v2.css';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -150,7 +150,7 @@ export default function StockPage() {
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
   // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
   const [design] = useStockDesign();
-  const v2 = isMobile && design === 'v2';
+  const v2 = isMobile && usesNewLayout(design);
   const [v2FilterOpen, setV2FilterOpen] = useState(false);
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');

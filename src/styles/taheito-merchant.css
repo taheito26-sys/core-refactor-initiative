@@ -1,0 +1,47 @@
+/* The Taheito design on the merchant pages. The palette arrives through the same theme variables every layout
+   uses (see src/lib/theme/taheito.ts), so this file only adds the card character of the portal: white rounded
+   cards with a soft shadow and a calm top bar. It applies only while html[data-app-design="taheito"] is set. */
+:root[data-app-design="taheito"] .tracker-root .panel,
+:root[data-app-design="taheito"] .tracker-root .kpi-band,
+:root[data-app-design="taheito"] .tracker-root .card {
+  border-color: var(--tracker-line);
+  box-shadow: 0 1px 0 rgba(15, 31, 94, .03), 0 6px 18px rgba(15, 31, 94, .06);
+}
+:root[data-app-design="taheito"] .tracker-root .panel:hover {
+  border-color: var(--tracker-brand2);
+}
+:root[data-app-design="taheito"] .tracker-root .panel-head {
+  background: none;
+  border-bottom-color: var(--tracker-line2);
+}
+:root[data-app-design="taheito"] .tracker-root .panel-head h2 {
+  text-transform: none;
+  font-size: calc(13px * var(--ui-scale, 1));
+  letter-spacing: 0;
+}
+:root[data-app-design="taheito"] .tracker-topbar,
+:root[data-app-design="taheito"] .main-shell > header {
+  border-bottom: 1px solid var(--tracker-line);
+  box-shadow: 0 4px 14px rgba(15, 31, 94, .05);
+}
+/* Inputs read as soft tinted fields on the white cards. */
+:root[data-app-design="taheito"] .tracker-root input:not([type="checkbox"]):not([type="radio"]),
+:root[data-app-design="taheito"] .tracker-root select,
+:root[data-app-design="taheito"] .tracker-root textarea {
+  border-color: var(--tracker-line);
+}
+:root[data-app-design="taheito"] .layout-switch.in-topbar button.on,
+:root[data-app-design="taheito"] .layout-switch.in-topbar-desk button.on {
+  background: var(--tracker-brand);
+  color: #fff;
+}
+
+/* Some controls carry fixed dark colours inline (written for dark themes so native dropdowns stay readable);
+   on the light Taheito cards they would show as dark blocks. */
+:root[data-app-design="taheito"] .tracker-root select,
+:root[data-app-design="taheito"] .tracker-root select option {
+  background-color: #ffffff !important;
+  color: var(--tracker-text) !important;
+  color-scheme: light !important;
+}
+:root[data-app-design="taheito"] .tracker-root .cm-period select { background-color: transparent !important; }

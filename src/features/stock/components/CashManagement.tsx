@@ -47,7 +47,7 @@ import { EXPENSE_CATEGORIES } from '@/lib/trading/expense-categories';
 import { ArrowLeftRight, Banknote, CheckCircle2, FileText, HandCoins, Landmark, ListChecks, Scale, Wallet } from 'lucide-react';
 import { OrdersV2Card, OrdersV2Kpis, OrdersV2Months, OrdersV2SearchBar, OrdersV2Tabs, type V2Kpi, type V2MenuItem } from '@/features/orders/v2/OrdersV2';
 import { avatarTone, initialOf } from '@/features/orders/v2/orders-v2-model';
-import { useCashDesign } from '@/features/orders/v2/design';
+import { useCashDesign, usesNewLayout } from '@/features/orders/v2/design';
 import '@/styles/orders-v2.css';
 import { BankSmsBalancesPanel } from '@/features/bank-sms/BankSmsBalancesPanel';
 
@@ -3055,7 +3055,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [innerTab, setInnerTab] = useState<'accounts' | 'flow' | 'loans' | 'position' | 'statements'>('accounts');
   // ── Redesigned phone layout (classic stays one tap away, or ?cash=classic) ──
   const [design] = useCashDesign();
-  const v2 = !redesigned && isMobile && design === 'v2';
+  const v2 = !redesigned && isMobile && usesNewLayout(design);
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
     if (innerTab === 'statements' && !connectedCustomersLoaded) loadConnectedCustomers();

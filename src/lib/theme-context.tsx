@@ -4,6 +4,8 @@ import { LAYOUTS } from './theme/layouts';
 import { applyThemeToDOM, getTheme, detectOptimalFontSize, FONT_CONFIG } from './theme/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { applyPortalPalette, DEFAULT_PORTAL_PALETTE } from './portal-palette';
+import { APP_DESIGN_EVENT, isAppDesign, readStoredDesign, type AppDesign } from './app-design';
+import { taheitoLayoutAndTheme } from './theme/taheito';
 
 export * from './theme/types';
 export * from './theme/layouts';
@@ -87,7 +89,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  useEffect(() => { applyThemeToDOM(draft); }, [draft]);
+  // The design (New, Classic or Taheito) changes how the theme is applied, so a switch re-applies it at once.
+  const [appDesign, setAppDesign] = useState<AppDesign>(readStoredDesign);
+  useEffect(() => {
+    const onDesign = (e: Event) => {
+      const next = (e as CustomEvent<{ design?: AppDesign }>).detail?.design;
+      setAppDesign(next && isAppDesign(next) ? next : readStoredDesign());
+    };
+    window.addEventListener(APP_DESIGN_EVENT, onDesign);
+    return () => window.removeEventListener(APP_DESIGN_EVENT, onDesign);
+  }, []);
+  useEffect(() => { applyThemeToDOM(draft, appDesign); }, [draft, appDesign]);
   useEffect(() => { applyPortalPalette(draft.portalPalette); }, [draft.portalPalette]);
 
   useEffect(() => {
@@ -178,7 +190,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const discard = useCallback(() => { setDraft(saved); setDirty(false); }, [saved]);
 
-  const { layout: currentLayout, theme: currentTheme } = getTheme(draft.layout, draft.theme);
+  const { layout: currentLayout, theme: currentTheme } = appDesign === 'taheito' ? taheitoLayoutAndTheme(draft.portalPalette) : getTheme(draft.layout, draft.theme);
 
   return (
     <ThemeContext.Provider value={{

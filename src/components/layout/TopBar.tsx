@@ -10,6 +10,7 @@ import { UserProfileModal } from '@/features/profile/UserProfileModal';
 import { useHomeDesign } from '@/features/orders/v2/design';
 import { LayoutSwitch } from '@/features/orders/v2/LayoutSwitch';
 import { ThemeColorPicker } from './ThemeColorPicker';
+import { PortalPalettePicker } from './PortalPalettePicker';
 
 const RANGES = [
   { id: 'today', label: '1D' },
@@ -165,8 +166,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         </button>
       </div>}
 
-      {/* ── Colours of the current layout ── */}
-      <ThemeColorPicker compact={isMobile} />
+      {/* ── Colours of the current layout (the four palettes while Taheito is on) ── */}
+      {design === 'taheito' ? <PortalPalettePicker compact={isMobile} /> : <ThemeColorPicker compact={isMobile} />}
 
       {/* ── Zoom Controls ── */}
       <ZoomControls className="shrink-0" compact={isMobile} />

@@ -77,7 +77,7 @@ import {
   BoltMark, OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
-import { useOrdersDesign } from '@/features/orders/v2/design';
+import { useOrdersDesign, usesNewLayout } from '@/features/orders/v2/design';
 import { avatarTone, bucketSeries, initialOf, orderCountChange, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
 import '@/styles/tracker.css';
 import '@/styles/orders-v2.css';
@@ -480,7 +480,7 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers'>('my');
   // The redesigned phone layout; the switch at the top of the home page picks it (see features/orders/v2/design).
   const [design] = useOrdersDesign();
-  const v2 = isMobile && design === 'v2';
+  const v2 = isMobile && usesNewLayout(design);
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');
   const [v2FilterOpen, setV2FilterOpen] = useState(false);

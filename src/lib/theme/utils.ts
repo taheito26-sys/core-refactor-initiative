@@ -1,3 +1,5 @@
+import { readStoredDesign, type AppDesign } from '../app-design';
+import { taheitoLayoutAndTheme } from './taheito';
 import { PRESET_THEMES } from './presets';
 import { AppSettings, LayoutDef, ThemeDef } from './types';
 import { LAYOUTS } from './layouts';
@@ -81,9 +83,12 @@ export function resolveThemeForLayout(layoutId: string, themeId: string): string
   return layout.themes[themeId] || PRESET_THEMES[themeId] ? themeId : 't1';
 }
 
-export function applyThemeToDOM(settings: AppSettings) {
+export function applyThemeToDOM(settings: AppSettings, chosenDesign?: AppDesign) {
   const root = document.documentElement;
-  const { layout, theme } = getTheme(settings.layout, settings.theme);
+  // The Taheito design swaps in the portal palettes (always light cards); every other design uses the chosen layout and colours.
+  const design = chosenDesign ?? readStoredDesign();
+  const { layout, theme } = design === 'taheito' ? taheitoLayoutAndTheme(settings.portalPalette) : getTheme(settings.layout, settings.theme);
+  if (design === 'taheito') root.dataset.appDesign = 'taheito'; else delete root.dataset.appDesign;
   const dark = isDark(theme.bg);
 
   if (dark) root.classList.add('dark');
