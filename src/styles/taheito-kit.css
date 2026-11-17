@@ -1,0 +1,75 @@
+/* Taheito kit for the merchant app: the few things the portal stylesheets do not cover. Everything else is the
+   portal's own co-*, cs-* and ch-* classes (customer-home, customer-orders, customer-shipments, customer-theme). */
+
+/* The merchant pages use the width of the screen: a wider column, two-up lists and four tiles across. */
+.th-root { max-width: 1120px; padding-bottom: calc(24 * var(--q)); background: var(--th-page, #f1f6fc); }
+.th-root .co-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .th-root .co-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .th-root .cs-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.th-root .co-tools { flex-wrap: wrap; align-items: center; }
+.th-root .co-tools > * { min-width: 0; }
+
+.th-tabs { overflow-x: auto; scrollbar-width: none; }
+.th-tabs::-webkit-scrollbar { display: none; }
+.th-tabs .cs-tab { white-space: nowrap; }
+.th-tabcount { margin-inline-start: calc(5 * var(--q)); font-size: calc(9.5 * var(--q)); font-weight: 800; opacity: .85; }
+.th-root .co-chip b { margin-inline-start: calc(5 * var(--q)); font-size: calc(9.5 * var(--q)); font-weight: 800; opacity: .8; }
+
+.th-unit { font-size: calc(9.5 * var(--q)); font-weight: 700; color: #6b7a9c; }
+.th-bad { color: var(--th-bad, #e11d48) !important; }
+.th-good { color: #0b9a68 !important; }
+.th-muted { color: #8794b0 !important; }
+.th-name { flex: 1; min-width: 0; font-weight: 700; color: var(--th-ink, #0f1f5e); font-size: calc(11.5 * var(--q)); }
+.th-foot { display: inline-flex; align-items: center; gap: calc(6 * var(--q)); flex-wrap: wrap; min-width: 0; font-size: calc(10 * var(--q)); color: #6b7a9c; }
+.th-foot .th-bar { display: inline-flex; align-items: center; gap: calc(6 * var(--q)); }
+.th-foot .co-track { width: calc(60 * var(--q)); }
+
+/* Merchant content (tracker styling) shown inside a Taheito box or sheet. */
+.th-embed { color: #0f1f5e; font-size: calc(11 * var(--q)); }
+.th-embed .tracker-root { background: transparent; }
+
+/* ── Orders: the page's side column becomes the new-sale sheet, and the partner panels sit below the list ── */
+.th-orders #new-sale-form { display: none; }
+.th-orders.th-sale-open #new-sale-form {
+  display: block; position: fixed; z-index: 70; inset-block: 0; inset-inline-end: 0; width: min(560px, 100vw); max-height: 100dvh;
+  margin: 0; overflow-y: auto; border: 0; border-radius: 0; background: #fff; color: #0f1f5e;
+  box-shadow: -12px 0 40px rgba(15, 31, 94, .28);
+}
+.th-orders.th-sale-open #new-sale-form .hdr {
+  position: sticky; top: 0; z-index: 2; padding: 16px; font-size: 16px; font-weight: 800; color: #fff;
+  background: linear-gradient(165deg, var(--th-h1, #0a1630), var(--th-h2, #17306e)); border: 0;
+}
+.th-orders.th-sale-open #new-sale-form .hdr button { color: #fff !important; }
+.th-sale-backdrop { position: fixed; inset: 0; z-index: 69; background: rgba(8, 20, 40, .55); }
+@media (max-width: 767px) {
+  .th-orders.th-sale-open #new-sale-form { inset: auto 0 0 0; width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; }
+  .th-orders.th-sale-open #new-sale-form .hdr { border-radius: 20px 20px 0 0; }
+}
+.th-orders .twoColPage { display: block; }
+.th-orders .twoColPage > div { max-width: 1120px; margin-inline: auto; padding-inline: 16px; }
+.th-orders .twoColPage > div:empty { display: none; }
+.th-orders .formPanel:not(#new-sale-form) {
+  background: #fff; border: 0; border-radius: 14px; margin-top: 12px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(36, 72, 140, .08), 0 0 0 1px rgba(220, 230, 245, .5);
+}
+.th-orders .formPanel:not(#new-sale-form) .hdr { background: var(--th-all, #eef4ff); color: var(--th-ink, #0f1f5e); font-weight: 800; border: 0; }
+.th-none { margin: 16px var(--pad) 0; text-align: center; font-size: calc(12 * var(--q)); color: #6b7a9c; }
+.th-select { display: inline-flex; min-width: 0; }
+.th-select select, .th-select button { min-height: calc(28 * var(--q)); border-radius: calc(10 * var(--q)); font-size: calc(11 * var(--q)); }
+.th-actions { display: flex; flex-wrap: wrap; gap: calc(8 * var(--q)); }
+.co-tool.th-bad { color: var(--th-bad, #e11d48) !important; }
+.co-tool.th-warn { color: #b45309; }
+.th-customers { margin: calc(12 * var(--q)) var(--pad) 0; }
+
+/* Tracker buttons that sit in the tools row (the P2P check, the period picker) take the portal's tool look. */
+.th-tools .rowBtn, .th-tools button.rowBtn {
+  display: inline-flex; align-items: center; gap: calc(5 * var(--q)); height: calc(26 * var(--q)); padding: 0 calc(11 * var(--q));
+  border-radius: calc(13 * var(--q)); font-size: calc(10.5 * var(--q)); font-weight: 700; border: 1px solid #dfe7f3; color: #4d5d88; background: #fff;
+}
+.th-tools .rowBtn svg { width: calc(13 * var(--q)); height: calc(13 * var(--q)); }
+/* On a phone the search field takes its own row, and the tabs scroll instead of squeezing. */
+@media (max-width: 639px) {
+  .th-tools .cs-search { flex: 1 1 100%; }
+  .th-tabs { gap: calc(5 * var(--q)); }
+  .th-tabs .cs-tab { flex: 0 0 auto; padding-inline: calc(12 * var(--q)); }
+}

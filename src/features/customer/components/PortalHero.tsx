@@ -7,7 +7,7 @@ import { ZoomControls } from '@/components/shared/ZoomControls';
  * name, then the page title with a small status card. Same markup and classes as those pages (co-hero2).
  */
 export function PortalHero({
-  lang, displayName, unreadCount, onBell, extra, onLanguage, icon, title, subtitle, trendDown, trendTitle, trendText,
+  lang, displayName, unreadCount, onBell, extra, onLanguage, icon, title, subtitle, trendDown, trendTitle, trendText, hideTop,
 }: {
   lang: 'en' | 'ar';
   displayName: string;
@@ -23,12 +23,14 @@ export function PortalHero({
   trendDown: boolean;
   trendTitle: string;
   trendText: string;
+  /** Leaves out the zoom, notification and language row, for pages that already show them in a top bar. */
+  hideTop?: boolean;
 }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   return (
     <section className="co-hero2">
       <div className="co-hero2-bg" aria-hidden="true" />
-      <div className="co-top">
+      {!hideTop && <div className="co-top">
         <ZoomControls variant="hero" label={L('Zoom', 'تكبير')} />
         <div className="co-ctl">
           {onBell && (
@@ -43,7 +45,7 @@ export function PortalHero({
           </div>
           {extra}
         </div>
-      </div>
+      </div>}
       <div className="co-idrow">
         <div className="co-who">
           <div className="ch-avatar"><User fill="#fff" stroke="#fff" /></div>

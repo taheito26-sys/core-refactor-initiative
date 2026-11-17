@@ -71,13 +71,17 @@ import {
   AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
 } from '@/features/customers/portal-order-sync';
 import {
-  ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon,
+  ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, Plus as PlusIcon, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon, ShoppingCart,
 } from 'lucide-react';
+import {
+  MerchantHero, ThBox, ThChips, ThEmpty, ThHead, ThList, ThMain, ThSearch, ThSheet, ThTabs, ThTiles, ThTools, ThCard,
+  ThRoot, type ThStripe, type ThTone,
+} from '@/features/taheito/kit';
 import {
   BoltMark, OrdersV2Card, OrdersV2Kpis, OrdersV2ListHeader, OrdersV2Months, OrdersV2SearchBar, OrdersV2Sheet, OrdersV2Tabs,
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
-import { useOrdersDesign, usesNewLayout } from '@/features/orders/v2/design';
+import { useOrdersDesign } from '@/features/orders/v2/design';
 import { avatarTone, bucketSeries, initialOf, orderCountChange, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
 import '@/styles/tracker.css';
 import '@/styles/orders-v2.css';
@@ -480,7 +484,11 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers'>('my');
   // The redesigned phone layout; the switch at the top of the home page picks it (see features/orders/v2/design).
   const [design] = useOrdersDesign();
-  const v2 = isMobile && usesNewLayout(design);
+  const v2 = isMobile && design === 'v2';
+  // The Taheito design draws its own page at every width: hero, main card, stripe cards and a detail sheet.
+  const taheito = design === 'taheito';
+  const [thOpen, setThOpen] = useState<{ kind: 'trade' | 'deal'; id: string; perspective?: 'incoming' | 'outgoing' } | null>(null);
+  const [thShown, setThShown] = useState(40);
   const [v2Oldest, setV2Oldest] = useState(false);
   const [v2View, setV2View] = useState<'list' | 'grid'>('list');
   const [v2FilterOpen, setV2FilterOpen] = useState(false);
@@ -2394,7 +2402,7 @@ export default function OrdersPage() {
         setLinkedRelId('');
         setSelectedTemplateId(null);
         setAllocations([]);
-        if (isMobile) setNewSaleSheetOpen(false);
+        if (isMobile || design === 'taheito') setNewSaleSheetOpen(false);
         return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
@@ -2681,7 +2689,7 @@ export default function OrdersPage() {
     setStockOverrideConfirmed(false);
     resetNewSaleSplit();
     // Close mobile sheet after successful submission
-    if (isMobile) setNewSaleSheetOpen(false);
+    if (isMobile || design === 'taheito') setNewSaleSheetOpen(false);
   };
 
   const exportCsv = () => {
@@ -4034,7 +4042,7 @@ export default function OrdersPage() {
 
   const v2KpiSource = activeTab === 'incoming' ? inKpi : activeTab === 'outgoing' ? outKpi : myKpi;
   const v2Kpis: V2Kpi[] = (() => {
-    if (!v2 || activeTab === 'customers') return [];
+    if (!(v2 || taheito) || activeTab === 'customers') return [];
     const isMy = activeTab === 'my';
     const rows = isMy ? subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId) : [];
     const sparkOf = (pick: (tr: Trade) => number) => bucketSeries(rows.map(tr => ({ ts: tr.ts, value: pick(tr) })));
@@ -4053,12 +4061,12 @@ export default function OrdersPage() {
     ];
     return cards;
   })();
-  const v2Extras = !v2 ? [] : [
+  const v2Extras = !(v2 || taheito) ? [] : [
     ...(activeTab === 'my' && buyerFilter && myKpi.egpTotal != null ? [{ key: 'egp', label: t('ov2TotalEgp'), value: fmtTotal(myKpi.egpTotal) }] : []),
     ...(activeTab !== 'my' && activeTab !== 'customers' && v2KpiSource.count > 0 ? [{ key: 'avg', label: t('ov2AvgDeal'), value: stripUnit(fmtC(v2KpiSource.vol / v2KpiSource.count)) }] : []),
   ];
 
-  const renderMyOrderV2Card = (tr: Trade) => {
+  const tradeFigures = (tr: Trade) => {
     const c = derived.tradeCalc.get(tr.id);
     const linkedDeal = resolveLinkedOutgoingDeal(tr);
     const linkedRow = linkedDeal
@@ -4078,6 +4086,25 @@ export default function OrdersPage() {
     const portalUser = resolveTradePortalUserId(tr, state.customers, portalLinks);
     const locale = t.lang === 'ar' ? 'ar-u-nu-latn' : 'en-US';
     const when = new Date(tr.ts);
+    return { c, linkedDeal, linkedRow, rev, isMerchantLinked, rawNet, net, name, linkedRel, qty, rate, loan, loanPct, reference, portalUser, locale, when };
+  };
+
+  const tradeStatus = (tr: Trade, loan: CustomerLoan | undefined): { label: string; kind: 'good' | 'warn' | 'bad' } => {
+    if (tr.voided || tr.approvalStatus === 'cancelled') return { label: t('ov2Cancelled'), kind: 'bad' as const };
+    if (!hasSavedOrderBuyer(state.customers, tr.customerId)) return { label: t('orderBuyerMissing'), kind: 'bad' as const };
+    if (tr.approvalStatus === 'pending_approval') return { label: t('ov2Pending'), kind: 'warn' as const };
+    if (tr.approvalStatus === 'rejected') return { label: t('ov2Rejected'), kind: 'bad' as const };
+    if (loan) {
+      const remaining = getLoanRemaining(loan);
+      return remaining > 0
+        ? { label: `${t('ov2Due')} ${fmtTotal(remaining)} ${localCur(loan.currency, t.lang)}`, kind: 'warn' as const }
+        : { label: t('ov2Repaid'), kind: 'good' as const };
+    }
+    return { label: t('ov2CashSale'), kind: 'good' as const };
+  };
+
+  const renderMyOrderV2Card = (tr: Trade) => {
+    const { c, linkedDeal, linkedRow, rev, isMerchantLinked, net, name, linkedRel, qty, rate, loan, loanPct, reference, portalUser, locale, when } = tradeFigures(tr);
 
     const menu: V2MenuItem[] = [
       ...((!tr.approvalStatus || tr.approvalStatus === 'pending_approval') ? [{ key: 'edit', label: t('edit'), onClick: () => openEdit(tr.id) }] : []),
@@ -4104,19 +4131,7 @@ export default function OrdersPage() {
       </>
     );
 
-    const status = (() => {
-      if (tr.voided || tr.approvalStatus === 'cancelled') return { label: t('ov2Cancelled'), kind: 'bad' as const };
-      if (!hasSavedOrderBuyer(state.customers, tr.customerId)) return { label: t('orderBuyerMissing'), kind: 'bad' as const };
-      if (tr.approvalStatus === 'pending_approval') return { label: t('ov2Pending'), kind: 'warn' as const };
-      if (tr.approvalStatus === 'rejected') return { label: t('ov2Rejected'), kind: 'bad' as const };
-      if (loan) {
-        const remaining = getLoanRemaining(loan);
-        return remaining > 0
-          ? { label: `${t('ov2Due')} ${fmtTotal(remaining)} ${localCur(loan.currency, t.lang)}`, kind: 'warn' as const }
-          : { label: t('ov2Repaid'), kind: 'good' as const };
-      }
-      return { label: t('ov2CashSale'), kind: 'good' as const };
-    })();
+    const status = tradeStatus(tr, loan);
 
     return (
       <OrdersV2Card
@@ -4176,10 +4191,256 @@ export default function OrdersPage() {
   const v2SearchValue = settings.searchQuery || '';
   const v2FiltersActive = Boolean(buyerFilter || dayFilter);
 
-  return (
-    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${v2 ? ' ov2' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+  // ═══ Taheito design ═══ the page drawn from the kit: hero, main card (tabs, months, tools, tiles), stripe cards, detail sheet.
+  const thLang: 'en' | 'ar' = t.lang === 'ar' ? 'ar' : 'en';
+  const thTone = (kind: 'good' | 'warn' | 'bad'): ThTone => (kind === 'good' ? 'ok' : kind);
+  const thStripe = (kind: 'good' | 'warn' | 'bad'): ThStripe => (kind === 'good' ? 'done' : kind === 'bad' ? 'alert' : 'prep');
+  const thMoney = (n: number) => splitMoney(fmtC(n));
 
-      {v2 ? (
+  const thDealStatus = (deal: MerchantDeal): { label: string; kind: 'good' | 'warn' | 'bad' } =>
+    deal.status === 'approved' ? { label: t('approved'), kind: 'good' }
+      : deal.status === 'rejected' ? { label: t('rejected'), kind: 'bad' }
+        : { label: t('ov2Pending'), kind: 'warn' };
+
+  /** Approved partner deals that have no order of their own in the list, as the phone list shows them. */
+  const thUnlinkedDeals = () => {
+    const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
+    const linked = new Set<string>();
+    allMerchantDeals.forEach(d => {
+      const lt = parseDealMeta(d.notes).local_trade;
+      if (lt && localTradeIds.has(lt)) linked.add(d.id);
+    });
+    return allMerchantDeals.filter(d => {
+      if (!isDealVisible(d) || linked.has(d.id) || d.status !== 'approved') return false;
+      if (selectedMonth === 'all') return true;
+      const dd = new Date(d.created_at);
+      return `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
+    });
+  };
+
+  const thTradeCard = (tr: Trade) => {
+    const f = tradeFigures(tr);
+    const status = tradeStatus(tr, f.loan);
+    const vol = thMoney(f.rev);
+    const net = Number.isFinite(f.net) ? thMoney(f.net) : null;
+    return (
+      <ThCard
+        key={`th-trade-${tr.id}`} id={`order-${tr.id}`} stripe={thStripe(status.kind)} no={f.reference || undefined} name={f.name}
+        date={f.when.toLocaleDateString(f.locale)} tag={{ label: status.label, tone: thTone(status.kind) }}
+        columns={[
+          { k: t('qty'), v: fmtU(f.qty), unit: 'USDT' },
+          { k: t('otcRate'), v: fmtP(f.rate) },
+          { k: t('volume'), v: vol.n, unit: vol.u || undefined },
+          { k: t('net'), v: net ? `${f.net >= 0 ? '+' : ''}${thMoney(f.net).n}` : '—', unit: net?.u || undefined, tone: net ? (f.net >= 0 ? 'good' : 'bad') : 'muted', end: true },
+        ]}
+        foot={<>
+          {tr.importedFrom ? <ImportedBadge exchange={tr.importedFrom} /> : <ManualBadge />}
+          {f.isMerchantLinked && <span title={t('merchant')} aria-label={t('merchant')}>🤝</span>}
+          {f.loan && (
+            <span className="th-bar" title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(f.loan))} / ${fmtTotal(f.loan.principal)} ${f.loan.currency}`}>
+              <div className="co-track"><i className={f.loan.status === 'closed' ? 'g' : 'a'} style={{ width: `${f.loanPct}%` }} /></div>
+              <b>{f.loan.status === 'closed' ? t('loanStatusClosed') : `${f.loanPct}%`}</b>
+            </span>
+          )}
+          {f.loan?.emergency && <span className="co-pill bad" title={t('emergencyTag')} aria-label={t('emergencyTag')}>🚨</span>}
+        </>}
+        goLabel={t('ov2Details')} onOpen={() => setThOpen({ kind: 'trade', id: tr.id })}
+      />
+    );
+  };
+
+  const thDealCard = (deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
+    const rel = relationships.find(r => r.id === deal.relationship_id);
+    const row = buildDealRowModel({ deal, perspective, myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+    const status = thDealStatus(deal);
+    const net = !row.hasAvgBuy ? null : (row.myNet ?? row.fullNet ?? null);
+    const vol = thMoney(row.volume);
+    return (
+      <ThCard
+        key={`th-deal-${deal.id}`} id={`deal-${deal.id}`} stripe={thStripe(status.kind)} name={rel?.counterparty?.display_name || '—'}
+        date={row.dateLabel} tag={{ label: status.label, tone: thTone(status.kind) }}
+        columns={[
+          { k: t('qty'), v: fmtU(row.quantity), unit: 'USDT' },
+          { k: t('otcRate'), v: row.sellPrice > 0 ? fmtP(row.sellPrice) : '—' },
+          { k: t('volume'), v: vol.n, unit: vol.u || undefined },
+          { k: t('net'), v: net != null ? `${net >= 0 ? '+' : ''}${thMoney(net).n}` : '—', tone: net == null ? 'muted' : net >= 0 ? 'good' : 'bad', end: true },
+        ]}
+        foot={<span>{perspective === 'incoming' ? t('incomingOrders') : t('outgoingOrders')}{row.buyer ? ` · ${row.buyer}` : ''}</span>}
+        goLabel={t('ov2Details')}
+        onOpen={() => { setExpandedCards(p => ({ ...p, [`deal-${deal.id}`]: true })); setThOpen({ kind: 'deal', id: deal.id, perspective }); }}
+      />
+    );
+  };
+
+  const renderTaheitoList = () => {
+    const showMore = (total: number) => (total > thShown
+      ? <div style={{ textAlign: 'center', marginTop: 12 }}><button type="button" className="co-tool" onClick={() => setThShown(n => n + 40)}>{t('thShowMore').replace('{n}', String(total - thShown))}</button></div>
+      : null);
+    if (activeTab === 'my') {
+      const deals = thUnlinkedDeals();
+      const total = subFilteredMy.length + deals.length;
+      if (filtered.length === 0 && deals.length === 0) {
+        return <ThEmpty icon={<ShoppingCart aria-hidden="true" />} title={t('noTradesYet')} text={t('addBatchThenSale')}>
+          <button type="button" className="co-new" onClick={() => setNewSaleSheetOpen(true)}><PlusIcon strokeWidth={2.2} />{t('newSale').replace(/^\+\s*/, '')}</button>
+        </ThEmpty>;
+      }
+      if (total === 0) return <p className="th-none">{t('thNoMatch')}</p>;
+      const ordered = v2Oldest ? [...subFilteredMy].reverse() : subFilteredMy;
+      return (
+        <>
+          <ThHead title={t('ov2AllOrders')} count={total} action={hasActiveOrderFilters ? { label: t('clearFilters'), onClick: clearOrderFilters } : undefined} />
+          <ThList>
+            {ordered.slice(0, thShown).map(thTradeCard)}
+            {deals.slice(0, Math.max(0, thShown - ordered.length)).map(d => thDealCard(d, isCreatorInMyMerchant(d.created_by) ? 'outgoing' : 'incoming'))}
+          </ThList>
+          {showMore(total)}
+        </>
+      );
+    }
+    const deals = activeTab === 'incoming' ? subFilteredInDeals : subFilteredOutDeals;
+    const perspective = activeTab === 'incoming' ? 'incoming' as const : 'outgoing' as const;
+    if (deals.length === 0) {
+      return <ThEmpty icon={perspective === 'incoming' ? <ArrowDownToLine aria-hidden="true" /> : <ArrowUpFromLine aria-hidden="true" />}
+        title={perspective === 'incoming' ? t('noIncomingTrades') : t('noOutgoingTrades')} text={perspective === 'incoming' ? t('incomingTradesDesc') : t('outgoingTradesDesc')} />;
+    }
+    return (
+      <>
+        <ThHead title={perspective === 'incoming' ? t('incomingOrders') : t('outgoingOrders')} count={deals.length} />
+        <ThList>{deals.slice(0, thShown).map(d => thDealCard(d, perspective))}</ThList>
+        {showMore(deals.length)}
+      </>
+    );
+  };
+
+  const renderTaheitoPage = () => {
+    const waitingIn = filteredIncomingMerchantDeals.filter(d => d.status === 'pending').length;
+    const waitingMine = subFilteredMy.filter(tr => tr.approvalStatus === 'pending_approval').length;
+    const waiting = waitingIn + waitingMine;
+    const tones = ['t1', 't3', 't2', 't4'];
+    const tiles = v2Kpis.map((k, i) => ({ key: k.key, cls: tones[i % 4], icon: k.Icon, label: k.label, value: k.value, unit: k.unit, tone: k.valueTone === 'bad' ? 'bad' as const : k.valueTone === 'good' ? 'good' as const : undefined }));
+    const chips = [{ key: 'all', label: t('allMonths') }, ...v2Months.map(m => ({ key: m.key, label: m.label }))];
+    return (
+      <ThRoot lang={thLang} className="th-orders-page">
+        {isMobile && (
+          <MerchantHero
+            lang={thLang} icon={<ShoppingCart className="co-ttl-ic" strokeWidth={1.7} />} title={t('orders')} subtitle={t('thOrdersSub')}
+            trendDown={waiting > 0} trendTitle={waiting > 0 ? t('thHeroWaiting').replace('{n}', String(waiting)) : t('thHeroClear')}
+            trendText={waiting > 0 ? t('thHeroWaitingHint') : t('thHeroClearHint').replace('{n}', String(subFilteredMy.length))}
+          />
+        )}
+        <ThMain
+          label={t('orders')}
+          primary={activeTab === 'my' ? { label: t('newSale').replace(/^\+\s*/, ''), icon: <PlusIcon strokeWidth={2.2} />, onClick: () => setNewSaleSheetOpen(true) } : undefined}
+          tabs={
+            <ThTabs
+              label={t('orders')} active={activeTab}
+              onSelect={id => {
+                setThShown(40);
+                if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
+                else if (id === 'customers') setActiveTab('customers');
+                else { setActiveTab(id); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }
+              }}
+              tabs={[
+                { id: 'my', label: t('ov2AllOrders'), icon: ListChecks },
+                { id: 'incoming', label: t('incomingOrders'), icon: ArrowDownToLine, count: waitingIn },
+                { id: 'outgoing', label: t('outgoingOrders'), icon: ArrowUpFromLine },
+                { id: 'customers', label: t('customers'), icon: UsersIcon },
+              ]}
+            />
+          }
+        >
+          {activeTab !== 'customers' && (
+            <>
+              <ThChips chips={chips} selected={selectedMonth} onSelect={k => { setThShown(40); if (k === 'all') selectAllMonths(); else selectMonth(k); }} />
+              {activeTab === 'my' && (
+                <ThTools>
+                  <ThSearch value={v2SearchValue} onChange={v => update({ searchQuery: v })} placeholder={t('ov2Search')} label={t('ov2Search')} />
+                  <ExchangeReferenceSearch state={state} scope="orders" compact value={v2SearchValue} onValueChange={v => update({ searchQuery: v })} hideInput />
+                  <span className="th-select">
+                    <ModernSelect compact value={buyerFilter} onChange={e => setBuyerFilter(e.target.value)}>
+                      <option value="">{t('allBuyers')}</option>
+                      {buyerFilterOptions.map(c => <option key={c.id} value={c.id}>{resolveCustomerName(c, t.lang)}</option>)}
+                    </ModernSelect>
+                  </span>
+                  <PeriodPicker
+                    from={dayFilter} to={dayFilterTo} onChange={(from, to) => { setDayFilter(from); setDayFilterTo(to); }}
+                    lang={thLang} title={t('filterByDay')} emptyLabel={t('filterByDate')} triggerClassName="co-tool" triggerActiveClassName="active"
+                  />
+                  <P2PAuditButton state={state} monthKey={selectedMonth} lang={thLang} side="sell" onRegister={applyExchangeOrderPrefill} />
+                  <button type="button" className="co-tool xlsx" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}><FileSpreadsheet />{exportingXlsx ? t('exporting') : t('exportXlsx')}</button>
+                  <button type="button" className="co-tool pdf" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}><FileTextIcon />{exportingPdf ? t('exporting') : t('exportPdf')}</button>
+                </ThTools>
+              )}
+              {tiles.length > 0 && <ThTiles tiles={tiles} />}
+            </>
+          )}
+        </ThMain>
+        {activeTab === 'customers'
+          ? <div className="th-embed th-customers"><CustomersPanel state={state} applyState={applyState} derived={derived} /></div>
+          : renderTaheitoList()}
+      </ThRoot>
+    );
+  };
+
+  const renderTaheitoSheet = () => {
+    if (!thOpen) return null;
+    const close = () => setThOpen(null);
+    if (thOpen.kind === 'deal') {
+      const deal = allMerchantDeals.find(d => d.id === thOpen.id);
+      if (!deal) return null;
+      const rel = relationships.find(r => r.id === deal.relationship_id);
+      const status = thDealStatus(deal);
+      return (
+        <ThSheet open lang={thLang} onClose={close} title={rel?.counterparty?.display_name || '—'} tag={{ label: status.label, tone: thTone(status.kind) }}
+          subtitle={thOpen.perspective === 'incoming' ? t('incomingOrders') : t('outgoingOrders')}>
+          <ThBox><div className="th-embed tracker-root">{renderOrdersMobileCard(deal, thOpen.perspective ?? 'outgoing')}</div></ThBox>
+        </ThSheet>
+      );
+    }
+    const tr = state.trades.find(x => x.id === thOpen.id);
+    if (!tr) return null;
+    const f = tradeFigures(tr);
+    const status = tradeStatus(tr, f.loan);
+    const act = (fn: () => void) => () => { close(); fn(); };
+    const actions: Array<{ key: string; label: string; tone?: 'bad' | 'warn'; run: () => void }> = [
+      ...((!tr.approvalStatus || tr.approvalStatus === 'pending_approval') ? [{ key: 'edit', label: t('edit'), run: act(() => openEdit(tr.id)) }] : []),
+      ...(tr.approvalStatus === 'pending_approval' ? [{ key: 'cancel', label: t('cancel'), tone: 'bad' as const, run: act(() => { void handleCancelTrade(tr.id); }) }] : []),
+      ...(tr.approvalStatus === 'approved' ? [{ key: 'reqcancel', label: t('requestCancellation'), tone: 'warn' as const, run: act(() => { void handleCancelTrade(tr.id); }) }] : []),
+      ...(f.portalUser ? [{ key: 'push', label: t('pushToClientPortal'), run: act(() => { void pushTradeToClient(tr); }) }, { key: 'chat', label: t('ov2Chat'), run: act(() => navigate('/chat')) }] : []),
+      { key: 'copy', label: t('ov2Copy'), run: () => { void navigator.clipboard?.writeText(f.reference); toast.success(t('ov2Copied')); } },
+    ];
+    const vol = thMoney(f.rev);
+    const net = Number.isFinite(f.net) ? thMoney(f.net) : null;
+    return (
+      <ThSheet open lang={thLang} onClose={close} title={f.reference || f.name} tag={{ label: status.label, tone: thTone(status.kind) }} subtitle={`\u2068${f.name}\u2069 · ${f.when.toLocaleString(f.locale)}`}>
+        <ThBox>
+          <ThTiles tiles={[
+            { key: 'qty', cls: 't1', icon: Layers, label: t('qty'), value: fmtU(f.qty), unit: 'USDT' },
+            { key: 'rate', cls: 't2', icon: ArrowLeftRightIcon, label: t('otcRate'), value: fmtP(f.rate) },
+            { key: 'vol', cls: 't3', icon: ListChecks, label: t('volume'), value: vol.n, unit: vol.u || undefined },
+            { key: 'net', cls: 't4', icon: TrendingUp, label: t('net'), value: net ? `${f.net >= 0 ? '+' : ''}${thMoney(f.net).n}` : '—', unit: net?.u || undefined, tone: net ? (f.net >= 0 ? 'good' : 'bad') : undefined },
+          ]} />
+        </ThBox>
+        {f.isMerchantLinked && f.linkedRel && <ThBox title={t('merchant')}><strong>{f.linkedRel.counterparty?.display_name || '—'}</strong></ThBox>}
+        {f.loan && (
+          <ThBox title={t('loanRepaymentHistory')} note={`${fmtTotal(getLoanRepaid(f.loan))} / ${fmtTotal(f.loan.principal)} ${f.loan.currency}`}>
+            <div className="co-track"><i className={f.loan.status === 'closed' ? 'g' : 'a'} style={{ width: `${f.loanPct}%` }} /></div>
+          </ThBox>
+        )}
+        <ThBox title={t('ov2Details')}><div className="th-embed tracker-root">{renderDetail(tr, f.c)}</div></ThBox>
+        <ThBox>
+          <div className="th-actions">
+            {actions.map(a => <button key={a.key} type="button" className={`co-tool${a.tone ? ` th-${a.tone}` : ''}`} onClick={a.run}>{a.label}</button>)}
+          </div>
+        </ThBox>
+      </ThSheet>
+    );
+  };
+
+  return (
+    <div className={`tracker-root${isMobile && !taheito ? ' orders-mobile-root' : ''}${v2 ? ' ov2' : ''}${taheito ? ` th-orders${newSaleSheetOpen ? ' th-sale-open' : ''}` : ''}${isMobile && !taheito && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+
+      {taheito ? renderTaheitoPage() : v2 ? (
         <>
           {v2Kpis.length > 0 && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
@@ -4245,7 +4506,7 @@ export default function OrdersPage() {
       )}
 
       {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
-      {activeTab === 'customers' && (
+      {!taheito && activeTab === 'customers' && (
         <CustomersPanel state={state} applyState={applyState} derived={derived} />
       )}
 
@@ -4255,7 +4516,7 @@ export default function OrdersPage() {
         <div>
 
           {/* ── MY ORDERS TAB ── */}
-          {activeTab === 'my' && (
+          {!taheito && activeTab === 'my' && (
             <>
               {v2 ? (
                 <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
@@ -4581,7 +4842,7 @@ export default function OrdersPage() {
           )}
 
           {/* ── INCOMING ORDERS TAB ── */}
-          {activeTab === 'incoming' && (
+          {!taheito && activeTab === 'incoming' && (
             <>
               {v2 ? (
                 <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
@@ -4757,7 +5018,7 @@ export default function OrdersPage() {
           )}
 
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
-          {activeTab === 'outgoing' && (
+          {!taheito && activeTab === 'outgoing' && (
             <>
               {v2 ? (
                 <OrdersV2Months months={v2Months} selected={selectedMonth} onSelect={selectMonth} allLabel={t('allMonths')} />
@@ -4933,7 +5194,7 @@ export default function OrdersPage() {
             <div id="new-sale-form" className="formPanel salePanel">
               <div className="hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>{t('newSale')}</span>
-                {isMobile && <button onClick={() => setNewSaleSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>}
+                {(isMobile || taheito) && <button onClick={() => setNewSaleSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>}
               </div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
@@ -6793,12 +7054,12 @@ export default function OrdersPage() {
       </Dialog>
 
       {/* ── Sale Sheet Backdrop ── */}
-      {isMobile && newSaleSheetOpen && (
-        <div className="sale-sheet-backdrop" onClick={() => setNewSaleSheetOpen(false)} />
+      {(isMobile || taheito) && newSaleSheetOpen && (
+        <div className={taheito ? 'th-sale-backdrop' : 'sale-sheet-backdrop'} onClick={() => setNewSaleSheetOpen(false)} />
       )}
 
       {/* ── FAB: open New Sale sheet (mobile only) ── */}
-      {isMobile && activeTab === 'my' && (
+      {isMobile && !taheito && activeTab === 'my' && (
         <button
           onClick={() => setNewSaleSheetOpen(true)}
           title="New Sale"
@@ -6845,6 +7106,8 @@ export default function OrdersPage() {
           {hasActiveOrderFilters && <button type="button" className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>}
         </OrdersV2Sheet>
       )}
+
+      {taheito && renderTaheitoSheet()}
 
       {loanSources && (
         <MerchantLoanDialog

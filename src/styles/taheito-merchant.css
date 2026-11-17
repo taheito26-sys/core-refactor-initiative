@@ -45,3 +45,22 @@
   color-scheme: light !important;
 }
 :root[data-app-design="taheito"] .tracker-root .cm-period select { background-color: transparent !important; }
+
+/* The tracker stylesheet draws pills, row buttons, progress tracks and segmented buttons in translucent white,
+   which is invisible on the light Taheito cards. Same shapes, readable colours. */
+:root[data-app-design="taheito"] .tracker-root .pill {
+  color: var(--tracker-muted);
+  background: var(--tracker-panel3);
+  border-color: var(--tracker-line);
+}
+:root[data-app-design="taheito"] .tracker-root .rowBtn,
+:root[data-app-design="taheito"] .tracker-root .btn.secondary {
+  color: var(--tracker-text);
+  background: var(--tracker-panel);
+  border-color: var(--tracker-line);
+}
+:root[data-app-design="taheito"] .tracker-root .prog { background: var(--tracker-panel3); border-color: var(--tracker-line2); }
+:root[data-app-design="taheito"] .tracker-root .formPanel { background: var(--tracker-panel); }
+:root[data-app-design="taheito"] .tracker-seg button,
+:root[data-app-design="taheito"] .orders-tab-btn { color: var(--tracker-muted); }
+:root[data-app-design="taheito"] .tracker-root table { background: transparent; }
