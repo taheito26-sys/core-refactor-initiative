@@ -1,6 +1,6 @@
 # Push Notifications
 
-The Tracker delivers push notifications through one server function, `push-send`,
+Raseed delivers push notifications through one server function, `push-send`,
 for the browser/PWA (Web Push), Android (FCM), and iOS (APNs).
 
 ## Architecture

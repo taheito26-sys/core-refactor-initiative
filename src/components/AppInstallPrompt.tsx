@@ -123,7 +123,7 @@ export function AppInstallPrompt() {
             <Smartphone className="h-8 w-8" />
           </div>
           <h2 className="text-lg font-bold text-foreground">
-            {L('Install The Tracker', 'ثبّت The Tracker')}
+            {L('Install Raseed', 'ثبّت رصيد')}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {L(

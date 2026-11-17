@@ -579,7 +579,7 @@ async function deliver(
   ]);
 
   const now = Date.now();
-  const safeTitle = title.slice(0, 120) || 'The Tracker';
+  const safeTitle = title.slice(0, 120) || 'Raseed';
   const safeBody = body.slice(0, 500);
   const isActive = (row: { active_until?: string | null }) =>
     Boolean(row.active_until && new Date(row.active_until).getTime() > now);
@@ -684,7 +684,7 @@ Deno.serve(async (req) => {
       if (!userId) return json({ error: 'test requires a user session' }, 400);
       const result = await deliver(
         userId,
-        'The Tracker test notification',
+        'Raseed test notification',
         'Push notifications are working on this device.',
         { path: '/notifications', notification_id: '', category: 'system' },
         'system',
@@ -747,7 +747,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!notification) return json({ error: 'notification not found' }, 404);
 
-      title = notification.title || 'The Tracker';
+      title = notification.title || 'Raseed';
       bodyText = notification.body || '';
       category = notification.category || 'system';
       data = {

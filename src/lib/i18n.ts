@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 export type Lang = 'en' | 'ar';
 
 const translations = {
+  appName: { en: 'Raseed', ar: 'رصيد' },
   pmMinAmount: { en: 'Amount (USDT)', ar: 'المبلغ (USDT)' },
   pmMenu: { en: 'Menu', ar: 'القائمة' },
   pmWallet: { en: 'Wallet', ar: 'المحفظة' },
@@ -153,7 +154,7 @@ const translations = {
   user: { en: 'User', ar: 'مستخدم' },
 
   // ── Sidebar ──
-  tracker: { en: 'TRACKER', ar: 'المتتبع' },
+  tracker: { en: 'RASEED', ar: 'رصيد' },
   trading: { en: 'Trading', ar: 'التداول' },
   network: { en: 'Network', ar: 'الشبكة' },
   dashboard: { en: 'Dashboard', ar: 'لوحة التحكم' },
@@ -2169,7 +2170,7 @@ const translations = {
 
   // ── Login page ──
   signIn: { en: 'Sign In', ar: 'تسجيل الدخول' },
-  accessYourAccount: { en: 'Access your The Tracker account', ar: 'الوصول إلى حسابك في المتتبع' },
+  accessYourAccount: { en: 'Access your Raseed account', ar: 'الوصول إلى حسابك في رصيد' },
   continueWithGoogle: { en: 'Continue with Google', ar: 'المتابعة بحساب Google' },
   googleSignInFailed: { en: 'Google sign-in failed', ar: 'فشل تسجيل الدخول بـ Google' },
   welcomeBack: { en: 'Welcome Back', ar: 'أهلاً بعودتك' },

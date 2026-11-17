@@ -82,7 +82,7 @@ export function CustomerLayout() {
   const sidebar = (
     <aside aria-label={isRTL ? 'القائمة الجانبية' : 'Sidebar'} className="flex h-full w-60 shrink-0 flex-col border-r border-border/50 bg-background">
       <div className="flex items-center justify-between px-4 py-4">
-        <span className="text-sm font-black uppercase tracking-widest">Tracker</span>
+        <span className="text-sm font-black uppercase tracking-widest">{isRTL ? 'رصيد' : 'Raseed'}</span>
         {isMobile && <button aria-label={isRTL ? 'إغلاق القائمة' : 'Close menu'} onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>}
       </div>
       <div className="mx-3 mb-3 rounded-xl bg-muted/60 px-3 py-2.5">

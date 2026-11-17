@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.taheito26sys.corerefactorinitiative",
-  appName: "The Tracker",
+  appName: "Raseed",
   webDir: "dist",
   server: {
     cleartext: true,

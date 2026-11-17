@@ -59,7 +59,7 @@ export function PushNotificationsCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Get alerts on this device even when The Tracker is closed. Push notifications follow the category
+          Get alerts on this device even when Raseed is closed. Push notifications follow the category
           preferences and quiet hours below.
         </p>
 
@@ -108,7 +108,7 @@ export function PushNotificationsCard() {
             <p className="text-[10px] text-muted-foreground">
               {unsupportedText}
               {isIosBrowser() && (
-                <> On iPhone or iPad, add The Tracker to your Home Screen first (Share → Add to Home Screen), then enable notifications from the installed app.</>
+                <> On iPhone or iPad, add Raseed to your Home Screen first (Share → Add to Home Screen), then enable notifications from the installed app.</>
               )}
             </p>
           )}

@@ -12,7 +12,7 @@ self.addEventListener('push', (event) => {
   }
 
   const data = payload.data || {};
-  const title = payload.title || 'The Tracker';
+  const title = payload.title || 'Raseed';
   const options = {
     body: payload.body || '',
     icon: '/icon-192.png',

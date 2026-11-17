@@ -264,13 +264,13 @@ export default function MobileInstallPrompt() {
             </div>
             <div className="min-w-0 flex-1">
               <div id="install-gate-title" className="text-base font-bold text-foreground">
-                {awaitingLaunch ? "Open The Tracker app" : "Install The Tracker app"}
+                {awaitingLaunch ? "Open Raseed app" : "Install Raseed app"}
               </div>
               <div className="text-xs text-muted-foreground">
                 {awaitingLaunch
                   ? "The app is installed on this device. Launch it from your home screen to continue."
                   : mandatory
-                    ? "The Tracker must be installed as an app on mobile devices. Install it to continue."
+                    ? "Raseed must be installed as an app on mobile devices. Install it to continue."
                     : isDesktop
                       ? "Install as a desktop application for offline access and a native desk experience."
                       : "Add this portal to your home screen for the full app experience."}
@@ -286,7 +286,7 @@ export default function MobileInstallPrompt() {
                 Installation complete
               </div>
               <p className="font-medium">
-                Close this browser tab and tap the <strong>The Tracker</strong> icon on your home
+                Close this browser tab and tap the <strong>Raseed</strong> icon on your home
                 screen. The browser version stays locked on mobile.
               </p>
             </div>
@@ -353,7 +353,7 @@ export default function MobileInstallPrompt() {
                   </span>
                   <p className="pt-0.5 text-sm font-medium leading-snug text-foreground">
                     Tap <strong>Add</strong> in the top corner, then close Safari and open{" "}
-                    <strong>The Tracker</strong> from the icon now on your home screen.
+                    <strong>Raseed</strong> from the icon now on your home screen.
                   </p>
                 </div>
               </div>
@@ -382,7 +382,7 @@ export default function MobileInstallPrompt() {
               </div>
               {deferredPrompt ? (
                 <p className="font-medium">
-                  Tap <strong>Install App</strong> below, then open The Tracker from your home
+                  Tap <strong>Install App</strong> below, then open Raseed from your home
                   screen.
                 </p>
               ) : (

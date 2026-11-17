@@ -113,10 +113,10 @@ export default defineConfig(({ mode }) => {
             // Identity pinned to the existing start_url so already-installed
             // copies keep the same app id instead of being seen as new apps.
             id: "/?icon_v=2",
-            name: "The Tracker",
-            short_name: "The Tracker",
+            name: "Raseed",
+            short_name: "Raseed",
             description:
-              "The Tracker — live market rates, deals & merchant management",
+              "Raseed — live market rates, deals & merchant management",
             theme_color: "#0f172a",
             background_color: "#0f172a",
             display: "standalone",
