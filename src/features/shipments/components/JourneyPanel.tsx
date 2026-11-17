@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { Box, CheckCircle2, MapPin, Thermometer } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Box, CheckCircle2, MapPin, Route as RouteIcon, Satellite, Thermometer } from 'lucide-react';
 import { agoLabel, latestReading, stopName, stopProgress, STATUS_LABELS, type Lang } from '../route';
-import { dayPartLabel, estimateArrival, journeyPercent, MAP_ROUTE, spreadAlong } from '../journey';
+import { dayPartLabel, estimateArrival, fitTrail, journeyPercent, MAP_ROUTE, spreadAlong } from '../journey';
 import type { ShipmentWithDetails } from '../types';
 
 /**
@@ -10,6 +10,15 @@ import type { ShipmentWithDetails } from '../types';
  */
 export function JourneyPanel({ shipment, lang, now }: { shipment: ShipmentWithDetails; lang: Lang; now: number }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  const [view, setView] = useState<'route' | 'trail'>('route');
+  // Real positions: the stops that carry coordinates, then every position the driver's phone reported, oldest first.
+  const trail = useMemo(() => {
+    const crumbs = [...shipment.locations].sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at));
+    const stopPts = shipment.stops.filter(s => s.latitude != null && s.longitude != null).map(s => ({ latitude: s.latitude as number, longitude: s.longitude as number, kind: 'stop' as const, reached: !!s.reached_at, label: stopName(s, lang) }));
+    const all = [...stopPts, ...crumbs.map(c => ({ latitude: c.latitude, longitude: c.longitude, kind: 'crumb' as const, reached: true, label: '' }))];
+    const fitted = fitTrail(all, 300, 180);
+    return fitted ? { stops: fitted.filter(q => q.kind === 'stop'), crumbs: fitted.filter(q => q.kind === 'crumb') } : null;
+  }, [shipment.locations, shipment.stops, lang]);
   const p = useMemo(() => stopProgress(shipment.stops), [shipment.stops]);
   const delivered = shipment.status === 'delivered';
   const pct = journeyPercent(p, delivered);
@@ -57,6 +66,28 @@ export function JourneyPanel({ shipment, lang, now }: { shipment: ShipmentWithDe
       </div>
       <div className="jp-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${pct}%` }} /></div>
 
+      {trail && (
+        <div className="jp-switch" role="tablist" aria-label={L('Map view', 'عرض الخريطة')}>
+          <button type="button" role="tab" aria-selected={view === 'route'} className={view === 'route' ? 'on' : ''} onClick={() => setView('route')}><RouteIcon aria-hidden="true" />{L('Route', 'المسار')}</button>
+          <button type="button" role="tab" aria-selected={view === 'trail'} className={view === 'trail' ? 'on' : ''} onClick={() => setView('trail')}><Satellite aria-hidden="true" />{L('Live trail', 'المسار الفعلي')}</button>
+        </div>
+      )}
+      {trail && view === 'trail' ? (
+        <svg className="jp-map" viewBox="0 0 300 180" role="img" aria-label={L('Live trail from GPS', 'المسار الفعلي من الـ GPS')} dir="ltr">
+          <rect width="300" height="180" rx="14" className="sea" />
+          {trail.stops.length > 1 && <polyline points={line(trail.stops)} className="ahead" />}
+          {trail.crumbs.length > 1 && <polyline points={line(trail.crumbs)} className="past" />}
+          {trail.stops.map((q, i) => (
+            <g key={i}>
+              <circle cx={q.x} cy={q.y} r="3.6" className={q.reached ? 'stop on' : 'stop'} />
+              {(i === trail.stops.length - 1 || i === trail.stops.findIndex(z => !z.reached) || i === trail.stops.filter(z => z.reached).length - 1) && <text x={q.x} y={q.y - 7} textAnchor="middle" className="lbl s">{q.label}</text>}
+            </g>
+          ))}
+          {trail.crumbs.length > 0 && (() => { const c = trail.crumbs[trail.crumbs.length - 1]; return (
+            <g><circle cx={c.x} cy={c.y} r="9" className={`halo${alert ? ' bad' : ''}`} /><circle cx={c.x} cy={c.y} r="5" className={`truck${alert ? ' bad' : ''}`} /></g>
+          ); })()}
+        </svg>
+      ) : (
       <svg className="jp-map" viewBox="0 0 300 180" role="img" aria-label={L('Route map', 'خريطة المسار')} dir="ltr">
         <rect width="300" height="180" rx="14" className="sea" />
         <polygon className="land" points="14,100 58,70 104,76 118,104 96,160 20,162" />
@@ -76,6 +107,7 @@ export function JourneyPanel({ shipment, lang, now }: { shipment: ShipmentWithDe
           </g>
         )}
       </svg>
+      )}
       {reading && !delivered && (
         <div className={`jp-temp${alert ? ' bad' : ''}`}>
           <Thermometer aria-hidden="true" />

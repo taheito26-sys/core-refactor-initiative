@@ -332,3 +332,7 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .jp-stop small { font-size: calc(9 * var(--q)); color: #6b7a9c; }
 .jp-stop.wait { color: #9aa7bd; }
 @media (max-width: 420px) { .jp-tiles b, .jp-stop b { font-size: calc(10.5 * var(--q)); } }
+.jp-switch { display: inline-flex; align-self: flex-start; background: var(--th-all, #ecfaf4); border-radius: 99px; padding: calc(2 * var(--q)); }
+.jp-switch button { display: inline-flex; align-items: center; gap: calc(5 * var(--q)); border: 0; background: transparent; font: inherit; font-size: calc(10 * var(--q)); font-weight: 800; color: var(--th-ad, #047857); padding: calc(4 * var(--q)) calc(10 * var(--q)); border-radius: 99px; cursor: pointer; }
+.jp-switch button.on { background: var(--th-a, #10b981); color: var(--th-pillfg, #fff); }
+.jp-switch svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); }

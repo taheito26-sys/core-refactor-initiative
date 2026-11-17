@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayPartLabel, estimateArrival, journeyPercent, MAP_ROUTE, spreadAlong } from '@/features/shipments/journey';
+import { dayPartLabel, estimateArrival, fitTrail, journeyPercent, MAP_ROUTE, spreadAlong } from '@/features/shipments/journey';
 import type { ShipmentStop } from '@/features/shipments/types';
 
 const stop = (seq: number, reached: string | null): ShipmentStop => ({ id: `s${seq}`, shipment_id: 'x', seq, name_en: `S${seq}`, name_ar: `س${seq}`, kind: 'fixed', reached_at: reached });
@@ -40,5 +40,14 @@ describe('journey', () => {
     expect(pts).toHaveLength(6);
     expect(pts[0]).toEqual(MAP_ROUTE[0]);
     expect(pts[5].x).toBeCloseTo(MAP_ROUTE[MAP_ROUTE.length - 1].x, 5);
+  });
+
+  it('fits real positions into the box with north up and the true proportions', () => {
+    const pts = fitTrail([{ latitude: 30, longitude: 31 }, { latitude: 25, longitude: 51.5 }], 300, 180)!;
+    expect(pts[0].x).toBeLessThan(pts[1].x);
+    expect(pts[0].y).toBeLessThan(pts[1].y);
+    expect(pts.every(q => q.x >= 0 && q.x <= 300 && q.y >= 0 && q.y <= 180)).toBe(true);
+    expect(fitTrail([{ latitude: 1, longitude: 1 }], 300, 180)).toBeNull();
+    expect(fitTrail([{ latitude: 1, longitude: 1 }, { latitude: 1, longitude: 1 }], 300, 180)).toBeNull();
   });
 });

@@ -66,3 +66,25 @@ export function spreadAlong(route: MapPoint[], n: number): MapPoint[] {
     return route[route.length - 1];
   });
 }
+
+// ─── Live trail: real coordinates fitted into the map box ───
+
+export interface GeoPoint { latitude: number; longitude: number }
+
+/**
+ * Fits real positions into a w x h box, keeping the true proportions (longitude is shrunk by the cosine of the
+ * middle latitude). Returns null when fewer than two distinct positions are known.
+ */
+export function fitTrail<T extends GeoPoint>(points: T[], w: number, h: number, pad = 18): Array<T & MapPoint> | null {
+  const valid = points.filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+  if (valid.length < 2) return null;
+  const lats = valid.map(p => p.latitude); const lngs = valid.map(p => p.longitude);
+  const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs); const maxLng = Math.max(...lngs);
+  const k = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+  const spanX = (maxLng - minLng) * k; const spanY = maxLat - minLat;
+  if (spanX === 0 && spanY === 0) return null;
+  const scale = Math.min((w - pad * 2) / (spanX || 1e-9), (h - pad * 2) / (spanY || 1e-9));
+  const offX = (w - spanX * scale) / 2; const offY = (h - spanY * scale) / 2;
+  return valid.map(p => ({ ...p, x: offX + (p.longitude - minLng) * k * scale, y: offY + (maxLat - p.latitude) * scale }));
+}
