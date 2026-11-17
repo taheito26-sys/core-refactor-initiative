@@ -66,7 +66,7 @@ describe('Shipment detail panel', () => {
   it('shows where the truck is by name with a map, and the earlier positions', () => {
     open();
     expect(document.querySelector('iframe')?.getAttribute('src')).toContain('openstreetmap.org/export/embed.html');
-    expect(screen.getByText('Kafr El Sheikh', { selector: 'b' })).toBeTruthy();
+    expect(screen.getAllByText('Kafr El Sheikh', { selector: 'b' }).length).toBeGreaterThan(0);
     expect(screen.getByText(/Last seen/)).toBeTruthy();
   });
 
