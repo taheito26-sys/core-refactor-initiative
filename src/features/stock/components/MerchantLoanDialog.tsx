@@ -29,6 +29,7 @@ import {
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
+import '@/styles/loans-desk.css';
 
 const EPS = 1e-6;
 const MANUAL = '__manual__';
@@ -103,7 +104,10 @@ export function MerchantLoanDialog({
     if (!open) return;
     setName(presetName ?? '');
     setManualMode(false);
-    setAmount(single && !manual ? String(Math.round(loanSourceAmount(single) * 100) / 100) : '');
+    // Keep the exact source amount. Exchange records are classified in full and
+    // cannot be partially adjusted, so rounding 100.123456 to 100.12 makes the
+    // read-only form impossible to save.
+    setAmount(single && !manual ? String(loanSourceAmount(single)) : '');
     setManualDir('out');
     setManualDate(nowInput());
     // eslint-disable-next-line react-hooks/exhaustive-deps
