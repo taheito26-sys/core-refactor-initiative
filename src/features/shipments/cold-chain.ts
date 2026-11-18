@@ -16,11 +16,19 @@ export interface ColdChainStats {
   spreadC: number | null;
   /** Runs of consecutive out-of-range readings, not the number of bad readings. */
   excursionCount: number;
-  /** Longest run, from its first bad reading to the next good reading (or now if it is still open). */
+  /** Longest run, from its first bad reading to the next good reading (or the monitoring end if it is still open). */
   longestExcursionMs: number;
   /** 0-100: mostly in-range, with penalties for instability and repeated excursions. */
   score: number;
   band: ColdChainBand;
+}
+
+export interface ColdChainOptions {
+  /**
+   * When monitoring stopped: the delivery time, the early-end time, or the last
+   * closed session. An open excursion is capped here instead of growing forever.
+   */
+  endAt?: number | null;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -35,7 +43,11 @@ export function coldChainStats(
   targetC: number,
   toleranceC: number,
   now: number,
+  options: ColdChainOptions = {},
 ): ColdChainStats {
+  const monitoringEnd = options.endAt != null && Number.isFinite(options.endAt)
+    ? Math.min(now, Math.max(0, options.endAt))
+    : now;
   const points = [...readings]
     .filter((r) => Number.isFinite(Number(r.temperature_c)))
     .sort((a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime());
@@ -55,7 +67,6 @@ export function coldChainStats(
   let excursionCount = 0;
   let longestExcursionMs = 0;
   let runStart: number | null = null;
-  let lastAlertAt: number | null = null;
 
   for (const point of points) {
     const at = new Date(point.taken_at).getTime();
@@ -64,15 +75,15 @@ export function coldChainStats(
         runStart = at;
         excursionCount += 1;
       }
-      lastAlertAt = at;
     } else if (runStart !== null) {
       longestExcursionMs = Math.max(longestExcursionMs, Math.max(0, at - runStart));
       runStart = null;
-      lastAlertAt = null;
     }
   }
   if (runStart !== null) {
-    longestExcursionMs = Math.max(longestExcursionMs, Math.max(0, now - (lastAlertAt ?? runStart)));
+    // The run starts at the first bad reading, not the most recent one: a
+    // second alert must extend the excursion, never restart its clock.
+    longestExcursionMs = Math.max(longestExcursionMs, Math.max(0, monitoringEnd - runStart));
   }
 
   const instabilityPenalty = stdC === null ? 0 : Math.min(25, (stdC / Math.max(toleranceC, 0.1)) * 15);

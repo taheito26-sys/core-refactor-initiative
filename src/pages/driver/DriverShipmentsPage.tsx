@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, PackageOpen, Thermometer, Timer, Truck } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
+import { useNotifications } from '@/hooks/useNotifications';
+import { DriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { useShipments } from '@/features/shipments/hooks';
 import { latestReading, readingDue } from '@/features/shipments/route';
@@ -16,6 +18,7 @@ export default function DriverShipmentsPage() {
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { data: shipments = [], isLoading, isError } = useShipments();
+  const { data: notifications = [] } = useNotifications();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
   const sorted = useMemo(() => [...shipments].sort((a, b) => ORDER[a.status] - ORDER[b.status]), [shipments]);
@@ -26,9 +29,21 @@ export default function DriverShipmentsPage() {
     return due.state === 'overdue' || due.state === 'due_soon';
   }).length;
   const alertCount = active.filter((s) => latestReading(s.readings)?.is_alert).length;
+  const liveIds = new Set(
+    shipments
+      .filter((shipment) => shipment.status === 'on_the_road' || shipment.status === 'preparing')
+      .map((shipment) => shipment.id),
+  );
+  const excursionAlerts = notifications.filter(
+    (notification) => !notification.read_at
+      && notification.target.dedupeKey?.startsWith('shipment-excursion:')
+      && liveIds.has(notification.target.targetEntityId ?? notification.entity_id ?? ''),
+  );
 
   return (
     <>
+      {excursionAlerts.length > 0 && <DriverExcursionAlert alerts={excursionAlerts} lang={lang} />}
+
       {shipments.length > 0 && (
         <div className="co-mainwrap">
           <div className="ch-card co-main">

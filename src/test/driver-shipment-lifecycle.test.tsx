@@ -13,6 +13,10 @@ vi.mock('@/features/shipments/hooks', () => ({
   useAddStop: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/features/shipments/components/DriverReadingForm', () => ({ DriverReadingForm: () => <div>Reading form</div> }));
+vi.mock('@/hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: [] }),
+  useMarkNotificationRead: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock('@/features/shipments/reporting', () => ({ reportStopLocation: vi.fn() }));
 import DriverShipmentPage from '@/pages/driver/DriverShipmentPage';
 const open = () => render(<MemoryRouter><DriverShipmentPage /></MemoryRouter>);

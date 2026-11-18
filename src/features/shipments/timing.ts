@@ -26,6 +26,28 @@ export function activeTripMs(trip: Timing, now: number): number | null {
         : now) - Date.parse(trip.started_at),
   );
 }
+
+/**
+ * The instant monitoring stopped for a finished trip. Delivered trips use
+ * delivered_at, early-ended trips use ended_at, and older records fall back to
+ * the last closed session. Live or preparing trips have no end.
+ */
+export function shipmentEndMs(
+  trip: Pick<Shipment, "status" | "ended_at" | "delivered_at" | "sessions">,
+): number | null {
+  if (!["delivered", "ended_early", "cancelled"].includes(trip.status)) return null;
+
+  const candidates = [
+    trip.ended_at,
+    trip.delivered_at,
+    ...(trip.sessions ?? []).map((session) => session.ended_at),
+  ].filter((value): value is string => Boolean(value));
+
+  const times = candidates
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  return times.length ? Math.max(...times) : null;
+}
 export function approvalWaitMs(
   events: ShipmentEvent[] | undefined,
   now: number,

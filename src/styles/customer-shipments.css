@@ -391,3 +391,137 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .cs-temp-hero-copy .co-amt { display: flex; align-items: baseline; gap: calc(2 * var(--q)); }
 .cs-temp-hero-copy .co-amt small { order: 2; }
 .cs-temp-hero-copy .co-amt b { order: 1; }
+
+/* Driver cockpit: a live temperature excursion, fed by the same notification
+   row that dispatches the Web Push. The pulsing edge makes it unmistakable
+   without covering the shipment list. */
+.dr-excursion {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(9 * var(--q));
+  padding: calc(11 * var(--q)) calc(12 * var(--q));
+  border: 1px solid rgba(225, 29, 72, .24);
+  border-color: color-mix(in srgb, var(--th-bad, #e11d48) 24%, transparent);
+  border-radius: calc(12 * var(--q));
+  background: linear-gradient(135deg, #fff1f4 0%, #fff8f9 58%, #fff 100%);
+  box-shadow: 0 calc(6 * var(--q)) calc(18 * var(--q)) rgba(225, 29, 72, .10);
+  overflow: hidden;
+  text-align: start;
+}
+.dr-excursion::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: calc(3 * var(--q));
+  background: var(--th-bad, #e11d48);
+  animation: dr-excursion-bar 1.8s ease-in-out infinite;
+}
+.dr-excursion-ic {
+  flex: none;
+  width: calc(30 * var(--q));
+  height: calc(30 * var(--q));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--th-bad, #e11d48);
+  box-shadow: 0 0 0 calc(4 * var(--q)) rgba(225, 29, 72, .12);
+}
+.dr-excursion-ic svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); stroke-width: 2; }
+.dr-excursion-body { flex: 1; min-width: 0; }
+.dr-excursion-kicker {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--q));
+  color: var(--th-bad, #e11d48);
+  font-size: calc(8.5 * var(--q));
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.dr-excursion-kicker b {
+  font-size: calc(8 * var(--q));
+  padding: calc(1 * var(--q)) calc(5 * var(--q));
+  border-radius: 999px;
+  background: rgba(225, 29, 72, .12);
+}
+.dr-excursion-pulse {
+  width: calc(6 * var(--q));
+  height: calc(6 * var(--q));
+  border-radius: 50%;
+  background: var(--th-bad, #e11d48);
+  box-shadow: 0 0 0 0 rgba(225, 29, 72, .45);
+  animation: dr-excursion-pulse 1.6s ease-out infinite;
+}
+.dr-excursion-title {
+  margin-top: calc(3 * var(--q));
+  color: var(--th-ink, #0f1f5e);
+  font-size: calc(13 * var(--q));
+  font-weight: 850;
+  line-height: 1.25;
+}
+.dr-excursion-body p {
+  margin: calc(3 * var(--q)) 0 0;
+  color: #5d6780;
+  font-size: calc(11 * var(--q));
+  line-height: 1.45;
+}
+.dr-excursion-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--q));
+  margin-top: calc(8 * var(--q));
+}
+.dr-excursion-open {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--q));
+  padding: calc(5 * var(--q)) calc(9 * var(--q));
+  border-radius: calc(7 * var(--q));
+  background: var(--th-bad, #e11d48);
+  color: #fff;
+  font-size: calc(9.5 * var(--q));
+  font-weight: 850;
+  text-decoration: none;
+}
+.dr-excursion-open svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }
+.dr-excursion-dismiss,
+.dr-excursion-x {
+  border: 0;
+  background: transparent;
+  color: #7b849c;
+  font-family: inherit;
+  font-size: calc(9 * var(--q));
+  font-weight: 800;
+  cursor: pointer;
+  padding: calc(3 * var(--q));
+}
+.dr-excursion-dismiss { text-decoration: underline; text-underline-offset: 2px; }
+.dr-excursion-x {
+  flex: none;
+  width: calc(24 * var(--q));
+  height: calc(24 * var(--q));
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  margin-inline-start: auto;
+}
+.dr-excursion-x svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); }
+.dr-excursion-dismiss:disabled,
+.dr-excursion-x:disabled { opacity: .45; cursor: default; }
+@keyframes dr-excursion-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, .45); }
+  70% { box-shadow: 0 0 0 calc(7 * var(--q)) rgba(225, 29, 72, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+@keyframes dr-excursion-bar {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr-excursion::before,
+  .dr-excursion-pulse { animation: none; }
+}
