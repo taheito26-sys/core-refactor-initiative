@@ -43,4 +43,21 @@ describe('coldChainStats', () => {
     expect(s.longestExcursionMs).toBe(2 * 60 * 60_000);
     expect(s.inRangePct).toBe(40);
   });
+
+  it('measures an open excursion from its first bad reading, not its latest', () => {
+    const s = coldChainStats([
+      reading(8, 8, true), reading(9, 9, true), reading(10, 10, true),
+    ], -15, 3, new Date('2026-11-18T12:00:00Z').getTime());
+    expect(s.excursionCount).toBe(1);
+    expect(s.longestExcursionMs).toBe(4 * 60 * 60_000);
+  });
+
+  it('stops an open excursion at the end of monitoring', () => {
+    const s = coldChainStats([
+      reading(8, 8, true),
+    ], -15, 3, new Date('2026-11-18T12:00:00Z').getTime(), {
+      endAt: new Date('2026-11-18T09:00:00Z').getTime(),
+    });
+    expect(s.longestExcursionMs).toBe(60 * 60_000);
+  });
 });

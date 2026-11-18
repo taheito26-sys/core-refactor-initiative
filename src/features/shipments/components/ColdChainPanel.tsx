@@ -10,15 +10,17 @@ const temp = (n: number | null) => (n === null ? '—' : Number.isInteger(n) ? S
  * The cold-chain read on a trip: a 0-100 stability score, the extremes, how much of the record
  * stayed inside the band, and a one-axis distribution that shows isolated spikes versus a drift.
  */
-export function ColdChainPanel({ readings, targetC, toleranceC, now, lang }: {
+export function ColdChainPanel({ readings, targetC, toleranceC, now, endAt, lang }: {
   readings: ShipmentReading[];
   targetC: number;
   toleranceC: number;
   now: number;
+  /** Delivery/early-end time; caps an open excursion so it stops at the end of monitoring. */
+  endAt?: number | null;
   lang: Lang;
 }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
-  const s = coldChainStats(readings, targetC, toleranceC, now);
+  const s = coldChainStats(readings, targetC, toleranceC, now, { endAt });
   const scale = rangeScale(targetC, toleranceC, null);
   const circumference = 2 * Math.PI * 42;
   const bandLabel = s.band === 'stable' ? L('Stable', 'مستقرة') : s.band === 'watch' ? L('Watch', 'تحت المراقبة') : s.band === 'risk' ? L('At risk', 'معرضة للخطر') : L('No data', 'لا توجد بيانات');

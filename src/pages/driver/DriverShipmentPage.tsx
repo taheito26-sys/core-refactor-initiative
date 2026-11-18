@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshness';
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
+import { DriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
 import { RouteSummary } from '@/features/shipments/components/RouteSummary';
 import { JourneyPulse } from '@/features/shipments/components/JourneyPulse';
@@ -21,7 +22,9 @@ import { placeText } from '@/features/shipments/geo';
 import { useAddStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
 import { agoLabel, durationLabel, latestReading, readingDue, stopName, stopProgress, STATUS_LABELS, STATUS_TAG } from '@/features/shipments/route';
 import { tripSummary } from '@/features/shipments/trip-summary';
+import { shipmentEndMs } from '@/features/shipments/timing';
 import { useTheme } from '@/lib/theme-context';
+import { useNotifications } from '@/hooks/useNotifications';
 import { cn } from '@/lib/utils';
 import type { DriverOutletContext } from './DriverLayout';
 import '@/styles/journey-pulse.css';
@@ -34,6 +37,7 @@ export default function DriverShipmentPage() {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { access, driverName } = useOutletContext<DriverOutletContext>();
   const { data: shipment, isLoading } = useShipment(id);
+  const { data: notifications = [] } = useNotifications();
   const start = useStartShipment();
   const stop = useStopShipment();
   const addStop = useAddStop();
@@ -62,15 +66,22 @@ export default function DriverShipmentPage() {
   const last = latestReading(shipment.readings);
   const due = readingDue(shipment, last?.taken_at ?? null, now);
   const stats = tripSummary(shipment, now, lang);
+  const monitoringEnd = shipmentEndMs(shipment);
   const where = shipment.locations[0] ?? null;
   const area = placeText(where, lang);
   const active = shipment.status === 'on_the_road';
   const onTheRoad = shipment.status === 'on_the_road';
   const alert = !!last?.is_alert;
+  const excursionAlerts = notifications.filter(
+    (notification) => !notification.read_at
+      && notification.target.dedupeKey?.startsWith('shipment-excursion:')
+      && (notification.target.targetEntityId === shipment.id || notification.entity_id === shipment.id),
+  );
 
   return (
     <div className="dr-stack">
       {back}
+      {(shipment.status === 'on_the_road' || shipment.status === 'preparing') && excursionAlerts.length > 0 && <DriverExcursionAlert alerts={excursionAlerts} lang={lang} />}
       {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="driver" onArrive={() => setShowArrival(true)} />}
 
       {shipment.status === 'cancelled' ? (
@@ -119,12 +130,25 @@ export default function DriverShipmentPage() {
             </div>
           </section>
 
-          {shipment.readings.length > 0 && <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} lang={lang} />}
+          {shipment.readings.length > 0 && <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} endAt={monitoringEnd} lang={lang} />}
         </>
       )}
 
       {shipment.status === 'ended_early' && <div className="cs-banner warn" role="status"><Package aria-hidden="true" /><div><b>{L('Trip ended early. Client approval is required before you can start again.', 'انتهت الرحلة مبكرًا. يلزم موافقة العميل قبل أن تتمكن من البدء مجددًا.')}</b></div></div>}
       {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><b>{L('Delivered', 'تم التسليم')}</b></div>}
+
+      {shipment.status === 'cancelled' && shipment.readings.length > 0 && (
+        <section className="ch-card cs-box">
+          <h3><ScanLine aria-hidden="true" />{L('Saved readings', 'القراءات المحفوظة')}<small>{shipment.readings.length}</small></h3>
+          <p style={{ margin: '0 0 8px', fontSize: 11.5, color: '#6b7a9c' }}>
+            {L('The latest reading is kept with its photo and proof so you can inspect the final evidence after cancellation.', 'تُحفظ آخر قراءة مع صورتها وإثباتها لتتمكن من مراجعة الدليل الأخير بعد الإلغاء.')}
+          </p>
+          <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>
+            {shipment.readings.slice(0, 9).map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
+          </ul>
+        </section>
+      )}
+
       {shipment.status === 'preparing' && (
         <button type="button" className="cs-cta" onClick={() => setConfirm('start')} disabled={start.isPending}>
           {start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play className="rtl:-scale-x-100" aria-hidden="true" />}
@@ -179,7 +203,7 @@ export default function DriverShipmentPage() {
       <TripHistory shipment={shipment} now={now} lang={lang} />
       {showArrival && progress.next && <ArrivalDialog stop={progress.next} lang={lang} onClose={() => setShowArrival(false)} />}
 
-      {shipment.readings.length > 1 && (
+      {shipment.status !== 'cancelled' && shipment.readings.length > 1 && (
         <section className="ch-card cs-box">
           <h3><ScanLine aria-hidden="true" />{L('Earlier readings', 'القراءات السابقة')}<small>{shipment.readings.length - 1}</small></h3>
           <ul className="cs-rows" style={{ margin: 0, padding: 0 }}>

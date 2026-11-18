@@ -10,6 +10,7 @@ import { LOCATION_SOURCE_LABELS, mapEmbedUrl, mapsLink } from '../geo';
 import { AreaText, useAreaText } from './AreaText';
 import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
 import { tripSummary } from '../trip-summary';
+import { shipmentEndMs } from '../timing';
 import { PhotoThumb } from './PhotoThumb';
 import { ReadingProof, ReadingRow } from './ReadingRow';
 import { RouteSummary } from './RouteSummary';
@@ -40,6 +41,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose, onRequestD
   const where = shipment?.locations[0] ?? null;
   const area = useAreaText(where, lang);
   const stats = shipment ? tripSummary(shipment, now, lang) : null;
+  const monitoringEnd = shipment ? shipmentEndMs(shipment) : null;
   const progress = shipment ? stopProgress(shipment.stops) : null;
   const canChangeDriver = shipment?.status === 'preparing';
   const canCancel = shipment?.status === 'preparing' || shipment?.status === 'on_the_road';
@@ -127,7 +129,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose, onRequestD
               </section>
 
               {shipment.status !== 'cancelled' && (
-                <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} lang={lang} />
+                <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} endAt={monitoringEnd} lang={lang} />
               )}
 
               <section className="ch-card cs-box">
