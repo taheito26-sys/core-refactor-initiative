@@ -118,7 +118,7 @@ export function ConsignmentsPanel({
 
   const fail = (err: unknown) => {
     if (err instanceof ConsignmentError) {
-      toast.error(err.code === 'price_below_cost' ? t('consBadPrice') : err.code === 'exceeds_open' ? t('consBadQty') : t('consFailed'));
+      toast.error(err.code === 'price_below_cost' ? t('consBadPrice') : err.code === 'insufficient_stock' ? t('consInsufficientStock') : err.code === 'exceeds_open' ? t('consBadQty') : t('consFailed'));
     } else {
       console.error('[consignments]', err);
       toast.error(err instanceof Error && err.message ? err.message : t('consFailed'));
@@ -135,12 +135,14 @@ export function ConsignmentsPanel({
     try {
       const id = newId();
       let next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked?.relationshipId, qty, profitSharePct: share });
+      const { transferCalc } = computeFIFO(next.batches, next.trades, next.usdtTransfers);
+      const calc = transferCalc.get(id);
+      if (!calc || calc.shortfallQty > 1e-6 || calc.coveredQty < qty - 1e-6 || !(calc.unitCost && calc.unitCost > 0)) {
+        throw new ConsignmentError('insufficient_stock');
+      }
+      const base = calc.unitCost;
       if (linked) {
         // The agreed cost is what this USDT left stock at, so both sides split the same profit.
-        const { transferCalc } = computeFIFO(next.batches, next.trades, next.usdtTransfers);
-        const c = transferCalc.get(id);
-        const base = c && c.coveredQty > 0 ? c.totalCost / c.coveredQty : 0;
-        if (!(base > 0)) throw new ConsignmentError('bad_amount');
         const remoteId = await create.mutateAsync({ relationshipId: linked.relationshipId, qty, basePrice: base, senderSharePct: share, trackerRef: id, clientRequestId: id });
         next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked.relationshipId, qty, profitSharePct: share, remoteId });
       }
@@ -225,7 +227,13 @@ export function ConsignmentsPanel({
     </div>
   );
 
-  const draftForm = (target: string) => draft && draft.target === target && (
+  const draftForm = (target: string) => {
+    if (!draft || draft.target !== target) return null;
+    const draftPrice = num(draft.price);
+    const localRow = local.find(c => c.id === target);
+    const remoteRow = remote.consignments.find(c => c.id === target);
+    const draftCost = localRow ? unitCostOf(localRow.id) : remoteRow?.basePriceQAR || 0;
+    return (
     <div className="space-y-2 rounded-md border p-2">
       {draft.kind === 'purchase' && (
         <div className="space-y-1">
@@ -252,8 +260,12 @@ export function ConsignmentsPanel({
         <Button size="sm" disabled={busy} onClick={submitDraft}>{t('consSendBtn')}</Button>
         <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>×</Button>
       </div>
+      {draft.kind === 'sale' && draftPrice > 0 && draftCost > 0 && draftPrice < draftCost && (
+        <p className="text-xs text-amber-600">{t('consLossShared')}</p>
+      )}
     </div>
-  );
+    );
+  };
 
   const card = (c: ConsignmentSummary) => {
     const r = remoteByRef.get(c.id);

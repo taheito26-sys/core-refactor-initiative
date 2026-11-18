@@ -80,8 +80,22 @@ describe('scenario 1: the merchant sold it', () => {
     expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'M2', owedQAR: 37500 }]);
   });
 
-  it('refuses a price below cost, since a loss never happens', () => {
-    expect(() => splitConsignmentSale(100, 3.69, 3.7, 50)).toThrow(ConsignmentError);
+  it('shares a below-cost sale by the agreed ratio instead of refusing it', () => {
+    const split = splitConsignmentSale(100, 3.69, 3.7, 50);
+    expect(split.profitQAR).toBeCloseTo(-1, 6);
+    expect(split.lossQAR).toBeCloseTo(1, 6);
+    expect(split.myShareQAR).toBeCloseTo(-0.5, 6);
+    expect(split.partnerShareQAR).toBeCloseTo(-0.5, 6);
+    expect(split.remitQAR).toBeCloseTo(369.5, 6);
+  });
+
+  it('books an owner-side loss and carries the receiver loss share in the receivable', () => {
+    let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'M2', qty: 10000 }, 10);
+    s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 10000, priceQAR: 3.6, unitCostQAR: 3.7 }, 20);
+    const sale = computeFIFO(s.batches, s.trades, s.usdtTransfers).tradeCalc.get('e1')!;
+    expect(sale.netQAR).toBeCloseTo(-500, 6);
+    // Owner cost 37,000; proceeds 36,000; receiver owes an extra 500 loss share.
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'M2', owedQAR: 36500 }]);
   });
 
   it('refuses to sell more than is still open and tracks cash remitted', () => {
@@ -91,6 +105,17 @@ describe('scenario 1: the merchant sold it', () => {
     s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 1000, priceQAR: 3.8, unitCostQAR: cost });
     s = recordConsignmentRemittance(s, 'e1', 3750);
     expect(consignmentReceivables(s)).toEqual([]);
+  });
+
+  it('does not reduce a partial receivable twice when a settlement is replayed', () => {
+    let s = withCash();
+    s = sendConsignment(s, { id: 'c1', counterpartyName: 'M2', qty: 10000 }, 10);
+    s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 10000, priceQAR: 3.8, unitCostQAR: 3.7 }, 20);
+    s = recordConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'settle-partial' });
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'M2', owedQAR: 37400 }]);
+    s = recordConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'settle-partial' });
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'M2', owedQAR: 37400 }]);
+    expect(cashIn(s)).toBeCloseTo(100, 6);
   });
 
   it('books the same report only once', () => {
@@ -216,6 +241,58 @@ describe('receiver side: cash held, replacement purchase and settlement', () => 
     // Replaying the settlement must not pay twice.
     s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 's1' });
     expect(cashOut(s)).toBeCloseTo(37500, 6);
+  });
+
+  it('shares a loss and tops up the owner when proceeds are below the agreed cost', () => {
+    let s = withCash();
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1',
+      consignmentId: 'c1',
+      counterpartyName: 'M1',
+      qty: 10000,
+      priceQAR: 3.6,
+      basePriceQAR: 3.7,
+      senderSharePct: 50,
+    }, 20);
+    expect(cashIn(s)).toBeCloseTo(36000, 6);
+    expect(consignmentPayables(s)).toEqual([{ counterpartyName: 'M1', owedQAR: 36500 }]);
+    expect(computeFIFO(s.batches, s.trades, s.usdtTransfers).tradeCalc.get('e1')!.netQAR).toBeCloseTo(-500, 6);
+
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 36500, settlementId: 's1' });
+    expect(consignmentPayables(s)).toEqual([]);
+    expect(cashOut(s)).toBeCloseTo(36500, 6);
+    // The receiver puts in 500 of its own cash to cover its half of the loss.
+    expect(cashIn(s) - cashOut(s)).toBeCloseTo(-500, 6);
+  });
+
+  it('does not reduce a partial payable twice when a settlement is replayed', () => {
+    let s = withCash();
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1', consignmentId: 'c1', counterpartyName: 'M1',
+      qty: 10000, priceQAR: 3.8, basePriceQAR: 3.7, senderSharePct: 50,
+    }, 20);
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'recv-partial' });
+    expect(consignmentPayables(s)).toEqual([{ counterpartyName: 'M1', owedQAR: 37400 }]);
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'recv-partial' });
+    expect(consignmentPayables(s)).toEqual([{ counterpartyName: 'M1', owedQAR: 37400 }]);
+    expect(cashOut(s)).toBeCloseTo(100, 6);
+  });
+
+  it('debits replacement purchases and settlements from the original proceeds account', () => {
+    const custody = { id: 'cust', name: 'Custody', type: 'merchant_custody', currency: 'QAR', status: 'active', createdAt: 1 };
+    const hand = { id: 'hand', name: 'Hand', type: 'hand', currency: 'QAR', status: 'active', createdAt: 1 };
+    let s = { ...withCash(), cashAccounts: [custody, hand] } as unknown as TrackerState;
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1', consignmentId: 'c1', counterpartyName: 'M1',
+      qty: 10000, priceQAR: 3.8, basePriceQAR: 3.7, senderSharePct: 50, cashAccountId: 'cust',
+    }, 20);
+    expect(s.cashLedger.find(e => e.id === 'cons-sale-cash-e1')!.accountId).toBe('cust');
+    s = recordReceivedConsignmentPurchase(s, {
+      purchaseId: 'p1', saleId: 'e1', counterpartyName: 'M1', qty: 10000, priceQAR: 3.74,
+    }, 30);
+    expect(s.cashLedger.find(e => e.id === 'cons-purchase-cash-p1')!.accountId).toBe('cust');
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 's1' });
+    expect(s.cashLedger.find(e => e.id === 'cons-recv-settle-s1')!.accountId).toBe('cust');
   });
 });
 
