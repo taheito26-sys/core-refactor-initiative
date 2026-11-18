@@ -4,7 +4,7 @@ import { Clock, PackageOpen, Thermometer, Timer, Truck } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/useNotifications';
-import { DriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
+import { DriverExcursionAlert, isDriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { useShipments } from '@/features/shipments/hooks';
 import { latestReading, readingDue } from '@/features/shipments/route';
@@ -35,8 +35,7 @@ export default function DriverShipmentsPage() {
       .map((shipment) => shipment.id),
   );
   const excursionAlerts = notifications.filter(
-    (notification) => !notification.read_at
-      && notification.target.dedupeKey?.startsWith('shipment-excursion:')
+    (notification) => isDriverExcursionAlert(notification)
       && liveIds.has(notification.target.targetEntityId ?? notification.entity_id ?? ''),
   );
 

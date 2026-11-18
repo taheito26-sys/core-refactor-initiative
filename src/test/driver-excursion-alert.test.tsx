@@ -8,7 +8,7 @@ vi.mock('@/hooks/useNotifications', () => ({
   useMarkNotificationRead: () => ({ mutate: mark, isPending: false }),
 }));
 
-import { DriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
+import { DriverExcursionAlert, isDriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 
 const alert = {
   id: 'n1',
@@ -36,6 +36,15 @@ const alert = {
 } as unknown as AppNotification;
 
 describe('DriverExcursionAlert', () => {
+  it('recognises the trigger dedupe key and ignores read or unrelated notifications', () => {
+    expect(isDriverExcursionAlert(alert)).toBe(true);
+    expect(isDriverExcursionAlert({ ...alert, read_at: '2026-11-18T11:00:00Z' })).toBe(false);
+    expect(isDriverExcursionAlert({
+      ...alert,
+      target: { ...alert.target, dedupeKey: 'shipment-excursion:r1' },
+    })).toBe(false);
+  });
+
   it('shows the live excursion and links straight to the trip', () => {
     render(<MemoryRouter><DriverExcursionAlert alerts={[alert]} lang="en" /></MemoryRouter>);
     expect(screen.getByText('Live temperature alert')).toBeTruthy();
