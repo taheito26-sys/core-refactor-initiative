@@ -92,6 +92,9 @@ export const assignShipmentDriver = (shipmentId: string, driverId: string | null
 
 export const cancelShipment = (shipmentId: string) => rpc<Shipment>('customer_cancel_shipment', { p_shipment_id: shipmentId });
 
+/** Removes a cancelled shipment and its history; the database enforces ownership and status. */
+export const deleteShipment = (shipmentId: string) => rpc<void>('delete_customer_shipment', { p_shipment_id: shipmentId });
+
 export const setDriverActive = (driverId: string, active: boolean) =>
   rpc<ShipmentDriver>('customer_set_driver_active', { p_driver_id: driverId, p_active: active });
 

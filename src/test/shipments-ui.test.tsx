@@ -85,6 +85,16 @@ describe('ShipmentCard', () => {
     fireEvent.keyDown(card, { key: 'Enter' });
     expect(onOpen).toHaveBeenCalledTimes(2);
   });
+
+  it('shows a cancelled trip as a quiet record with a delete action', () => {
+    const onDelete = vi.fn();
+    wrap(<ShipmentCard shipment={shipment({ status: 'cancelled' })} lang="en" now={NOW} onOpen={vi.fn()} onDelete={onDelete} />);
+    expect(screen.getByText('This trip was cancelled')).toBeTruthy();
+    expect(screen.getByText('No active monitoring')).toBeTruthy();
+    expect(screen.queryByText('Last recorded temperature')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Delete/ }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
 });
 
 const granted: LocationAccess = { permission: 'granted', backgroundDenied: false, request: vi.fn(), activeCount: 1 };
