@@ -2,6 +2,20 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  ChevronRight,
+  Handshake,
+  Inbox,
+  Info,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Wallet,
+} from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { fmtDate, fmtPrice, fmtTotal, type DerivedState, type TrackerState } from '@/lib/tracker-helpers';
 import type { UsdtTransfer, UsdtTransferKind } from '@/lib/usdt-transfers';
@@ -12,26 +26,46 @@ import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
 import { buildMerchantStatements, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
+import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
+import '@/styles/loans-desk.css';
 
 const KIND_META: Record<UsdtTransferKind, { icon: string; label: TranslationKey }> = {
-  borrow_in: { icon: '⬇️', label: 'mloanKindBorrowed' },
-  borrow_repay: { icon: '↩️', label: 'mloanKindRepaid' },
-  lend_out: { icon: '⬆️', label: 'mloanKindLent' },
-  lend_return: { icon: '↪️', label: 'mloanKindReturned' },
+  borrow_in: { icon: '↓', label: 'mloanKindBorrowed' },
+  borrow_repay: { icon: '↩', label: 'mloanKindRepaid' },
+  lend_out: { icon: '↑', label: 'mloanKindLent' },
+  lend_return: { icon: '↪', label: 'mloanKindReturned' },
 };
 
 const PAGE = 25;
+const EPS = 1e-6;
+
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || '?';
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+function SourceIcon({ direction }: { direction: 'in' | 'out' }) {
+  return direction === 'out' ? <ArrowUpRight /> : <ArrowDownLeft />;
+}
+
+function KindIcon({ kind }: { kind: UsdtTransferKind }) {
+  return kind === 'borrow_in' || kind === 'lend_return' ? <ArrowDownLeft /> : <ArrowUpRight />;
+}
 
 /**
- * USDT loans between merchants, in one place:
+ * Merchant credit desk.
  *
- * 1. "Needs a decision" — every Binance/OKX record not yet registered. Each
- *    one gets exactly one answer: a sale, a purchase, a merchant loan, or
- *    ignore. The mismatch check points here too.
- * 2. One statement per merchant — running balance ("you owe" / "owes you"),
- *    every move with where it came from, and Undo.
+ * The old screen mixed an exchange inbox, a statement tree and a bulk-action
+ * bar into one wall. This layout separates the two jobs:
+ *   Balances — who owes whom, with a full statement behind each merchant.
+ *   Review   — exchange records that still need one answer.
  */
 export function LoansPanel({
   state,
@@ -39,6 +73,7 @@ export function LoansPanel({
   applyStateAndCommit,
   onImportPurchase,
   onManualFix,
+  onOpenConsignments,
 }: {
   state: TrackerState;
   derived: DerivedState;
@@ -47,6 +82,8 @@ export function LoansPanel({
   onImportPurchase: () => void;
   /** Fix the stock by hand for these records instead of registering them; the caller dismisses them once the fix is applied. */
   onManualFix?: (items: PendingExchangeItem[]) => void;
+  /** Open the separate "sell USDT for another merchant" workspace. */
+  onOpenConsignments?: () => void;
 }) {
   const t = useT();
   const navigate = useNavigate();
@@ -54,21 +91,26 @@ export function LoansPanel({
   const { commit, busy } = useBorrowLendCommit(applyStateAndCommit);
   const pending = usePendingExchangeItems(state);
   const dismissed = useDismissedExchangeItems(state);
-  const [showDismissed, setShowDismissed] = useState(false);
-
+  const merchants = useLoanMerchantNames(state);
+  const [tab, setTab] = useState<'balances' | 'review'>('balances');
   const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string } | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const [showSettled, setShowSettled] = useState(false);
 
   const statements = useMemo(() => buildMerchantStatements(state.usdtTransfers), [state.usdtTransfers]);
-  const open = statements.filter((s) => Math.abs(s.net) > 1e-6);
-  const settled = statements.filter((s) => Math.abs(s.net) <= 1e-6);
+  const open = statements.filter((s) => Math.abs(s.net) > EPS);
+  const settled = statements.filter((s) => Math.abs(s.net) <= EPS);
+  const selected = detailKey ? statements.find((s) => s.key === detailKey) ?? null : null;
 
-  // Filter pending items to only show September (09) onwards
+  const connectedCount = merchants.filter((m) => m.connected).length;
+  const owed = open.filter((s) => s.net < 0).reduce((sum, s) => sum + Math.abs(s.net), 0);
+  const owe = open.filter((s) => s.net > 0).reduce((sum, s) => sum + s.net, 0);
+  const owedCount = open.filter((s) => s.net < 0).length;
+  const oweCount = open.filter((s) => s.net > 0).length;
+
   const septemberCutoff = new Date(new Date().getFullYear(), 8, 1).getTime();
-  const filteredPending = useMemo(() => pending.filter((p) => p.ts >= septemberCutoff), [pending]);
+  const filteredPending = useMemo(() => pending.filter((p) => p.ts >= septemberCutoff), [pending, septemberCutoff]);
+  const visiblePending = filteredPending.slice(0, limit);
 
   const inPrice = useMemo(() => {
     const m = new Map<string, number>();
@@ -76,16 +118,14 @@ export function LoansPanel({
     return m;
   }, [derived.batches]);
   const unitCost = (x: UsdtTransfer) =>
-    x.kind === 'borrow_in' || x.kind === 'lend_return' ? inPrice.get(x.id) : derived.transferCalc?.get(x.id)?.unitCost ?? undefined;
+    x.kind === 'borrow_in' || x.kind === 'lend_return'
+      ? inPrice.get(x.id)
+      : derived.transferCalc?.get(x.id)?.unitCost ?? undefined;
 
-  const selectedItems = filteredPending.filter((p) => selected.has(p.key));
-  const toggle = (key: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const connectedNames = useMemo(
+    () => new Set(merchants.filter((m) => m.connected).map((m) => m.name.toLowerCase())),
+    [merchants],
+  );
 
   const openLoanFor = (items: PendingExchangeItem[]) => {
     const sources = items.map(pendingItemToLoanSource).filter((s): s is LoanSource => !!s);
@@ -96,6 +136,7 @@ export function LoansPanel({
     source: item.source,
     id: (item.order?.id ?? item.transfer?.id) as string,
   });
+
   const refreshRecords = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] }),
@@ -103,14 +144,11 @@ export function LoansPanel({
     ]);
   };
 
-  /** Ignore or remove: the record leaves "needs a decision" without touching stock. */
-  const resolveItems = async (items: PendingExchangeItem[], reason: ExchangeDismissReason) => {
-    if (items.length === 0) return;
+  const resolveItem = async (item: PendingExchangeItem, reason: ExchangeDismissReason) => {
     if (reason === 'deleted' && !window.confirm(t('mloanRemoveConfirm'))) return;
     try {
-      await Promise.all(items.map((item) => dismissExchangeRecord(recordOf(item), reason)));
+      await dismissExchangeRecord(recordOf(item), reason);
       await refreshRecords();
-      setSelected(new Set());
       toast.success(t(reason === 'deleted' ? 'mloanRemoved' : 'mloanIgnored'));
     } catch {
       toast.error(t('mloanSaveFailed'));
@@ -133,13 +171,19 @@ export function LoansPanel({
     void commit(undoLoanMove(state, x.id), 'mloanUndone');
   };
 
+  const balanceLabel = (net: number) => {
+    if (Math.abs(net) <= EPS) return t('mloanSettledShort');
+    return net > 0 ? t('mloanYouOweShort') : t('mloanOwesYouShort');
+  };
+
+  const balanceAmount = (net: number) => fmtTotal(Math.abs(net));
+
   const balanceText = (s: MerchantStatement | { net: number; name: string }) => {
-    if (Math.abs(s.net) <= 1e-6) return t('mloanSettledShort');
+    if (Math.abs(s.net) <= EPS) return t('mloanSettledShort');
     return s.net > 0
       ? t('mloanBalanceIOwe').split('{name}').join(s.name).split('{amount}').join(fmtTotal(s.net))
       : t('mloanBalanceOwesMe').split('{name}').join(s.name).split('{amount}').join(fmtTotal(-s.net));
   };
-  const balanceColor = (net: number) => (net > 1e-6 ? 'var(--bad)' : net < -1e-6 ? 'var(--good)' : 'var(--muted)');
 
   const sourceText = (x: UsdtTransfer) => {
     const src = x.source;
@@ -150,203 +194,381 @@ export function LoansPanel({
     return t('mloanFromOrder');
   };
 
-  const renderStatement = (s: MerchantStatement) => {
-    const shownGroups = new Set<string>();
-    const groups = s.monthGroups || [];
+  const openManual = (presetName?: string) =>
+    setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName });
 
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-        <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start', fontSize: 11 }}
-          onClick={() => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName: s.name })}>
-          ＋ {t('mloanAddMove')}
-        </button>
-        {groups.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanNoOpen')}</div>}
-        {groups.map((group) => {
-          const groupLines = [...group.lines].reverse();
-          return (
-            <div key={group.yearMonth} style={{ borderTop: '1px solid var(--line)', paddingTop: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                {group.yearMonth}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {groupLines.map((l) => {
-                  const meta = KIND_META[l.kind];
-                  const cost = unitCost(l.transfer);
-                  const undoable = !l.groupId || !shownGroups.has(l.groupId);
-                  if (l.groupId) shownGroups.add(l.groupId);
-                  return (
-                    <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700 }}>
-                          {meta.icon} {t(meta.label)} <span className="mono">{fmtTotal(l.amount)}</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          {fmtDate(l.ts)} · {sourceText(l.transfer)}
-                          {cost ? ` · ${l.estimated ? t('mloanEstCost') : t('mloanCost')} ${fmtPrice(cost)}` : ''}
-                        </div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: balanceColor(l.balanceAfter) }}>
-                          → {balanceText({ net: l.balanceAfter, name: s.name })}
-                        </div>
-                      </div>
-                      {undoable && (
-                        <button type="button" className="rowBtn" disabled={busy} onClick={() => undo(l.transfer)}>{t('mloanUndo')}</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
+  const showReview = () => {
+    setTab('review');
+    window.setTimeout(() => document.getElementById('ld-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
   };
 
   const renderMerchant = (s: MerchantStatement) => {
-    const isOpen = openKey === s.key;
+    const isOwed = s.net < 0;
+    const connected = connectedNames.has(s.name.toLowerCase());
     return (
-      <div key={s.key} className="panel" style={{ padding: 10 }}>
-        <button type="button" onClick={() => setOpenKey(isOpen ? null : s.key)}
-          style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, textAlign: 'start' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>{s.name}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{s.lines.length} {t('mloanMoves')} · {fmtDate(s.lastTs)}</div>
-          </div>
-          <div style={{ textAlign: 'end', fontSize: 12, fontWeight: 800, color: balanceColor(s.net) }}>
-            {balanceText(s)} {isOpen ? '▾' : '▸'}
-          </div>
-        </button>
-        {isOpen && renderStatement(s)}
-      </div>
+      <button key={s.key} type="button" className="ld-merchant" onClick={() => setDetailKey(s.key)}>
+        <span className="ld-avatar">{initials(s.name)}</span>
+        <span className="ld-merchant-info">
+          <span className="ld-merchant-name">
+            <span>{s.name}</span>
+            {connected && (
+              <span className="ld-connection">
+                <ShieldCheck /> {t('loansConnected')}
+              </span>
+            )}
+          </span>
+          <span className="ld-merchant-meta">
+            {s.lines.length} {t('loansMovements')} · {t('loansLastActivity')} {fmtDate(s.lastTs)}
+          </span>
+        </span>
+        <span className={`ld-merchant-balance ${isOwed ? 'owed' : 'owe'}`}>
+          <small>{balanceLabel(s.net)}</small>
+          <strong>{balanceAmount(s.net)} <span style={{ fontSize: 9, opacity: 0.65 }}>USDT</span></strong>
+        </span>
+        <ChevronRight />
+      </button>
     );
   };
 
-  const visiblePending = filteredPending.slice(0, limit);
+  const renderStatement = (s: MerchantStatement) => {
+    const shownGroups = new Set<string>();
+    const lent = s.lines.filter((l) => l.kind === 'lend_out').reduce((sum, l) => sum + l.amount, 0);
+    const borrowed = s.lines.filter((l) => l.kind === 'borrow_in').reduce((sum, l) => sum + l.amount, 0);
+    const groups = s.monthGroups || [];
+    return (
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setDetailKey(null)}>
+        <DialogContent className="ld-dialog tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'}>
+          <DialogTitle className="sr-only">{t('loansMerchantDetails')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {s.name} · {t('loansMerchantBalancesHint')}
+          </DialogDescription>
+          <div className="ld-dialog-head">
+            <div className="ld-statement-top" style={{ flex: 1 }}>
+              <div className="ld-statement-name">
+                <span className="ld-avatar">{initials(s.name)}</span>
+                <div>
+                  <h2>{s.name}</h2>
+                  <p>{t('loansMerchantDetails')} · {s.lines.length} {t('loansMovements')}</p>
+                </div>
+              </div>
+              <div className={`ld-statement-total ${s.net < 0 ? 'owed' : 'owe'}`}>
+                <small>{balanceLabel(s.net)}</small>
+                <strong>{s.net === 0 ? '—' : `${balanceAmount(s.net)} USDT`}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="ld-dialog-body">
+            <div className="ld-mini-stats">
+              <div className="ld-mini-stat">
+                <span>{t('loansTotalLent')}</span>
+                <strong>{fmtTotal(lent)} USDT</strong>
+              </div>
+              <div className="ld-mini-stat">
+                <span>{t('loansTotalBorrowed')}</span>
+                <strong>{fmtTotal(borrowed)} USDT</strong>
+              </div>
+            </div>
+
+            <div className="ld-timeline">
+              {groups.length === 0 && <div className="ld-empty" style={{ padding: 20 }}><Info /><span>{t('loansNoTimeline')}</span></div>}
+              {groups.map((group) => {
+                const groupLines = [...group.lines].reverse();
+                return (
+                  <div key={group.yearMonth}>
+                    <div className="ld-month-label">{group.yearMonth}</div>
+                    {groupLines.map((l) => {
+                      const meta = KIND_META[l.kind];
+                      const cost = unitCost(l.transfer);
+                      const undoable = !l.groupId || !shownGroups.has(l.groupId);
+                      if (l.groupId) shownGroups.add(l.groupId);
+                      return (
+                        <div key={l.id} className="ld-timeline-row">
+                          <div className="ld-timeline-dot"><KindIcon kind={l.kind} /></div>
+                          <div className="ld-timeline-copy">
+                            <div className="ld-timeline-line">
+                              {meta.icon} {t(meta.label)} <b>{fmtTotal(l.amount)}</b> USDT
+                            </div>
+                            <div className="ld-timeline-meta">
+                              {fmtDate(l.ts)} · {sourceText(l.transfer)}
+                              {cost ? ` · ${l.estimated ? t('mloanEstCost') : t('mloanCost')} ${fmtPrice(cost)}` : ''}
+                            </div>
+                            <div className={`ld-timeline-balance ${l.balanceAfter < 0 ? 'owed' : 'owe'}`}>
+                              {balanceText({ net: l.balanceAfter, name: s.name })}
+                            </div>
+                          </div>
+                          {undoable && (
+                            <button type="button" className="ld-btn small ghost" disabled={busy} onClick={() => undo(l.transfer)}>
+                              <RotateCcw /> {t('mloanUndo')}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="ld-dialog-foot">
+            <button type="button" className="ld-btn secondary" onClick={() => setDetailKey(null)}>{t('close')}</button>
+            <button
+              type="button"
+              className="ld-btn primary"
+              onClick={() => {
+                setDetailKey(null);
+                openManual(s.name);
+              }}
+            >
+              <Plus /> {t('mloanAddMove')}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 800 }}>{t('mloanPanelTitle')}</div>
-        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanPanelHint')}</div>
-      </div>
-
-      <ExchangeReferenceSearch
-        state={state}
-        onMerchantLoan={(hit) => { const item = pending.find((p) => p.key === hit.key); if (item) openLoanFor([item]); }}
-        onManualFix={onManualFix ? (hit) => { const item = pending.find((p) => p.key === hit.key); if (item) onManualFix([item]); } : undefined}
-      />
-
-      {/* ── Needs a decision ── */}
-      <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontWeight: 800 }}>{t('mloanNeedsDecision')}</div>
-          <span className="pill" style={{ fontSize: 10, color: filteredPending.length ? 'var(--warn)' : 'var(--good)' }}>
-            {filteredPending.length ? filteredPending.length : '✓'}
-          </span>
+    <div className="ld-desk">
+      <section className="ld-hero">
+        <div>
+          <div className="ld-kicker"><Handshake /> {t('loansEyebrow')}</div>
+          <h1>{t('loansTitle')}</h1>
+          <p>{t('loansSubtitle')}</p>
         </div>
-        {filteredPending.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanAllDecided')}</div>}
-        {filteredPending.length > 0 && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanNeedsDecisionHint')}</div>}
-        {filteredPending.length > 1 && (
-          <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }}
-            onClick={() => setSelected(selected.size === filteredPending.length ? new Set() : new Set(filteredPending.map((p) => p.key)))}>
-            {selected.size === filteredPending.length ? t('mloanClearSelection') : t('mloanSelectAll')}
+        <div className="ld-hero-actions">
+          <button type="button" className="ld-btn primary" onClick={() => openManual()}>
+            <Plus /> {t('loansRecordMovement')}
           </button>
-        )}
-
-        {selectedItems.length > 0 && (
-          <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)', border: '1px solid var(--brand)', borderRadius: 8, padding: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, flex: 1 }}>
-              {selectedItems.length} {t('mloanSelected')} · <span className="mono">{fmtTotal(selectedItems.reduce((s, i) => s + i.pendingUSDT, 0))} USDT</span>
-            </span>
-            <button type="button" className="btn" onClick={() => openLoanFor(selectedItems)}>🤝 {t('mloanTitle')}</button>
-            {onManualFix && (
-              <button type="button" className="btn secondary" onClick={() => onManualFix(selectedItems)}>🛠️ {t('mloanFixManually')}</button>
-            )}
-            <button type="button" className="btn secondary" onClick={() => { void resolveItems(selectedItems, 'ignored'); }}>✕ {t('mloanIgnore')}</button>
-            <button type="button" className="btn secondary" onClick={() => { void resolveItems(selectedItems, 'deleted'); }}>🗑️ {t('mloanRemove')}</button>
-            <button type="button" className="btn secondary" onClick={() => setSelected(new Set())}>{t('cancel')}</button>
-          </div>
-        )}
-
-        {visiblePending.map((item) => (
-          <div key={item.key} data-pending-key={item.key} style={{ borderTop: '1px solid var(--line)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="checkbox" aria-label={t('mloanSelect')} checked={selected.has(item.key)} onChange={() => toggle(item.key)} style={{ width: 16, height: 16, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 800 }}>
-                  {item.direction === 'out' ? '⬆️' : '⬇️'} {item.direction === 'out' ? t('mloanSent') : t('mloanReceived')} <span className="mono">{fmtTotal(item.pendingUSDT)} USDT</span>
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {EXCHANGE_LABELS[item.exchange]} {item.source === 'order' ? `P2P${item.price ? ` @ ${fmtPrice(item.price)} ${item.fiat ?? ''}` : ''}` : item.transfer ? transferKindLabel(item.transfer) : 'Network'}
-                  {item.counterparty ? ` · ${item.counterparty}` : ''}
-                  {item.ts ? ` · ${fmtDate(item.ts)}` : ''}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingInlineStart: 24 }}>
-              <button type="button" className="rowBtn" onClick={() => (item.direction === 'out' ? navigate('/trading/orders') : onImportPurchase())}>
-                {item.direction === 'out' ? `🧾 ${t('mloanItsSale')}` : `📦 ${t('mloanItsPurchase')}`}
-              </button>
-              <button type="button" className="rowBtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand)', fontWeight: 800 }} onClick={() => openLoanFor([item])}>
-                🤝 {t('mloanItsLoan')}
-              </button>
-              {onManualFix && (
-                <button type="button" className="rowBtn" onClick={() => onManualFix([item])}>🛠️ {t('mloanFixManually')}</button>
-              )}
-              <button type="button" className="rowBtn" onClick={() => { void resolveItems([item], 'ignored'); }}>✕ {t('mloanIgnore')}</button>
-              <button type="button" className="rowBtn" onClick={() => { void resolveItems([item], 'deleted'); }}>🗑️ {t('mloanRemove')}</button>
-            </div>
-          </div>
-        ))}
-        {filteredPending.length > limit && (
-          <button type="button" className="btn secondary" onClick={() => setLimit((l) => l + PAGE)}>{t('mloanShowMore')}</button>
-        )}
-      </div>
-
-      {/* ── Resolved without registering ── */}
-      {dismissed.length > 0 && (
-        <div className="panel" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }} onClick={() => setShowDismissed((v) => !v)}>
-            {showDismissed ? '▾' : '▸'} {t('mloanResolvedGroup')} ({dismissed.length})
+          <button type="button" className="ld-btn ghost" onClick={showReview}>
+            <Inbox /> {t('loansOpenInbox')}
+            {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
           </button>
-          {showDismissed && dismissed.map((d) => (
-            <div key={d.key} style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: 6 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700 }}>
-                  {d.direction === 'out' ? '⬆️' : '⬇️'} <span className="mono">{fmtTotal(d.usdt)} USDT</span>
-                  {' · '}
-                  {d.reason === 'deleted' ? t('mloanReasonRemoved') : d.reason === 'adjusted' ? t('mloanReasonAdjusted') : t('mloanReasonIgnored')}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {EXCHANGE_LABELS[d.exchange]} {d.source === 'order' ? `P2P${d.price ? ` @ ${fmtPrice(d.price)} ${d.fiat ?? ''}` : ''}` : ''}
-                  {d.counterparty ? ` · ${d.counterparty}` : ''}
-                  {d.ts ? ` · ${fmtDate(d.ts)}` : ''}
-                  {d.note ? ` · ${d.note}` : ''}
-                </div>
-              </div>
-              <button type="button" className="rowBtn" onClick={() => { void restore(d); }}>{t('mloanRestore')}</button>
-            </div>
-          ))}
         </div>
-      )}
+      </section>
 
-      {/* ── Merchants ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 800 }}>{t('mloanMerchants')}</div>
-        <button type="button" className="rowBtn" onClick={() => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }] })}>
-          ＋ {t('mloanManualEntry')}
+      <section className="ld-stats" aria-label={t('loansBalance')}>
+        <article className="ld-stat owed">
+          <div className="ld-stat-top">
+            <span className="ld-stat-label">{t('loansYouAreOwed')}</span>
+            <span className="ld-stat-icon"><ArrowDownLeft /></span>
+          </div>
+          <div className="ld-stat-value">{fmtTotal(owed)} <span style={{ fontSize: 11, opacity: 0.6 }}>USDT</span></div>
+          <div className="ld-stat-note">{owedCount} {t('loansMerchants')}</div>
+        </article>
+        <article className="ld-stat owe">
+          <div className="ld-stat-top">
+            <span className="ld-stat-label">{t('loansYouOwe')}</span>
+            <span className="ld-stat-icon"><ArrowUpRight /></span>
+          </div>
+          <div className="ld-stat-value">{fmtTotal(owe)} <span style={{ fontSize: 11, opacity: 0.6 }}>USDT</span></div>
+          <div className="ld-stat-note">{oweCount} {t('loansMerchants')}</div>
+        </article>
+        <article className="ld-stat open">
+          <div className="ld-stat-top">
+            <span className="ld-stat-label">{t('loansOpenMerchants')}</span>
+            <span className="ld-stat-icon"><Wallet /></span>
+          </div>
+          <div className="ld-stat-value">{open.length}</div>
+          <div className="ld-stat-note">{t('loansAcrossMerchants')}</div>
+        </article>
+        <article className="ld-stat connected">
+          <div className="ld-stat-top">
+            <span className="ld-stat-label">{t('loansConnectedMerchants')}</span>
+            <span className="ld-stat-icon"><ShieldCheck /></span>
+          </div>
+          <div className="ld-stat-value">{connectedCount}</div>
+          <div className="ld-stat-note">{connectedCount > 0 ? t('loansConnectedSync') : t('loansNoConnected')}</div>
+        </article>
+      </section>
+
+      <div className="ld-tabs" role="tablist" aria-label={t('loansTitle')}>
+        <button type="button" role="tab" aria-selected={tab === 'balances'} className={`ld-tab ${tab === 'balances' ? 'active' : ''}`} onClick={() => setTab('balances')}>
+          {t('loansBalances')} <span className="ld-count">{open.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'review'} className={`ld-tab ${tab === 'review' ? 'active' : ''}`} onClick={() => setTab('review')}>
+          {t('loansReview')} {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
         </button>
       </div>
-      {open.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('mloanNoOpen')}</div>}
-      {open.map(renderMerchant)}
-      {settled.length > 0 && (
-        <>
-          <button type="button" className="rowBtn" style={{ alignSelf: 'flex-start' }} onClick={() => setShowSettled((v) => !v)}>
-            {showSettled ? '▾' : '▸'} {t('mloanSettledGroup')} ({settled.length})
-          </button>
-          {showSettled && settled.map(renderMerchant)}
-        </>
+
+      {tab === 'balances' ? (
+        <div className="ld-layout">
+          <div className="ld-main">
+            <div className="ld-section-head">
+              <div>
+                <h2>{t('loansMerchantBalances')}</h2>
+                <p>{t('loansMerchantBalancesHint')}</p>
+              </div>
+              <span className="ld-count">{open.length}</span>
+            </div>
+            {open.length === 0 ? (
+              <div className="ld-empty">
+                <Handshake />
+                <strong>{t('loansNoBalances')}</strong>
+                <span>{t('loansNoBalancesHint')}</span>
+                <button type="button" className="ld-btn primary small" onClick={() => openManual()}>
+                  <Plus /> {t('loansRecordMovement')}
+                </button>
+              </div>
+            ) : open.map(renderMerchant)}
+            {settled.length > 0 && (
+              <details className="ld-settled">
+                <summary>{t('loansSettledMerchants')} ({settled.length})</summary>
+                <div className="ld-settled-list">
+                  {settled.map((s) => (
+                    <button key={s.key} type="button" className="ld-settled-row" onClick={() => setDetailKey(s.key)}>
+                      <strong>{s.name}</strong>
+                      <span>{t('mloanSettledShort')} · {fmtDate(s.lastTs)}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+          <aside className="ld-side">
+            <div className="ld-side-card brand">
+              <h3>{t('loansRecordMovement')}</h3>
+              <p>{t('loansHowItWorksBody')}</p>
+              <button type="button" className="ld-btn primary" onClick={() => openManual()}>
+                <Plus /> {t('loansRecordMovement')}
+              </button>
+            </div>
+            {onOpenConsignments && (
+              <div className="ld-side-card">
+                <h3>{t('loansSellForMerchant')}</h3>
+                <p>{t('loansSellForMerchantHint')}</p>
+                <button type="button" className="ld-btn secondary" onClick={onOpenConsignments}>
+                  <ArrowUpRight /> {t('loansSellForMerchant')}
+                </button>
+              </div>
+            )}
+            <div className="ld-side-card">
+              <h3>{t('loansHowItWorks')}</h3>
+              <div className="ld-side-list">
+                <div><Info /> <span>{t('loansHowItWorksBody')}</span></div>
+                <div><ShieldCheck /> <span>{t('loansConnectedSync')}</span></div>
+                <div><Wallet /> <span>{t('mloanNoProfit')}</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : (
+        <div id="ld-review" className="ld-layout">
+          <div className="ld-main">
+            <div className="ld-section-head">
+              <div>
+                <h2>{t('loansInboxTitle')}</h2>
+                <p>{t('loansInboxHint')}</p>
+              </div>
+              {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
+            </div>
+            <ExchangeReferenceSearch
+              state={state}
+              onMerchantLoan={(hit) => {
+                const item = pending.find((p) => p.key === hit.key);
+                if (item) openLoanFor([item]);
+              }}
+              onManualFix={onManualFix ? (hit) => {
+                const item = pending.find((p) => p.key === hit.key);
+                if (item) onManualFix([item]);
+              } : undefined}
+            />
+            {visiblePending.length === 0 ? (
+              <div className="ld-empty">
+                <ShieldCheck />
+                <strong>{t('loansInboxEmpty')}</strong>
+                <span>{t('loansInboxEmptyHint')}</span>
+              </div>
+            ) : (
+              <div className="ld-inbox">
+                {visiblePending.map((item) => (
+                  <article key={item.key} className="ld-inbox-card" data-pending-key={item.key}>
+                    <div className="ld-inbox-top">
+                      <div className={`ld-inbox-icon ${item.direction}`}><SourceIcon direction={item.direction} /></div>
+                      <div className="ld-inbox-copy">
+                        <div className="ld-inbox-title">
+                          {item.direction === 'out' ? t('mloanSent') : t('mloanReceived')}{' '}
+                          <strong>{fmtTotal(item.pendingUSDT)} USDT</strong>
+                        </div>
+                        <div className="ld-inbox-meta">
+                          {EXCHANGE_LABELS[item.exchange]} {item.source === 'order' ? `P2P${item.price ? ` @ ${fmtPrice(item.price)} ${item.fiat ?? ''}` : ''}` : item.transfer ? transferKindLabel(item.transfer) : 'Network'}
+                          {item.counterparty ? ` · ${item.counterparty}` : ''}
+                          {item.ts ? ` · ${fmtDate(item.ts)}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ld-inbox-actions">
+                      <button type="button" className="ld-btn primary small" onClick={() => openLoanFor([item])}>
+                        <Handshake /> {t('mloanItsLoan')}
+                      </button>
+                      <button
+                        type="button"
+                        className="ld-btn small ghost"
+                        onClick={() => (item.direction === 'out' ? navigate('/trading/orders') : onImportPurchase())}
+                      >
+                        {item.direction === 'out' ? t('mloanItsSale') : t('mloanItsPurchase')}
+                      </button>
+                      <details className="ld-more">
+                        <summary><MoreHorizontal /> {t('loansMoreOptions')}</summary>
+                        <div className="ld-more-menu">
+                          {onManualFix && (
+                            <button type="button" onClick={() => onManualFix([item])}>{t('mloanFixManually')}</button>
+                          )}
+                          <button type="button" onClick={() => { void resolveItem(item, 'ignored'); }}>{t('mloanIgnore')}</button>
+                          <button type="button" className="danger" onClick={() => { void resolveItem(item, 'deleted'); }}>{t('mloanRemove')}</button>
+                        </div>
+                      </details>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+            {filteredPending.length > limit && (
+              <button type="button" className="ld-btn secondary small" onClick={() => setLimit((l) => l + PAGE)}>
+                {t('mloanShowMore')}
+              </button>
+            )}
+            {dismissed.length > 0 && (
+              <details className="ld-resolved">
+                <summary>{t('mloanResolvedGroup')} ({dismissed.length})</summary>
+                <div className="ld-resolved-list">
+                  {dismissed.map((d) => (
+                    <div key={d.key} className="ld-resolved-row">
+                      <div style={{ minWidth: 0 }}>
+                        <strong>{d.direction === 'out' ? '↑' : '↓'} {fmtTotal(d.usdt)} USDT</strong>
+                        <span>
+                          {' · '}
+                          {d.reason === 'deleted' ? t('mloanReasonRemoved') : d.reason === 'adjusted' ? t('mloanReasonAdjusted') : t('mloanReasonIgnored')}
+                          {d.counterparty ? ` · ${d.counterparty}` : ''}
+                        </span>
+                      </div>
+                      <button type="button" className="ld-btn small ghost" onClick={() => { void restore(d); }}>{t('mloanRestore')}</button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+          <aside className="ld-side">
+            <div className="ld-side-card brand">
+              <h3>{t('loansHowItWorks')}</h3>
+              <p>{t('loansHowItWorksBody')}</p>
+              <div className="ld-side-list">
+                <div><Info /> <span>{t('mloanNeedsDecisionHint')}</span></div>
+                <div><ShieldCheck /> <span>{t('mloanNoProfit')}</span></div>
+              </div>
+            </div>
+            <div className="ld-side-card">
+              <h3>{t('loansConnectedMerchants')}</h3>
+              <p>{merchants.filter((m) => m.connected).length > 0 ? t('loansConnectedSync') : t('loansNoConnected')}</p>
+              <button type="button" className="ld-btn secondary" onClick={() => openManual()}>
+                <Plus /> {t('loansRecordMovement')}
+              </button>
+            </div>
+          </aside>
+        </div>
       )}
+
+      {selected && renderStatement(selected)}
 
       {dialog && (
         <MerchantLoanDialog
@@ -355,7 +577,7 @@ export function LoansPanel({
           presetName={dialog.presetName}
           state={state}
           applyStateAndCommit={applyStateAndCommit}
-          onClose={() => { setDialog(null); setSelected(new Set()); }}
+          onClose={() => setDialog(null)}
         />
       )}
     </div>

@@ -36,6 +36,8 @@ export interface ModernSelectProps {
   title?: string;
   /** Sized to its content so it can sit on one line with other filters. */
   compact?: boolean;
+  /** Accessible name for the combobox trigger. */
+  ariaLabel?: string;
 }
 
 /**
@@ -43,7 +45,7 @@ export interface ModernSelectProps {
  * surface above everything else, so nothing behind it shows through. It opens just under
  * the field (above it when there is no room) and stays compact.
  */
-export function ModernSelect({ value, onChange, children, disabled, style, className, placeholder, title, compact }: ModernSelectProps) {
+export function ModernSelect({ value, onChange, children, disabled, style, className, placeholder, title, compact, ariaLabel }: ModernSelectProps) {
   const options = useMemo(() => parseOptions(children), [children]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -128,6 +130,7 @@ export function ModernSelect({ value, onChange, children, disabled, style, class
         className={`msel-trigger${compact ? ' msel-compact' : ''} ${className ?? ''}`}
         style={style}
         role="combobox"
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => !disabled && setOpen(v => !v)}
