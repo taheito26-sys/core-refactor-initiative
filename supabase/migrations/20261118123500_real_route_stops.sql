@@ -27,7 +27,18 @@ DECLARE
   s record;
   v_origin timestamptz;
 BEGIN
-  FOR s IN SELECT id FROM public.shipments LOOP
+  -- Only rebuild trips that have not started their route in earnest. Completed, cancelled, or
+  -- already-progressed trips keep their original stops so historical reporting stays intact.
+  FOR s IN
+    SELECT s.id
+    FROM public.shipments s
+    WHERE s.status IN ('preparing', 'on_the_road')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.shipment_stops st
+        WHERE st.shipment_id = s.id AND st.seq > 10 AND st.reached_at IS NOT NULL
+      )
+  LOOP
     -- Keep the origin's confirmation; every later stop is part of the new route and starts unconfirmed.
     SELECT reached_at INTO v_origin
     FROM public.shipment_stops
