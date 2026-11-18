@@ -1,5 +1,5 @@
 import { ReadingFreshness } from './ReadingFreshness';
-import { ChevronRight, MapPin, Scale, Timer, Truck, User } from 'lucide-react';
+import { Ban, ChevronRight, MapPin, Scale, Thermometer, Timer, Trash2, Truck, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { placeText } from '../geo';
 import {
@@ -61,12 +61,115 @@ export function TempLimits({ target, tolerance, lang }: { target: number; tolera
   );
 }
 
+/** A compact half-dial: the green band is the allowed range, the dot is the latest reading. */
+export function TempDial({ temperature, target, tolerance, alert }: { temperature: number | null; target: number; tolerance: number; alert: boolean }) {
+  const s = rangeScale(target, tolerance, temperature);
+  const pct = Math.min(100, Math.max(0, s.markerPct ?? 0));
+  const cx = 62;
+  const cy = 64;
+  const r = 48;
+  const polar = (value: number) => {
+    const angle = Math.PI * (1 - value / 100);
+    return [cx + r * Math.cos(angle), cy - r * Math.sin(angle)] as const;
+  };
+  const arc = (from: number, to: number) => {
+    const [x1, y1] = polar(from);
+    const [x2, y2] = polar(to);
+    return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`;
+  };
+  const [markerX, markerY] = polar(pct);
+  const [targetX, targetY] = polar(((target - s.min) / Math.max(1e-9, s.max - s.min)) * 100);
+  return (
+    <div className="cs-dial" aria-hidden="true">
+      <svg viewBox="0 0 124 76">
+        <path className="track" d={arc(0, 100)} />
+        <path className="band" d={arc(s.bandStartPct, s.bandEndPct)} />
+        <line className="target" x1={targetX} y1={targetY - 4} x2={targetX} y2={targetY + 4} />
+        {s.markerPct !== null && <circle className={cn('marker', alert && 'bad')} cx={markerX} cy={markerY} r="4.5" />}
+      </svg>
+      <div className="cs-dial-val"><b>{temperature == null ? '—' : temp(temperature)}</b><small>°C</small></div>
+    </div>
+  );
+}
+
+/** The last readings as a small trend line, so a drift is visible before the next photo. */
+export function TempSpark({ readings, target, tolerance }: { readings: ShipmentWithDetails['readings']; target: number; tolerance: number }) {
+  const points = [...readings]
+    .filter((r) => Number.isFinite(Number(r.temperature_c)))
+    .sort((a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime())
+    .slice(-8);
+  if (points.length < 2) return null;
+  const W = 150;
+  const H = 34;
+  const pad = 3;
+  const temps = points.map((p) => Number(p.temperature_c));
+  const lo = Math.min(...temps, target - tolerance) - 2;
+  const hi = Math.max(...temps, target + tolerance) + 2;
+  const y = (value: number) => pad + (1 - (value - lo) / Math.max(1e-9, hi - lo)) * (H - pad * 2);
+  const x = (index: number) => pad + (index / Math.max(1, points.length - 1)) * (W - pad * 2);
+  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(Number(p.temperature_c)).toFixed(1)}`).join(' ');
+  const bandTop = y(target + tolerance);
+  const bandBottom = y(target - tolerance);
+  return (
+    <svg className="cs-spark" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Temperature trend">
+      <rect className="band" x="0" y={bandTop} width={W} height={Math.max(0, bandBottom - bandTop)} />
+      <polyline className="line" points={line} />
+      {points.map((p, i) => (
+        <circle key={p.id} className={cn('dot', p.is_alert && 'bad')} cx={x(i)} cy={y(Number(p.temperature_c))} r="2.2" />
+      ))}
+    </svg>
+  );
+}
+
+/** A cancelled trip is a record, not a live card: muted, no route controls, with a delete action. */
+function CancelledCard({ shipment, lang, now, onOpen, onDelete }: { shipment: ShipmentWithDetails; lang: Lang; now: number; onOpen: () => void; onDelete?: () => void }) {
+  const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  const last = latestReading(shipment.readings);
+  const date = new Date(shipment.started_at ?? shipment.created_at).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short' });
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className="co-card cs-card cancelled"
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      aria-label={`${shipment.reference} — ${STATUS_LABELS.cancelled[lang]}`}
+    >
+      <div className="co-card-top">
+        <span className="co-no">{shipment.reference}</span>
+        <span className="cs-cargo">{shipment.cargo}</span>
+        <span className="co-date" style={{ marginInlineStart: 'auto' }}>{date}</span>
+        <span className="co-tag grey" style={{ marginInlineStart: 0 }}>{STATUS_LABELS.cancelled[lang]}</span>
+      </div>
+      <div className="cs-cancel-body">
+        <span className="cs-cancel-ic"><Ban aria-hidden="true" /></span>
+        <div>
+          <b>{L('This trip was cancelled', 'أُلغيت هذه الرحلة')}</b>
+          <p>{L('No new temperature or route updates are expected.', 'لا تُتوقع تحديثات حرارة أو مسار جديدة.')}</p>
+          {last && <span>{L('Last reading', 'آخر قراءة')} <b dir="ltr">{temp(last.temperature_c)}°C</b> · {agoLabel(last.taken_at, now, lang)}</span>}
+        </div>
+      </div>
+      <div className="cs-cancel-foot">
+        <span>{L('No active monitoring', 'لا توجد متابعة نشطة')}</span>
+        {onDelete && (
+          <button type="button" className="cs-delete" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+            <Trash2 aria-hidden="true" />{L('Delete', 'حذف')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ShipmentCardProps = { shipment: ShipmentWithDetails; lang: Lang; now: number; onOpen: () => void; onDelete?: () => void; audience?: 'customer' | 'driver' };
+
 /**
  * One shipment as an order-style card: reference and status on top, the temperature now against what is
  * allowed, where the truck is, how far along the route it is, and when it was last heard from.
  */
-export function ShipmentCard({ shipment, lang, now, onOpen, audience = 'customer' }: { shipment: ShipmentWithDetails; lang: Lang; now: number; onOpen: () => void; audience?: 'customer' | 'driver' }) {
+export function ShipmentCard({ shipment, lang, now, onOpen, onDelete, audience = 'customer' }: ShipmentCardProps) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
+  if (shipment.status === 'cancelled') return <CancelledCard shipment={shipment} lang={lang} now={now} onOpen={onOpen} onDelete={onDelete} />;
   const last = latestReading(shipment.readings);
   const due = readingDue(shipment, last?.taken_at ?? null, now);
   const live = liveness(due);
@@ -96,17 +199,22 @@ export function ShipmentCard({ shipment, lang, now, onOpen, audience = 'customer
         <span className={cn('co-tag', tag)} style={{ marginInlineStart: 0 }}>{tagLabel}</span>
       </div>
 
-      <div className="co-card-mid">
-        <div className="co-amt-col">
-          <div className="k">{L('Last recorded temperature', 'آخر حرارة مسجلة')}</div>
-          <div className={cn('co-amt cs-temp', alert && 'bad')}><small>°C</small><b>{last ? temp(last.temperature_c) : '—'}</b></div>
-          {last && <div className={cn('cs-state', alert ? 'bad' : 'ok')}>{alert ? L('Out of range', 'خارج النطاق') : L('In range', 'ضمن النطاق')}</div>}
+      <div className={cn('cs-temp-hero', alert && 'bad', !last && 'mute')}>
+        <div className="cs-temp-hero-head">
+          <div className="cs-temp-kicker"><Thermometer aria-hidden="true" />{L('Last recorded temperature', 'آخر حرارة مسجلة')}</div>
+          <span className={cn('cs-temp-pill', alert ? 'bad' : last ? 'ok' : 'mute')}>
+            {last ? (alert ? L('Out of range', 'خارج النطاق') : L('Within range', 'ضمن النطاق')) : L('Awaiting first reading', 'بانتظار أول قراءة')}
+          </span>
         </div>
-        <div className="co-amt-col end"><TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} /></div>
+        <div className="cs-temp-hero-body">
+          <TempDial temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
+          <div className="cs-temp-hero-copy">
+            <TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />
+            <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={shipment.status === 'on_the_road'} now={now} lang={lang} />
+            {last && <TempSpark readings={shipment.readings} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} />}
+          </div>
+        </div>
       </div>
-      <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={shipment.status === 'on_the_road'} now={now} lang={lang} />
-      <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
-      {last && <TempVerdict temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />}
 
       <div className="cs-chips">
         {audience === 'customer' && shipment.driver && <span className="co-rate"><User style={{ width: 11, height: 11 }} aria-hidden="true" /> <b dir="auto">{shipment.driver.display_name}</b></span>}

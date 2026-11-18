@@ -13,6 +13,10 @@ vi.mock('@/features/shipments/hooks', () => ({
   useAddStop: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/features/shipments/components/DriverReadingForm', () => ({ DriverReadingForm: () => <div>Reading form</div> }));
+vi.mock('@/hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: [] }),
+  useMarkNotificationRead: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock('@/features/shipments/reporting', () => ({ reportStopLocation: vi.fn() }));
 import DriverShipmentPage from '@/pages/driver/DriverShipmentPage';
 const open = () => render(<MemoryRouter><DriverShipmentPage /></MemoryRouter>);
@@ -39,6 +43,7 @@ describe('Driver shipment lifecycle', () => {
     expect(screen.queryByRole('button', { name: 'Accept and start shipment' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Stop and end shipment' })).toBeNull();
     expect(screen.queryByText('Reading form')).toBeNull();
+    if (status === 'cancelled') expect(screen.getByText('Cancelled trip')).toBeTruthy();
   });
   it('supports Arabic acceptance and confirmation', () => {
     mocks.language = 'ar'; open();

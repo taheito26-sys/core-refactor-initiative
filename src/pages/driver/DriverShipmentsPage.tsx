@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, PackageOpen, Truck } from 'lucide-react';
+import { Clock, PackageOpen, Thermometer, Timer, Truck } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
+import { cn } from '@/lib/utils';
+import { useNotifications } from '@/hooks/useNotifications';
+import { DriverExcursionAlert, isDriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { useShipments } from '@/features/shipments/hooks';
+import { latestReading, readingDue } from '@/features/shipments/route';
 
 const ORDER = { on_the_road: 0, preparing: 1, ended_early: 2, delivered: 3, cancelled: 4 } as const;
 
@@ -14,21 +18,40 @@ export default function DriverShipmentsPage() {
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { data: shipments = [], isLoading, isError } = useShipments();
+  const { data: notifications = [] } = useNotifications();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
   const sorted = useMemo(() => [...shipments].sort((a, b) => ORDER[a.status] - ORDER[b.status]), [shipments]);
   const count = (s: keyof typeof ORDER) => shipments.filter((x) => x.status === s).length;
+  const active = shipments.filter((s) => s.status === 'on_the_road');
+  const dueCount = active.filter((s) => {
+    const due = readingDue(s, latestReading(s.readings)?.taken_at ?? null, now);
+    return due.state === 'overdue' || due.state === 'due_soon';
+  }).length;
+  const alertCount = active.filter((s) => latestReading(s.readings)?.is_alert).length;
+  const liveIds = new Set(
+    shipments
+      .filter((shipment) => shipment.status === 'on_the_road' || shipment.status === 'preparing')
+      .map((shipment) => shipment.id),
+  );
+  const excursionAlerts = notifications.filter(
+    (notification) => isDriverExcursionAlert(notification)
+      && liveIds.has(notification.target.targetEntityId ?? notification.entity_id ?? ''),
+  );
 
   return (
     <>
+      {excursionAlerts.length > 0 && <DriverExcursionAlert alerts={excursionAlerts} lang={lang} />}
+
       {shipments.length > 0 && (
         <div className="co-mainwrap">
           <div className="ch-card co-main">
             <div className="co-mlabel">{L('Today', 'اليوم')}</div>
-            <div className="co-tiles three" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            <div className="co-tiles">
               <div className="co-t t3"><div className="co-t-top"><span className="co-t-l">{L('On the road', 'في الطريق')}</span><span className="co-t-ic"><Truck /></span></div><div className="co-t-v">{count('on_the_road')}</div></div>
-              <div className="co-t t2"><div className="co-t-top"><span className="co-t-l">{L('Waiting', 'بانتظار البدء')}</span><span className="co-t-ic"><Clock /></span></div><div className="co-t-v">{count('preparing')}</div></div>
-              <div className="co-t t4"><div className="co-t-top"><span className="co-t-l">{L('Delivered', 'تم التسليم')}</span><span className="co-t-ic"><CheckCircle2 /></span></div><div className="co-t-v">{count('delivered')}</div></div>
+              <div className={cn('co-t', dueCount > 0 ? 'bad' : 't2')}><div className="co-t-top"><span className="co-t-l">{L('Readings due', 'قراءات مستحقة')}</span><span className="co-t-ic"><Timer /></span></div><div className="co-t-v">{dueCount}</div></div>
+              <div className={cn('co-t', alertCount > 0 ? 'bad' : 't4')}><div className="co-t-top"><span className="co-t-l">{L('Temp alerts', 'تنبيهات الحرارة')}</span><span className="co-t-ic"><Thermometer /></span></div><div className="co-t-v">{alertCount}</div></div>
+              <div className="co-t t4"><div className="co-t-top"><span className="co-t-l">{L('Waiting', 'بانتظار البدء')}</span><span className="co-t-ic"><Clock /></span></div><div className="co-t-v">{count('preparing')}</div><div className="co-t-c">{count('delivered')} {L('delivered', 'تم تسليمها')}</div></div>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import type { Shipment, ShipmentDriver, ShipmentLocation, ShipmentReading, Shipm
 // they are regenerated. It only describes the few calls this module makes.
 interface Query extends PromiseLike<{ data: unknown; error: Error | null }> {
   eq(column: string, value: unknown): Query;
+  in(column: string, values: readonly unknown[]): Query;
   order(column: string, options?: { ascending?: boolean; referencedTable?: string }): Query;
   limit(count: number, options?: { referencedTable?: string }): Query;
   maybeSingle(): PromiseLike<{ data: unknown; error: Error | null }>;
@@ -36,7 +37,34 @@ export async function listShipments(): Promise<ShipmentWithDetails[]> {
     .order('recorded_at', { ascending: false, referencedTable: 'locations' })
     .limit(1, { referencedTable: 'locations' });
   if (error) throw error;
-  return (data ?? []) as ShipmentWithDetails[];
+  const shipments = (data ?? []) as ShipmentWithDetails[];
+  if (!shipments.length) return shipments;
+
+  // The embedded readings are limited to the newest one so a long history
+  // doesn't bloat the list. The temperature sparkline needs a few more points,
+  // so fetch a recent window for every visible shipment in one query and merge
+  // it back. This keeps the list query small while making the trend real.
+  const ids = shipments.map((shipment) => shipment.id);
+  const { data: recent, error: recentError } = await db
+    .from('shipment_readings')
+    .select('*')
+    .in('shipment_id', ids)
+    .order('taken_at', { ascending: false })
+    .limit(Math.min(ids.length * 12, 800));
+
+  if (recentError || !recent) return shipments;
+
+  const byShipment = new Map<string, ShipmentReading[]>();
+  for (const reading of recent as ShipmentReading[]) {
+    const list = byShipment.get(reading.shipment_id) ?? [];
+    if (list.length < 12) list.push(reading);
+    byShipment.set(reading.shipment_id, list);
+  }
+
+  return shipments.map((shipment) => ({
+    ...shipment,
+    readings: byShipment.get(shipment.id) ?? shipment.readings,
+  }));
 }
 
 export interface ShipmentDetail extends ShipmentWithDetails {
@@ -91,6 +119,9 @@ export const assignShipmentDriver = (shipmentId: string, driverId: string | null
   rpc<Shipment>('customer_assign_shipment_driver', { p_shipment_id: shipmentId, p_driver_id: driverId });
 
 export const cancelShipment = (shipmentId: string) => rpc<Shipment>('customer_cancel_shipment', { p_shipment_id: shipmentId });
+
+/** Removes a cancelled shipment and its history; the database enforces ownership and status. */
+export const deleteShipment = (shipmentId: string) => rpc<void>('delete_customer_shipment', { p_shipment_id: shipmentId });
 
 export const setDriverActive = (driverId: string, active: boolean) =>
   rpc<ShipmentDriver>('customer_set_driver_active', { p_driver_id: driverId, p_active: active });

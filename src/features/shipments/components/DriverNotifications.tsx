@@ -44,8 +44,8 @@ export function DriverNotifications({
             </SheetTitle>
             <SheetDescription>
               {lang === "ar"
-                ? "مواعيد القراءات وموافقات الاستئناف"
-                : "Reading deadlines and restart approvals"}
+                ? "مواعيد القراءات وتنبيهات الحرارة وموافقات الاستئناف"
+                : "Reading deadlines, temperature alerts and restart approvals"}
             </SheetDescription>
           </SheetHeader>
           <div className="cs-dbody">

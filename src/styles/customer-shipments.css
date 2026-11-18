@@ -306,3 +306,222 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 .cs-verdict.ok { background: var(--th-all, #ecfaf4); } .cs-verdict.ok b { color: #0b9a68; }
 .cs-verdict.bad { background: var(--th-badl, #ffe4ea); } .cs-verdict.bad b { color: var(--th-bad, #e11d48); }
 .cs-verdict.mute { background: transparent; padding: 0; }
+
+/* ── temperature hero: the KPI the customer opens the page for ── */
+.cs-temp-hero { margin-top: calc(7 * var(--q)); padding: calc(8 * var(--q)); border-radius: calc(12 * var(--q)); background: linear-gradient(135deg, #f5faff, #fff); border: 1px solid #e4edf8; }
+.cs-temp-hero.bad { background: linear-gradient(135deg, #fff5f7, #fff); border-color: #ffd6df; }
+.cs-temp-hero.mute { background: #f8fafd; }
+.cs-temp-hero-head { display: flex; align-items: center; justify-content: space-between; gap: calc(6 * var(--q)); }
+.cs-temp-kicker { display: flex; align-items: center; gap: calc(4 * var(--q)); font-size: calc(9.5 * var(--q)); font-weight: 800; color: #4d5d88; text-transform: uppercase; letter-spacing: .04em; }
+.cs-temp-kicker svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); color: #2f73f4; }
+.cs-temp-pill { font-size: calc(9 * var(--q)); font-weight: 800; border-radius: 999px; padding: calc(2 * var(--q)) calc(7 * var(--q)); white-space: nowrap; }
+.cs-temp-pill.ok { color: #0b7a56; background: #d9f7e9; }
+.cs-temp-pill.bad { color: #c8103f; background: #ffe1e8; }
+.cs-temp-pill.mute { color: #6b7a9c; background: #eef2f8; }
+.cs-temp-hero-body { display: grid; grid-template-columns: calc(112 * var(--q)) minmax(0, 1fr); gap: calc(8 * var(--q)); align-items: center; margin-top: calc(4 * var(--q)); }
+.cs-dial { position: relative; direction: ltr; height: calc(72 * var(--q)); }
+.cs-dial svg { width: 100%; height: auto; display: block; overflow: visible; }
+.cs-dial .track { fill: none; stroke: #e3ebf7; stroke-width: 7; stroke-linecap: round; }
+.cs-dial .band { fill: none; stroke: #bfeed8; stroke-width: 7; stroke-linecap: round; }
+.cs-dial .target { stroke: #047857; stroke-width: 1.4; }
+.cs-dial .marker { fill: var(--th-ink, #0f1f5e); stroke: #fff; stroke-width: 2; }
+.cs-dial .marker.bad { fill: #f0245b; }
+.cs-dial-val { position: absolute; inset-inline: 0; bottom: calc(2 * var(--q)); text-align: center; direction: ltr; }
+.cs-dial-val b { font-size: calc(25 * var(--q)); line-height: 1; font-weight: 800; color: var(--th-ink, #0f1f5e); letter-spacing: -.04em; }
+.cs-temp-hero.bad .cs-dial-val b { color: #f0245b; }
+.cs-dial-val small { font-size: calc(9 * var(--q)); color: #6b7a9c; margin-inline-start: 1px; }
+.cs-temp-hero-copy { min-width: 0; display: grid; gap: calc(3 * var(--q)); }
+.cs-temp-hero-copy .co-amt { margin: 0; }
+.cs-temp-hero-copy .co-amt b { font-size: calc(17 * var(--q)); }
+.cs-temp-hero-copy .cs-state { margin-top: 0; }
+.cs-spark { width: 100%; height: calc(28 * var(--q)); display: block; direction: ltr; margin-top: calc(2 * var(--q)); }
+.cs-spark .band { fill: #bfeed8; opacity: .55; }
+.cs-spark .line { fill: none; stroke: #2f73f4; stroke-width: 1.6; stroke-linejoin: round; }
+.cs-spark .dot { fill: #2f73f4; } .cs-spark .dot.bad { fill: #f0245b; }
+
+/* ── cancelled: a quiet record with a delete action, not a live card ── */
+.cs-card.cancelled { background: #f8fafc; box-shadow: 0 calc(1 * var(--q)) calc(4 * var(--q)) rgba(36,72,140,.06), 0 0 0 1px #e2e8f0; }
+.cs-card.cancelled::before { background: #94a3b8; }
+.cs-card.cancelled:hover { box-shadow: 0 calc(3 * var(--q)) calc(10 * var(--q)) rgba(36,72,140,.10), 0 0 0 1px #cbd5e1; }
+.cs-cancel-body { display: flex; gap: calc(9 * var(--q)); margin-top: calc(8 * var(--q)); align-items: flex-start; }
+.cs-cancel-ic { flex: none; width: calc(30 * var(--q)); height: calc(30 * var(--q)); border-radius: 50%; display: grid; place-items: center; background: #eef2f7; color: #64748b; }
+.cs-cancel-ic svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); }
+.cs-cancel-body > div { min-width: 0; }
+.cs-cancel-body b { display: block; font-size: calc(12 * var(--q)); color: #334155; }
+.cs-cancel-body p { margin: calc(2 * var(--q)) 0 0; font-size: calc(10.5 * var(--q)); line-height: 1.4; color: #64748b; }
+.cs-cancel-body > div > span { display: block; margin-top: calc(4 * var(--q)); font-size: calc(9.5 * var(--q)); color: #94a3b8; }
+.cs-cancel-body > div > span b { display: inline; color: #475569; }
+.cs-cancel-foot { display: flex; align-items: center; justify-content: space-between; gap: calc(8 * var(--q)); margin-top: calc(8 * var(--q)); padding-top: calc(8 * var(--q)); border-top: 1px solid #e8eef6; font-size: calc(9.5 * var(--q)); color: #94a3b8; }
+.cs-delete { display: inline-flex; align-items: center; gap: calc(4 * var(--q)); border: 0; background: #fff1f3; color: #d11a45; border-radius: calc(8 * var(--q)); padding: calc(4 * var(--q)) calc(8 * var(--q)); font: inherit; font-size: calc(10 * var(--q)); font-weight: 800; cursor: pointer; }
+.cs-delete svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); }
+.cs-delete:hover { background: #ffe1e8; }
+.cs-cancelled-box { border: 1px solid #e2e8f0; background: #f8fafc; }
+.cs-cancel-hero { display: flex; gap: calc(9 * var(--q)); align-items: flex-start; }
+.cs-cancel-hero h3 { margin: 0; }
+.cs-cancel-hero p { margin: calc(3 * var(--q)) 0 calc(10 * var(--q)); font-size: calc(11 * var(--q)); line-height: 1.45; color: #64748b; }
+.cs-dbody.cancelled .cs-box:not(.cs-cancelled-box) { opacity: .92; }
+
+/* ── cold-chain intelligence: a score, six measures and a one-axis distribution ── */
+.cs-cold { border: 1px solid #e4edf8; background: linear-gradient(160deg, #f7fbff, #fff); }
+.cs-cold-hero { display: flex; align-items: center; gap: calc(10 * var(--q)); }
+.cs-cold-score { position: relative; flex: none; width: calc(70 * var(--q)); height: calc(70 * var(--q)); }
+.cs-cold-score svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.cs-cold-score .bg { fill: none; stroke: #e3ebf7; stroke-width: 8; }
+.cs-cold-score .fg { fill: none; stroke: #10b981; stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray .4s; }
+.cs-cold-score.watch .fg { stroke: #f59e0b; } .cs-cold-score.risk .fg { stroke: #f0245b; } .cs-cold-score.none .fg { stroke: #cbd5e1; }
+.cs-cold-score > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; direction: ltr; }
+.cs-cold-score b { font-size: calc(20 * var(--q)); line-height: 1; color: var(--th-ink, #0f1f5e); }
+.cs-cold-score small { font-size: calc(8 * var(--q)); color: #6b7a9c; }
+.cs-cold-copy { min-width: 0; }
+.cs-cold-copy > b { display: block; font-size: calc(13 * var(--q)); }
+.cs-cold-band.stable { color: #0b9a68; } .cs-cold-band.watch { color: #c27a06; } .cs-cold-band.risk { color: #f0245b; } .cs-cold-band.none { color: #6b7a9c; }
+.cs-cold-copy p { margin: calc(2 * var(--q)) 0; font-size: calc(10.5 * var(--q)); line-height: 1.4; color: #4d5d88; }
+.cs-cold-copy > span { font-size: calc(9 * var(--q)); color: #6b7a9c; }
+.cs-cold-copy > span b { color: var(--th-ink, #0f1f5e); }
+.cs-cold-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(5 * var(--q)); margin-top: calc(9 * var(--q)); }
+.cs-cold-kpis > div { background: #fff; border: 1px solid #e8eff8; border-radius: calc(8 * var(--q)); padding: calc(5 * var(--q)); }
+.cs-cold-kpis span { display: block; font-size: calc(8 * var(--q)); color: #6b7a9c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-cold-kpis b { display: block; margin-top: calc(1 * var(--q)); font-size: calc(13 * var(--q)); color: var(--th-ink, #0f1f5e); }
+.cs-cold-dist { margin-top: calc(9 * var(--q)); }
+.cs-cold-axis { position: relative; height: calc(30 * var(--q)); border-radius: calc(7 * var(--q)); background: #eef4fb; direction: ltr; overflow: hidden; }
+.cs-cold-axis .band { position: absolute; top: 0; bottom: 0; background: #bfeed8; opacity: .75; }
+.cs-cold-axis .dot { position: absolute; width: calc(6 * var(--q)); height: calc(6 * var(--q)); border-radius: 50%; background: #2f73f4; transform: translate(-50%, -50%); box-shadow: 0 0 0 1px #fff; }
+.cs-cold-axis .dot.bad { background: #f0245b; }
+.cs-cold-labels { display: flex; justify-content: space-between; gap: calc(6 * var(--q)); margin-top: calc(2 * var(--q)); font-size: calc(8 * var(--q)); color: #6b7a9c; }
+.cs-temp-hero-copy .co-amt { display: flex; align-items: baseline; gap: calc(2 * var(--q)); }
+.cs-temp-hero-copy .co-amt small { order: 2; }
+.cs-temp-hero-copy .co-amt b { order: 1; }
+
+/* Driver cockpit: a live temperature excursion, fed by the same notification
+   row that dispatches the Web Push. The pulsing edge makes it unmistakable
+   without covering the shipment list. */
+.dr-excursion {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(9 * var(--q));
+  padding: calc(11 * var(--q)) calc(12 * var(--q));
+  border: 1px solid rgba(225, 29, 72, .24);
+  border-color: color-mix(in srgb, var(--th-bad, #e11d48) 24%, transparent);
+  border-radius: calc(12 * var(--q));
+  background: linear-gradient(135deg, #fff1f4 0%, #fff8f9 58%, #fff 100%);
+  box-shadow: 0 calc(6 * var(--q)) calc(18 * var(--q)) rgba(225, 29, 72, .10);
+  overflow: hidden;
+  text-align: start;
+}
+.dr-excursion::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: calc(3 * var(--q));
+  background: var(--th-bad, #e11d48);
+  animation: dr-excursion-bar 1.8s ease-in-out infinite;
+}
+.dr-excursion-ic {
+  flex: none;
+  width: calc(30 * var(--q));
+  height: calc(30 * var(--q));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--th-bad, #e11d48);
+  box-shadow: 0 0 0 calc(4 * var(--q)) rgba(225, 29, 72, .12);
+}
+.dr-excursion-ic svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); stroke-width: 2; }
+.dr-excursion-body { flex: 1; min-width: 0; }
+.dr-excursion-kicker {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--q));
+  color: var(--th-bad, #e11d48);
+  font-size: calc(8.5 * var(--q));
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.dr-excursion-kicker b {
+  font-size: calc(8 * var(--q));
+  padding: calc(1 * var(--q)) calc(5 * var(--q));
+  border-radius: 999px;
+  background: rgba(225, 29, 72, .12);
+}
+.dr-excursion-pulse {
+  width: calc(6 * var(--q));
+  height: calc(6 * var(--q));
+  border-radius: 50%;
+  background: var(--th-bad, #e11d48);
+  box-shadow: 0 0 0 0 rgba(225, 29, 72, .45);
+  animation: dr-excursion-pulse 1.6s ease-out infinite;
+}
+.dr-excursion-title {
+  margin-top: calc(3 * var(--q));
+  color: var(--th-ink, #0f1f5e);
+  font-size: calc(13 * var(--q));
+  font-weight: 850;
+  line-height: 1.25;
+}
+.dr-excursion-body p {
+  margin: calc(3 * var(--q)) 0 0;
+  color: #5d6780;
+  font-size: calc(11 * var(--q));
+  line-height: 1.45;
+}
+.dr-excursion-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--q));
+  margin-top: calc(8 * var(--q));
+}
+.dr-excursion-open {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--q));
+  padding: calc(5 * var(--q)) calc(9 * var(--q));
+  border-radius: calc(7 * var(--q));
+  background: var(--th-bad, #e11d48);
+  color: #fff;
+  font-size: calc(9.5 * var(--q));
+  font-weight: 850;
+  text-decoration: none;
+}
+.dr-excursion-open svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); }
+.dr-excursion-dismiss,
+.dr-excursion-x {
+  border: 0;
+  background: transparent;
+  color: #7b849c;
+  font-family: inherit;
+  font-size: calc(9 * var(--q));
+  font-weight: 800;
+  cursor: pointer;
+  padding: calc(3 * var(--q));
+}
+.dr-excursion-dismiss { text-decoration: underline; text-underline-offset: 2px; }
+.dr-excursion-x {
+  flex: none;
+  width: calc(24 * var(--q));
+  height: calc(24 * var(--q));
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  margin-inline-start: auto;
+}
+.dr-excursion-x svg { width: calc(12 * var(--q)); height: calc(12 * var(--q)); }
+.dr-excursion-dismiss:disabled,
+.dr-excursion-x:disabled { opacity: .45; cursor: default; }
+@keyframes dr-excursion-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, .45); }
+  70% { box-shadow: 0 0 0 calc(7 * var(--q)) rgba(225, 29, 72, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+@keyframes dr-excursion-bar {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr-excursion::before,
+  .dr-excursion-pulse { animation: none; }
+}

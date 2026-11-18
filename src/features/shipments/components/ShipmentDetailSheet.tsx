@@ -1,6 +1,6 @@
 import { ReadingFreshness } from './ReadingFreshness';
 import { useState } from 'react';
-import { Activity, ExternalLink, Loader2, MapPin, MapPinned, Phone, ScanLine, Thermometer, Timer, Truck, User } from 'lucide-react';
+import { Activity, Ban, ExternalLink, Loader2, MapPin, MapPinned, Phone, ScanLine, Thermometer, Timer, Trash2, Truck, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -10,6 +10,7 @@ import { LOCATION_SOURCE_LABELS, mapEmbedUrl, mapsLink } from '../geo';
 import { AreaText, useAreaText } from './AreaText';
 import { agoLabel, durationLabel, latestReading, readingDue, stopProgress, STATUS_LABELS, STATUS_TAG, type Lang } from '../route';
 import { tripSummary } from '../trip-summary';
+import { shipmentEndMs } from '../timing';
 import { PhotoThumb } from './PhotoThumb';
 import { ReadingProof, ReadingRow } from './ReadingRow';
 import { RouteSummary } from './RouteSummary';
@@ -18,12 +19,14 @@ import { TripHistory } from './TripHistory';
 import { TripTiles } from './TripTiles';
 import { RangeStrip, TempVerdict } from './ShipmentCard';
 import { TrendChart } from './TrendChart';
+import { ColdChainPanel } from './ColdChainPanel';
+import type { ShipmentWithDetails } from '../types';
 import '@/styles/journey-pulse.css';
 
 const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /** Everything about one shipment, in the portal's own language: the temperature now, the trip in numbers, where the truck is, the route, the driver and every reading. */
-export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipmentId: string | null; lang: Lang; now: number; onClose: () => void }) {
+export function ShipmentDetailSheet({ shipmentId, lang, now, onClose, onRequestDelete }: { shipmentId: string | null; lang: Lang; now: number; onClose: () => void; onRequestDelete?: (shipment: ShipmentWithDetails) => void }) {
   const L = (en: string, ar: string) => (lang === 'ar' ? ar : en);
   const { data: shipment, isLoading } = useShipment(shipmentId);
   const { data: drivers = [] } = useDrivers();
@@ -38,6 +41,7 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
   const where = shipment?.locations[0] ?? null;
   const area = useAreaText(where, lang);
   const stats = shipment ? tripSummary(shipment, now, lang) : null;
+  const monitoringEnd = shipment ? shipmentEndMs(shipment) : null;
   const progress = shipment ? stopProgress(shipment.stops) : null;
   const canChangeDriver = shipment?.status === 'preparing';
   const canCancel = shipment?.status === 'preparing' || shipment?.status === 'on_the_road';
@@ -70,7 +74,23 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
           {!isLoading && !shipment && shipmentId && <p style={{ padding: 16, fontSize: 12, color: '#6b7a9c' }}>{L('This shipment is no longer available.', 'هذه الشحنة لم تعد متاحة.')}</p>}
 
           {shipment && stats && progress && due && (
-            <div className="cs-dbody">
+            <div className={cn('cs-dbody', shipment.status === 'cancelled' && 'cancelled')}>
+              {shipment.status === 'cancelled' && (
+                <section className="ch-card cs-box cs-cancelled-box">
+                  <div className="cs-cancel-hero">
+                    <span className="cs-cancel-ic"><Ban aria-hidden="true" /></span>
+                    <div>
+                      <h3>{L('Cancelled trip', 'رحلة ملغاة')}</h3>
+                      <p>{L('This trip was cancelled. Its readings and route are kept for the record; no new updates will arrive.', 'أُلغيت هذه الرحلة. تُحفظ قراءاتها ومسارها للسجل، ولن تصل تحديثات جديدة.')}</p>
+                    </div>
+                  </div>
+                  {onRequestDelete && (
+                    <button type="button" className="co-btn bad cs-danger" onClick={() => onRequestDelete(shipment)}>
+                      <Trash2 aria-hidden="true" />{L('Delete shipment', 'حذف الشحنة')}
+                    </button>
+                  )}
+                </section>
+              )}
               {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="customer" />}
 
               <section className="ch-card cs-box">
@@ -107,6 +127,10 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                   </div>
                 )}
               </section>
+
+              {shipment.status !== 'cancelled' && (
+                <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} endAt={monitoringEnd} lang={lang} />
+              )}
 
               <section className="ch-card cs-box">
                 <h3><Activity aria-hidden="true" />{L('The trip in numbers', 'الرحلة بالأرقام')}</h3>
