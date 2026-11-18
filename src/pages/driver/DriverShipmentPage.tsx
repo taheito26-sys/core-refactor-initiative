@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
-import { Activity, ArrowLeft, Ban, Flag, Loader2, MapPin, MapPinPlus, Package, Play, ScanLine, Scale, Thermometer, Timer } from 'lucide-react';
+import { Activity, AlarmClock, ArrowLeft, Ban, Flag, Loader2, MapPin, MapPinPlus, Package, Play, ScanLine, Scale, Thermometer, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -80,6 +80,13 @@ export default function DriverShipmentPage() {
   return (
     <div className="dr-stack">
       {back}
+      {shipment.status === 'preparing' && (<>
+        <div className="dr-urgent" role="alert"><AlarmClock aria-hidden="true" /><div><b>{L('Action needed now', 'مطلوب منك الآن')}</b><span>{L('Accept this shipment and start the trip so the customer can follow the truck.', 'اقبل هذه الشحنة وابدأ الرحلة ليتابع العميل الشاحنة.')}</span></div></div>
+        <button type="button" className="cs-cta urgent" onClick={() => setConfirm('start')} disabled={start.isPending}>
+          {start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play className="rtl:-scale-x-100" aria-hidden="true" />}
+          {L('Accept and start shipment', 'قبول الشحنة وبدء الرحلة')}
+        </button>
+      </>)}
       {(shipment.status === 'on_the_road' || shipment.status === 'preparing') && excursionAlerts.length > 0 && <DriverExcursionAlert alerts={excursionAlerts} lang={lang} />}
       {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="driver" onArrive={() => setShowArrival(true)} />}
 
@@ -146,13 +153,6 @@ export default function DriverShipmentPage() {
             {shipment.readings.slice(0, 9).map((r) => <ReadingRow key={r.id} reading={r} lang={lang} now={now} />)}
           </ul>
         </section>
-      )}
-
-      {shipment.status === 'preparing' && (
-        <button type="button" className="cs-cta" onClick={() => setConfirm('start')} disabled={start.isPending}>
-          {start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play className="rtl:-scale-x-100" aria-hidden="true" />}
-          {L('Accept and start shipment', 'قبول الشحنة وبدء الرحلة')}
-        </button>
       )}
 
       {onTheRoad && due.dueAt != null && <div className={`cs-banner ${due.state === 'overdue' || due.state === 'due_soon' ? 'warn' : ''}`} role="status"><Timer aria-hidden="true" /><div>

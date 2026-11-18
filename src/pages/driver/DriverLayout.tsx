@@ -4,6 +4,7 @@ import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { DriverNotifications } from '@/features/shipments/components/DriverNotifications';
+import { DriverStartReminder } from '@/features/shipments/components/DriverStartReminder';
 import { ReadingUploads } from '@/features/shipments/components/ReadingUploads';
 import { useReadingOutboxWorker } from '@/features/shipments/useReadingOutbox';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -71,6 +72,7 @@ export default function DriverLayout() {
         trendText={locationOn ? L('Photos are stamped with it', 'تُختم به الصور') : L('Allow it to send readings', 'اسمح به لإرسال القراءات')}
       />
 
+      <DriverStartReminder lang={lang} />
       <ReadingUploads lang={lang} />
       <DriverNotifications open={notificationsOpen} onClose={() => setNotificationsOpen(false)} lang={lang} notifications={notifications} />
       <Outlet context={{ access, driverName: me?.display_name ?? null } satisfies DriverOutletContext} />

@@ -529,3 +529,23 @@ html[dir="rtl"] .cs-dh { border-bottom-left-radius: 0; border-bottom-right-radiu
 /* Closing a detail sheet from anywhere: the X stays on screen, and a Close bar sticks to the bottom of the scrolling panel. */
 .cs-closebar { position: sticky; bottom: 0; z-index: 5; padding: 8px 12px 10px; background: linear-gradient(to top, var(--th-page, #f1f6fc) 70%, transparent); pointer-events: none; }
 .cs-closebar button { pointer-events: auto; display: block; width: 100%; border: 0; border-radius: 99px; padding: 11px; font: inherit; font-size: 12px; font-weight: 800; color: var(--th-ad, #047857); background: #fff; box-shadow: 0 0 0 1px var(--th-edge, #dde5f2), 0 6px 16px -8px rgba(0, 0, 0, .35); cursor: pointer; }
+
+/* The urgent "accept and start" job: pinned to the top on every driver page, and first on the shipment's own page. */
+.dr-reminder { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: calc(10 * var(--q)); flex-wrap: wrap; margin: calc(8 * var(--q)) var(--pad, 10px); padding: calc(10 * var(--q)) calc(12 * var(--q)); border-radius: calc(14 * var(--q)); color: #fff; background: linear-gradient(100deg, #e11d48, #f97316); box-shadow: 0 calc(8 * var(--q)) calc(20 * var(--q)) -8px rgba(225, 29, 72, .55); }
+.dr-reminder .ic { flex: none; width: calc(30 * var(--q)); height: calc(30 * var(--q)); border-radius: 50%; background: rgba(255, 255, 255, .22); display: flex; align-items: center; justify-content: center; animation: dr-ring 1.6s ease-in-out infinite; }
+.dr-reminder .ic svg { width: calc(17 * var(--q)); height: calc(17 * var(--q)); }
+.dr-reminder .tx { flex: 1 1 calc(150 * var(--q)); min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dr-reminder .tx b { font-size: calc(12.5 * var(--q)); font-weight: 800; }
+.dr-reminder .tx span { font-size: calc(10.5 * var(--q)); opacity: .92; overflow-wrap: anywhere; }
+.dr-reminder .go { display: inline-flex; align-items: center; justify-content: center; gap: calc(6 * var(--q)); flex: 1 1 100%; border: 0; border-radius: 99px; padding: calc(10 * var(--q)); font: inherit; font-size: calc(12.5 * var(--q)); font-weight: 800; color: #b91c1c; background: #fff; cursor: pointer; }
+.dr-reminder .go svg { width: calc(15 * var(--q)); height: calc(15 * var(--q)); }
+.dr-reminder .go:disabled { opacity: .6; }
+.dr-reminder .open { color: #fff; font-size: calc(10.5 * var(--q)); font-weight: 800; text-decoration: underline; }
+.dr-urgent { display: flex; align-items: center; gap: calc(9 * var(--q)); padding: calc(9 * var(--q)) calc(12 * var(--q)); border-radius: calc(12 * var(--q)); color: #b91c1c; background: #ffe4ea; box-shadow: inset 0 0 0 1px #fbb6c4; }
+.dr-urgent svg { flex: none; width: calc(20 * var(--q)); height: calc(20 * var(--q)); animation: dr-ring 1.6s ease-in-out infinite; }
+.dr-urgent div { display: flex; flex-direction: column; gap: 1px; }
+.dr-urgent b { font-size: calc(12 * var(--q)); font-weight: 800; }
+.dr-urgent span { font-size: calc(10.5 * var(--q)); color: #7f1d1d; }
+.cs-cta.urgent { background: linear-gradient(100deg, #e11d48, #f97316); box-shadow: 0 calc(6 * var(--q)) calc(16 * var(--q)) rgba(225, 29, 72, .4); }
+@keyframes dr-ring { 0%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-12deg); } 20%, 40% { transform: rotate(12deg); } 50% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .dr-reminder .ic, .dr-urgent svg { animation: none; } }
