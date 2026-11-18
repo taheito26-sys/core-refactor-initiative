@@ -99,7 +99,7 @@ describe('scenario 1: the merchant sold it', () => {
   });
 
   it('refuses to sell more than is still open and tracks cash remitted', () => {
-    let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'M2', qty: 1000 }, 10);
+    let s = sendConsignment(withCash(), { id: 'c1', counterpartyName: 'M2', qty: 1000 }, 10);
     const cost = unitCost(s, 'c1');
     expect(() => recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 1001, priceQAR: 3.8, unitCostQAR: cost })).toThrow(ConsignmentError);
     s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 1000, priceQAR: 3.8, unitCostQAR: cost });
@@ -293,6 +293,32 @@ describe('receiver side: cash held, replacement purchase and settlement', () => 
     expect(s.cashLedger.find(e => e.id === 'cons-purchase-cash-p1')!.accountId).toBe('cust');
     s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 's1' });
     expect(s.cashLedger.find(e => e.id === 'cons-recv-settle-s1')!.accountId).toBe('cust');
+  });
+
+  it('falls back to an active account if the proceeds account was deactivated', () => {
+    const custody = { id: 'cust', name: 'Custody', type: 'merchant_custody', currency: 'QAR', status: 'active', createdAt: 1 };
+    const hand = { id: 'hand', name: 'Hand', type: 'hand', currency: 'QAR', status: 'active', createdAt: 1 };
+    let s = { ...withCash(), cashAccounts: [custody, hand] } as unknown as TrackerState;
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1', consignmentId: 'c1', counterpartyName: 'M1',
+      qty: 10000, priceQAR: 3.8, basePriceQAR: 3.7, senderSharePct: 50, cashAccountId: 'cust',
+    }, 20);
+    s = { ...s, cashAccounts: s.cashAccounts.map(a => a.id === 'cust' ? { ...a, status: 'inactive' } : a) } as unknown as TrackerState;
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'settle-fallback' });
+    expect(s.cashLedger.find(e => e.id === 'cons-recv-settle-settle-fallback')!.accountId).toBe('hand');
+  });
+
+  it('rejects a settlement before changing debt when no active cash account exists', () => {
+    let s = withCash();
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1', consignmentId: 'c1', counterpartyName: 'M1',
+      qty: 10000, priceQAR: 3.8, basePriceQAR: 3.7, senderSharePct: 50,
+    }, 20);
+    const before = consignmentPayables(s);
+    s = { ...s, cashAccounts: s.cashAccounts.map(a => ({ ...a, status: 'inactive' })) } as unknown as TrackerState;
+    expect(() => recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'no-account' })).toThrow(ConsignmentError);
+    expect(consignmentPayables(s)).toEqual(before);
+    expect(s.cashLedger.some(e => e.id === 'cons-recv-settle-no-account')).toBe(false);
   });
 });
 
