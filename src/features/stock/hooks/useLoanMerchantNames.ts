@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/features/auth/auth-context';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { buildMerchantStatements } from '../loan-ledger';
 
@@ -13,13 +14,18 @@ export interface LoanMerchantOption {
 
 /** Display names of the merchants this merchant has an active relationship with. */
 function useConnectedMerchantNames() {
+  const { user } = useAuth();
+  const uid = user?.id;
   return useQuery({
-    queryKey: ['loan-connected-merchants'],
+    // The signed-in user belongs in the key: otherwise the pre-login empty
+    // result is cached for five minutes and the merchant dropdown looks empty
+    // after a fresh login or an account switch.
+    queryKey: ['loan-connected-merchants', uid],
+    enabled: !!uid,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<string[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data: me } = await supabase.from('merchant_profiles').select('merchant_id').eq('user_id', user.id).maybeSingle();
+      if (!uid) return [];
+      const { data: me } = await supabase.from('merchant_profiles').select('merchant_id').eq('user_id', uid).maybeSingle();
       const myId = (me as { merchant_id?: string } | null)?.merchant_id;
       if (!myId) return [];
       const { data: rels } = await supabase

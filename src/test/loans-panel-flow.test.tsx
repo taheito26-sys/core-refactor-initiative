@@ -13,6 +13,7 @@ vi.mock('@/lib/i18n', () => {
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: { auth: { getUser: async () => ({ data: { user: null } }) } },
 }));
+vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ user: null }) }));
 const transfers = [
   // Abu Tamim lent 33k by Pay, then four P2P sends paid it back.
   { id: 'in1', exchange: 'binance', kind: 'pay', direction: 'in', asset: 'USDT', amount: 33000, status: 'ok', reference: 'R1', counterparty: 'Abu Tamim', network: null, transfer_time: new Date(2026, 8, 1).toISOString(), linked_entity_type: null, linked_entity_id: null, linked_at: null, dismissed_at: null, created_at: '' },
@@ -72,51 +73,61 @@ function renderLoop(initial: TrackerState) {
   return { commits, get state() { return current; } };
 }
 
+const openReview = () => fireEvent.click(screen.getByRole('tab', { name: /loansReview/ }));
 const pendingRow = (text: RegExp) => screen.getAllByText(text)[0].closest('[data-pending-key]') as HTMLElement;
+
+/** Pick a merchant by opening the "add manually" path; connected options are covered separately. */
+function chooseMerchant(name: string) {
+  fireEvent.click(screen.getByText(/loansManualMerchant/));
+  fireEvent.change(screen.getByPlaceholderText('mloanMerchantPlaceholder'), { target: { value: name } });
+}
+
+async function tagAsLoan(row: HTMLElement) {
+  fireEvent.click(within(row).getByText(/mloanItsLoan/));
+  chooseMerchant('Abu Tamim');
+  fireEvent.click(screen.getByText('loansSaveMovement'));
+  await waitFor(() => expect(screen.queryByPlaceholderText('mloanMerchantPlaceholder')).not.toBeInTheDocument());
+}
 
 describe('Loans tab, end to end as a user', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('borrow 33k by Pay, then tick the four P2P sends and repay: Abu Tamim ends settled', async () => {
+  it('borrow 33k by Pay, then repay the four P2P sends: Abu Tamim ends settled', async () => {
     const app = renderLoop(baseState());
-    expect(screen.getByText('mloanNeedsDecision')).toBeTruthy();
+    expect(screen.getByText('loansBalances')).toBeTruthy();
+    openReview();
+    expect(screen.getByText('loansInboxTitle')).toBeTruthy();
 
     // 1. The incoming 33k Pay transfer → Merchant loan → Abu Tamim.
-    fireEvent.click(within(pendingRow(/33,000 USDT/)).getByText(/mloanItsLoan/));
-    fireEvent.change(screen.getByPlaceholderText('mloanMerchantPlaceholder'), { target: { value: 'Abu Tamim' } });
-    expect(screen.getByText(/mloanPreviewBorrow/)).toBeTruthy();
-    fireEvent.click(screen.getByText('mloanConfirm'));
+    await tagAsLoan(pendingRow(/33,000 USDT/));
     await waitFor(() => expect(app.commits).toHaveLength(1));
     expect(app.state.usdtTransfers).toEqual([expect.objectContaining({ kind: 'borrow_in', amountUSDT: 33000, counterpartyName: 'Abu Tamim' })]);
     expect(api.dismissTransfer).toHaveBeenCalledWith('in1');
 
-    // 2. Tick the four P2P sends and tag them together; the merchant is now offered with its balance.
-    const boxes = screen.getAllByLabelText('mloanSelect');
-    expect(boxes).toHaveLength(4);
-    boxes.forEach((b) => fireEvent.click(b));
-    fireEvent.click(screen.getAllByText(/mloanTitle/).find((el) => el.tagName === 'BUTTON')!);
-    fireEvent.click(await screen.findByRole('button', { name: /Abu Tamim.*mloanYouOweShort 33,000/ }));
-    expect(screen.getByText(/mloanPreviewRepay/)).toBeTruthy();
-    fireEvent.click(screen.getByText('mloanConfirm'));
-    await waitFor(() => expect(app.commits).toHaveLength(2));
+    // 2. The four P2P sends are individual records now; each one is answered as a repayment.
+    for (const amount of [10000, 10000, 3000, 10000]) {
+      await tagAsLoan(pendingRow(new RegExp(`${amount.toLocaleString('en-US')} USDT`)));
+    }
+    await waitFor(() => expect(app.commits).toHaveLength(5));
     expect(app.state.usdtTransfers!.filter((x) => x.kind === 'borrow_repay')).toHaveLength(4);
     expect(api.addOrderLink).toHaveBeenCalledTimes(4);
 
-    // 3. Settled: no open loans, one settled merchant with a 5-line statement.
-    expect(screen.getByText('mloanNoOpen')).toBeTruthy();
-    fireEvent.click(screen.getByText(/mloanSettledGroup/));
+    // 3. All records answered; the merchant is settled with a five-line statement.
+    fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
+    expect(screen.getByText('loansNoBalances')).toBeTruthy();
+    fireEvent.click(screen.getByText(/loansSettledMerchants/));
     fireEvent.click(screen.getByText('Abu Tamim'));
     expect(screen.getAllByText(/mloanKindRepaid/)).toHaveLength(4);
     expect(screen.getAllByText(/mloanKindBorrowed/)).toHaveLength(1);
   });
 
-  it('undo on a statement line puts the record back in "Needs a decision"', async () => {
+  it('undo on a statement line puts the record back in the review inbox', async () => {
     const app = renderLoop(baseState());
-    fireEvent.click(within(pendingRow(/33,000 USDT/)).getByText(/mloanItsLoan/));
-    fireEvent.change(screen.getByPlaceholderText('mloanMerchantPlaceholder'), { target: { value: 'Abu Tamim' } });
-    fireEvent.click(screen.getByText('mloanConfirm'));
+    openReview();
+    await tagAsLoan(pendingRow(/33,000 USDT/));
     await waitFor(() => expect(app.commits).toHaveLength(1));
 
+    fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
     fireEvent.click(screen.getByText('Abu Tamim'));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('mloanUndo'));

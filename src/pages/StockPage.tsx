@@ -153,6 +153,15 @@ export default function StockPage() {
   // buttons still reference. Suppliers moved here from the old combined CRM
   // page; customers moved to the Orders page instead.
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
+  // The Loans section contains two separate merchant workflows. Loans is the
+  // default; selling USDT for another merchant opens behind its own back bar
+  // instead of stacking two unrelated tools on one screen.
+  const [merchantWorkspace, setMerchantWorkspace] = useState<'loans' | 'consignments'>('loans');
+  useEffect(() => {
+    if (activeStockSection !== 'transfers') return;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    document.querySelector<HTMLElement>('.app-content-scroll')?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeStockSection, merchantWorkspace]);
   // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
   const [design] = useStockDesign();
   const v2 = isMobile && design === 'v2';
@@ -1369,16 +1378,28 @@ export default function StockPage() {
       )}
 
       {activeStockSection === 'transfers' && (
-        <div className={taheito ? 'th-embed th-panel' : undefined}><ConsignmentsPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} /></div>
-      )}
-      {activeStockSection === 'transfers' && (
-        <div className={taheito ? 'th-embed th-panel' : undefined}><LoansPanel
-          state={state}
-          derived={derived}
-          applyStateAndCommit={applyStateAndCommit}
-          onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
-          onManualFix={setManualFixItems}
-        /></div>
+        <div className={taheito ? 'th-embed th-panel' : undefined}>
+          {merchantWorkspace === 'loans' ? (
+            <LoansPanel
+              state={state}
+              derived={derived}
+              applyStateAndCommit={applyStateAndCommit}
+              onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
+              onManualFix={setManualFixItems}
+              onOpenConsignments={() => setMerchantWorkspace('consignments')}
+            />
+          ) : (
+            <div className="ld-consignments-shell">
+              <div className="ld-consignments-head">
+                <button type="button" className="ld-back" onClick={() => setMerchantWorkspace('loans')}>
+                  <span aria-hidden="true">←</span> {t('loansBackToLoans')}
+                </button>
+                <span>{t('loansEyebrow')}</span>
+              </div>
+              <ConsignmentsPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} />
+            </div>
+          )}
+        </div>
       )}
 
       {stockTab === 'batches' && (
