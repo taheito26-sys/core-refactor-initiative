@@ -192,6 +192,34 @@ export function JourneyPulse({
         {plan.milestones.map((m) => <MilestoneCard key={m.key} m={m} lang={lang} />)}
       </ol>
 
+      <section className="jp-stop-eta" aria-label={L('Stop arrival times', 'أوقات الوصول للمحطات')}>
+        <div className="jp-eta-head">
+          <span>{L('Stop-by-stop ETA', 'الوصول لكل محطة')}</span>
+          <b>
+            {shipment.status === 'delivered' ? L('Delivered', 'التسليم') : L('Total trip ETA', 'الوصول النهائي')}
+            {' · '}{plan.etaLabel}
+          </b>
+        </div>
+        <ol className="jp-eta-rows">
+          {plan.stopEtas.map((s) => (
+            <li key={s.id} className={cn('jp-eta-row', s.state, s.next && 'next')} aria-current={s.next ? 'step' : undefined}>
+              <span className="jp-eta-dot" aria-hidden="true" />
+              <span className="jp-eta-name">{s.name}</span>
+              <span className="jp-eta-caption">{s.caption}</span>
+              <b className="jp-eta-time" dir="auto">{s.timeLabel ?? '—'}</b>
+            </li>
+          ))}
+        </ol>
+        <div className="jp-total">
+          <div><span>{L('Total trip', 'الرحلة الكاملة')}</span><b>{plan.totalTripLabel}</b></div>
+          <div><span>{L('Remaining', 'المتبقي')}</span><b>{plan.remainingLabel}</b></div>
+          <div>
+            <span>{shipment.status === 'delivered' ? L('Delivered', 'التسليم') : L('Arrival', 'الوصول')}</span>
+            <b>{plan.etaLabel}</b>
+          </div>
+        </div>
+      </section>
+
       <footer className="jp-foot">
         <div className="jp-foot-info">
           <Thermometer aria-hidden="true" />

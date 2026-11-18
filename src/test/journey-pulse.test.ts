@@ -101,4 +101,48 @@ describe('journeyPlan', () => {
     expect(plan.nextEtaMs).toBeGreaterThan(NOW);
     expect(plan.milestones[1].caption).toContain('516');
   });
+
+  it('wires every stop to an actual or estimated time and totals the trip', () => {
+    const plan = journeyPlan(base(), NOW, 'en');
+    expect(plan.stopEtas).toHaveLength(6);
+    expect(plan.stopEtas[0]).toMatchObject({ state: 'done', reached: true });
+    expect(plan.stopEtas[2].state).toBe('done');
+    expect(plan.stopEtas[3]).toMatchObject({ state: 'next', next: true });
+    expect(plan.stopEtas[3].timeLabel).toBeTruthy();
+    expect(plan.stopEtas[4].timeLabel).toBeTruthy();
+    expect(plan.stopEtas[5].timeLabel).toBeTruthy();
+    expect(plan.stopEtas[5].etaMs).toBeCloseTo(plan.etaMs!, -3);
+    expect(plan.totalTripLabel).not.toBe('—');
+    expect(plan.remainingLabel).not.toBe('—');
+    expect(plan.remainingMs).toBeGreaterThan(0);
+  });
+
+  it('shows the planned duration without inventing arrival times before departure', () => {
+    const preparing = base({
+      status: 'preparing', started_at: null, current_started_at: null,
+      stops: stops.map((s) => ({ ...s, reached_at: null })), readings: [], locations: [],
+    });
+    const plan = journeyPlan(preparing, NOW, 'en');
+    expect(plan.stopEtas.every((s) => s.timeLabel === null)).toBe(true);
+    expect(plan.totalTripLabel).not.toBe('—');
+    expect(plan.remainingLabel).toBe('After departure');
+  });
+
+  it('anchors pace to confirmed legs and lets GPS progress shorten the ETA', () => {
+    const atNext = base({
+      locations: [{
+        latitude: 26.733, longitude: 33.936, accuracy_m: 10, recorded_at: iso(0.4),
+        source: 'auto', place_ar: null, place_en: null,
+      }],
+    });
+    const early = journeyPlan(atNext, NOW, 'en');
+    const later = journeyPlan(atNext, NOW + 10 * 3600_000, 'en');
+    // The same fix ten hours later means the truck has stood still; the ETA should slip by ten hours,
+    // not by ten hours plus an inflated pace for the unfinished leg.
+    expect(later.etaMs! - early.etaMs!).toBeCloseTo(10 * 3600_000, -3);
+
+    const atLastStop = journeyPlan(base(), NOW, 'en');
+    // A fix at the next stop must arrive materially earlier than the same trip still at the last stop.
+    expect(early.etaMs!).toBeLessThan(atLastStop.etaMs! - 5 * 3600_000);
+  });
 });
