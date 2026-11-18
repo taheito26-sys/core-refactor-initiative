@@ -62,7 +62,7 @@ export function TempLimits({ target, tolerance, lang }: { target: number; tolera
 }
 
 /** A compact half-dial: the green band is the allowed range, the dot is the latest reading. */
-function TempDial({ temperature, target, tolerance, alert }: { temperature: number | null; target: number; tolerance: number; alert: boolean }) {
+export function TempDial({ temperature, target, tolerance, alert }: { temperature: number | null; target: number; tolerance: number; alert: boolean }) {
   const s = rangeScale(target, tolerance, temperature);
   const pct = Math.min(100, Math.max(0, s.markerPct ?? 0));
   const cx = 62;
@@ -93,7 +93,7 @@ function TempDial({ temperature, target, tolerance, alert }: { temperature: numb
 }
 
 /** The last readings as a small trend line, so a drift is visible before the next photo. */
-function TempSpark({ readings, target, tolerance }: { readings: ShipmentWithDetails['readings']; target: number; tolerance: number }) {
+export function TempSpark({ readings, target, tolerance }: { readings: ShipmentWithDetails['readings']; target: number; tolerance: number }) {
   const points = [...readings]
     .filter((r) => Number.isFinite(Number(r.temperature_c)))
     .sort((a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime())
