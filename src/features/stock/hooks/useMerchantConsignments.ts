@@ -166,25 +166,39 @@ export function useMerchantConsignments() {
 
 /** Active merchant connections, so a consignment can be sent to a linked merchant. */
 export function useConnectedMerchants() {
+  const { user } = useAuth();
+  const uid = user?.id;
   return useQuery({
-    queryKey: ['consignment-connected-merchants'],
+    // The user is part of the key: otherwise a second login in the same tab
+    // can show the previous user's connected merchants.
+    queryKey: ['consignment-connected-merchants', uid],
+    enabled: !!uid,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<ConnectedMerchant[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data: me } = await supabase.from('merchant_profiles').select('merchant_id').eq('user_id', user.id).maybeSingle();
+      if (!uid) return [];
+      const { data: me } = await supabase.from('merchant_profiles').select('merchant_id').eq('user_id', uid).maybeSingle();
       const myId = (me as { merchant_id?: string } | null)?.merchant_id;
       if (!myId) return [];
       const { data: rels } = await supabase
         .from('merchant_relationships')
-        .select('id, merchant_a_id, merchant_b_id, status')
-        .or(`merchant_a_id.eq.${myId},merchant_b_id.eq.${myId}`);
+        .select('id, merchant_a_id, merchant_b_id, status, created_at')
+        .or(`merchant_a_id.eq.${myId},merchant_b_id.eq.${myId}`)
+        .order('created_at', { ascending: false });
       const active = ((rels || []) as { id: string; merchant_a_id: string; merchant_b_id: string; status: string }[]).filter(r => r.status === 'active');
-      const others = active.map(r => ({ relationshipId: r.id, merchantId: r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id }));
+      // Legacy data can contain more than one active row for the same pair.
+      // Show the merchant once, using the newest relationship row.
+      const byMerchant = new Map<string, { relationshipId: string; merchantId: string }>();
+      for (const r of active) {
+        const other = r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id;
+        if (other && !byMerchant.has(other)) byMerchant.set(other, { relationshipId: r.id, merchantId: other });
+      }
+      const others = [...byMerchant.values()];
       if (!others.length) return [];
       const { data: profiles } = await supabase.from('merchant_profiles').select('merchant_id, display_name').in('merchant_id', others.map(o => o.merchantId));
       const names = new Map(((profiles || []) as { merchant_id: string; display_name: string | null }[]).map(p => [p.merchant_id, (p.display_name || '').trim()]));
-      return others.map(o => ({ ...o, name: names.get(o.merchantId) || o.merchantId }));
+      return others
+        .map(o => ({ ...o, name: names.get(o.merchantId) || o.merchantId }))
+        .sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 }
