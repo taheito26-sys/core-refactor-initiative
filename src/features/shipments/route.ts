@@ -8,16 +8,20 @@ export interface RouteStopDef {
 }
 
 /**
- * The fixed Egypt → Qatar route every shipment starts with, in driving order. Drivers can add
- * their own stops between these while on the road; the customer cannot reorder them.
+ * The fixed Egypt → Qatar route every shipment starts with, in driving order: Kafr El-Sheikh, the Red Sea crossing
+ * Safaga → Duba, across Saudi Arabia, the Salwa border and Doha. Drivers can add their own stops between these
+ * while on the road; the customer cannot reorder them. The database fills in each stop's area from its English name.
  */
 export const FIXED_ROUTE: RouteStopDef[] = [
-  { nameEn: 'Obour (Cairo)', nameAr: 'العبور' },
-  { nameEn: 'Kafr El Sheikh', nameAr: 'كفر الشيخ' },
-  { nameEn: 'Port Said', nameAr: 'بورسعيد' },
-  { nameEn: 'Safaga port', nameAr: 'ميناء سفاجا' },
-  { nameEn: 'Saudi Arabia', nameAr: 'السعودية' },
-  { nameEn: 'Qatar (delivery)', nameAr: 'قطر (التسليم)' },
+  { nameEn: 'Kafr El-Sheikh, Egypt', nameAr: 'كفر الشيخ، مصر' },
+  { nameEn: 'Safaga Port, Egypt', nameAr: 'ميناء سفاجا، مصر' },
+  { nameEn: 'Duba Port, Saudi Arabia', nameAr: 'ميناء ضباء، السعودية' },
+  { nameEn: 'Tabuk, Saudi Arabia', nameAr: 'تبوك، السعودية' },
+  { nameEn: 'Buraydah (Al-Qassim), Saudi Arabia', nameAr: 'بريدة (القصيم)، السعودية' },
+  { nameEn: 'Riyadh, Saudi Arabia', nameAr: 'الرياض، السعودية' },
+  { nameEn: 'Al-Hofuf (Al-Ahsa), Saudi Arabia', nameAr: 'الهفوف (الأحساء)، السعودية' },
+  { nameEn: 'Salwa / Abu Samra Border Crossing', nameAr: 'منفذ سلوى / أبو سمرة الحدودي' },
+  { nameEn: 'Doha, Qatar', nameAr: 'الدوحة، قطر' },
 ];
 
 /** Shape the create_customer_shipment function expects for its stops. */

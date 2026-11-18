@@ -10,13 +10,14 @@ const stop = (seq: number, reached: string | null, kind: 'fixed' | 'driver' = 'f
 });
 
 describe('route', () => {
-  it('starts in Egypt and ends in Qatar, with the stops in driving order', () => {
-    expect(FIXED_ROUTE[0].nameEn).toContain('Obour');
+  it('starts in Egypt and ends in Qatar, with the nine main stops in driving order', () => {
     expect(FIXED_ROUTE.map((s) => s.nameEn)).toEqual([
-      'Obour (Cairo)', 'Kafr El Sheikh', 'Port Said', 'Safaga port', 'Saudi Arabia', 'Qatar (delivery)',
+      'Kafr El-Sheikh, Egypt', 'Safaga Port, Egypt', 'Duba Port, Saudi Arabia', 'Tabuk, Saudi Arabia', 'Buraydah (Al-Qassim), Saudi Arabia',
+      'Riyadh, Saudi Arabia', 'Al-Hofuf (Al-Ahsa), Saudi Arabia', 'Salwa / Abu Samra Border Crossing', 'Doha, Qatar',
     ]);
-    expect(FIXED_ROUTE.at(-1)?.nameAr).toContain('قطر');
-    expect(fixedRouteForRpc()[1]).toEqual({ name_en: 'Kafr El Sheikh', name_ar: 'كفر الشيخ' });
+    expect(FIXED_ROUTE[0].nameAr).toBe('كفر الشيخ، مصر');
+    expect(FIXED_ROUTE.at(-1)?.nameAr).toBe('الدوحة، قطر');
+    expect(fixedRouteForRpc()[2]).toEqual({ name_en: 'Duba Port, Saudi Arabia', name_ar: 'ميناء ضباء، السعودية' });
   });
 
   it('reports progress, with a driver-added stop sitting between two fixed ones', () => {
