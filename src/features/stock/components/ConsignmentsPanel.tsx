@@ -34,6 +34,7 @@ import {
 type Kind = 'sale' | 'return' | 'purchase';
 interface Draft { target: string; kind: Kind; qty: string; price: string; fundedFromSaleId: string }
 
+const MANUAL_MERCHANT = '__manual__';
 const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c${Date.now()}${Math.random().toString(16).slice(2)}`);
 const num = (s: string) => Number(String(s).replace(/,/g, ''));
 
@@ -314,6 +315,7 @@ export function ConsignmentsPanel({
   };
 
   const linked = merchants.find(m => m.relationshipId === form.merchant);
+  const manualMerchant = form.merchant === MANUAL_MERCHANT;
 
   return (
     <div className="space-y-4">
@@ -322,19 +324,40 @@ export function ConsignmentsPanel({
         <p className="text-xs text-muted-foreground">{t('consHint')}</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
-        <select
-          className="h-10 rounded-md border bg-background px-2 text-sm"
-          value={form.merchant}
-          onChange={e => setForm({ ...form, merchant: e.target.value })}
-        >
-          <option value="">{t('consPickMerchant')}</option>
-          {merchants.map(m => <option key={m.relationshipId} value={m.relationshipId}>{m.name}</option>)}
-        </select>
-        {!linked && <Input className="w-40" placeholder={t('consMerchant')} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />}
-        <Input className="w-32" inputMode="decimal" placeholder={t('consQty')} value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} />
-        <Input className="w-28" inputMode="decimal" placeholder={t('consMyShare')} value={form.share} onChange={e => setForm({ ...form, share: e.target.value })} />
-        <Button disabled={busy} onClick={send}>{t('consSend')}</Button>
+      <div className="space-y-2 rounded-lg border p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium">
+            {t('consMerchant')}
+            <select
+              className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+              aria-label={t('consMerchant')}
+              value={form.merchant}
+              onChange={e => setForm({ ...form, merchant: e.target.value, name: '' })}
+            >
+              <option value="">{t('consPickMerchant')}</option>
+              {merchants.length > 0 && (
+                <optgroup label={t('consConnectedMerchants')}>
+                  {merchants.map(m => <option key={m.relationshipId} value={m.relationshipId}>{m.name}</option>)}
+                </optgroup>
+              )}
+              <option value={MANUAL_MERCHANT}>{t('consAddManualMerchant')}</option>
+            </select>
+          </label>
+          {manualMerchant && (
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium">
+              {t('consManualMerchantName')}
+              <Input className="w-full" placeholder={t('consMerchant')} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            </label>
+          )}
+        </div>
+        {linked && <p className="text-xs text-emerald-600">{t('consConnectedSync')}</p>}
+        {manualMerchant && <p className="text-xs text-muted-foreground">{t('consManualSync')}</p>}
+        {merchants.length === 0 && <p className="text-xs text-muted-foreground">{t('consNoConnectedMerchants')}</p>}
+        <div className="flex flex-wrap items-end gap-2">
+          <Input className="w-32" inputMode="decimal" placeholder={t('consQty')} value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} />
+          <Input className="w-28" inputMode="decimal" placeholder={t('consMyShare')} value={form.share} onChange={e => setForm({ ...form, share: e.target.value })} />
+          <Button disabled={busy} onClick={send}>{t('consSend')}</Button>
+        </div>
       </div>
 
       {local.length === 0 && incoming.length === 0 && <p className="text-sm text-muted-foreground">{t('consEmpty')}</p>}
