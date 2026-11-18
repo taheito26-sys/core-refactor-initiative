@@ -12,12 +12,9 @@ export interface RouteStopDef {
  * their own stops between these while on the road; the customer cannot reorder them.
  */
 export const FIXED_ROUTE: RouteStopDef[] = [
-  { nameEn: 'Obour (Cairo)', nameAr: 'العبور' },
-  { nameEn: 'Kafr El Sheikh', nameAr: 'كفر الشيخ' },
-  { nameEn: 'Port Said', nameAr: 'بورسعيد' },
-  { nameEn: 'Safaga port', nameAr: 'ميناء سفاجا' },
-  { nameEn: 'Saudi Arabia', nameAr: 'السعودية' },
-  { nameEn: 'Qatar (delivery)', nameAr: 'قطر (التسليم)' },
+  { nameEn: 'Supplier Farm B', nameAr: 'مزرعة المورد ب' },
+  { nameEn: 'Salwa border', nameAr: 'منفذ سلوى' },
+  { nameEn: 'Doha Warehouse 02', nameAr: 'مخزن الدوحة 02' },
 ];
 
 /** Shape the create_customer_shipment function expects for its stops. */

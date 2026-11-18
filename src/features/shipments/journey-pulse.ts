@@ -8,6 +8,9 @@ export type JourneyAudience = 'driver' | 'customer';
 
 /** The fixed stops carry coordinates in the database; these fallbacks keep older rows on the map. */
 const STOP_COORDINATES: Record<string, readonly [number, number]> = {
+  'Supplier Farm B': [30.6, 30.9],
+  'Salwa border': [24.7, 50.8],
+  'Doha Warehouse 02': [25.285, 51.531],
   'Obour (Cairo)': [30.228, 31.482],
   'Kafr El Sheikh': [31.111, 30.939],
   'Port Said': [31.265, 32.302],
