@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
-import { Activity, ArrowLeft, Flag, Loader2, MapPin, MapPinPlus, Package, Play, ScanLine, Scale, Timer } from 'lucide-react';
+import { Activity, ArrowLeft, Ban, Flag, Loader2, MapPin, MapPinPlus, Package, Play, ScanLine, Scale, Thermometer, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -14,7 +14,8 @@ import { JourneyPulse } from '@/features/shipments/components/JourneyPulse';
 import { TripHistory } from '@/features/shipments/components/TripHistory';
 import { ArrivalDialog } from '@/features/shipments/components/ArrivalDialog';
 import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
-import { RangeStrip, TempLimits, TempVerdict } from '@/features/shipments/components/ShipmentCard';
+import { TempDial, TempLimits, TempSpark } from '@/features/shipments/components/ShipmentCard';
+import { ColdChainPanel } from '@/features/shipments/components/ColdChainPanel';
 import { TripTiles } from '@/features/shipments/components/TripTiles';
 import { placeText } from '@/features/shipments/geo';
 import { useAddStop, useShipment, useStopShipment, useStartShipment } from '@/features/shipments/hooks';
@@ -24,8 +25,6 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import type { DriverOutletContext } from './DriverLayout';
 import '@/styles/journey-pulse.css';
-
-const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /** One trip from the driver's side: the state of the load, start it, send temperature photos, confirm stops, add stops. */
 export default function DriverShipmentPage() {
@@ -74,40 +73,58 @@ export default function DriverShipmentPage() {
       {back}
       {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="driver" onArrive={() => setShowArrival(true)} />}
 
-      <section className="ch-card cs-box" style={alert ? { background: 'linear-gradient(90deg, #fff6f8, #fff 45%)' } : undefined}>
-        <div className="co-card-top" style={{ marginBottom: 10 }}>
-          <span className="co-no">{shipment.reference}</span>
-          <span className="cs-cargo">{shipment.cargo}</span>
-          <span className={cn('co-tag', STATUS_TAG[shipment.status])} style={{ marginInlineStart: 'auto' }}>{STATUS_LABELS[shipment.status][lang]}</span>
-        </div>
-        <div className="co-card-mid">
-          <div className="co-amt-col">
-            <div className="k">{L('Last recorded temperature', 'آخر حرارة مسجلة')}</div>
-            <div className={cn('cs-big', alert && 'bad')}>{last ? `${temp(last.temperature_c)}°C` : '—'}</div>
-            {last && <div className={cn('cs-state', alert ? 'bad' : 'ok')} style={{ fontSize: 11 }}>{alert ? L('Out of range', 'خارج النطاق') : L('In range', 'ضمن النطاق')} · {agoLabel(last.taken_at, now, lang)}</div>}
+      {shipment.status === 'cancelled' ? (
+        <section className="ch-card cs-box cs-cancelled-box">
+          <div className="co-card-top" style={{ marginBottom: 10 }}>
+            <span className="co-no">{shipment.reference}</span>
+            <span className="cs-cargo">{shipment.cargo}</span>
+            <span className={cn('co-tag', STATUS_TAG[shipment.status])} style={{ marginInlineStart: 'auto' }}>{STATUS_LABELS[shipment.status][lang]}</span>
           </div>
-          <div className="co-amt-col end">
-            <TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />
-            {shipment.weight_tons != null && <div className="cs-state mute"><Scale style={{ width: 11, height: 11, verticalAlign: '-1px' }} aria-hidden="true" /> {shipment.weight_tons} t</div>}
+          <div className="cs-cancel-hero">
+            <span className="cs-cancel-ic"><Ban aria-hidden="true" /></span>
+            <div>
+              <h3>{L('Cancelled trip', 'رحلة ملغاة')}</h3>
+              <p>{L('This shipment was cancelled. Its readings and route are kept for the record; you do not need to send any more updates.', 'أُلغيت هذه الشحنة. تُحفظ قراءاتها ومسارها للسجل، ولا تحتاج إلى إرسال تحديثات أخرى.')}</p>
+            </div>
           </div>
-        </div>
-        {last && <details className="cs-latest-proof"><summary>{L('Latest photo and proof', 'آخر صورة وإثبات')}</summary><PhotoThumb path={last.photo_path} alt={L('Latest temperature photo', 'آخر صورة للحرارة')} /><ReadingProof reading={last} lang={lang} /></details>}
-        <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={onTheRoad} now={now} lang={lang} />
-        <RangeStrip temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
-        {last && <TempVerdict temperature={last.temperature_c} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />}
-        {(
-          <div className="cs-where">
-            <MapPin aria-hidden="true" />
-            <div>{L('Last known location', 'آخر موقع معروف')} <b>{area ?? (where ? L('Area name unavailable', 'اسم المنطقة غير متاح') : L('No location recorded yet', 'لم يُسجل موقع بعد'))}</b></div>
-            {where && <span>{agoLabel(where.recorded_at, now, lang)}</span>}
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <>
+          <section className={cn('ch-card cs-temp-hero', alert && 'bad', !last && 'mute')}>
+            <div className="co-card-top" style={{ marginBottom: 10 }}>
+              <span className="co-no">{shipment.reference}</span>
+              <span className="cs-cargo">{shipment.cargo}</span>
+              <span className={cn('co-tag', STATUS_TAG[shipment.status])} style={{ marginInlineStart: 'auto' }}>{STATUS_LABELS[shipment.status][lang]}</span>
+            </div>
+            <div className="cs-temp-hero-head">
+              <div className="cs-temp-kicker"><Thermometer aria-hidden="true" />{L('Last recorded temperature', 'آخر حرارة مسجلة')}</div>
+              <span className={cn('cs-temp-pill', alert ? 'bad' : last ? 'ok' : 'mute')}>
+                {last ? (alert ? L('Out of range', 'خارج النطاق') : L('Within range', 'ضمن النطاق')) : L('Awaiting first reading', 'بانتظار أول قراءة')}
+              </span>
+            </div>
+            <div className="cs-temp-hero-body">
+              <TempDial temperature={last?.temperature_c ?? null} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} alert={alert} />
+              <div className="cs-temp-hero-copy">
+                <TempLimits target={shipment.target_temp_c} tolerance={shipment.tolerance_c} lang={lang} />
+                {shipment.weight_tons != null && <div className="cs-state mute"><Scale style={{ width: 11, height: 11, verticalAlign: '-1px' }} aria-hidden="true" /> {shipment.weight_tons} t</div>}
+                <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={onTheRoad} now={now} lang={lang} />
+                {last && <TempSpark readings={shipment.readings} target={shipment.target_temp_c} tolerance={shipment.tolerance_c} />}
+              </div>
+            </div>
+            {last && <details className="cs-latest-proof"><summary>{L('Latest photo and proof', 'آخر صورة وإثبات')}</summary><PhotoThumb path={last.photo_path} alt={L('Latest temperature photo', 'آخر صورة للحرارة')} /><ReadingProof reading={last} lang={lang} /></details>}
+            <div className="cs-where">
+              <MapPin aria-hidden="true" />
+              <div>{L('Last known location', 'آخر موقع معروف')} <b>{area ?? (where ? L('Area name unavailable', 'اسم المنطقة غير متاح') : L('No location recorded yet', 'لم يُسجل موقع بعد'))}</b></div>
+              {where && <span>{agoLabel(where.recorded_at, now, lang)}</span>}
+            </div>
+          </section>
+
+          {shipment.readings.length > 0 && <ColdChainPanel readings={shipment.readings} targetC={shipment.target_temp_c} toleranceC={shipment.tolerance_c} now={now} lang={lang} />}
+        </>
+      )}
 
       {shipment.status === 'ended_early' && <div className="cs-banner warn" role="status"><Package aria-hidden="true" /><div><b>{L('Trip ended early. Client approval is required before you can start again.', 'انتهت الرحلة مبكرًا. يلزم موافقة العميل قبل أن تتمكن من البدء مجددًا.')}</b></div></div>}
       {shipment.status === 'delivered' && <div className="cs-banner ok" role="status"><Package aria-hidden="true" /><b>{L('Delivered', 'تم التسليم')}</b></div>}
-      {shipment.status === 'cancelled' && <div className="cs-banner" role="status"><div>{L('This shipment was cancelled.', 'تم إلغاء هذه الشحنة.')}</div></div>}
-
       {shipment.status === 'preparing' && (
         <button type="button" className="cs-cta" onClick={() => setConfirm('start')} disabled={start.isPending}>
           {start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play className="rtl:-scale-x-100" aria-hidden="true" />}
