@@ -437,7 +437,22 @@ export interface Trade {
    * the order never uses stock; `feeQAR` is the partner's profit share and
    * `remitQAR` is what the partner still has to hand over to me.
    */
-  consignment?: { id: string; partnerSharePct: number; remitQAR: number; remittedQAR: number };
+  consignment?: {
+    id: string;
+    partnerSharePct: number;
+    /** Gross cash the owner is entitled to from this sale, before offsets and settlements. */
+    remitQAR: number;
+    /** Cash already settled to the owner (or, on the receiver side, already paid to the owner). */
+    remittedQAR: number;
+    /** Replacement USDT bought out of this sale's proceeds, netted against the receivable/payable. */
+    purchaseOffsetQAR?: number;
+    /** Receiver side: the owner's cash currently held. */
+    payableQAR?: number;
+    /** Which side of the consignment this trade belongs to. */
+    role?: 'owner' | 'receiver';
+    /** Receiver-side purchase event ids already applied, so a retry cannot offset twice. */
+    purchaseIds?: string[];
+  };
 }
 
 export interface Customer {

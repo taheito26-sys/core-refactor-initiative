@@ -24,9 +24,13 @@ export interface RemoteConsignment {
 export interface RemoteConsignmentEvent {
   id: string;
   consignmentId: string;
-  kind: 'sale' | 'return' | 'purchase';
+  kind: 'sale' | 'return' | 'purchase' | 'settlement';
   qty: number;
   priceQAR: number | null;
+  /** Cash amount for a settlement event; null for sale/return/purchase. */
+  amountQAR: number | null;
+  /** A replacement purchase can be funded from a confirmed sale's proceeds. */
+  fundedFromSaleId: string | null;
   reportedBy: string;
   status: 'pending' | 'confirmed' | 'rejected';
   createdAt: string;
@@ -92,6 +96,8 @@ export function useMerchantConsignments() {
         kind: e.kind,
         qty: Number(e.qty_usdt),
         priceQAR: e.price_qar == null ? null : Number(e.price_qar),
+        amountQAR: e.amount_qar == null ? null : Number(e.amount_qar),
+        fundedFromSaleId: e.funded_from_sale_id ?? null,
         reportedBy: e.reported_by,
         status: e.status,
         createdAt: e.created_at,
@@ -114,10 +120,11 @@ export function useMerchantConsignments() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchant-consignments', uid] });
 
   const create = useMutation({
-    mutationFn: async (a: { relationshipId: string; qty: number; basePrice: number; senderSharePct: number; trackerRef: string }): Promise<string> => {
-      const { data, error } = await db.rpc('create_merchant_consignment', {
+    mutationFn: async (a: { relationshipId: string; qty: number; basePrice: number; senderSharePct: number; trackerRef: string; clientRequestId?: string }): Promise<string> => {
+      const { data, error } = await db.rpc('create_merchant_consignment_v2', {
         p_relationship_id: a.relationshipId, p_qty: a.qty, p_base_price: a.basePrice,
         p_sender_share_pct: a.senderSharePct, p_tracker_ref: a.trackerRef,
+        p_client_request_id: a.clientRequestId ?? null,
       });
       if (error) throw error;
       return data as string;
@@ -126,9 +133,20 @@ export function useMerchantConsignments() {
   });
 
   const report = useMutation({
-    mutationFn: async (a: { consignmentId: string; kind: RemoteConsignmentEvent['kind']; qty: number; price?: number }) => {
-      const { error } = await db.rpc('report_consignment_event', {
+    mutationFn: async (a: {
+      consignmentId: string;
+      kind: RemoteConsignmentEvent['kind'];
+      qty: number;
+      price?: number;
+      amountQAR?: number;
+      fundedFromSaleId?: string;
+      clientRequestId?: string;
+    }) => {
+      const { error } = await db.rpc('report_consignment_event_v2', {
         p_consignment_id: a.consignmentId, p_kind: a.kind, p_qty: a.qty, p_price: a.price ?? null,
+        p_amount_qar: a.amountQAR ?? null,
+        p_funded_from_sale_id: a.fundedFromSaleId ?? null,
+        p_client_request_id: a.clientRequestId ?? null,
       });
       if (error) throw error;
     },
