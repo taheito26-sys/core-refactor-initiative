@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshness';
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
-import { DriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
+import { DriverExcursionAlert, isDriverExcursionAlert } from '@/features/shipments/components/DriverExcursionAlert';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
 import { RouteSummary } from '@/features/shipments/components/RouteSummary';
 import { JourneyPulse } from '@/features/shipments/components/JourneyPulse';
@@ -73,8 +73,7 @@ export default function DriverShipmentPage() {
   const onTheRoad = shipment.status === 'on_the_road';
   const alert = !!last?.is_alert;
   const excursionAlerts = notifications.filter(
-    (notification) => !notification.read_at
-      && notification.target.dedupeKey?.startsWith('shipment-excursion:')
+    (notification) => isDriverExcursionAlert(notification)
       && (notification.target.targetEntityId === shipment.id || notification.entity_id === shipment.id),
   );
 

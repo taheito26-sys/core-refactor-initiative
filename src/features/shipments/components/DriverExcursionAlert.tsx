@@ -4,6 +4,14 @@ import { useMarkNotificationRead } from '@/hooks/useNotifications';
 import type { AppNotification } from '@/types/notifications';
 import type { Lang } from '../route';
 
+export const DRIVER_EXCURSION_DEDUPE_PREFIX = 'shipment-driver-excursion:';
+
+/** True for an unread temperature excursion created by the reading trigger. */
+export function isDriverExcursionAlert(notification: AppNotification): boolean {
+  return !notification.read_at
+    && notification.target.dedupeKey?.startsWith(DRIVER_EXCURSION_DEDUPE_PREFIX) === true;
+}
+
 /**
  * A live temperature excursion in the driver cockpit. It is fed by the same
  * notification row that triggers the Web Push, so the banner appears even when
