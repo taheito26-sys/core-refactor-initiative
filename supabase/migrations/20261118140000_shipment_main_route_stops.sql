@@ -13,15 +13,15 @@ BEGIN
       ('Kafr El Sheikh', 31.111, 30.939, 20),
       ('Port Said', 31.265, 32.302, 20),
       ('Safaga port', 26.733, 33.936, 20),
-      ('Kafr El-Sheikh, Egypt', 31.111, 30.939, 20),
-      ('Safaga Port, Egypt', 26.733, 33.936, 20),
-      ('Duba Port, Saudi Arabia', 27.350, 35.690, 20),
-      ('Tabuk, Saudi Arabia', 28.384, 36.555, 30),
-      ('Buraydah (Al-Qassim), Saudi Arabia', 26.326, 43.975, 30),
-      ('Riyadh, Saudi Arabia', 24.713, 46.675, 40),
-      ('Al-Hofuf (Al-Ahsa), Saudi Arabia', 25.364, 49.588, 30),
-      ('Salwa / Abu Samra Border Crossing', 24.720, 50.790, 20),
-      ('Doha, Qatar', 25.285, 51.531, 30)
+      ('Kafr El-Sheikh', 31.111, 30.939, 20),
+      ('Safaga Port', 26.733, 33.936, 20),
+      ('Duba Port', 27.350, 35.690, 20),
+      ('Tabuk', 28.384, 36.555, 30),
+      ('Buraydah', 26.326, 43.975, 30),
+      ('Riyadh', 24.713, 46.675, 40),
+      ('Al-Hofuf', 25.364, 49.588, 30),
+      ('Salwa Border Crossing', 24.720, 50.790, 20),
+      ('Doha', 25.285, 51.531, 30)
     ) AS v(name_en, lat, lng, radius_km) WHERE v.name_en = NEW.name_en;
     IF FOUND THEN
       NEW.latitude := area.lat;
@@ -47,14 +47,14 @@ BEGIN
     SELECT reached_at INTO v_origin FROM public.shipment_stops WHERE shipment_id = s.id AND seq = 10;
     DELETE FROM public.shipment_stops WHERE shipment_id = s.id;
     INSERT INTO public.shipment_stops (shipment_id, seq, name_en, name_ar, kind, reached_at) VALUES
-      (s.id, 10, 'Kafr El-Sheikh, Egypt', 'كفر الشيخ، مصر', 'fixed', v_origin),
-      (s.id, 20, 'Safaga Port, Egypt', 'ميناء سفاجا، مصر', 'fixed', NULL),
-      (s.id, 30, 'Duba Port, Saudi Arabia', 'ميناء ضباء، السعودية', 'fixed', NULL),
-      (s.id, 40, 'Tabuk, Saudi Arabia', 'تبوك، السعودية', 'fixed', NULL),
-      (s.id, 50, 'Buraydah (Al-Qassim), Saudi Arabia', 'بريدة (القصيم)، السعودية', 'fixed', NULL),
-      (s.id, 60, 'Riyadh, Saudi Arabia', 'الرياض، السعودية', 'fixed', NULL),
-      (s.id, 70, 'Al-Hofuf (Al-Ahsa), Saudi Arabia', 'الهفوف (الأحساء)، السعودية', 'fixed', NULL),
-      (s.id, 80, 'Salwa / Abu Samra Border Crossing', 'منفذ سلوى / أبو سمرة الحدودي', 'fixed', NULL),
-      (s.id, 90, 'Doha, Qatar', 'الدوحة، قطر', 'fixed', NULL);
+      (s.id, 10, 'Kafr El-Sheikh', 'كفر الشيخ', 'fixed', v_origin),
+      (s.id, 20, 'Safaga Port', 'ميناء سفاجا', 'fixed', NULL),
+      (s.id, 30, 'Duba Port', 'ميناء ضباء', 'fixed', NULL),
+      (s.id, 40, 'Tabuk', 'تبوك', 'fixed', NULL),
+      (s.id, 50, 'Buraydah', 'بريدة', 'fixed', NULL),
+      (s.id, 60, 'Riyadh', 'الرياض', 'fixed', NULL),
+      (s.id, 70, 'Al-Hofuf', 'الهفوف', 'fixed', NULL),
+      (s.id, 80, 'Salwa Border Crossing', 'منفذ سلوى', 'fixed', NULL),
+      (s.id, 90, 'Doha', 'الدوحة', 'fixed', NULL);
   END LOOP;
 END $$;

@@ -13,15 +13,15 @@ export interface RouteStopDef {
  * while on the road; the customer cannot reorder them. The database fills in each stop's area from its English name.
  */
 export const FIXED_ROUTE: RouteStopDef[] = [
-  { nameEn: 'Kafr El-Sheikh, Egypt', nameAr: 'كفر الشيخ، مصر' },
-  { nameEn: 'Safaga Port, Egypt', nameAr: 'ميناء سفاجا، مصر' },
-  { nameEn: 'Duba Port, Saudi Arabia', nameAr: 'ميناء ضباء، السعودية' },
-  { nameEn: 'Tabuk, Saudi Arabia', nameAr: 'تبوك، السعودية' },
-  { nameEn: 'Buraydah (Al-Qassim), Saudi Arabia', nameAr: 'بريدة (القصيم)، السعودية' },
-  { nameEn: 'Riyadh, Saudi Arabia', nameAr: 'الرياض، السعودية' },
-  { nameEn: 'Al-Hofuf (Al-Ahsa), Saudi Arabia', nameAr: 'الهفوف (الأحساء)، السعودية' },
-  { nameEn: 'Salwa / Abu Samra Border Crossing', nameAr: 'منفذ سلوى / أبو سمرة الحدودي' },
-  { nameEn: 'Doha, Qatar', nameAr: 'الدوحة، قطر' },
+  { nameEn: 'Kafr El-Sheikh', nameAr: 'كفر الشيخ' },
+  { nameEn: 'Safaga Port', nameAr: 'ميناء سفاجا' },
+  { nameEn: 'Duba Port', nameAr: 'ميناء ضباء' },
+  { nameEn: 'Tabuk', nameAr: 'تبوك' },
+  { nameEn: 'Buraydah', nameAr: 'بريدة' },
+  { nameEn: 'Riyadh', nameAr: 'الرياض' },
+  { nameEn: 'Al-Hofuf', nameAr: 'الهفوف' },
+  { nameEn: 'Salwa Border Crossing', nameAr: 'منفذ سلوى' },
+  { nameEn: 'Doha', nameAr: 'الدوحة' },
 ];
 
 /** Shape the create_customer_shipment function expects for its stops. */
