@@ -12,13 +12,15 @@
 //  - returned: unsold USDT comes back. It is a lend_return, so stock returns at
 //              the cost it left at — no new price, no P&L.
 //  - new purchase: the merchant sold, then bought other USDT at another price
-//              and sent that. It is an ordinary purchase batch and never
-//              settles the consignment.
+//              and sent that. It is an ordinary purchase batch at the new cost.
+//              When it was funded from the sale proceeds, its cost is netted
+//              against the cash the merchant still owes me, so the owner never
+//              counts both the full receivable and the replacement stock.
 //
 // The consignment itself is the lend_out transfer carrying `consignment`
 // metadata, so sync, undo, FIFO and the loan balances all keep working.
 
-import type { Batch, TrackerState, Trade } from '@/lib/tracker-helpers';
+import { deriveCashQAR, uid, type Batch, type CashLedgerEntry, type LedgerEntryType, type TrackerState, type Trade } from '@/lib/tracker-helpers';
 import { isTransferActive, type UsdtTransfer } from '@/lib/usdt-transfers';
 
 const EPS = 1e-6;
@@ -45,6 +47,16 @@ export interface ConsignmentSummary {
   status: 'open' | 'closed';
 }
 
+export interface ConsignmentReceivable {
+  counterpartyName: string;
+  owedQAR: number;
+}
+
+export interface ConsignmentPayable {
+  counterpartyName: string;
+  owedQAR: number;
+}
+
 export function isConsignment(t: UsdtTransfer | undefined): t is UsdtTransfer & { consignment: NonNullable<UsdtTransfer['consignment']> } {
   return !!t && t.kind === 'lend_out' && !!t.consignment;
 }
@@ -59,6 +71,7 @@ export function listConsignments(state: Pick<TrackerState, 'usdtTransfers'>): Co
     const sent = Number(c.amountUSDT);
     const sold = round6(Number(c.consignment.soldUSDT) || 0);
     const open = Math.max(0, round6(sent - sold - returned));
+    const status: ConsignmentSummary['status'] = open <= EPS ? 'closed' : 'open';
     return {
       id: c.id,
       counterpartyName: c.counterpartyName,
@@ -69,7 +82,7 @@ export function listConsignments(state: Pick<TrackerState, 'usdtTransfers'>): Co
       returned,
       open,
       profitSharePct: c.consignment.profitSharePct,
-      status: open <= EPS ? 'closed' : 'open',
+      status,
     };
   }).sort((a, b) => b.ts - a.ts);
 }
@@ -102,8 +115,82 @@ export function splitConsignmentSale(qty: number, priceQAR: number, unitCostQAR:
   };
 }
 
+/** Cash still due on an owner-side sale, after replacement purchases and settlements. */
+export function consignmentSaleNetDue(t: Pick<Trade, 'consignment'>): number {
+  if (!t.consignment || t.consignment.role === 'receiver') return 0;
+  return round2(Math.max(0, t.consignment.remitQAR - (t.consignment.purchaseOffsetQAR || 0) - t.consignment.remittedQAR));
+}
+
+/** Cash still held on a receiver-side sale, after replacement purchases and settlements. */
+export function consignmentPayableNetDue(t: Pick<Trade, 'consignment'>): number {
+  if (!t.consignment || t.consignment.role !== 'receiver') return 0;
+  return round2(Math.max(0, (t.consignment.payableQAR || t.consignment.remitQAR) - (t.consignment.purchaseOffsetQAR || 0) - t.consignment.remittedQAR));
+}
+
 function replaceTransfer(state: TrackerState, next: UsdtTransfer): TrackerState {
   return { ...state, usdtTransfers: (state.usdtTransfers || []).map(t => (t.id === next.id ? next : t)) };
+}
+
+function defaultCashAccountId(state: Pick<TrackerState, 'cashAccounts'>): string | undefined {
+  return (state.cashAccounts || []).find(a => a.status === 'active' && a.currency === 'QAR')?.id;
+}
+
+/**
+ * Append one immutable cash entry. A supplied `entryId` makes the operation
+ * idempotent, which matters because the realtime sync effect can replay a
+ * confirmed report after a refresh.
+ */
+function appendCashEntry(
+  state: TrackerState,
+  input: {
+    entryId?: string;
+    accountId?: string;
+    direction: 'in' | 'out';
+    amount: number;
+    type: LedgerEntryType;
+    note: string;
+    tradeId: string;
+    ts?: number;
+  },
+): TrackerState {
+  const amount = round2(input.amount);
+  if (!(amount > 0)) return state;
+  const entryId = input.entryId || `cons-cash-${uid()}`;
+  if ((state.cashLedger || []).some(e => e.id === entryId)) return state;
+  const accountId = input.accountId || defaultCashAccountId(state);
+  const account = (state.cashAccounts || []).find(a => a.id === accountId && a.status === 'active');
+  if (!account) return state;
+  const ts = input.ts ?? Date.now();
+  const entry: CashLedgerEntry = {
+    id: entryId,
+    ts,
+    type: input.type,
+    accountId: account.id,
+    direction: input.direction,
+    amount,
+    currency: account.currency,
+    linkedEntityType: 'trade',
+    linkedEntityId: input.tradeId,
+    tradeId: input.tradeId,
+    note: input.note,
+  };
+  const cashLedger = [...(state.cashLedger || []), entry];
+  const cashQAR = deriveCashQAR(state.cashAccounts || [], cashLedger);
+  return {
+    ...state,
+    cashLedger,
+    cashQAR,
+    cashHistory: [...(state.cashHistory || []), {
+      id: `${entryId}-h`,
+      ts,
+      type: input.direction === 'in' ? 'sale_deposit' : 'withdraw',
+      amount,
+      balanceAfter: cashQAR,
+      owner: state.cashOwner || '',
+      bankAccount: account.name,
+      note: input.note,
+    }],
+  };
 }
 
 /** USDT leaves stock for another merchant to sell. */
@@ -165,7 +252,14 @@ export function recordConsignmentSale(
     buyerType: 'merchant',
     manualBuyPrice: input.unitCostQAR,
     exchangeCounterparty: c.counterpartyName,
-    consignment: { id: c.id, partnerSharePct: 100 - c.profitSharePct, remitQAR: split.remitQAR, remittedQAR: 0 },
+    consignment: {
+      id: c.id,
+      partnerSharePct: 100 - c.profitSharePct,
+      remitQAR: split.remitQAR,
+      remittedQAR: 0,
+      purchaseOffsetQAR: 0,
+      role: 'owner',
+    },
   };
   const next = replaceTransfer(state, {
     ...transfer,
@@ -203,16 +297,25 @@ export function recordConsignmentReturn(
 
 /**
  * The merchant sold, then bought other USDT and sent that. It is a new
- * purchase at its own price: it never reduces what is open on a consignment.
+ * purchase at its own price. If it was funded from the sale proceeds, the
+ * cost is netted against that sale's receivable so the owner cannot count
+ * both the full cash and the replacement stock.
  */
 export function recordConsignmentPurchase(
   state: TrackerState,
-  input: { batchId: string; counterpartyName: string; qty: number; priceQAR: number; ts?: number },
+  input: { batchId: string; counterpartyName: string; qty: number; priceQAR: number; ts?: number; fundedFromSaleId?: string },
   now = Date.now(),
 ): TrackerState {
   if ((state.batches || []).some(b => b.id === input.batchId)) return state;
   const qty = round6(input.qty);
   if (!(qty > 0) || !(input.priceQAR > 0)) throw new ConsignmentError('bad_amount');
+  const costQAR = round2(qty * input.priceQAR);
+  let sale: Trade | undefined;
+  if (input.fundedFromSaleId) {
+    sale = (state.trades || []).find(t => t.id === input.fundedFromSaleId && t.consignment && !t.voided);
+    if (!sale || sale.consignment!.role === 'receiver') throw new ConsignmentError('not_found');
+    if (costQAR > consignmentSaleNetDue(sale) + 0.01) throw new ConsignmentError('exceeds_open');
+  }
   const batch: Batch = {
     id: input.batchId,
     ts: input.ts ?? now,
@@ -222,28 +325,82 @@ export function recordConsignmentPurchase(
     initialUSDT: qty,
     revisions: [],
   };
-  return { ...state, batches: [...(state.batches || []), batch] };
-}
-
-/** Records that the merchant handed over (part of) the cash for a consignment sale. */
-export function recordConsignmentRemittance(state: TrackerState, saleId: string, amountQAR: number): TrackerState {
-  const sale = (state.trades || []).find(t => t.id === saleId);
-  if (!sale?.consignment) throw new ConsignmentError('not_found');
-  if (!(amountQAR > 0)) throw new ConsignmentError('bad_amount');
-  const remitted = Math.min(sale.consignment.remitQAR, round2(sale.consignment.remittedQAR + amountQAR));
+  const withBatch: TrackerState = { ...state, batches: [...(state.batches || []), batch] };
+  if (!sale) return withBatch;
   return {
-    ...state,
-    trades: state.trades.map(t => (t.id === saleId ? { ...t, consignment: { ...t.consignment!, remittedQAR: remitted } } : t)),
+    ...withBatch,
+    trades: (withBatch.trades || []).map(t => t.id === sale!.id ? {
+      ...t,
+      consignment: {
+        ...t.consignment!,
+        purchaseOffsetQAR: round2((t.consignment!.purchaseOffsetQAR || 0) + costQAR),
+      },
+    } : t),
   };
 }
 
-/** Cash the merchants still owe me from consignment sales, per counterparty name. */
-export function consignmentReceivables(state: Pick<TrackerState, 'trades'>): { counterpartyName: string; owedQAR: number }[] {
+/**
+ * Owner-side settlement: the merchant paid part or all of the cash due.
+ * The cash ledger entry is keyed by the settlement id, so replaying a
+ * confirmed remote event cannot deposit the same cash twice.
+ */
+export function recordConsignmentSettlement(
+  state: TrackerState,
+  input: { saleId: string; amountQAR: number; settlementId?: string; cashAccountId?: string; ts?: number },
+): TrackerState {
+  const sale = (state.trades || []).find(t => t.id === input.saleId && t.consignment && !t.voided);
+  if (!sale || sale.consignment!.role === 'receiver') throw new ConsignmentError('not_found');
+  const due = consignmentSaleNetDue(sale);
+  const amount = round2(Math.min(input.amountQAR, due));
+  if (!(amount > 0)) return state;
+  const remitted = round2(sale.consignment!.remittedQAR + amount);
+  const next: TrackerState = {
+    ...state,
+    trades: (state.trades || []).map(t => t.id === sale.id ? {
+      ...t,
+      consignment: { ...t.consignment!, remittedQAR: remitted },
+    } : t),
+  };
+  return appendCashEntry(next, {
+    entryId: input.settlementId ? `cons-settle-${input.settlementId}` : `cons-settle-${sale.id}-${remitted}`,
+    accountId: input.cashAccountId,
+    direction: 'in',
+    amount,
+    type: 'merchant_settlement_in',
+    note: `Consignment cash received from ${sale.exchangeCounterparty || 'merchant'}`,
+    tradeId: sale.id,
+    ts: input.ts,
+  });
+}
+
+/** Backwards-compatible name for the owner-side settlement path. */
+export function recordConsignmentRemittance(
+  state: TrackerState,
+  saleId: string,
+  amountQAR: number,
+  cashAccountId?: string,
+): TrackerState {
+  return recordConsignmentSettlement(state, { saleId, amountQAR, cashAccountId });
+}
+
+/** Cash the merchants still owe me from owner-side consignment sales, per counterparty name. */
+export function consignmentReceivables(state: Pick<TrackerState, 'trades'>): ConsignmentReceivable[] {
   const map = new Map<string, number>();
   for (const t of state.trades || []) {
-    if (t.voided || !t.consignment) continue;
+    if (t.voided || !t.consignment || t.consignment.role === 'receiver') continue;
     const name = t.exchangeCounterparty || '';
-    map.set(name, (map.get(name) || 0) + (t.consignment.remitQAR - t.consignment.remittedQAR));
+    map.set(name, (map.get(name) || 0) + consignmentSaleNetDue(t));
+  }
+  return Array.from(map, ([counterpartyName, owed]) => ({ counterpartyName, owedQAR: round2(owed) })).filter(r => r.owedQAR > 0);
+}
+
+/** Cash I am holding for another merchant, from receiver-side consignment sales. */
+export function consignmentPayables(state: Pick<TrackerState, 'trades'>): ConsignmentPayable[] {
+  const map = new Map<string, number>();
+  for (const t of state.trades || []) {
+    if (t.voided || !t.consignment || t.consignment.role !== 'receiver') continue;
+    const name = t.exchangeCounterparty || '';
+    map.set(name, (map.get(name) || 0) + consignmentPayableNetDue(t));
   }
   return Array.from(map, ([counterpartyName, owed]) => ({ counterpartyName, owedQAR: round2(owed) })).filter(r => r.owedQAR > 0);
 }
@@ -252,6 +409,9 @@ export function consignmentReceivables(state: Pick<TrackerState, 'trades'>): { c
 export function undoConsignmentSale(state: TrackerState, saleId: string, now = Date.now()): TrackerState {
   const sale = (state.trades || []).find(t => t.id === saleId);
   if (!sale?.consignment || sale.voided) throw new ConsignmentError('not_found');
+  if ((sale.consignment.purchaseOffsetQAR || 0) > EPS || sale.consignment.remittedQAR > EPS) {
+    throw new ConsignmentError('exceeds_open');
+  }
   const transfer = (state.usdtTransfers || []).find(t => t.id === sale.consignment!.id);
   if (!isConsignment(transfer)) throw new ConsignmentError('not_found');
   const next = replaceTransfer(state, {
@@ -277,11 +437,22 @@ export function undoConsignmentTransfer(state: TrackerState, transferId: string,
  * Receiver's side of a confirmed sale: the merchant sold USDT another
  * merchant sent them. It uses none of their stock (it is not theirs), costs
  * the agreed base price, and the sender's profit share is the fee, so their
- * net is exactly their own share. Booked once per event id.
+ * net is exactly their own share. The full sale proceeds enter cash, while
+ * the owner's share is recorded as a payable until it is settled.
  */
 export function recordReceivedConsignmentSale(
   state: TrackerState,
-  input: { saleId: string; counterpartyName: string; qty: number; priceQAR: number; basePriceQAR: number; senderSharePct: number; ts?: number },
+  input: {
+    saleId: string;
+    consignmentId?: string;
+    counterpartyName: string;
+    qty: number;
+    priceQAR: number;
+    basePriceQAR: number;
+    senderSharePct: number;
+    cashAccountId?: string;
+    ts?: number;
+  },
   now = Date.now(),
 ): TrackerState {
   if ((state.trades || []).some(t => t.id === input.saleId)) return state;
@@ -301,6 +472,107 @@ export function recordReceivedConsignmentSale(
     buyerType: 'merchant',
     manualBuyPrice: input.basePriceQAR,
     exchangeCounterparty: input.counterpartyName,
+    consignment: {
+      id: input.consignmentId || input.saleId,
+      partnerSharePct: input.senderSharePct,
+      remitQAR: split.remitQAR,
+      remittedQAR: 0,
+      purchaseOffsetQAR: 0,
+      payableQAR: split.remitQAR,
+      role: 'receiver',
+      purchaseIds: [],
+    },
   };
-  return { ...state, trades: [...(state.trades || []), trade] };
+  const next: TrackerState = { ...state, trades: [...(state.trades || []), trade] };
+  return appendCashEntry(next, {
+    entryId: `cons-sale-cash-${input.saleId}`,
+    accountId: input.cashAccountId,
+    direction: 'in',
+    amount: round2(input.qty * input.priceQAR),
+    type: 'merchant_sale_proceeds',
+    note: `Consignment sale proceeds held for ${input.counterpartyName}`,
+    tradeId: input.saleId,
+    ts: input.ts ?? now,
+  });
+}
+
+/**
+ * Receiver-side replacement purchase: the merchant bought USDT from the
+ * market using the owner's sale proceeds. Cash leaves the account and the
+ * payable to the owner is reduced by the same cost.
+ */
+export function recordReceivedConsignmentPurchase(
+  state: TrackerState,
+  input: {
+    purchaseId: string;
+    saleId: string;
+    counterpartyName: string;
+    qty: number;
+    priceQAR: number;
+    cashAccountId?: string;
+    ts?: number;
+  },
+  now = Date.now(),
+): TrackerState {
+  const sale = (state.trades || []).find(t => t.id === input.saleId && t.consignment?.role === 'receiver' && !t.voided);
+  if (!sale) throw new ConsignmentError('not_found');
+  if ((sale.consignment!.purchaseIds || []).includes(input.purchaseId)) return state;
+  const qty = round6(input.qty);
+  if (!(qty > 0) || !(input.priceQAR > 0)) throw new ConsignmentError('bad_amount');
+  const costQAR = round2(qty * input.priceQAR);
+  if (costQAR > consignmentPayableNetDue(sale) + 0.01) throw new ConsignmentError('exceeds_open');
+  const next: TrackerState = {
+    ...state,
+    trades: (state.trades || []).map(t => t.id === sale.id ? {
+      ...t,
+      consignment: {
+        ...t.consignment!,
+        purchaseOffsetQAR: round2((t.consignment!.purchaseOffsetQAR || 0) + costQAR),
+        purchaseIds: [...(t.consignment!.purchaseIds || []), input.purchaseId],
+      },
+    } : t),
+  };
+  return appendCashEntry(next, {
+    entryId: `cons-purchase-cash-${input.purchaseId}`,
+    accountId: input.cashAccountId,
+    direction: 'out',
+    amount: costQAR,
+    type: 'stock_purchase',
+    note: `Replacement USDT bought from consignment proceeds (${input.counterpartyName})`,
+    tradeId: sale.id,
+    ts: input.ts ?? now,
+  });
+}
+
+/**
+ * Receiver-side settlement: the merchant paid the owner the remaining cash.
+ * Cash leaves the account and the payable is reduced by the same amount.
+ */
+export function recordReceivedConsignmentSettlement(
+  state: TrackerState,
+  input: { saleId: string; amountQAR: number; settlementId?: string; cashAccountId?: string; ts?: number },
+): TrackerState {
+  const sale = (state.trades || []).find(t => t.id === input.saleId && t.consignment?.role === 'receiver' && !t.voided);
+  if (!sale) throw new ConsignmentError('not_found');
+  const due = consignmentPayableNetDue(sale);
+  const amount = round2(Math.min(input.amountQAR, due));
+  if (!(amount > 0)) return state;
+  const paid = round2(sale.consignment!.remittedQAR + amount);
+  const next: TrackerState = {
+    ...state,
+    trades: (state.trades || []).map(t => t.id === sale.id ? {
+      ...t,
+      consignment: { ...t.consignment!, remittedQAR: paid },
+    } : t),
+  };
+  return appendCashEntry(next, {
+    entryId: input.settlementId ? `cons-recv-settle-${input.settlementId}` : `cons-recv-settle-${sale.id}-${paid}`,
+    accountId: input.cashAccountId,
+    direction: 'out',
+    amount,
+    type: 'merchant_settlement_out',
+    note: `Consignment cash paid to ${sale.exchangeCounterparty || 'owner'}`,
+    tradeId: sale.id,
+    ts: input.ts,
+  });
 }

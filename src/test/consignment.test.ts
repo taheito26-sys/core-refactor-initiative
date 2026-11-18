@@ -4,12 +4,17 @@ import { computeFIFO, totalStock, type Batch, type TrackerState } from '@/lib/tr
 import { getUsdtTransferBalances } from '@/lib/usdt-transfers';
 import {
   ConsignmentError,
+  consignmentPayables,
   consignmentReceivables,
   findConsignment,
   recordConsignmentPurchase,
   recordConsignmentRemittance,
   recordConsignmentReturn,
   recordConsignmentSale,
+  recordConsignmentSettlement,
+  recordReceivedConsignmentPurchase,
+  recordReceivedConsignmentSale,
+  recordReceivedConsignmentSettlement,
   sendConsignment,
   splitConsignmentSale,
   undoConsignmentSale,
@@ -24,10 +29,30 @@ function base(): TrackerState {
   return { batches: [batch('b1', 1, 3.7, 50000)], trades: [], usdtTransfers: [] } as unknown as TrackerState;
 }
 
+function withCash(): TrackerState {
+  return {
+    ...base(),
+    cashAccounts: [{
+      id: 'cash1',
+      name: 'QAR cash',
+      type: 'hand',
+      currency: 'QAR',
+      status: 'active',
+      createdAt: 1,
+    }],
+    cashLedger: [],
+    cashHistory: [],
+    cashQAR: 0,
+  } as unknown as TrackerState;
+}
+
 const unitCost = (s: TrackerState, id: string) => {
   const c = computeFIFO(s.batches, s.trades, s.usdtTransfers).transferCalc.get(id)!;
   return c.totalCost / c.coveredQty;
 };
+
+const cashIn = (s: TrackerState) => s.cashLedger.filter(e => e.direction === 'in').reduce((sum, e) => sum + e.amount, 0);
+const cashOut = (s: TrackerState) => s.cashLedger.filter(e => e.direction === 'out').reduce((sum, e) => sum + e.amount, 0);
 
 describe('consignment: sent USDT is not a sale', () => {
   it('takes the USDT out of stock at cost with no profit, and shows it as with the merchant', () => {
@@ -119,6 +144,25 @@ describe('scenario 3: sold, then new USDT bought at another price sent back', ()
     expect(() => recordConsignmentReturn(s, { consignmentId: 'c1', returnId: 'r1', qty: 10000 })).toThrow(ConsignmentError);
   });
 
+  it('nets a replacement purchase funded from the sale proceeds', () => {
+    let s = withCash();
+    s = sendConsignment(s, { id: 'c1', counterpartyName: 'M2', qty: 10000 }, 10);
+    s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 10000, priceQAR: 3.8, unitCostQAR: unitCost(s, 'c1') }, 20);
+    s = recordConsignmentPurchase(s, { batchId: 'p1', counterpartyName: 'M2', qty: 10000, priceQAR: 3.74, fundedFromSaleId: 'e1' }, 30);
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'M2', owedQAR: 100 }]);
+    const d = computeFIFO(s.batches, s.trades, s.usdtTransfers);
+    expect(totalStock(d)).toBeCloseTo(50000, 6);
+    expect(d.batches.find(b => b.id === 'p1')!.buyPriceQAR).toBe(3.74);
+    expect(s.cashLedger).toHaveLength(0); // owner has not received cash yet
+    s = recordConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'settle1' },);
+    expect(consignmentReceivables(s)).toEqual([]);
+    expect(cashIn(s)).toBeCloseTo(100, 6);
+    expect(s.cashLedger).toHaveLength(1);
+    // Replaying the same settlement does not deposit twice.
+    s = recordConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 'settle1' });
+    expect(s.cashLedger).toHaveLength(1);
+  });
+
   it('mix: 10k sent, 6k sold, 4k returned at the original cost', () => {
     let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'M2', qty: 10000 }, 10);
     s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 6000, priceQAR: 3.8, unitCostQAR: 3.7 }, 20);
@@ -130,6 +174,51 @@ describe('scenario 3: sold, then new USDT bought at another price sent back', ()
   });
 });
 
+describe('receiver side: cash held, replacement purchase and settlement', () => {
+  it('books sale proceeds, nets a replacement purchase and pays the owner', () => {
+    let s = withCash();
+    s = recordReceivedConsignmentSale(s, {
+      saleId: 'e1',
+      consignmentId: 'c1',
+      counterpartyName: 'M1',
+      qty: 10000,
+      priceQAR: 3.8,
+      basePriceQAR: 3.7,
+      senderSharePct: 50,
+    }, 20);
+    expect(cashIn(s)).toBeCloseTo(38000, 6);
+    expect(consignmentPayables(s)).toEqual([{ counterpartyName: 'M1', owedQAR: 37500 }]);
+    expect(computeFIFO(s.batches, s.trades, s.usdtTransfers).tradeCalc.get('e1')!.netQAR).toBeCloseTo(500, 6);
+
+    s = recordReceivedConsignmentPurchase(s, {
+      purchaseId: 'p1',
+      saleId: 'e1',
+      counterpartyName: 'M1',
+      qty: 10000,
+      priceQAR: 3.74,
+    }, 30);
+    expect(cashOut(s)).toBeCloseTo(37400, 6);
+    expect(consignmentPayables(s)).toEqual([{ counterpartyName: 'M1', owedQAR: 100 }]);
+    // Replaying the same purchase event must not subtract again.
+    s = recordReceivedConsignmentPurchase(s, {
+      purchaseId: 'p1',
+      saleId: 'e1',
+      counterpartyName: 'M1',
+      qty: 10000,
+      priceQAR: 3.74,
+    }, 30);
+    expect(cashOut(s)).toBeCloseTo(37400, 6);
+
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 's1' },);
+    expect(consignmentPayables(s)).toEqual([]);
+    expect(cashOut(s)).toBeCloseTo(37500, 6);
+    expect(cashIn(s) - cashOut(s)).toBeCloseTo(500, 6);
+    // Replaying the settlement must not pay twice.
+    s = recordReceivedConsignmentSettlement(s, { saleId: 'e1', amountQAR: 100, settlementId: 's1' });
+    expect(cashOut(s)).toBeCloseTo(37500, 6);
+  });
+});
+
 describe('undo', () => {
   it('cannot void a consignment with sales or returns, but can void an untouched one', () => {
     let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'M2', qty: 1000 }, 10);
@@ -137,5 +226,12 @@ describe('undo', () => {
     expect(() => undoConsignmentTransfer(sold, 'c1')).toThrow(ConsignmentError);
     s = undoConsignmentTransfer(s, 'c1');
     expect(totalStock(computeFIFO(s.batches, s.trades, s.usdtTransfers))).toBeCloseTo(50000, 6);
+  });
+
+  it('does not void a sale after a settlement or purchase offset', () => {
+    let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'M2', qty: 1000 }, 10);
+    s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 1000, priceQAR: 3.8, unitCostQAR: 3.7 });
+    s = recordConsignmentPurchase(s, { batchId: 'p1', counterpartyName: 'M2', qty: 1000, priceQAR: 3.74, fundedFromSaleId: 'e1' });
+    expect(() => undoConsignmentSale(s, 'e1')).toThrow(ConsignmentError);
   });
 });
