@@ -15,9 +15,10 @@ const signalingMock = {
   setAuthToken: vi.fn(),
   setRelayAuthToken: vi.fn(),
   setRelayUrls: vi.fn(),
+  updateActiveCallId: vi.fn(),
   isAvailable: vi.fn().mockResolvedValue(true),
   initiateCall: vi.fn().mockResolvedValue('call-started'),
-  publishOffer: vi.fn(),
+  publishOffer: vi.fn().mockResolvedValue(undefined),
   publishAnswer: vi.fn().mockResolvedValue(undefined),
   publishIceCandidate: vi.fn(),
   publishCallEnd: vi.fn().mockResolvedValue(undefined),
@@ -90,10 +91,15 @@ class FakeRTCPeerConnection {
   signalingState: RTCSignalingState = 'stable';
   connectionState: RTCPeerConnectionState = 'new';
   iceConnectionState: RTCIceConnectionState = 'new';
+  iceGatheringState: RTCIceGatheringState = 'complete';
+  localDescription: RTCSessionDescription | null = null;
+  remoteDescription: RTCSessionDescription | null = null;
   onicecandidate: ((event: RTCPeerConnectionIceEvent) => void) | null = null;
   ontrack: ((event: RTCTrackEvent) => void) | null = null;
   onconnectionstatechange: (() => void) | null = null;
   oniceconnectionstatechange: (() => void) | null = null;
+  addEventListener = vi.fn();
+  removeEventListener = vi.fn();
   private readonly senders: RTCRtpSender[] = [];
 
   constructor(config?: RTCConfiguration) {
@@ -130,11 +136,15 @@ class FakeRTCPeerConnection {
 
   async setLocalDescription(description: RTCSessionDescriptionInit) {
     this.signalingState = description.type === 'answer' ? 'stable' : 'have-local-offer';
+    this.localDescription = description as RTCSessionDescription;
   }
 
-  async setRemoteDescription() {
+  async setRemoteDescription(description: RTCSessionDescriptionInit) {
     this.signalingState = 'have-remote-offer';
+    this.remoteDescription = description as RTCSessionDescription;
   }
+
+  async addIceCandidate() {}
 
   async getStats() {
     return new Map();
@@ -184,6 +194,7 @@ describe('useWebRTC answerIncoming', () => {
     signalingConfigState.useCallSession = false;
     lastPeerConnectionConfig = null;
     storeState.activeCallId = null;
+    signalingMock.subscribe.mockImplementation(() => () => {});
     Object.assign(import.meta.env, {
       VITE_SUPABASE_URL: 'https://example.supabase.co',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'anon-key',
