@@ -59,6 +59,7 @@ import { explainReconciliationDelta, type PendingExchangeItem } from '@/features
 import { ImportedBadge, ManualBadge } from '@/features/exchanges/components/ImportedBadge';
 import { SuppliersPanel } from '@/features/suppliers/SuppliersPanel';
 import { LoansPanel } from '@/features/stock/components/LoansPanel';
+import { ConsignmentsPanel } from '@/features/stock/components/ConsignmentsPanel';
 import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
 import { usePendingExchangeItems } from '@/features/stock/hooks/usePendingExchangeItems';
 import { batchUntaggedUSDT } from '@/features/stock/usdt-tagging';
@@ -1367,6 +1368,9 @@ export default function StockPage() {
         <div className={taheito ? 'th-embed th-panel' : undefined}><SuppliersPanel state={state} applyState={applyState} /></div>
       )}
 
+      {activeStockSection === 'transfers' && (
+        <div className={taheito ? 'th-embed th-panel' : undefined}><ConsignmentsPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} /></div>
+      )}
       {activeStockSection === 'transfers' && (
         <div className={taheito ? 'th-embed th-panel' : undefined}><LoansPanel
           state={state}

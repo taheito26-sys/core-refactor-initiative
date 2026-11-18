@@ -82,6 +82,14 @@ export interface UsdtTransfer {
    * and undone together.
    */
   groupId?: string;
+  /**
+   * Set on a lend_out that is really USDT sent to another merchant to sell
+   * for me (a consignment). `soldUSDT` is the part already reported sold; it
+   * is no longer owed back as USDT, and no return is ever matched against it.
+   */
+  consignment?: { profitSharePct: number; soldUSDT: number; remoteId?: string };
+  /** Set on a lend_return that settles an open consignment (an unsold return). */
+  consignmentId?: string;
   voided?: boolean;
   createdAt: number;
   /** Bumped on every edit/void so cross-device merges keep the latest copy. */
@@ -170,7 +178,7 @@ export function getUsdtTransferBalances(transfers: UsdtTransfer[] | undefined): 
     const qty = Number(t.amountUSDT);
     if (t.kind === 'borrow_in') row.owedToThem += qty;
     else if (t.kind === 'borrow_repay') row.owedToThem -= qty;
-    else if (t.kind === 'lend_out') row.owedToMe += qty;
+    else if (t.kind === 'lend_out') row.owedToMe += qty - Math.min(qty, Number(t.consignment?.soldUSDT) || 0);
     else if (t.kind === 'lend_return') row.owedToMe -= qty;
     if (t.ts >= row.lastTs) {
       row.lastTs = t.ts;
@@ -264,7 +272,7 @@ export function resolveTransferInPrices(
     const queue = outs.map(o => {
       const c = outCosts.get(o.id);
       const unit = c && c.coveredQty > 0 ? c.totalCost / c.coveredQty : null;
-      return { left: Number(o.amountUSDT), unit };
+      return { left: Number(o.amountUSDT) - Math.min(Number(o.amountUSDT), Number(o.consignment?.soldUSDT) || 0), unit };
     });
     let qi = 0;
     for (const inT of ins) {

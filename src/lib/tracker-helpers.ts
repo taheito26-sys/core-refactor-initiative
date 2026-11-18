@@ -431,6 +431,13 @@ export interface Trade {
    * Its exchange links stay "imported" so the inbox never re-offers it.
    */
   usdtTransferKind?: 'borrow_repay' | 'lend_out';
+  /**
+   * Set when this order is a sale another merchant made of USDT I sent them
+   * to sell (a consignment). Stock was already taken out when it was sent, so
+   * the order never uses stock; `feeQAR` is the partner's profit share and
+   * `remitQAR` is what the partner still has to hand over to me.
+   */
+  consignment?: { id: string; partnerSharePct: number; remitQAR: number; remittedQAR: number };
 }
 
 export interface Customer {
