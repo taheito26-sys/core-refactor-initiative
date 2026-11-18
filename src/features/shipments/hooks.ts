@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
-  addStop, approveShipmentRestart, stopShipment, assignShipmentDriver, cancelShipment, createDriver, createShipment, getShipment, listDrivers,
+  addStop, approveShipmentRestart, stopShipment, assignShipmentDriver, cancelShipment, createDriver, createShipment, deleteShipment, getShipment, listDrivers,
   listDriverTrips, listShipments, reachStop, setDriverActive, signedPhotoUrl, startShipment, submitReading,
 } from './api';
 
@@ -78,6 +78,7 @@ function useShipmentMutation<TVars, TData>(fn: (vars: TVars) => Promise<TData>, 
 
 export const useCreateShipment = () => useShipmentMutation(createShipment);
 export const useCancelShipment = () => useShipmentMutation(cancelShipment);
+export const useDeleteShipment = () => useShipmentMutation(deleteShipment);
 export const useAssignDriver = () =>
   useShipmentMutation(({ shipmentId, driverId }: { shipmentId: string; driverId: string | null }) => assignShipmentDriver(shipmentId, driverId));
 export const useCreateDriver = () => useShipmentMutation(createDriver, [['shipment-drivers']]);

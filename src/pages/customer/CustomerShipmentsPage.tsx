@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Clock, PackageOpen, Plus, Search, Truck, User, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Loader2, PackageOpen, Plus, Search, Truck, User, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/features/auth/auth-context';
 import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { AddDriverDialog } from '@/features/shipments/components/AddDriverDialog';
@@ -8,7 +10,7 @@ import { DriversPanel } from '@/features/shipments/components/DriversPanel';
 import { NewShipmentDialog } from '@/features/shipments/components/NewShipmentDialog';
 import { ShipmentCard } from '@/features/shipments/components/ShipmentCard';
 import { ShipmentDetailSheet } from '@/features/shipments/components/ShipmentDetailSheet';
-import { useShipments } from '@/features/shipments/hooks';
+import { useDeleteShipment, useShipments } from '@/features/shipments/hooks';
 import { attentionState, latestReading } from '@/features/shipments/route';
 import type { ShipmentWithDetails } from '@/features/shipments/types';
 import { PortalHero } from '@/features/customer/components/PortalHero';
@@ -21,7 +23,7 @@ import '@/styles/customer-orders.css';
 import '@/styles/customer-theme.css';
 import '@/styles/customer-shipments.css';
 
-type Filter = 'all' | 'on_the_road' | 'attention' | 'preparing' | 'delivered' | 'ended_early';
+type Filter = 'all' | 'on_the_road' | 'attention' | 'preparing' | 'delivered' | 'ended_early' | 'cancelled';
 
 /** Customer portal: dispatch Egypt → Qatar shipments and follow each truck and its temperature. */
 export default function CustomerShipmentsPage() {
@@ -47,6 +49,8 @@ export default function CustomerShipmentsPage() {
   const [showNew, setShowNew] = useState(false);
   const [tab, setTab] = useState<'shipments' | 'drivers'>('shipments');
   const [showAddDriver, setShowAddDriver] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ShipmentWithDetails | null>(null);
+  const remove = useDeleteShipment();
 
   const matches = (s: ShipmentWithDetails, f: Filter) =>
     f === 'all' ? true
@@ -54,8 +58,8 @@ export default function CustomerShipmentsPage() {
         : s.status === f;
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: shipments.length, on_the_road: 0, attention: 0, preparing: 0, delivered: 0, ended_early: 0 };
-    shipments.forEach((s) => (['on_the_road', 'attention', 'preparing', 'delivered', 'ended_early'] as const).forEach((k) => { if (matches(s, k)) c[k] += 1; }));
+    const c: Record<Filter, number> = { all: shipments.length, on_the_road: 0, attention: 0, preparing: 0, delivered: 0, ended_early: 0, cancelled: 0 };
+    shipments.forEach((s) => (['on_the_road', 'attention', 'preparing', 'delivered', 'ended_early', 'cancelled'] as const).forEach((k) => { if (matches(s, k)) c[k] += 1; }));
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipments, now]);
@@ -76,6 +80,7 @@ export default function CustomerShipmentsPage() {
     { key: 'preparing', en: 'Preparing', ar: 'قيد التجهيز' },
     { key: 'ended_early', en: 'Ended early', ar: 'انتهت مبكرًا' },
     { key: 'delivered', en: 'Delivered', ar: 'تم التسليم' },
+    { key: 'cancelled', en: 'Cancelled', ar: 'ملغاة' },
   ];
   const tiles: { key: Exclude<Filter, 'all'>; cls: string; icon: typeof Truck; en: string; ar: string }[] = [
     { key: 'on_the_road', cls: 't3', icon: Truck, en: 'On the road', ar: 'في الطريق' },
@@ -178,16 +183,47 @@ export default function CustomerShipmentsPage() {
           </div>
           {visible.length === 0
             ? <p className="co-banner" style={{ marginTop: 12, fontSize: 12, color: '#6b7a9c', textAlign: 'center' }}>{L('No shipments match.', 'لا توجد شحنات مطابقة.')}</p>
-            : <div className="cs-list">{visible.map((s) => <ShipmentCard key={s.id} shipment={s} lang={lang} now={now} onOpen={() => setOpenId(s.id)} />)}</div>}
+            : <div className="cs-list">{visible.map((s) => <ShipmentCard key={s.id} shipment={s} lang={lang} now={now} onOpen={() => setOpenId(s.id)} onDelete={s.status === 'cancelled' ? () => setDeleteTarget(s) : undefined} />)}</div>}
         </>
       )}
 
         </>
       )}
 
-      <ShipmentDetailSheet shipmentId={openId} lang={lang} now={now} onClose={() => setOpenId(null)} />
+      <ShipmentDetailSheet shipmentId={openId} lang={lang} now={now} onClose={() => setOpenId(null)} onRequestDelete={setDeleteTarget} />
       <NewShipmentDialog open={showNew} onOpenChange={setShowNew} lang={lang} onManageDrivers={() => { setShowNew(false); setTab('drivers'); }} onCreated={setOpenId} />
       <AddDriverDialog open={showAddDriver} onOpenChange={setShowAddDriver} lang={lang} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent className="ch-root co-root cs-confirm" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{L('Delete this cancelled shipment?', 'حذف هذه الشحنة الملغاة؟')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {L('This permanently removes the shipment, its readings, photos and route history. This cannot be undone.', 'سيؤدي هذا إلى حذف الشحنة وقراءاتها وصورها وسجل مسارها نهائيًا. لا يمكن التراجع.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>{L('Keep', 'إبقاء')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!deleteTarget) return;
+                remove.mutate(deleteTarget.id, {
+                  onSuccess: () => {
+                    toast.success(L('Shipment deleted', 'تم حذف الشحنة'));
+                    if (openId === deleteTarget.id) setOpenId(null);
+                    setDeleteTarget(null);
+                  },
+                  onError: (err) => toast.error((err as Error).message),
+                });
+              }}
+            >
+              {remove.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : L('Delete shipment', 'حذف الشحنة')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
