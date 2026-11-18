@@ -132,7 +132,10 @@ function replaceTransfer(state: TrackerState, next: UsdtTransfer): TrackerState 
 }
 
 function defaultCashAccountId(state: Pick<TrackerState, 'cashAccounts'>): string | undefined {
-  return (state.cashAccounts || []).find(a => a.status === 'active' && a.currency === 'QAR')?.id;
+  const accounts = (state.cashAccounts || []).filter(a => a.status === 'active' && a.currency === 'QAR');
+  // Merchant custody is another merchant's money; the dashboard excludes it
+  // from cashQAR, so a consignment settlement must not land there by default.
+  return (accounts.find(a => a.type !== 'merchant_custody') ?? accounts[0])?.id;
 }
 
 /**
