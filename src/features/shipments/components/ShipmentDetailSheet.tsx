@@ -50,11 +50,12 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose, onRequestD
 
   return (
     <Sheet open={!!shipmentId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side={lang === 'ar' ? 'left' : 'right'} className="w-full overflow-y-auto border-0 p-0 sm:max-w-xl [&>button]:z-10 [&>button]:text-white" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <SheetContent side={lang === 'ar' ? 'left' : 'right'} className="w-full overflow-hidden border-0 p-0 sm:max-w-xl [&>button]:z-20 [&>button]:rounded-full [&>button]:bg-black/45 [&>button]:p-2 [&>button]:text-white [&>button]:opacity-100 [&>button>svg]:h-5 [&>button>svg]:w-5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <SheetHeader className="sr-only">
           <SheetTitle>{shipment?.reference ?? L('Shipment', 'الشحنة')}</SheetTitle>
           <SheetDescription>{shipment?.cargo ?? ''}</SheetDescription>
         </SheetHeader>
+        <div className="h-full overflow-y-auto overscroll-contain">
 
         <div className="ch-root co-root cs-sheet" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <div className="cs-dh">
@@ -257,6 +258,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose, onRequestD
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <div className="cs-closebar"><button type="button" onClick={onClose}>{L('Close', 'إغلاق')}</button></div>
+        </div>
       </SheetContent>
     </Sheet>
   );

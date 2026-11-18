@@ -189,11 +189,12 @@ export function ThSheet({ open, onClose, lang, title, tag, subtitle, children }:
 }) {
   return (
     <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <SheetContent side={lang === 'ar' ? 'left' : 'right'} className="w-full overflow-y-auto border-0 p-0 sm:max-w-xl [&>button]:z-10 [&>button]:text-white" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <SheetContent side={lang === 'ar' ? 'left' : 'right'} className="w-full overflow-hidden border-0 p-0 sm:max-w-xl [&>button]:z-20 [&>button]:rounded-full [&>button]:bg-black/45 [&>button]:p-2 [&>button]:text-white [&>button]:opacity-100 [&>button>svg]:h-5 [&>button>svg]:w-5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <SheetHeader className="sr-only">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{subtitle ?? title}</SheetDescription>
         </SheetHeader>
+        <div className="h-full overflow-y-auto overscroll-contain">
         <div className="ch-root co-root cs-sheet th-sheet" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <div className="cs-dh">
             <div className="cs-dh-top">
@@ -203,6 +204,8 @@ export function ThSheet({ open, onClose, lang, title, tag, subtitle, children }:
             {subtitle && <p>{subtitle}</p>}
           </div>
           <div className="cs-dbody">{children}</div>
+        </div>
+        <div className="cs-closebar"><button type="button" onClick={onClose}>{lang === 'ar' ? 'إغلاق' : 'Close'}</button></div>
         </div>
       </SheetContent>
     </Sheet>

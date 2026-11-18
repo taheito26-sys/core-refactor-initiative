@@ -13,6 +13,7 @@ vi.mock('@/features/shipments/hooks', () => ({
   useAssignDriver: () => ({ mutate: vi.fn(), isPending: false }),
   useApproveShipmentRestart: () => ({ mutate: vi.fn(), isPending: false }),
   useCancelShipment: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteShipment: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateDriver: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetDriverActive: () => ({ mutate: vi.fn(), isPending: false }),
   usePhotoUrl: () => ({ data: 'https://example.test/p.jpg', isLoading: false, isError: false }),
