@@ -269,13 +269,43 @@ export function resolveTransferInPrices(
   for (const { ins, outs } of groups.values()) {
     ins.sort(byTs);
     outs.sort(byTs);
-    const queue = outs.map(o => {
+    const unitOf = (o: UsdtTransfer) => {
       const c = outCosts.get(o.id);
-      const unit = c && c.coveredQty > 0 ? c.totalCost / c.coveredQty : null;
-      return { left: Number(o.amountUSDT) - Math.min(Number(o.amountUSDT), Number(o.consignment?.soldUSDT) || 0), unit };
-    });
+      return c && c.coveredQty > 0 ? c.totalCost / c.coveredQty : null;
+    };
+    const outById = new Map(outs.map(o => [o.id, o]));
+    const capacity = new Map(outs.map(o => [
+      o.id,
+      Math.max(0, Number(o.amountUSDT) - Math.min(Number(o.amountUSDT), Number(o.consignment?.soldUSDT) || 0)),
+    ]));
+
+    // A consignment return carries the id of the lend_out it settles. Match
+    // that exact loan first and reserve its capacity, so a return from one
+    // consignment can never be priced at an older consignment's (or an older
+    // plain loan's) cost. Only untagged returns use the counterparty FIFO.
+    for (const inT of ins) {
+      if (!inT.consignmentId) continue;
+      const total = Number(inT.amountUSDT);
+      const out = outById.get(inT.consignmentId);
+      const available = out ? capacity.get(out.id) || 0 : 0;
+      const take = Math.min(total, available);
+      const unit = out ? unitOf(out) : null;
+      if (out) capacity.set(out.id, Math.max(0, available - take));
+      const matchedQty = unit !== null ? take : 0;
+      const matchedCost = matchedQty * (unit || 0);
+      const restQty = Math.max(0, total - matchedQty);
+      const price = total > 0
+        ? (matchedCost + restQty * provisional(inT)) / total
+        : provisional(inT);
+      prices.set(inT.id, price);
+    }
+
+    const queue = outs.map(o => ({ left: capacity.get(o.id) || 0, unit: unitOf(o) }));
     let qi = 0;
     for (const inT of ins) {
+      // Tagged returns were priced against their exact loan above; they must
+      // not also consume the generic queue.
+      if (inT.consignmentId) continue;
       let need = Number(inT.amountUSDT);
       let matchedQty = 0;
       let matchedCost = 0;

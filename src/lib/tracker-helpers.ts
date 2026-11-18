@@ -452,6 +452,8 @@ export interface Trade {
     role?: 'owner' | 'receiver';
     /** Receiver-side purchase event ids already applied, so a retry cannot offset twice. */
     purchaseIds?: string[];
+    /** Receiver-side account that received the sale proceeds, reused for purchases and settlement. */
+    cashAccountId?: string;
   };
 }
 

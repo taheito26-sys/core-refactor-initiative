@@ -91,6 +91,30 @@ describe('computeFIFO with USDT borrow/lend transfers', () => {
     expect(s.totalCost).toBeCloseTo(10000 * 3.70 + 10000 * 3.80, 6);
   });
 
+  it('prices a tagged consignment return at its own consignment cost', () => {
+    const batches = [batch('b1', 1, 3.70, 10000), batch('b2', 2, 3.90, 10000)];
+    const transfers = [
+      xfer('c1', 10, 'lend_out', 10000, { consignment: { profitSharePct: 50, soldUSDT: 0 } }),
+      xfer('c2', 20, 'lend_out', 10000, { consignment: { profitSharePct: 50, soldUSDT: 0 } }),
+      xfer('r2', 30, 'lend_return', 10000, { consignmentId: 'c2' }),
+    ];
+    const d = computeFIFO(batches, [], transfers);
+    const returned = d.batches.find(b => b.id === 'r2')!;
+    expect(returned.buyPriceQAR).toBeCloseTo(3.90, 9);
+  });
+
+  it('does not let a tagged consignment return consume an older plain loan', () => {
+    const batches = [batch('b1', 1, 3.70, 10000), batch('b2', 2, 3.90, 10000)];
+    const transfers = [
+      xfer('loan', 5, 'lend_out', 10000),
+      xfer('c1', 10, 'lend_out', 10000, { consignment: { profitSharePct: 50, soldUSDT: 0 } }),
+      xfer('r1', 20, 'lend_return', 10000, { consignmentId: 'c1' }),
+    ];
+    const d = computeFIFO(batches, [], transfers);
+    const returned = d.batches.find(b => b.id === 'r1')!;
+    expect(returned.buyPriceQAR).toBeCloseTo(3.90, 9);
+  });
+
   it('keeps transfers out of order revenue and profit KPIs', () => {
     const batches = [batch('b1', 1, 3.70, 10000)];
     const transfers = [xfer('out', 2, 'lend_out', 4000)];

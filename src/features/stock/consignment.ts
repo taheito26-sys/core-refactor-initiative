@@ -28,7 +28,7 @@ const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export class ConsignmentError extends Error {
-  constructor(public code: 'not_found' | 'bad_amount' | 'exceeds_open' | 'price_below_cost' | 'bad_ratio' | 'duplicate') {
+  constructor(public code: 'not_found' | 'bad_amount' | 'exceeds_open' | 'price_below_cost' | 'bad_ratio' | 'duplicate' | 'insufficient_stock') {
     super(code);
   }
 }
@@ -92,23 +92,27 @@ export function findConsignment(state: Pick<TrackerState, 'usdtTransfers'>, id: 
 }
 
 /**
- * Split of one sale. `myShareQAR` is mine of the profit, `partnerShareQAR` is
- * the merchant's, and `remitQAR` is what they hand over: everything they took
- * for the USDT minus their own share. Selling below cost is never valid.
+ * Split of one sale. Profit is signed: a loss is shared by the same ratio as
+ * a profit. `myShareQAR` is mine, `partnerShareQAR` is the merchant's, and
+ * `remitQAR` is what they hand over: proceeds minus their signed share. When
+ * the sale is below cost, their share is negative, so they pay the owner the
+ * owner's loss share on top of the proceeds.
  */
 export function splitConsignmentSale(qty: number, priceQAR: number, unitCostQAR: number, mySharePct: number) {
   if (!(qty > 0)) throw new ConsignmentError('bad_amount');
   if (!(mySharePct >= 0 && mySharePct <= 100)) throw new ConsignmentError('bad_ratio');
-  if (priceQAR + EPS < unitCostQAR) throw new ConsignmentError('price_below_cost');
+  if (!(priceQAR > 0)) throw new ConsignmentError('bad_amount');
+  if (!(unitCostQAR > 0)) throw new ConsignmentError('bad_amount');
   const proceedsQAR = qty * priceQAR;
   const costQAR = qty * unitCostQAR;
-  const profitQAR = Math.max(0, proceedsQAR - costQAR);
+  const profitQAR = proceedsQAR - costQAR;
   const myShareQAR = profitQAR * (mySharePct / 100);
   const partnerShareQAR = profitQAR - myShareQAR;
   return {
     proceedsQAR: round2(proceedsQAR),
     costQAR: round2(costQAR),
     profitQAR: round2(profitQAR),
+    lossQAR: round2(Math.max(0, -profitQAR)),
     myShareQAR: round2(myShareQAR),
     partnerShareQAR: round2(partnerShareQAR),
     remitQAR: round2(proceedsQAR - partnerShareQAR),
@@ -136,6 +140,28 @@ function defaultCashAccountId(state: Pick<TrackerState, 'cashAccounts'>): string
   // Merchant custody is another merchant's money; the dashboard excludes it
   // from cashQAR, so a consignment settlement must not land there by default.
   return (accounts.find(a => a.type !== 'merchant_custody') ?? accounts[0])?.id;
+}
+
+/**
+ * The account that received a receiver-side sale's proceeds. New sales store
+ * it on the trade; older sales can still be recovered from their cash entry,
+ * so later purchases and settlements do not debit a different account.
+ */
+function receiverProceedsAccountId(state: TrackerState, sale: Trade): string | undefined {
+  return sale.consignment?.cashAccountId
+    || (state.cashLedger || []).find(e => e.id === `cons-sale-cash-${sale.id}`)?.accountId;
+}
+
+/**
+ * Pick an active QAR account for a cash movement. If a stored proceeds
+ * account has since been deactivated, fall back to another active
+ * non-custody account so the movement is still recorded; if there is no
+ * active account at all, the caller must reject before changing any debt.
+ */
+function activeCashAccountId(state: TrackerState, preferred?: string): string | undefined {
+  const accounts = (state.cashAccounts || []).filter(a => a.status === 'active' && a.currency === 'QAR');
+  return accounts.find(a => a.id === preferred)?.id
+    ?? (accounts.find(a => a.type !== 'merchant_custody') ?? accounts[0])?.id;
 }
 
 /**
@@ -357,6 +383,12 @@ export function recordConsignmentSettlement(
   const amount = round2(Math.min(input.amountQAR, due));
   if (!(amount > 0)) return state;
   const remitted = round2(sale.consignment!.remittedQAR + amount);
+  const entryId = input.settlementId ? `cons-settle-${input.settlementId}` : `cons-settle-${sale.id}-${remitted}`;
+  // Check the idempotency key before changing remittedQAR. appendCashEntry
+  // also dedupes, but by then the debt has already been reduced again.
+  if ((state.cashLedger || []).some(e => e.id === entryId)) return state;
+  const accountId = activeCashAccountId(state, input.cashAccountId);
+  if (!accountId) throw new ConsignmentError('not_found');
   const next: TrackerState = {
     ...state,
     trades: (state.trades || []).map(t => t.id === sale.id ? {
@@ -365,8 +397,8 @@ export function recordConsignmentSettlement(
     } : t),
   };
   return appendCashEntry(next, {
-    entryId: input.settlementId ? `cons-settle-${input.settlementId}` : `cons-settle-${sale.id}-${remitted}`,
-    accountId: input.cashAccountId,
+    entryId,
+    accountId,
     direction: 'in',
     amount,
     type: 'merchant_settlement_in',
@@ -460,6 +492,8 @@ export function recordReceivedConsignmentSale(
 ): TrackerState {
   if ((state.trades || []).some(t => t.id === input.saleId)) return state;
   const split = splitConsignmentSale(input.qty, input.priceQAR, input.basePriceQAR, input.senderSharePct);
+  const accountId = activeCashAccountId(state, input.cashAccountId);
+  if (!accountId) throw new ConsignmentError('not_found');
   const trade: Trade = {
     id: input.saleId,
     ts: input.ts ?? now,
@@ -484,12 +518,13 @@ export function recordReceivedConsignmentSale(
       payableQAR: split.remitQAR,
       role: 'receiver',
       purchaseIds: [],
+      cashAccountId: accountId,
     },
   };
   const next: TrackerState = { ...state, trades: [...(state.trades || []), trade] };
   return appendCashEntry(next, {
     entryId: `cons-sale-cash-${input.saleId}`,
-    accountId: input.cashAccountId,
+    accountId,
     direction: 'in',
     amount: round2(input.qty * input.priceQAR),
     type: 'merchant_sale_proceeds',
@@ -524,6 +559,8 @@ export function recordReceivedConsignmentPurchase(
   if (!(qty > 0) || !(input.priceQAR > 0)) throw new ConsignmentError('bad_amount');
   const costQAR = round2(qty * input.priceQAR);
   if (costQAR > consignmentPayableNetDue(sale) + 0.01) throw new ConsignmentError('exceeds_open');
+  const accountId = activeCashAccountId(state, input.cashAccountId || receiverProceedsAccountId(state, sale));
+  if (!accountId) throw new ConsignmentError('not_found');
   const next: TrackerState = {
     ...state,
     trades: (state.trades || []).map(t => t.id === sale.id ? {
@@ -537,7 +574,7 @@ export function recordReceivedConsignmentPurchase(
   };
   return appendCashEntry(next, {
     entryId: `cons-purchase-cash-${input.purchaseId}`,
-    accountId: input.cashAccountId,
+    accountId,
     direction: 'out',
     amount: costQAR,
     type: 'stock_purchase',
@@ -561,6 +598,10 @@ export function recordReceivedConsignmentSettlement(
   const amount = round2(Math.min(input.amountQAR, due));
   if (!(amount > 0)) return state;
   const paid = round2(sale.consignment!.remittedQAR + amount);
+  const entryId = input.settlementId ? `cons-recv-settle-${input.settlementId}` : `cons-recv-settle-${sale.id}-${paid}`;
+  if ((state.cashLedger || []).some(e => e.id === entryId)) return state;
+  const accountId = activeCashAccountId(state, input.cashAccountId || receiverProceedsAccountId(state, sale));
+  if (!accountId) throw new ConsignmentError('not_found');
   const next: TrackerState = {
     ...state,
     trades: (state.trades || []).map(t => t.id === sale.id ? {
@@ -569,8 +610,8 @@ export function recordReceivedConsignmentSettlement(
     } : t),
   };
   return appendCashEntry(next, {
-    entryId: input.settlementId ? `cons-recv-settle-${input.settlementId}` : `cons-recv-settle-${sale.id}-${paid}`,
-    accountId: input.cashAccountId,
+    entryId,
+    accountId,
     direction: 'out',
     amount,
     type: 'merchant_settlement_out',
