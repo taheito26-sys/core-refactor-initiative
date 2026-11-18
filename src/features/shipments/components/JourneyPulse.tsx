@@ -73,7 +73,7 @@ export function JourneyPulse({
   const plan = useMemo(() => journeyPlan(shipment, now, lang), [shipment, now, lang]);
   const [copied, setCopied] = useState(false);
   const fixAge = plan.lastFixAt ? now - Date.parse(plan.lastFixAt) : null;
-  const live = shipment.status === 'on_the_road' && fixAge != null && fixAge < 30 * 60_000;
+  const live = shipment.status === 'on_the_road' && plan.fixFresh && fixAge != null && fixAge < 30 * 60_000;
   const lastFixLabel = plan.lastFixAt ? agoLabel(plan.lastFixAt, now, lang) : null;
 
   useEffect(() => {
