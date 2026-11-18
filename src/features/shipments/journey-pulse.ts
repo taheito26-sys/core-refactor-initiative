@@ -51,6 +51,19 @@ export interface JourneyMilestone {
   actionable?: boolean;
 }
 
+export interface StopEta {
+  id: string;
+  name: string;
+  reached: boolean;
+  next: boolean;
+  state: 'done' | 'next' | 'later' | 'pending';
+  /** Actual arrival for a reached stop, or the pace-adjusted estimate for a stop still ahead. */
+  timeLabel: string | null;
+  /** The same instant in epoch milliseconds, for ordering and the total-trip check. */
+  etaMs: number | null;
+  caption: string;
+}
+
 export interface JourneyPlan {
   statusNow: string;
   statusHint: string;
@@ -71,6 +84,11 @@ export interface JourneyPlan {
   destination: ShipmentStop | null;
   current: ShipmentStop | null;
   milestones: JourneyMilestone[];
+  stopEtas: StopEta[];
+  totalTripMs: number | null;
+  totalTripLabel: string;
+  remainingMs: number | null;
+  remainingLabel: string;
   corridorStops: CorridorStop[];
   truck: { x: number; y: number } | null;
   truckAtStop: boolean;
@@ -213,17 +231,26 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
   const startMs = Date.parse(shipment.current_started_at ?? shipment.started_at ?? '');
   const start = Number.isFinite(startMs) ? startMs : null;
   const deliveredMs = shipment.delivered_at ? Date.parse(shipment.delivered_at) : null;
-  const elapsedHours = start ? hoursBetween(start, now) : 0;
-
   // Planned hours up to the last confirmed stop, and the pace the driver is actually keeping.
   const plannedHoursToCurrent = lastReachedIndex > 0
     ? legs.slice(0, lastReachedIndex).reduce((a, b) => a + b, 0)
     : 0;
-  const pace = plannedHoursToCurrent > 0 && elapsedHours > 0
-    ? clamp(elapsedHours / plannedHoursToCurrent, 0.65, 2.1)
+  // Pace is measured only to the last confirmation, never across the unfinished leg.
+  const lastReachedMs = lastReachedIndex >= 0
+    ? Date.parse(stops[lastReachedIndex].reached_at as string)
+    : NaN;
+  const elapsedToLast = start && Number.isFinite(lastReachedMs) ? hoursBetween(start, lastReachedMs) : 0;
+  const pace = plannedHoursToCurrent > 0 && elapsedToLast > 0
+    ? clamp(elapsedToLast / plannedHoursToCurrent, 0.65, 2.1)
     : 1;
-  const remainingLegs = lastReachedIndex >= 0 ? legs.slice(lastReachedIndex) : legs;
-  const remainingHours = remainingLegs.reduce((a, b) => a + b, 0);
+  // The remaining duration starts at the newest fix, so GPS progress shortens the ETA instead of being
+  // counted twice. The whole last leg is only used when there is no fix at all.
+  const lastReachedFixForEta = lastReachedIndex >= 0 ? points[lastReachedIndex].fix : null;
+  const nextFixForEta = nextIndex >= 0 ? points[nextIndex].fix : null;
+  const nextBaseForEta = fix ?? lastReachedFixForEta ?? points[0]?.fix ?? null;
+  const remainingHours =
+    (nextIndex >= 0 ? legHours(nextBaseForEta, nextFixForEta) : 0) +
+    (nextIndex >= 0 ? legs.slice(nextIndex).reduce((a, b) => a + b, 0) : 0);
 
   let etaMs: number | null = null;
   if (shipment.status === 'delivered' && deliveredMs) etaMs = deliveredMs;
@@ -259,9 +286,75 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
   const nextFix = nextIndex >= 0 ? points[nextIndex].fix : null;
   const nextBase = fix ?? lastReachedFix ?? points[0]?.fix ?? null;
   const distanceToNextKm = nextBase && nextFix ? Math.round(haversineKm(nextBase, nextFix)) : null;
-  const nextEtaMs = shipment.status === 'on_the_road' && nextFix
+  const nextEtaMs = shipment.status === 'on_the_road' && nextIndex >= 0
     ? now + legHours(nextBase, nextFix) * pace * 3_600_000
     : null;
+
+  // Every stop gets a time: the actual arrival for a reached stop, the next stop's ETA, then each later
+  // leg added from that ETA so the list adds up to the total trip ETA.
+  const stopEtas: StopEta[] = [];
+  let cursorMs = nextEtaMs;
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i];
+    const point = points[i];
+    const reached = !!stop.reached_at;
+    const isNext = nextStop?.id === stop.id;
+    let timeLabel: string | null = null;
+    let stopEtaMs: number | null = null;
+    let caption: string;
+    let state: StopEta['state'];
+    if (reached) {
+      const parsed = Date.parse(stop.reached_at as string);
+      stopEtaMs = Number.isFinite(parsed) ? parsed : null;
+      timeLabel = milestoneTime(stop.reached_at, lang);
+      caption = i === 0
+        ? L('Departed', 'انطلقت')
+        : destination?.id === stop.id
+          ? L('Delivered', 'تم التسليم')
+          : L('Arrived', 'وصلت');
+      state = 'done';
+    } else if (shipment.status === 'delivered') {
+      caption = L('Delivered', 'تم التسليم');
+      state = 'done';
+    } else if (shipment.status === 'preparing') {
+      caption = L('After departure', 'بعد الانطلاق');
+      state = 'pending';
+    } else if (isNext) {
+      stopEtaMs = nextEtaMs;
+      timeLabel = nextEtaMs ? relativeDayLabel(nextEtaMs, now, lang) : null;
+      caption = L('Next stop · ETA', 'المحطة التالية · الوصول');
+      state = 'next';
+    } else if (cursorMs != null && i > 0) {
+      const prevFix = points[i - 1]?.fix ?? null;
+      cursorMs += legHours(prevFix, point.fix) * pace * 3_600_000;
+      stopEtaMs = cursorMs;
+      timeLabel = relativeDayLabel(cursorMs, now, lang);
+      caption = L('Estimated arrival', 'الوصول المتوقع');
+      state = 'later';
+    } else {
+      caption = L('No estimate yet', 'لا يوجد تقدير بعد');
+      state = 'pending';
+    }
+    stopEtas.push({ id: stop.id, name: stopName(stop, lang), reached, next: isNext, state, timeLabel, etaMs: stopEtaMs, caption });
+  }
+
+  const plannedTotalMs = legs.reduce((a, b) => a + b, 0) * 3_600_000;
+  const totalTripMs = shipment.status === 'delivered' && deliveredMs && start
+    ? deliveredMs - start
+    : shipment.status === 'on_the_road' && etaMs && start
+      ? etaMs - start
+      : shipment.status === 'preparing'
+        ? plannedTotalMs
+        : null;
+  const remainingMs = shipment.status === 'on_the_road' && etaMs ? Math.max(0, etaMs - now) : null;
+  const totalTripLabel = totalTripMs != null ? durationLabel(totalTripMs, lang) : '—';
+  const remainingLabel = remainingMs != null
+    ? durationLabel(remainingMs, lang)
+    : shipment.status === 'delivered'
+      ? L('Delivered', 'تم التسليم')
+      : shipment.status === 'preparing'
+        ? L('After departure', 'بعد الانطلاق')
+        : '—';
 
   const cold = latestReading(shipment.readings);
   const alertCount = shipment.readings.filter((r) => r.is_alert).length;
@@ -419,6 +512,11 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     destination,
     current,
     milestones,
+    stopEtas,
+    totalTripMs,
+    totalTripLabel,
+    remainingMs,
+    remainingLabel,
     corridorStops,
     truck,
     truckAtStop,
