@@ -20,6 +20,8 @@ const STOP_COORDINATES: Record<string, readonly [number, number]> = {
 const AVERAGE_KMH = 52;
 const MIN_LEG_HOURS = 1.5;
 const SCHEDULE_TOLERANCE_MS = 30 * 60_000;
+/** A fix this close to a confirmed arrival can still describe the same stop; an older fix belongs to a finished leg. */
+const FIX_FRESHNESS_MS = 15 * 60_000;
 
 export type JourneyTone = 'live' | 'ok' | 'warn' | 'bad' | 'muted';
 export type MilestoneState = 'done' | 'next' | 'waiting' | 'pending';
@@ -93,6 +95,8 @@ export interface JourneyPlan {
   truck: { x: number; y: number } | null;
   truckAtStop: boolean;
   lastFixAt: string | null;
+  /** The newest fix is at or after the last confirmed arrival (within the freshness window). */
+  fixFresh: boolean;
   coldChainLabel: string;
   coldChainTone: JourneyTone;
   inRangePct: number | null;
@@ -227,6 +231,18 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
   const origin = progress.origin;
   const current = progress.current;
   const fix = newestFix(shipment);
+  const lastReachedMs = lastReachedIndex >= 0
+    ? Date.parse(stops[lastReachedIndex].reached_at as string)
+    : NaN;
+  const lastReachedAt = Number.isFinite(lastReachedMs) ? lastReachedMs : null;
+  const fixMs = fix ? Date.parse(fix.recorded_at) : NaN;
+  // A driver can confirm arrival without a fresh location. If the newest fix predates that confirmation
+  // by more than a few minutes, it describes a finished leg and must not override the confirmed stop.
+  const fixIsFresh = !!fix && (
+    lastReachedAt == null ||
+    (Number.isFinite(fixMs) && fixMs >= lastReachedAt - FIX_FRESHNESS_MS)
+  );
+  const etaFix = fixIsFresh ? fix : null;
 
   const startMs = Date.parse(shipment.current_started_at ?? shipment.started_at ?? '');
   const start = Number.isFinite(startMs) ? startMs : null;
@@ -236,9 +252,6 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     ? legs.slice(0, lastReachedIndex).reduce((a, b) => a + b, 0)
     : 0;
   // Pace is measured only to the last confirmation, never across the unfinished leg.
-  const lastReachedMs = lastReachedIndex >= 0
-    ? Date.parse(stops[lastReachedIndex].reached_at as string)
-    : NaN;
   const elapsedToLast = start && Number.isFinite(lastReachedMs) ? hoursBetween(start, lastReachedMs) : 0;
   const pace = plannedHoursToCurrent > 0 && elapsedToLast > 0
     ? clamp(elapsedToLast / plannedHoursToCurrent, 0.65, 2.1)
@@ -247,7 +260,7 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
   // counted twice. The whole last leg is only used when there is no fix at all.
   const lastReachedFixForEta = lastReachedIndex >= 0 ? points[lastReachedIndex].fix : null;
   const nextFixForEta = nextIndex >= 0 ? points[nextIndex].fix : null;
-  const nextBaseForEta = fix ?? lastReachedFixForEta ?? points[0]?.fix ?? null;
+  const nextBaseForEta = etaFix ?? lastReachedFixForEta ?? points[0]?.fix ?? null;
   const remainingHours =
     (nextIndex >= 0 ? legHours(nextBaseForEta, nextFixForEta) : 0) +
     (nextIndex >= 0 ? legs.slice(nextIndex).reduce((a, b) => a + b, 0) : 0);
@@ -284,7 +297,7 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     : progress.total > 0 ? Math.round((progress.reachedCount / progress.total) * 100) : 0;
 
   const nextFix = nextIndex >= 0 ? points[nextIndex].fix : null;
-  const nextBase = fix ?? lastReachedFix ?? points[0]?.fix ?? null;
+  const nextBase = etaFix ?? lastReachedFix ?? points[0]?.fix ?? null;
   const distanceToNextKm = nextBase && nextFix ? Math.round(haversineKm(nextBase, nextFix)) : null;
   const nextEtaMs = shipment.status === 'on_the_road' && nextIndex >= 0
     ? now + legHours(nextBase, nextFix) * pace * 3_600_000
@@ -384,11 +397,12 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     }];
   });
 
-  // The truck sits at the newest GPS fix; before the first fix it waits at the last confirmed stop.
+  // The truck sits at the freshest usable fix; if the newest fix predates the last confirmation,
+  // it waits at the confirmed stop instead of showing an obsolete position.
   let truck: { x: number; y: number } | null = null;
   let truckAtStop = false;
-  if (fix) {
-    truck = projectCorridor(fix.longitude, fix.latitude);
+  if (etaFix) {
+    truck = projectCorridor(etaFix.longitude, etaFix.latitude);
   } else if (lastReachedFix) {
     truck = projectCorridor(lastReachedFix.longitude, lastReachedFix.latitude);
     truckAtStop = true;
@@ -397,7 +411,7 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     truckAtStop = true;
   }
 
-  const status = statusCopy(shipment, lang, now, progress, fix);
+  const status = statusCopy(shipment, lang, now, progress, etaFix);
   const etaLabel = etaMs
     ? (shipment.status === 'delivered' ? formatJourneyTime(etaMs, lang) : relativeDayLabel(etaMs, now, lang))
     : shipment.status === 'preparing'
@@ -521,6 +535,7 @@ export function journeyPlan(shipment: ShipmentWithDetails, now: number, lang: La
     truck,
     truckAtStop,
     lastFixAt: fix?.recorded_at ?? null,
+    fixFresh: fixIsFresh,
     coldChainLabel,
     coldChainTone,
     inRangePct,

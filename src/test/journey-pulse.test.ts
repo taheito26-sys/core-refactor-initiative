@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { projectCorridor } from '@/features/shipments/corridor-geo';
+import { haversineKm } from '@/features/shipments/geo';
 import { journeyPlan } from '@/features/shipments/journey-pulse';
 import type { ShipmentStop, ShipmentWithDetails } from '@/features/shipments/types';
 
@@ -144,5 +146,32 @@ describe('journeyPlan', () => {
     const atLastStop = journeyPlan(base(), NOW, 'en');
     // A fix at the next stop must arrive materially earlier than the same trip still at the last stop.
     expect(early.etaMs!).toBeLessThan(atLastStop.etaMs! - 5 * 3600_000);
+  });
+
+  it('ignores a GPS fix older than the last confirmed arrival', () => {
+    const stale = base({
+      locations: [{
+        latitude: 31.111, longitude: 30.939, accuracy_m: 10, recorded_at: iso(28),
+        source: 'auto', place_ar: null, place_en: null,
+      }],
+    });
+    const plan = journeyPlan(stale, NOW, 'en');
+    const portSaidToSafaga = Math.round(haversineKm(
+      { latitude: 31.265, longitude: 32.302 },
+      { latitude: 26.733, longitude: 33.936 },
+    ));
+    expect(plan.distanceToNextKm).toBe(portSaidToSafaga);
+    expect(plan.truck).toEqual(projectCorridor(32.302, 31.265));
+    expect(plan.fixFresh).toBe(false);
+  });
+
+  it('uses a fresh fix after the last confirmed arrival', () => {
+    const plan = journeyPlan(base(), NOW, 'en');
+    const fixToSafaga = Math.round(haversineKm(
+      { latitude: 31.1, longitude: 32.15 },
+      { latitude: 26.733, longitude: 33.936 },
+    ));
+    expect(plan.distanceToNextKm).toBe(fixToSafaga);
+    expect(plan.fixFresh).toBe(true);
   });
 });
