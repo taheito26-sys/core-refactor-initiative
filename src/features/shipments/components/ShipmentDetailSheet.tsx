@@ -13,11 +13,12 @@ import { tripSummary } from '../trip-summary';
 import { PhotoThumb } from './PhotoThumb';
 import { ReadingProof, ReadingRow } from './ReadingRow';
 import { RouteSummary } from './RouteSummary';
-import { JourneyPanel } from './JourneyPanel';
+import { JourneyPulse } from './JourneyPulse';
 import { TripHistory } from './TripHistory';
 import { TripTiles } from './TripTiles';
 import { RangeStrip, TempVerdict } from './ShipmentCard';
 import { TrendChart } from './TrendChart';
+import '@/styles/journey-pulse.css';
 
 const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -70,6 +71,8 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
 
           {shipment && stats && progress && due && (
             <div className="cs-dbody">
+              {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="customer" />}
+
               <section className="ch-card cs-box">
                 <h3><Thermometer aria-hidden="true" />{L('Last recorded temperature', 'آخر حرارة مسجلة')}{last && <small>{agoLabel(last.taken_at, now, lang)}</small>}</h3>
                 <ReadingFreshness takenAt={last?.taken_at ?? null} intervalHours={shipment.reading_interval_hours} active={shipment.status === 'on_the_road'} now={now} lang={lang} />
@@ -144,7 +147,6 @@ export function ShipmentDetailSheet({ shipmentId, lang, now, onClose }: { shipme
                 )}
               </section>
 
-              {shipment.status !== 'cancelled' && <JourneyPanel shipment={shipment} lang={lang} now={now} />}
               <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
               <TripHistory shipment={shipment} now={now} lang={lang} />
 
