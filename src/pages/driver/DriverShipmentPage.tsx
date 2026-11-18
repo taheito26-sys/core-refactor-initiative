@@ -10,7 +10,7 @@ import { ReadingFreshness } from '@/features/shipments/components/ReadingFreshne
 import { DriverReadingForm } from '@/features/shipments/components/DriverReadingForm';
 import { ReadingProof, ReadingRow } from '@/features/shipments/components/ReadingRow';
 import { RouteSummary } from '@/features/shipments/components/RouteSummary';
-import { JourneyPanel } from '@/features/shipments/components/JourneyPanel';
+import { JourneyPulse } from '@/features/shipments/components/JourneyPulse';
 import { TripHistory } from '@/features/shipments/components/TripHistory';
 import { ArrivalDialog } from '@/features/shipments/components/ArrivalDialog';
 import { PhotoThumb } from '@/features/shipments/components/PhotoThumb';
@@ -23,6 +23,7 @@ import { tripSummary } from '@/features/shipments/trip-summary';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import type { DriverOutletContext } from './DriverLayout';
+import '@/styles/journey-pulse.css';
 
 const temp = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -71,6 +72,7 @@ export default function DriverShipmentPage() {
   return (
     <div className="dr-stack">
       {back}
+      {shipment.status !== 'cancelled' && <JourneyPulse shipment={shipment} lang={lang} now={now} audience="driver" onArrive={() => setShowArrival(true)} />}
 
       <section className="ch-card cs-box" style={alert ? { background: 'linear-gradient(90deg, #fff6f8, #fff 45%)' } : undefined}>
         <div className="co-card-top" style={{ marginBottom: 10 }}>
@@ -128,13 +130,9 @@ export default function DriverShipmentPage() {
       {onTheRoad && progress.next && (
         <section className="ch-card cs-box dr-actions">
           <div>
-            <div className="dr-next">{L('Next stop', 'المحطة التالية')}</div>
-            <div className="dr-nextname">{stopName(progress.next, lang)}</div>
+            <div className="dr-next">{L('Add a stop on the way', 'أضف محطة في الطريق')}</div>
+            <div className="dr-nextname" style={{ fontSize: 'calc(12 * var(--q))' }}>{L('Keep the customer in the loop', 'أبقِ العميل على اطلاع')}</div>
           </div>
-          <button type="button" className="cs-cta soft" onClick={() => setShowArrival(true)}>
-            <Flag aria-hidden="true" />
-            {L('I reached this stop', 'وصلت إلى هذه المحطة')}
-          </button>
           <form
             className="cs-with"
             onSubmit={(e) => {
@@ -144,7 +142,7 @@ export default function DriverShipmentPage() {
             }}
           >
             <div className="cs-field" style={{ flex: 1 }}>
-              <input value={newStop} maxLength={80} onChange={(e) => setNewStop(e.target.value)} placeholder={L('Add a stop on the way', 'أضف محطة في الطريق')} aria-label={L('New stop name', 'اسم المحطة الجديدة')} />
+              <input value={newStop} maxLength={80} onChange={(e) => setNewStop(e.target.value)} placeholder={L('Stop name', 'اسم المحطة')} aria-label={L('New stop name', 'اسم المحطة الجديدة')} />
             </div>
             <button type="submit" className="co-tool" disabled={addStop.isPending || newStop.trim().length < 2} aria-label={L('Add stop', 'إضافة محطة')} style={{ alignSelf: 'stretch' }}>
               {addStop.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <MapPinPlus aria-hidden="true" />}
@@ -160,7 +158,6 @@ export default function DriverShipmentPage() {
         </section>
       )}
 
-      {shipment.status !== 'cancelled' && <JourneyPanel shipment={shipment} lang={lang} now={now} />}
       <RouteSummary stops={shipment.stops} status={shipment.status} lang={lang} />
       <TripHistory shipment={shipment} now={now} lang={lang} />
       {showArrival && progress.next && <ArrivalDialog stop={progress.next} lang={lang} onClose={() => setShowArrival(false)} />}
