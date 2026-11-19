@@ -1,4 +1,3 @@
-import { trackerOrderAmounts } from '@/features/exchanges/order-coverage';
 import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/lib/buyer-name';
 import { canSaveOrderBuyer, materializeOrderBuyer, hasSavedOrderBuyer, resolveSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
@@ -46,9 +45,11 @@ import {
   type SplitCashMode,
 } from '@/features/orders/split-plan';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, fetchFreshExchangeOrder, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import type { ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { UsdtInbox } from '@/features/orders/components/UsdtInbox';
+import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
 import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
 import { isTradeTaggable } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
@@ -338,6 +339,58 @@ export default function OrdersPage() {
     setSaleMessage(prefill.buyPrice > 0 ? '' : `Enter your ${baseFiat}/USDT sell rate -- ${EXCHANGE_LABELS[prefill.exchange]} ${via} transfers don't carry a fiat price.`);
     setNewSaleSheetOpen(true);
   }, [baseFiat, counterpartyMappings]);
+
+  /**
+   * The Orders inbox is the single decision point for a synced USDT movement.
+   * A sale opens the normal sale form with the record already attached; the
+   * loan path hands the same record to the merchant-loan composer, so it is
+   * never counted as both.
+   */
+  const handleInboxSale = useCallback(async (item: PendingExchangeItem) => {
+    setActiveTab('my');
+    if (item.order) {
+      const o = item.order;
+      // A re-registered Binance order can carry the older quantity/fee rule;
+      // read it again so the sale consumes the full debited amount.
+      const fresh = (await fetchFreshExchangeOrder(o)) ?? o;
+      const isPartial = item.pendingUSDT < o.amount - 1e-6;
+      const needsQarRate = fresh.fiat.toUpperCase() !== 'QAR';
+      applyExchangeOrderPrefill({
+        exchange: fresh.exchange,
+        orderId: fresh.id,
+        orderNumber: fresh.order_number,
+        amountUSDT: isPartial ? item.pendingUSDT : fresh.amount,
+        orderTotalUSDT: fresh.amount,
+        ts: fresh.order_time ? new Date(fresh.order_time).getTime() : item.ts,
+        assigneeName: isPartial ? undefined : (fresh.counterparty ?? undefined),
+        priceFiat: needsQarRate ? 0 : fresh.price,
+        needsQarRate,
+        ...(needsQarRate
+          ? { originalFiat: fresh.fiat, originalPriceFiat: fresh.price, originalTotalFiat: fresh.total }
+          : {}),
+      });
+      return;
+    }
+    if (item.transfer) {
+      const tr = item.transfer;
+      applyExchangeTransferPrefill({
+        exchange: tr.exchange,
+        transferId: tr.id,
+        transferIds: [tr.id],
+        reference: tr.reference,
+        kind: tr.kind,
+        amountUSDT: item.pendingUSDT,
+        buyPrice: 0,
+        ts: item.ts,
+        assigneeName: tr.counterparty ?? undefined,
+      });
+    }
+  }, [applyExchangeOrderPrefill, applyExchangeTransferPrefill]);
+
+  const handleInboxPurchase = useCallback(() => {
+    setActiveTab('my');
+    navigate('/trading/stock');
+  }, [navigate]);
 
   useEffect(() => {
     const prefill = consumeTrackerImportPrefill('trade');
@@ -641,26 +694,10 @@ export default function OrdersPage() {
   );
   const selectedSaleBuyer = useMemo(() => resolveSavedOrderBuyer(allBuyerOptions, buyerName, buyerId), [allBuyerOptions, buyerName, buyerId]);
   const saleBuyerId = selectedSaleBuyer ? (selectedSaleBuyer.source === 'connected' ? selectedSaleBuyer.customerUserId : selectedSaleBuyer.id) : '';
-  // "🤝 Merchant loan" on an exchange-inbox row or an existing order opens
+  // "Mark as merchant loan" in the USDT inbox or on an existing order opens
   // the merchant-loan dialog (USDT sent back to a lender, or lent out)
   // instead of recording it as a sale.
   const [loanSources, setLoanSources] = useState<LoanSource[] | null>(null);
-  // An order tagged as a USDT borrow repayment / loan-out is voided but still
-  // accounts for its exchange record, so the inbox must not re-offer it.
-  // Borrow/lend movements tagged from a P2P order hold that order's split
-  // link under their own id, so they count as live too.
-  const activeTradeIds = useMemo(
-    () => new Set([
-      ...state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => t.id),
-      ...(state.usdtTransfers || []).filter((x) => !x.voided).map((x) => x.id),
-    ]),
-    [state.trades, state.usdtTransfers],
-  );
-  const savedExchangeAmounts = useMemo(() => trackerOrderAmounts({ trades: state.trades, batches: state.batches }), [state.trades, state.batches]);
-  const importedExchangeRefs = useMemo(
-    () => new Set(state.trades.filter((t) => !t.voided || t.usdtTransferKind).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
-    [state.trades],
-  );
   const saleDraft = useMemo(() => deriveSaleDraft({
     saleEntryMode,
     saleMode,
@@ -4507,6 +4544,15 @@ export default function OrdersPage() {
         </>
       )}
 
+      {!taheito && activeTab !== 'customers' && (
+        <UsdtInbox
+          state={state}
+          onSale={handleInboxSale}
+          onPurchase={handleInboxPurchase}
+          onLoan={(source) => setLoanSources([source])}
+        />
+      )}
+
       {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
       {!taheito && activeTab === 'customers' && (
         <CustomersPanel state={state} applyState={applyState} derived={derived} />
@@ -5245,20 +5291,6 @@ export default function OrdersPage() {
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
                      <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }} style={mobileActionStyle}>{t('manualLabel')}</button>
                   </div>
-                </div>
-
-                <div className="field2">
-                  <ExchangeInbox
-                    side="sell"
-                    onPick={applyExchangeOrderPrefill}
-                    onPickTransfer={applyExchangeTransferPrefill}
-                    activeEntityIds={activeTradeIds}
-                    importedReferences={importedExchangeRefs}
-                    trackerAmounts={savedExchangeAmounts}
-                    customerNames={state.customers.map((c) => c.name)}
-                    monthKey={selectedMonth}
-                    onLoanClick={(src) => setLoanSources([src])}
-                  />
                 </div>
 
                 <div className="field2">
