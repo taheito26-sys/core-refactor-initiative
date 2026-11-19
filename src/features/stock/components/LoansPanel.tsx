@@ -93,7 +93,7 @@ export function LoansPanel({
   const dismissed = useDismissedExchangeItems(state);
   const merchants = useLoanMerchantNames(state);
   const [tab, setTab] = useState<'balances' | 'review'>('balances');
-  const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string; allowSourcePick?: boolean } | null>(null);
+  const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string } | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
 
@@ -195,7 +195,7 @@ export function LoansPanel({
   };
 
   const openManual = (presetName?: string) =>
-    setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName, allowSourcePick: true });
+    setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName });
 
   const showReview = () => {
     setTab('review');
@@ -575,7 +575,6 @@ export function LoansPanel({
           open
           sources={dialog.sources}
           presetName={dialog.presetName}
-          allowSourcePick={dialog.allowSourcePick}
           state={state}
           applyStateAndCommit={applyStateAndCommit}
           onClose={() => setDialog(null)}
