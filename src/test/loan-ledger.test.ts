@@ -211,3 +211,20 @@ describe('deleting an old settled loan', () => {
     expect(() => deleteMerchantLoanHistory(state, key)).toThrow();
   });
 });
+
+describe('hiding an old loan from the Loans page', () => {
+  it('removes it from the balances but changes no stock, cost or profit figure', () => {
+    const b = { id: 'b1', ts: 1, source: '', note: '', buyPriceQAR: 3.7, initialUSDT: 50000, revisions: [] } as never;
+    const sale = { id: 's1', ts: 5, inputMode: 'USDT', amountUSDT: 1000, sellPriceQAR: 3.8, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' } as never;
+    const out = { id: 'x1', ts: 2, kind: 'lend_out', amountUSDT: 10000, counterpartyName: 'zack', createdAt: 2 } as UsdtTransfer;
+    const visible = [out];
+    const hidden = [{ ...out, hiddenFromLoans: true }];
+    expect(buildMerchantStatements(visible)).toHaveLength(1);
+    expect(buildMerchantStatements(hidden)).toHaveLength(0);
+    const a = computeFIFO([b], [sale], visible);
+    const z = computeFIFO([b], [sale], hidden);
+    expect(z.batches).toEqual(a.batches);
+    expect(z.tradeCalc.get('s1')).toEqual(a.tradeCalc.get('s1'));
+    expect(z.transferCalc.get('x1')).toEqual(a.transferCalc.get('x1'));
+  });
+});

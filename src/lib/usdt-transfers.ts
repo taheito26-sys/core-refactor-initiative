@@ -92,6 +92,12 @@ export interface UsdtTransfer {
   consignmentId?: string;
   /** Id of the shared loan movement this copy was proposed as, for a connected merchant. */
   remoteLoanId?: string;
+  /**
+   * Hidden from the Loans page only. The movement still counts everywhere
+   * else exactly as before — stock, FIFO costs and profit are untouched — so
+   * an old loan can be tidied away without moving any figure.
+   */
+  hiddenFromLoans?: boolean;
   voided?: boolean;
   createdAt: number;
   /** Bumped on every edit/void so cross-device merges keep the latest copy. */

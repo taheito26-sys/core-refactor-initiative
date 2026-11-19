@@ -295,7 +295,7 @@ export interface MonthGroup {
 export function buildMerchantStatements(transfers: UsdtTransfer[] | undefined): MerchantStatement[] {
   const byKey = new Map<string, UsdtTransfer[]>();
   for (const t of transfers || []) {
-    if (!isTransferActive(t)) continue;
+    if (!isTransferActive(t) || t.hiddenFromLoans) continue;
     const key = transferCounterpartyKey(t);
     const list = byKey.get(key) || [];
     list.push(t);
