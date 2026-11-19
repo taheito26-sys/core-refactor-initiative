@@ -23,12 +23,14 @@ import {
   loanSourceDirection,
   loanSourceTs,
   merchantNet,
+  pendingItemToLoanSource,
   planLoanMove,
   type LoanSource,
 } from '../loan-ledger';
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
+import { usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import '@/styles/loans-desk.css';
 
 const EPS = 1e-6;
@@ -77,6 +79,7 @@ export function MerchantLoanDialog({
   state,
   applyStateAndCommit,
   onClose,
+  allowSourcePick = false,
 }: {
   open: boolean;
   /** Records being classified; a single `manual` source opens the hand-entry form. */
@@ -85,13 +88,21 @@ export function MerchantLoanDialog({
   state: TrackerState;
   applyStateAndCommit: (next: TrackerState) => Promise<void>;
   onClose: () => void;
+  /**
+   * When the merchant starts from "Record movement", offer the unregistered
+   * sent USDT records after the merchant is chosen. Orders passes a fixed
+   * source and leaves this off.
+   */
+  allowSourcePick?: boolean;
 }) {
   const t = useT();
   const { commit, busy } = useBorrowLendCommit(applyStateAndCommit);
   const merchants = useLoanMerchantNames(state);
+  const pending = usePendingExchangeItems(state);
 
-  const manual = sources.length === 1 && sources[0].type === 'manual';
-  const single = sources.length === 1 ? sources[0] : null;
+  const [activeSources, setActiveSources] = useState<LoanSource[]>(sources);
+  const manual = activeSources.length === 1 && activeSources[0].type === 'manual';
+  const single = activeSources.length === 1 ? activeSources[0] : null;
   const canSplit = !!single && loanSourceCanSplit(single);
 
   const [name, setName] = useState(presetName ?? '');
@@ -102,13 +113,15 @@ export function MerchantLoanDialog({
 
   useEffect(() => {
     if (!open) return;
+    setActiveSources(sources);
     setName(presetName ?? '');
     setManualMode(false);
     // Keep the exact source amount. Exchange records are classified in full and
     // cannot be partially adjusted, so rounding 100.123456 to 100.12 makes the
     // read-only form impossible to save.
-    setAmount(single && !manual ? String(loanSourceAmount(single)) : '');
-    setManualDir('out');
+    const initial = sources.length === 1 ? sources[0] : null;
+    setAmount(initial && initial.type !== 'manual' ? String(loanSourceAmount(initial)) : '');
+    setManualDir(initial && initial.type !== 'manual' ? loanSourceDirection(initial) : 'out');
     setManualDate(nowInput());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -131,8 +144,8 @@ export function MerchantLoanDialog({
       return [{ src: { type: 'manual', direction: manualDir, ts: Number.isFinite(ts) ? ts : Date.now() }, amount: num(amount, 0) }];
     }
     if (single) return [{ src: single, amount: num(amount, 0) }];
-    return sources.map((src) => ({ src, amount: loanSourceAmount(src) }));
-  }, [manual, manualDate, manualDir, amount, single, sources]);
+    return activeSources.map((src) => ({ src, amount: loanSourceAmount(src) }));
+  }, [manual, manualDate, manualDir, amount, single, activeSources]);
 
   const totalAmount = moves.reduce((sum, m) => sum + m.amount, 0);
   const amountOk = moves.every((m) => m.amount > 0) && totalAmount <= maxAmount + EPS;
@@ -186,6 +199,28 @@ export function MerchantLoanDialog({
     setName(value);
   };
 
+  const candidateSources = useMemo(() => {
+    if (!allowSourcePick || !manual) return [];
+    return pending
+      .filter((item) => item.direction === manualDir)
+      .map(pendingItemToLoanSource)
+      .filter((src): src is LoanSource => !!src);
+  }, [allowSourcePick, manual, manualDir, pending]);
+
+  const chooseSource = (src: LoanSource) => {
+    setActiveSources([src]);
+    setAmount(String(loanSourceAmount(src)));
+    setManualMode(false);
+  };
+
+  const clearSource = () => {
+    const direction = single ? loanSourceDirection(single) : manualDir;
+    setActiveSources([{ type: 'manual', direction, ts: Date.now() }]);
+    setAmount('');
+    setManualDir(direction);
+    setManualMode(false);
+  };
+
   const confirm = async () => {
     if (!finalName) {
       toast.error(t('mloanErrName'));
@@ -221,71 +256,24 @@ export function MerchantLoanDialog({
           <div>
             <div className="ld-kicker"><Handshake /> {t('loansEyebrow')}</div>
             <h2 className="ld-dialog-title">{t('mloanTitle')}</h2>
-            <p className="ld-dialog-sub">
-              {manual ? t('loansHowItWorksBody') : describeSource(sources[0], t)}
-            </p>
+            {(manual || !activeSources[0]) && <p className="ld-dialog-sub">{t('loansHowItWorksBody')}</p>}
           </div>
         </div>
 
         <div className="ld-dialog-body">
-          {!manual && sources.length > 0 && (
+          {!manual && activeSources.length > 0 && (
             <div className="ld-source">
               <Info />
-              <div>
-                <strong>{sources.length === 1 ? t('loansPreviewTitle') : `${sources.length} ${t('mloanMoreRecords')}`}</strong>
-                <div style={{ marginTop: 3 }}>{describeSource(sources[0], t)}</div>
-                {sources.length > 1 && <div style={{ marginTop: 3 }}>+{sources.length - 1} · {fmtTotal(totalAmount)} USDT</div>}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong>{t('loansLinkedSource')}</strong>
+                <div style={{ marginTop: 3 }}>{describeSource(activeSources[0], t)}</div>
+                {activeSources.length > 1 && <div style={{ marginTop: 3 }}>+{activeSources.length - 1} · {fmtTotal(totalAmount)} USDT</div>}
               </div>
-            </div>
-          )}
-
-          {manual && (
-            <>
-              <div className="ld-field">
-                <label>{t('loansDirection')}</label>
-                <div className="ld-dir-grid">
-                  <button type="button" className={`ld-dir ${manualDir === 'out' ? 'active' : ''}`} onClick={() => setManualDir('out')}>
-                    <ArrowUpRight />
-                    <span><strong>{t('loansSentUsdt')}</strong><span>{t('loansOutHint')}</span></span>
-                  </button>
-                  <button type="button" className={`ld-dir ${manualDir === 'in' ? 'active' : ''}`} onClick={() => setManualDir('in')}>
-                    <ArrowDownLeft />
-                    <span><strong>{t('loansReceivedUsdt')}</strong><span>{t('loansInHint')}</span></span>
-                  </button>
-                </div>
-              </div>
-              <div className="ld-form-grid">
-                <div className="ld-field">
-                  <label htmlFor="loan-amount">{t('mloanAmount')}</label>
-                  <input id="loan-amount" className="ld-input" inputMode="decimal" placeholder="USDT" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
-                </div>
-                <div className="ld-field">
-                  <label htmlFor="loan-date">{t('loansWhen')}</label>
-                  <div style={{ position: 'relative' }}>
-                    <input id="loan-date" className="ld-input" type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} style={{ paddingInlineStart: 34 }} />
-                    <CalendarDays size={14} style={{ position: 'absolute', insetInlineStart: 11, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {single && !manual && (
-            <div className="ld-field">
-              <label htmlFor="loan-source-amount">{t('loansAmountToRecord')}</label>
-              <input
-                id="loan-source-amount"
-                className="ld-input"
-                inputMode="decimal"
-                value={amount}
-                readOnly={!amountEditable}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <small>
-                {amountEditable
-                  ? t('loansAmountHint').split('{amount}').join(fmtTotal(maxAmount))
-                  : `${fmtTotal(maxAmount)} ${t('loansAvailable')}`}
-              </small>
+              {allowSourcePick && (
+                <button type="button" className="ld-source-change" onClick={clearSource}>
+                  {t('loansChangeSource')}
+                </button>
+              )}
             </div>
           )}
 
@@ -345,6 +333,86 @@ export function MerchantLoanDialog({
             )}
             {connected.length === 0 && <small>{t('loansNoConnected')}</small>}
           </div>
+
+          {manual && (
+            <>
+              <div className="ld-field">
+                <label>{t('loansDirection')}</label>
+                <div className="ld-dir-grid">
+                  <button type="button" className={`ld-dir ${manualDir === 'out' ? 'active' : ''}`} onClick={() => setManualDir('out')}>
+                    <ArrowUpRight />
+                    <span><strong>{t('loansSentUsdt')}</strong><span>{t('loansOutHint')}</span></span>
+                  </button>
+                  <button type="button" className={`ld-dir ${manualDir === 'in' ? 'active' : ''}`} onClick={() => setManualDir('in')}>
+                    <ArrowDownLeft />
+                    <span><strong>{t('loansReceivedUsdt')}</strong><span>{t('loansInHint')}</span></span>
+                  </button>
+                </div>
+              </div>
+
+              {allowSourcePick && (
+                <div className="ld-field ld-source-picker">
+                  <label>{t('loansLinkSource')}</label>
+                  <small>{t('loansLinkSourceHint')}</small>
+                  {!finalName ? (
+                    <div className="ld-source-empty">{t('loansLinkSourceChooseMerchant')}</div>
+                  ) : candidateSources.length > 0 ? (
+                    <div className="ld-source-list">
+                      {candidateSources.map((src, index) => (
+                        <button
+                          key={`${src.type}-${loanSourceTs(src)}-${loanSourceAmount(src)}-${index}`}
+                          type="button"
+                          className="ld-source-option"
+                          onClick={() => chooseSource(src)}
+                        >
+                          <span className="ld-source-option-top">
+                            <strong>{fmtTotal(loanSourceAmount(src))} USDT</strong>
+                            <span>{t('loansLinkSourceUse')}</span>
+                          </span>
+                          <span className="ld-source-option-meta">{describeSource(src, t)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="ld-source-empty">{t('loansLinkSourceEmpty')}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="ld-form-grid">
+                <div className="ld-field">
+                  <label htmlFor="loan-amount">{t('mloanAmount')}</label>
+                  <input id="loan-amount" className="ld-input" inputMode="decimal" placeholder="USDT" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+                </div>
+                <div className="ld-field">
+                  <label htmlFor="loan-date">{t('loansWhen')}</label>
+                  <div style={{ position: 'relative' }}>
+                    <input id="loan-date" className="ld-input" type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} style={{ paddingInlineStart: 34 }} />
+                    <CalendarDays size={14} style={{ position: 'absolute', insetInlineStart: 11, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {single && !manual && (
+            <div className="ld-field">
+              <label htmlFor="loan-source-amount">{t('loansAmountToRecord')}</label>
+              <input
+                id="loan-source-amount"
+                className="ld-input"
+                inputMode="decimal"
+                value={amount}
+                readOnly={!amountEditable}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <small>
+                {amountEditable
+                  ? t('loansAmountHint').split('{amount}').join(fmtTotal(maxAmount))
+                  : `${fmtTotal(maxAmount)} ${t('loansAvailable')}`}
+              </small>
+            </div>
+          )}
 
           {preview && (
             <div className="ld-preview">
