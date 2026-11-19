@@ -45,7 +45,7 @@ import {
   type SplitCashMode,
 } from '@/features/orders/split-plan';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
+import { addOrderLink, fetchFreshExchangeOrder, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import type { ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { UsdtInbox } from '@/features/orders/components/UsdtInbox';
@@ -346,23 +346,27 @@ export default function OrdersPage() {
    * loan path hands the same record to the merchant-loan composer, so it is
    * never counted as both.
    */
-  const handleInboxSale = useCallback((item: PendingExchangeItem) => {
+  const handleInboxSale = useCallback(async (item: PendingExchangeItem) => {
     setActiveTab('my');
     if (item.order) {
       const o = item.order;
-      const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
+      // A re-registered Binance order can carry the older quantity/fee rule;
+      // read it again so the sale consumes the full debited amount.
+      const fresh = (await fetchFreshExchangeOrder(o)) ?? o;
+      const isPartial = item.pendingUSDT < o.amount - 1e-6;
+      const needsQarRate = fresh.fiat.toUpperCase() !== 'QAR';
       applyExchangeOrderPrefill({
-        exchange: o.exchange,
-        orderId: o.id,
-        orderNumber: o.order_number,
-        amountUSDT: item.pendingUSDT,
-        orderTotalUSDT: o.amount,
-        ts: item.ts,
-        assigneeName: o.counterparty ?? undefined,
-        priceFiat: needsQarRate ? 0 : o.price,
+        exchange: fresh.exchange,
+        orderId: fresh.id,
+        orderNumber: fresh.order_number,
+        amountUSDT: isPartial ? item.pendingUSDT : fresh.amount,
+        orderTotalUSDT: fresh.amount,
+        ts: fresh.order_time ? new Date(fresh.order_time).getTime() : item.ts,
+        assigneeName: isPartial ? undefined : (fresh.counterparty ?? undefined),
+        priceFiat: needsQarRate ? 0 : fresh.price,
         needsQarRate,
         ...(needsQarRate
-          ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.total }
+          ? { originalFiat: fresh.fiat, originalPriceFiat: fresh.price, originalTotalFiat: fresh.total }
           : {}),
       });
       return;

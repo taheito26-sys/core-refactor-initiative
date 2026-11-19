@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
 import type { TrackerState } from '@/lib/tracker-helpers';
@@ -8,7 +8,14 @@ vi.mock('@/lib/i18n', () => {
   return { useT: () => t };
 });
 
-const pending: PendingExchangeItem[] = [{
+vi.mock('@/features/exchanges/components/OkxOrderDetailsEditor', () => ({
+  OkxOrderDetailsEditor: ({ order }: { order: { id: string } }) => <div>okx-editor:{order.id}</div>,
+}));
+
+let pending: PendingExchangeItem[] = [];
+
+beforeEach(() => {
+  pending = [{
   key: 't:inbox-1',
   source: 'transfer',
   exchange: 'binance',
@@ -29,7 +36,8 @@ const pending: PendingExchangeItem[] = [{
     counterparty: 'E2E Receiver',
     transfer_time: '2026-11-19T08:00:00Z',
   } as never,
-}];
+  }];
+});
 
 vi.mock('@/features/stock/hooks/usePendingExchangeItems', () => ({
   usePendingExchangeItems: () => pending,
@@ -64,5 +72,43 @@ describe('Orders USDT inbox', () => {
       type: 'exchange_transfer',
       transfer: expect.objectContaining({ id: 'inbox-1' }),
     }));
+  });
+
+  it('opens the amount editor for an unpriced OKX escrow sale', () => {
+    pending = [{
+      key: 'o:okx-1',
+      source: 'order',
+      exchange: 'okx',
+      direction: 'out',
+      ts: Date.parse('2026-11-19T08:00:00Z'),
+      pendingUSDT: 1000,
+      effect: 1000,
+      counterparty: null,
+      reference: 'OKX-1',
+      price: 0,
+      fiat: 'EGP',
+      order: {
+        id: 'okx-1',
+        exchange: 'okx',
+        order_number: 'OKX-1',
+        side: 'sell',
+        asset: 'USDT',
+        fiat: 'EGP',
+        amount: 1000,
+        price: 0,
+        total: 0,
+        counterparty: null,
+        status: 'completed',
+        order_time: '2026-11-19T08:00:00Z',
+        raw: { source: 'okx-escrow' },
+      } as never,
+    }];
+    const onSale = vi.fn();
+    render(<UsdtInbox state={state} onSale={onSale} onPurchase={vi.fn()} onLoan={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('ordersInboxSale'));
+
+    expect(screen.getByText('okx-editor:okx-1')).toBeTruthy();
+    expect(onSale).not.toHaveBeenCalled();
   });
 });
