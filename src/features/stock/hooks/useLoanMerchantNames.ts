@@ -10,6 +10,8 @@ export interface LoanMerchantOption {
   /** Net USDT position: > 0 I owe them, < 0 they owe me; undefined when there is no loan history yet. */
   net?: number;
   connected: boolean;
+  /** The active relationship with this merchant, when connected — what shared loan movements are sent through. */
+  relationshipId?: string;
 }
 
 /** Display names of the merchants this merchant has an active relationship with. */
@@ -23,25 +25,24 @@ function useConnectedMerchantNames() {
     queryKey: ['loan-connected-merchants', uid],
     enabled: !!uid,
     staleTime: 5 * 60 * 1000,
-    queryFn: async (): Promise<string[]> => {
+    queryFn: async (): Promise<{ name: string; relationshipId: string }[]> => {
       if (!uid) return [];
       const { data: me } = await supabase.from('merchant_profiles').select('merchant_id').eq('user_id', uid).maybeSingle();
       const myId = (me as { merchant_id?: string } | null)?.merchant_id;
       if (!myId) return [];
       const { data: rels } = await supabase
         .from('merchant_relationships')
-        .select('merchant_a_id, merchant_b_id, status')
+        .select('id, merchant_a_id, merchant_b_id, status')
         .or(`merchant_a_id.eq.${myId},merchant_b_id.eq.${myId}`);
-      const otherIds = Array.from(new Set(
-        ((rels || []) as { merchant_a_id: string; merchant_b_id: string; status: string }[])
-          .filter((r) => r.status === 'active')
-          .map((r) => (r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id)),
-      ));
-      if (!otherIds.length) return [];
-      const { data: profiles } = await supabase.from('merchant_profiles').select('merchant_id, display_name').in('merchant_id', otherIds);
-      return Array.from(new Set(
-        ((profiles || []) as { display_name?: string | null }[]).map((p) => (p.display_name || '').trim()).filter(Boolean),
-      ));
+      const active = ((rels || []) as { id?: string; merchant_a_id: string; merchant_b_id: string; status: string }[])
+        .filter((r) => r.status === 'active' && r.id)
+        .map((r) => ({ relationshipId: r.id as string, merchantId: r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id }));
+      if (!active.length) return [];
+      const { data: profiles } = await supabase.from('merchant_profiles').select('merchant_id, display_name').in('merchant_id', active.map((a) => a.merchantId));
+      const names = new Map(((profiles || []) as { merchant_id: string; display_name?: string | null }[]).map((p) => [p.merchant_id, (p.display_name || '').trim()]));
+      return active
+        .map((a) => ({ name: names.get(a.merchantId) || '', relationshipId: a.relationshipId }))
+        .filter((a) => a.name);
     },
   });
 }
@@ -63,12 +64,13 @@ export function useLoanMerchantNames(state: TrackerState): LoanMerchantOption[] 
       const existing = out.get(key);
       if (existing) {
         existing.connected = existing.connected || opt.connected;
+        existing.relationshipId = existing.relationshipId ?? opt.relationshipId;
         return;
       }
       out.set(key, { name: clean, ...opt });
     };
     for (const st of buildMerchantStatements(state.usdtTransfers)) add(st.name, { net: st.net, connected: false });
-    for (const c of connected || []) add(c, { connected: true });
+    for (const c of connected || []) add(c.name, { connected: true, relationshipId: c.relationshipId });
     for (const s of state.suppliers || []) add(s.name, { connected: false });
     return Array.from(out.values());
   }, [state.usdtTransfers, state.suppliers, connected]);

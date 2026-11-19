@@ -27,6 +27,7 @@ import { buildMerchantStatements, deleteMerchantLoanHistory, pendingItemToLoanSo
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
+import { LoanRequestsBar } from './LoanRequestsBar';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import '@/styles/loans-desk.css';
@@ -349,6 +350,7 @@ export function LoansPanel({
 
   return (
     <div className="ld-desk">
+      <LoanRequestsBar state={state} applyStateAndCommit={applyStateAndCommit} />
       <section className="ld-hero">
         <div>
           <div className="ld-kicker"><Handshake /> {t('loansEyebrow')}</div>

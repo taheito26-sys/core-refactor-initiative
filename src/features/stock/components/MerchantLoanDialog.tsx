@@ -29,6 +29,7 @@ import {
 } from '../loan-ledger';
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
+import { useSharedLoanMoves } from '../hooks/useSharedLoanMoves';
 import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
@@ -95,6 +96,7 @@ export function MerchantLoanDialog({
   const t = useT();
   const { commit, busy } = useBorrowLendCommit(applyStateAndCommit);
   const merchants = useLoanMerchantNames(state);
+  const { propose, cancel } = useSharedLoanMoves();
   const { data: freshOrders } = useExchangeP2POrders();
   const { data: freshTransfers } = useExchangeTransfers();
   const { data: linksByOrder } = useExchangeOrderLinks();
@@ -239,16 +241,52 @@ export function MerchantLoanDialog({
     let acc: TagResult = { state };
     const dismiss = new Set<string>();
     const orderLinks: NonNullable<TagResult['orderLinks']> = [];
+    const steps: { before: TrackerState; after: TrackerState }[] = [];
     try {
       for (const m of moves) {
         const r = applyLoanMove(acc.state, m.src, finalName, m.amount, uid);
         for (const d of r.dismiss || []) dismiss.add(d);
         orderLinks.push(...(r.orderLinks || []));
+        steps.push({ before: acc.state, after: r.state });
         acc = r;
       }
     } catch (err) {
       toast.error(err instanceof TagError && err.code === 'merchant_linked' ? t('mloanErrLinked') : t('mloanErrAmount'));
       return;
+    }
+    // A connected merchant gets the movement as a request they approve. It is
+    // sent before anything is saved here, so a failure leaves nothing half done.
+    const relationshipId = selectedOption?.connected ? selectedOption.relationshipId : undefined;
+    if (relationshipId) {
+      const sent: string[] = [];
+      try {
+        for (const m of moves) {
+          sent.push(await propose.mutateAsync({
+            relationshipId,
+            direction: loanSourceDirection(m.src),
+            amount: m.amount,
+            ts: Math.min(Date.now(), loanSourceTs(m.src) || Date.now()),
+          }));
+        }
+      } catch (err) {
+        console.error('[loan-sync] could not send the movement:', err);
+        await Promise.allSettled(sent.map((id) => cancel.mutateAsync(id)));
+        toast.error(t('loansSendFailed').split('{name}').join(finalName));
+        return;
+      }
+      // Mark the transfers each movement created with its shared id.
+      const remoteOf = new Map<string, string>();
+      steps.forEach((step, i) => {
+        const known = new Set((step.before.usdtTransfers || []).map((x) => x.id));
+        for (const x of step.after.usdtTransfers || []) if (!known.has(x.id)) remoteOf.set(x.id, sent[i]);
+      });
+      acc = {
+        ...acc,
+        state: {
+          ...acc.state,
+          usdtTransfers: (acc.state.usdtTransfers || []).map((x) => (remoteOf.has(x.id) ? { ...x, remoteLoanId: remoteOf.get(x.id) } : x)),
+        },
+      };
     }
     if (await commit({ state: acc.state, dismiss: Array.from(dismiss), orderLinks }, 'mloanSaved')) onClose();
   };
