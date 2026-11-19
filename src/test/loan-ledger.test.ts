@@ -164,3 +164,29 @@ describe('canonicalMerchantName', () => {
     expect(canonicalMerchantName('New Guy', ['Abu Tamim'])).toBe('New Guy');
   });
 });
+
+import { loanSourceConflict, planLoanMove } from '@/features/stock/loan-ledger';
+
+describe('one USDT record, one classification', () => {
+  const transfer = { type: 'exchange_transfer', transfer: { id: 't1', amount: 10000, direction: 'out' } } as never;
+  const order = { type: 'exchange_order', order: { id: 'o1', side: 'sell' }, available: 10000 } as never;
+
+  it('blocks a loan on a record already taken as a sale, or already a loan', () => {
+    expect(loanSourceConflict(transfer, 10000, { transferInOrder: true })).toEqual({ code: 'already_sale' });
+    expect(loanSourceConflict(transfer, 10000, { transferTaggedAsLoan: true })).toEqual({ code: 'already_loan' });
+    expect(loanSourceConflict(transfer, 10000, {})).toBeNull();
+  });
+
+  it('stops a record being used past what is left (example I)', () => {
+    expect(loanSourceConflict(order, 4000, { orderRemaining: 10000 })).toBeNull();
+    expect(loanSourceConflict(order, 6000, { orderRemaining: 6000 })).toBeNull();
+    expect(loanSourceConflict(order, 6001, { orderRemaining: 6000 })).toEqual({ code: 'exceeds', remaining: 6000 });
+    expect(loanSourceConflict(order, 1, { orderRemaining: 0 })).toEqual({ code: 'fully_registered' });
+  });
+
+  it('example H: 6,000 received while he owes 4,000 is a 4,000 return plus a 2,000 borrowing', () => {
+    const plan = planLoanMove(-4000, 'in', 6000);
+    expect(plan.parts).toEqual([{ kind: 'lend_return', amount: 4000 }, { kind: 'borrow_in', amount: 2000 }]);
+    expect(plan.after).toBe(2000);
+  });
+});

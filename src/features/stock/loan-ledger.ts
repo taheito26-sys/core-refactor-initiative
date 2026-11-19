@@ -79,6 +79,35 @@ export function loanSourceAmount(src: LoanSource): number {
   }
 }
 
+export type LoanConflict =
+  | { code: 'already_sale' }
+  | { code: 'already_loan' }
+  | { code: 'fully_registered' }
+  | { code: 'exceeds'; remaining: number };
+
+/**
+ * Whether a record can still be a loan move of `amount`, judged from the
+ * freshest facts the page holds. One quantity is classified once: a record
+ * already taken as a sale or purchase cannot also be a loan, nor the reverse,
+ * and a record cannot be used past what is left of it.
+ */
+export function loanSourceConflict(
+  src: LoanSource,
+  amount: number,
+  fresh: { transferInOrder?: boolean; transferTaggedAsLoan?: boolean; orderRemaining?: number },
+): LoanConflict | null {
+  if (src.type === 'exchange_transfer') {
+    if (fresh.transferTaggedAsLoan) return { code: 'already_loan' };
+    if (fresh.transferInOrder) return { code: 'already_sale' };
+    return null;
+  }
+  if (src.type === 'exchange_order' && fresh.orderRemaining !== undefined) {
+    if (fresh.orderRemaining <= 0.01) return { code: 'fully_registered' };
+    if (amount > fresh.orderRemaining + 1e-6) return { code: 'exceeds', remaining: fresh.orderRemaining };
+  }
+  return null;
+}
+
 /** A transfer is one movement on the exchange, so only the whole of it can be a loan move. */
 export function loanSourceCanSplit(src: LoanSource): boolean {
   return src.type !== 'exchange_transfer' && src.type !== 'manual';
