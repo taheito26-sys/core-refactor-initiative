@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -7,6 +7,8 @@ import type { SharedLoanMove } from '../loan-sync';
 // The loan-move table is newer than the generated types, so it is reached untyped.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+let channelSeq = 0;
 
 /**
  * Loan movements shared with connected merchants — mine and theirs. A change
@@ -18,6 +20,10 @@ export function useSharedLoanMoves() {
   const qc = useQueryClient();
   const uid = user?.id;
   const key = ['shared-loan-moves', uid];
+  // Each mounted copy needs its own channel: the client hands back the same,
+  // already-subscribed channel for a repeated name, and adding listeners to
+  // that one throws.
+  const channelName = useRef(`shared-loan-moves-${uid}-${(channelSeq += 1)}`);
 
   const query = useQuery({
     queryKey: key,
@@ -54,12 +60,25 @@ export function useSharedLoanMoves() {
     if (!uid) return;
     const refresh = () => { void qc.invalidateQueries({ queryKey: ['shared-loan-moves', uid] }); };
     const channel = supabase
-      .channel(`shared-loan-moves-${uid}`)
+      .channel(channelName.current)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_loan_moves' }, refresh)
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [uid, qc]);
 
+  const actions = useSharedLoanMoveActions();
+
+  return { moves: query.data ?? [], ...actions };
+}
+
+/**
+ * Send, answer and withdraw shared loan movements, without loading or
+ * watching the list — for the places that only act (the loan dialog).
+ */
+export function useSharedLoanMoveActions() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const key = ['shared-loan-moves', user?.id];
   const invalidate = () => qc.invalidateQueries({ queryKey: key });
 
   const propose = useMutation({
@@ -87,5 +106,5 @@ export function useSharedLoanMoves() {
     onSuccess: invalidate,
   });
 
-  return { moves: query.data ?? [], propose, respond, cancel };
+  return { propose, respond, cancel };
 }

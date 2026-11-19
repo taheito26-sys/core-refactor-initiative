@@ -162,3 +162,19 @@ describe('days and months', () => {
     expect(sameDayRow(undefined, r)).toBe(false);
   });
 });
+
+describe('computePosition and loans hidden from the Loans page', () => {
+  it('values USDT as if a hidden loan had never existed', () => {
+    const inputs = (hidden: boolean) => base({
+      exchange: { binance: 1000, okx: 0 },
+      batches: [batch('a', 1, 1000, 3.6), batch('b', 2, 1000, 3.8)] as never,
+      usdtTransfers: [{ id: 'x', ts: 3, kind: 'lend_out', amountUSDT: 1000, counterpartyName: 'zack', createdAt: 3, ...(hidden ? { hiddenFromLoans: true } : {}) }] as never,
+    });
+    const shown = computePosition(inputs(false));
+    const hidden = computePosition(inputs(true));
+    const never = computePosition({ ...inputs(false), usdtTransfers: [] });
+    expect(line(shown, 'exchange_usdt')).toBe(3800); // the loan took the cheap batch out, so stock is priced at 3.80
+    expect(line(hidden, 'exchange_usdt')).toBe(line(never, 'exchange_usdt'));
+    expect(line(hidden, 'exchange_usdt')).toBe(3700);
+  });
+});

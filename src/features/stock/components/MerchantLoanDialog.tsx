@@ -29,7 +29,7 @@ import {
 } from '../loan-ledger';
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
-import { useSharedLoanMoves } from '../hooks/useSharedLoanMoves';
+import { useSharedLoanMoveActions } from '../hooks/useSharedLoanMoves';
 import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
@@ -96,7 +96,7 @@ export function MerchantLoanDialog({
   const t = useT();
   const { commit, busy } = useBorrowLendCommit(applyStateAndCommit);
   const merchants = useLoanMerchantNames(state);
-  const { propose, cancel } = useSharedLoanMoves();
+  const { propose, cancel } = useSharedLoanMoveActions();
   const { data: freshOrders } = useExchangeP2POrders();
   const { data: freshTransfers } = useExchangeTransfers();
   const { data: linksByOrder } = useExchangeOrderLinks();

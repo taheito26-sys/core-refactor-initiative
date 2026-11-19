@@ -84,7 +84,9 @@ export function computePosition(input: PositionInput): Position {
   const warn = (w: Position['warnings'][number]) => { if (!warnings.includes(w)) warnings.push(w); };
 
   // ── Rates ──
-  const derived = computeFIFO(input.batches || [], input.trades || [], input.usdtTransfers);
+  // Loans hidden from the Loans page are left out here too, so the USDT rate
+  // used below is the one the merchant would see if they had never existed.
+  const derived = computeFIFO(input.batches || [], input.trades || [], (input.usdtTransfers || []).filter(t => !t.hiddenFromLoans));
   let stockUSDT = 0;
   let stockCost = 0;
   for (const b of derived.batches) {

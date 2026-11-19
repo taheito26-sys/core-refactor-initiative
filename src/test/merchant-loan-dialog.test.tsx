@@ -10,7 +10,7 @@ vi.mock('@/lib/i18n', () => {
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 const propose = { mutateAsync: vi.fn() };
 const cancel = { mutateAsync: vi.fn() };
-vi.mock('@/features/stock/hooks/useSharedLoanMoves', () => ({ useSharedLoanMoves: () => ({ moves: [], propose, cancel, respond: {} }) }));
+vi.mock('@/features/stock/hooks/useSharedLoanMoves', () => ({ useSharedLoanMoveActions: () => ({ propose, cancel, respond: {} }) }));
 vi.mock('@/features/stock/hooks/useLoanMerchantNames', () => ({
   useLoanMerchantNames: () => [
     { name: 'Abu Tamim', connected: true, relationshipId: 'rel-1' },
