@@ -102,7 +102,8 @@ describe('Loans tab, end to end as a user', () => {
     expect(app.state.usdtTransfers!.filter((x) => x.kind === 'borrow_repay')).toHaveLength(4);
     expect(api.addOrderLink).toHaveBeenCalledTimes(4);
 
-    // 3. Settled: no open loans, one settled merchant with a 5-line statement.
+    // 3. Settled: no open loans, one settled merchant with a 5-line statement (on the Balances tab).
+    fireEvent.click(screen.getByText('loansTabBalances'));
     expect(screen.getByText('mloanNoOpen')).toBeTruthy();
     fireEvent.click(screen.getByText(/mloanSettledGroup/));
     fireEvent.click(screen.getByText('Abu Tamim'));
@@ -117,6 +118,7 @@ describe('Loans tab, end to end as a user', () => {
     fireEvent.click(screen.getByText('mloanConfirm'));
     await waitFor(() => expect(app.commits).toHaveLength(1));
 
+    fireEvent.click(screen.getByText('loansTabBalances'));
     fireEvent.click(screen.getByText('Abu Tamim'));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('mloanUndo'));

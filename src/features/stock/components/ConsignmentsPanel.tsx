@@ -16,6 +16,7 @@ import {
   recordConsignmentSale,
   recordReceivedConsignmentSale,
   sendConsignment,
+  settleConsignmentInKind,
   undoConsignmentSale,
   undoConsignmentTransfer,
   type ConsignmentSummary,
@@ -79,8 +80,11 @@ export function ConsignmentsPanel({
             if (e.kind === 'sale') next = recordConsignmentSale(next, { consignmentId: c.trackerRef, saleId: e.id, qty: e.qty, priceQAR: e.priceQAR || 0, unitCostQAR: c.basePriceQAR }, Date.parse(e.createdAt));
             else if (e.kind === 'return') next = recordConsignmentReturn(next, { consignmentId: c.trackerRef, returnId: e.id, qty: e.qty }, Date.parse(e.createdAt));
             else next = recordConsignmentPurchase(next, { batchId: e.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0 }, Date.parse(e.createdAt));
+          } else if (!c.iAmSender && e.kind === 'purchase') {
+            // The replacement USDT he sent is paid for out of what he owes me.
+            next = settleConsignmentInKind(next, c.counterpartyName, e.qty * (e.priceQAR || 0), 'receiver', e.id);
           } else if (!c.iAmSender && e.kind === 'sale') {
-            next = recordReceivedConsignmentSale(next, { saleId: e.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, basePriceQAR: c.basePriceQAR, senderSharePct: c.senderSharePct }, Date.parse(e.createdAt));
+            next = recordReceivedConsignmentSale(next, { saleId: e.id, consignmentId: c.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, basePriceQAR: c.basePriceQAR, senderSharePct: c.senderSharePct }, Date.parse(e.createdAt));
           }
         } catch (err) {
           if (!(err instanceof ConsignmentError)) console.error('[consignments] booking failed:', err);
@@ -278,20 +282,25 @@ export function ConsignmentsPanel({
         </div>
       )}
 
-      {sales.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="font-medium">{t('consOwed')}: {receivables.map(r => `${r.counterpartyName} ${fmtTotal(r.owedQAR)}`).join(' · ') || '—'}</h4>
-          {sales.filter(s => s.consignment!.remitQAR - s.consignment!.remittedQAR > 0).map(s => (
-            <div key={s.id} className="flex items-center justify-between rounded-md border px-2 py-1 text-sm">
-              <span>{s.exchangeCounterparty} · {fmtTotal(s.amountUSDT)} @ {fmtPrice(s.sellPriceQAR)} · {fmtTotal(s.consignment!.remitQAR - s.consignment!.remittedQAR)}</span>
-              <span className="flex gap-1">
-                <Button size="sm" variant="outline" onClick={() => undo(() => recordConsignmentRemittance(state, s.id, s.consignment!.remitQAR - s.consignment!.remittedQAR))}>{t('consRemit')}</Button>
-                <Button size="sm" variant="ghost" onClick={() => undo(() => undoConsignmentSale(state, s.id))}>{t('consUndo')}</Button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {(['owner', 'receiver'] as const).map(role => {
+        const rows = sales.filter(x => (x.consignment!.role || 'owner') === role && x.consignment!.remitQAR - x.consignment!.remittedQAR > 0);
+        if (rows.length === 0) return null;
+        const totals = consignmentReceivables(state, role);
+        return (
+          <div key={role} className="space-y-2">
+            <h4 className="font-medium">{t(role === 'owner' ? 'consOwed' : 'consPayable')}: {totals.map(r => `${r.counterpartyName} ${fmtTotal(r.owedQAR)}`).join(' · ') || '—'}</h4>
+            {rows.map(s => (
+              <div key={s.id} className="flex items-center justify-between rounded-md border px-2 py-1 text-sm">
+                <span>{s.exchangeCounterparty} · {fmtTotal(s.amountUSDT)} @ {fmtPrice(s.sellPriceQAR)} · {fmtTotal(s.consignment!.remitQAR - s.consignment!.remittedQAR)}</span>
+                <span className="flex gap-1">
+                  <Button size="sm" variant="outline" onClick={() => undo(() => recordConsignmentRemittance(state, s.id, s.consignment!.remitQAR - s.consignment!.remittedQAR))}>{t(role === 'owner' ? 'consRemit' : 'consPaid')}</Button>
+                  {role === 'owner' && <Button size="sm" variant="ghost" onClick={() => undo(() => undoConsignmentSale(state, s.id))}>{t('consUndo')}</Button>}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

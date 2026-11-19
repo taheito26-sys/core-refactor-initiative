@@ -11,6 +11,8 @@ import {
   recordConsignmentReturn,
   recordConsignmentSale,
   sendConsignment,
+  settleConsignmentInKind,
+  recordReceivedConsignmentSale,
   splitConsignmentSale,
   undoConsignmentSale,
   undoConsignmentTransfer,
@@ -137,5 +139,36 @@ describe('undo', () => {
     expect(() => undoConsignmentTransfer(sold, 'c1')).toThrow(ConsignmentError);
     s = undoConsignmentTransfer(s, 'c1');
     expect(totalStock(computeFIFO(s.batches, s.trades, s.usdtTransfers))).toBeCloseTo(50000, 6);
+  });
+});
+
+describe('example F: sold, replacement bought at 3.74 and returned', () => {
+  it('keeps the sale, books the replacement as its own cost, and leaves 100 cash to pay', () => {
+    let s = sendConsignment(base(), { id: 'c1', counterpartyName: 'Ahmed', qty: 10000 }, 10);
+    s = recordConsignmentSale(s, { consignmentId: 'c1', saleId: 'e1', qty: 10000, priceQAR: 3.8, unitCostQAR: unitCost(s, 'c1') }, 20);
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'Ahmed', owedQAR: 37500 }]);
+    s = recordConsignmentPurchase(s, { batchId: 'p1', counterpartyName: 'Ahmed', qty: 10000, priceQAR: 3.74 }, 30);
+    // 37,500 owed − 37,400 of replacement stock handed over = 100 cash.
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'Ahmed', owedQAR: 100 }]);
+    const d = computeFIFO(s.batches, s.trades, s.usdtTransfers);
+    expect(d.tradeCalc.get('e1')!.netQAR).toBeCloseTo(500, 6); // sale unchanged
+    expect(d.batches.find(b => b.id === 'p1')!.buyPriceQAR).toBe(3.74); // replacement cost, not 3.70
+    // The same report arriving again does not settle twice.
+    s = recordConsignmentPurchase(s, { batchId: 'p1', counterpartyName: 'Ahmed', qty: 10000, priceQAR: 3.74 }, 30);
+    expect(consignmentReceivables(s)).toEqual([{ counterpartyName: 'Ahmed', owedQAR: 100 }]);
+  });
+});
+
+describe('receiving merchant side of example D', () => {
+  it('books his own share and a payable of 37,500, settled in kind by the replacement', () => {
+    let s = { batches: [], trades: [], usdtTransfers: [] } as unknown as TrackerState;
+    s = recordReceivedConsignmentSale(s, { saleId: 'e1', consignmentId: 'c1', counterpartyName: 'Owner', qty: 10000, priceQAR: 3.8, basePriceQAR: 3.7, senderSharePct: 50 }, 20);
+    const d = computeFIFO(s.batches, s.trades, s.usdtTransfers);
+    expect(d.tradeCalc.get('e1')!.netQAR).toBeCloseTo(500, 6); // his half of the profit
+    expect(consignmentReceivables(s, 'receiver')).toEqual([{ counterpartyName: 'Owner', owedQAR: 37500 }]);
+    expect(consignmentReceivables(s)).toEqual([]);
+    s = settleConsignmentInKind(s, 'Owner', 37400, 'receiver', 'p1');
+    s = settleConsignmentInKind(s, 'Owner', 37400, 'receiver', 'p1');
+    expect(consignmentReceivables(s, 'receiver')).toEqual([{ counterpartyName: 'Owner', owedQAR: 100 }]);
   });
 });

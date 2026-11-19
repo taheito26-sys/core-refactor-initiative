@@ -11,6 +11,7 @@ import {
   canonicalMerchantName,
   loanSourceAmount,
   loanSourceCanSplit,
+  loanSourceConflict,
   loanSourceDirection,
   loanSourceTs,
   merchantNet,
@@ -19,6 +20,11 @@ import {
 } from '../loan-ledger';
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
+import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
+import { registeredOrderAmount, trackerOrderAmounts } from '@/features/exchanges/order-coverage';
+import { taggedExchangeTransferIds } from '@/lib/usdt-transfers';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 
 const nowInput = () => {
@@ -73,6 +79,9 @@ export function MerchantLoanDialog({
   const isMobile = useIsMobile();
   const { commit, busy } = useBorrowLendCommit(applyStateAndCommit);
   const merchants = useLoanMerchantNames(state);
+  const { data: freshOrders } = useExchangeP2POrders();
+  const { data: freshTransfers } = useExchangeTransfers();
+  const { data: linksByOrder } = useExchangeOrderLinks();
 
   const manual = sources.length === 1 && sources[0].type === 'manual';
   const single = sources.length === 1 ? sources[0] : null;
@@ -116,6 +125,10 @@ export function MerchantLoanDialog({
   const totalAmount = moves.reduce((sum, m) => sum + m.amount, 0);
   const maxAmount = single && !manual ? loanSourceAmount(single) : Infinity;
   const amountOk = moves.every((m) => m.amount > 0) && totalAmount <= maxAmount + 1e-6;
+  const manualTs = new Date(manualDate).getTime();
+  const futureDate = manual && Number.isFinite(manualTs) && manualTs > Date.now() + 60_000;
+  const knownMerchant = merchants.find((m) => m.name.toLowerCase() === finalName.toLowerCase());
+  const notConnected = !!finalName && !knownMerchant?.connected;
 
   /** Plain-language preview: amounts per meaning, and the balance after. */
   const preview = useMemo(() => {
@@ -152,8 +165,38 @@ export function MerchantLoanDialog({
       return;
     }
     if (!amountOk) {
-      toast.error(t('mloanErrAmount'));
+      toast.error(maxAmount < Infinity && totalAmount > maxAmount + 1e-6
+        ? t('mloanErrExceeds').split('{x}').join(fmtTotal(maxAmount))
+        : t('mloanErrAmount'));
       return;
+    }
+    if (futureDate) {
+      toast.error(t('mloanErrFuture'));
+      return;
+    }
+    // Re-check against the latest records: the same USDT may have been taken
+    // as a sale or another loan since this dialog opened.
+    const taggedTransfers = taggedExchangeTransferIds(state.usdtTransfers);
+    for (const m of moves) {
+      const src = m.src;
+      const latestTransfer = src.type === 'exchange_transfer' ? (freshTransfers || []).find((x) => x.id === src.transfer.id) : undefined;
+      const latestOrder = src.type === 'exchange_order' ? (freshOrders || []).find((x) => x.id === src.order.id) : undefined;
+      const conflict = loanSourceConflict(src, m.amount, {
+        transferTaggedAsLoan: src.type === 'exchange_transfer' && taggedTransfers.has(src.transfer.id),
+        transferInOrder: !!latestTransfer && !!latestTransfer.linked_at && !!latestTransfer.linked_entity_id,
+        orderRemaining: latestOrder
+          ? Math.max(0, latestOrder.amount - registeredOrderAmount(latestOrder, { linksByOrder, trackerAmounts: trackerOrderAmounts(state) }))
+          : undefined,
+      });
+      if (conflict) {
+        toast.error(
+          conflict.code === 'already_sale' ? t('mloanErrAlreadySale')
+            : conflict.code === 'already_loan' ? t('mloanErrAlreadyLoan')
+            : conflict.code === 'fully_registered' ? t('mloanErrFull')
+            : t('mloanErrExceeds').split('{x}').join(fmtTotal(conflict.remaining)),
+        );
+        return;
+      }
     }
     let acc: TagResult = { state };
     const dismiss = new Set<string>();
@@ -205,7 +248,7 @@ export function MerchantLoanDialog({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div className="inputBox"><input inputMode="decimal" placeholder="USDT" aria-label={t('mloanAmount')} value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
-              <div className="inputBox"><input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} /></div>
+              <div className="inputBox"><input type="datetime-local" max={nowInput()} value={manualDate} onChange={(e) => setManualDate(e.target.value)} /></div>
             </div>
           </div>
         )}
@@ -235,6 +278,11 @@ export function MerchantLoanDialog({
           )}
         </div>
 
+        {notConnected && (
+          <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{t('mloanNotConnected')}</div>
+        )}
+        {futureDate && <div style={{ fontSize: 10.5, color: 'var(--bad)' }}>{t('mloanErrFuture')}</div>}
+
         {canSplit && !manual && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {!partial ? (
@@ -258,6 +306,7 @@ export function MerchantLoanDialog({
             {Array.from(preview.byKind.entries()).map(([kind, amt]) => (
               <div key={kind} style={{ fontWeight: 700 }}>{KIND_ICON[kind]} {kindSentence(kind, amt)}</div>
             ))}
+            {preview.byKind.size > 1 && <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{t('mloanExcessNote')}</div>}
             <div style={{ fontWeight: 800, color: preview.after > 1e-6 ? 'var(--bad)' : preview.after < -1e-6 ? 'var(--good)' : 'var(--good)' }}>
               {t('mloanAfterThis')} {balanceSentence(preview.after)}
             </div>
@@ -271,7 +320,7 @@ export function MerchantLoanDialog({
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button type="button" className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button type="button" className="btn" disabled={busy || !preview} onClick={() => { void confirm(); }}>{t('mloanConfirm')}</button>
+          <button type="button" className="btn" disabled={busy || !preview || futureDate} onClick={() => { void confirm(); }}>{t('mloanConfirm')}</button>
         </div>
       </DialogContent>
     </Dialog>

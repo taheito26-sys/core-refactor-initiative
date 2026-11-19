@@ -2,14 +2,14 @@ import { registeredOrderAmount } from '../order-coverage';
 import { summarizeTransferSelection } from '../transfer-selection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Inbox, Pencil, X } from 'lucide-react';
+import { Check, ChevronDown, Inbox, Pencil, Trash2, Wrench, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
 import { useExchangeOrderLinks } from '../hooks/useExchangeOrderLinks';
 import { EXCHANGE_LABELS, transferKindLabel, type ExchangeId, type ExchangeP2POrder, type ExchangeTransfer, type ExchangeTransferKind } from '../types';
-import { dismissTransfer, fetchFreshExchangeOrder } from '../api';
+import { dismissExchangeRecord, fetchFreshExchangeOrder } from '../api';
 import { OkxOrderDetailsEditor } from './OkxOrderDetailsEditor';
 import { OKX_ESCROW_SOURCE } from '../normalize-transfers';
 import { useT } from '@/lib/i18n';
@@ -121,6 +121,7 @@ export function ExchangeInbox({
   trackerAmounts,
   monthKey,
   onLoanClick,
+  onFixManually,
 }: {
   side: 'buy' | 'sell';
   onPick: (order: ExchangeOrderPayload) => void;
@@ -162,6 +163,8 @@ export function ExchangeInbox({
    * carry no loan button.
    */
   onLoanClick?: (source: LoanSource) => void;
+  /** "Fix manually" on a row: the page opens the stock reconciliation tools. When omitted, rows carry no such button. */
+  onFixManually?: () => void;
 }) {
   const t = useT();
   const { data: orders } = useExchangeP2POrders();
@@ -194,16 +197,40 @@ export function ExchangeInbox({
 
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
 
-  const handleDismissTransfer = async (transferId: string) => {
-    setDismissingId(transferId);
+  /** Ignore keeps the record restorable from Resolved; Remove hides it too, after a confirmation. Neither touches stock. */
+  const resolveRecord = async (source: 'order' | 'transfer', id: string, reason: 'ignored' | 'deleted') => {
+    if (reason === 'deleted' && !window.confirm(t('mloanRemoveConfirm'))) return;
+    setDismissingId(id);
     try {
-      await dismissTransfer(transferId);
-      await queryClient.invalidateQueries({ queryKey: ['exchange-transfers'] });
+      await dismissExchangeRecord({ source, id }, reason);
+      await queryClient.invalidateQueries({ queryKey: [source === 'order' ? 'exchange-p2p-orders' : 'exchange-transfers'] });
+      toast.success(t(reason === 'deleted' ? 'mloanRemoved' : 'mloanIgnored'));
     } catch {
-      toast.error('Could not dismiss this transfer');
+      toast.error(t('mloanSaveFailed'));
     } finally {
       setDismissingId(null);
     }
+  };
+  /** Fixing by hand needs the stock reconciliation tools, which live on the Loans tab. */
+  const RowActions = ({ source, id }: { source: 'order' | 'transfer'; id: string }) => {
+    const cls = 'flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-muted-foreground hover:border-primary/60 hover:text-primary disabled:opacity-50';
+    return (
+      <>
+        {onFixManually && (
+          <button type="button" title={t('mloanFixManually')} aria-label={t('mloanFixManually')} className={cls} onClick={onFixManually}>
+            <Wrench className="h-3 w-3" />
+          </button>
+        )}
+        <button type="button" disabled={dismissingId === id} title={t('mloanIgnore')} aria-label={t('mloanIgnore')} className={cls}
+          onClick={() => { void resolveRecord(source, id, 'ignored'); }}>
+          <X className="h-3 w-3" />
+        </button>
+        <button type="button" disabled={dismissingId === id} title={t('mloanRemove')} aria-label={t('mloanRemove')} className={cls}
+          onClick={() => { void resolveRecord(source, id, 'deleted'); }}>
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </>
+    );
   };
 
   const inSelectedMonth = useMemo(() => {
@@ -471,6 +498,7 @@ export function ExchangeInbox({
               {onLoanClick && !imported && (
                 <LoanButton source={{ type: 'exchange_order', order: o as ExchangeP2POrder, available: remaining }} />
               )}
+              {!imported && <RowActions source="order" id={o.id} />}
               </div>
               {editingSaleId === o.id && (
                 <OkxOrderDetailsEditor order={o as ExchangeP2POrder} onClose={() => setEditingSaleId(null)} />
@@ -549,17 +577,7 @@ export function ExchangeInbox({
                   </div>
                 </div>
               </button>
-              {!imported && (
-                <button
-                  type="button"
-                  disabled={dismissingId === tr.id}
-                  title="Not an order — hide this from the list"
-                  onClick={() => handleDismissTransfer(tr.id)}
-                  className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-muted-foreground hover:border-destructive/60 hover:text-destructive disabled:opacity-50"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
+              {!imported && <RowActions source="transfer" id={tr.id} />}
               {onLoanClick && !imported && (
                 <LoanButton source={{ type: 'exchange_transfer', transfer: tr as ExchangeTransfer }} />
               )}

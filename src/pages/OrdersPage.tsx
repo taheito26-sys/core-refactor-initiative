@@ -5258,6 +5258,7 @@ export default function OrdersPage() {
                     customerNames={state.customers.map((c) => c.name)}
                     monthKey={selectedMonth}
                     onLoanClick={(src) => setLoanSources([src])}
+                    onFixManually={() => navigate('/trading/stock', { state: { stockSection: 'transfers' } })}
                   />
                 </div>
 

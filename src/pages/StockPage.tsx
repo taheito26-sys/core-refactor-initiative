@@ -4,7 +4,7 @@ import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-id
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -152,7 +152,10 @@ export default function StockPage() {
   // (currently dead) `stockTab` constant above, which some pre-existing hint
   // buttons still reference. Suppliers moved here from the old combined CRM
   // page; customers moved to the Orders page instead.
-  const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>('batches');
+  const routerLocation = useLocation();
+  const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>(
+    (routerLocation.state as { stockSection?: string } | null)?.stockSection === 'transfers' ? 'transfers' : 'batches',
+  );
   // ── Redesigned phone layout (classic stays one tap away, or ?stock=classic) ──
   const [design] = useStockDesign();
   const v2 = isMobile && design === 'v2';
@@ -1877,6 +1880,7 @@ export default function StockPage() {
                     trackerAmounts={savedExchangeAmounts}
                   monthKey={selectedMonth}
                   onLoanClick={(src) => setLoanSources([src])}
+                  onFixManually={() => setActiveStockSection('transfers')}
                 />
                 {activeAccounts.length > 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -2186,6 +2190,7 @@ export default function StockPage() {
                     trackerAmounts={savedExchangeAmounts}
                       monthKey={selectedMonth}
                       onLoanClick={(src) => setLoanSources([src])}
+                  onFixManually={() => setActiveStockSection('transfers')}
                     />
                     {activeAccounts.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>

@@ -222,7 +222,37 @@ export function recordConsignmentPurchase(
     initialUSDT: qty,
     revisions: [],
   };
-  return { ...state, batches: [...(state.batches || []), batch] };
+  const withBatch = { ...state, batches: [...(state.batches || []), batch] };
+  return settleConsignmentInKind(withBatch, input.counterpartyName, qty * input.priceQAR, 'owner', input.batchId);
+}
+
+/**
+ * Replacement USDT is paid for out of the sale proceeds, so its cost settles
+ * what is owed on this merchant's consignment sales (oldest first) instead of
+ * being a second payment. It never edits the sales themselves.
+ */
+export function settleConsignmentInKind(
+  state: TrackerState,
+  counterpartyName: string,
+  amountQAR: number,
+  role: 'owner' | 'receiver',
+  eventId: string,
+): TrackerState {
+  if ((state.trades || []).some(t => t.consignment?.settledBy?.includes(eventId))) return state;
+  let left = round2(amountQAR);
+  const key = counterpartyName.trim().toLowerCase();
+  const trades = [...(state.trades || [])]
+    .filter(t => !t.voided && t.consignment && (t.consignment.role || 'owner') === role && (t.exchangeCounterparty || '').trim().toLowerCase() === key)
+    .sort((a, b) => a.ts - b.ts);
+  const paid = new Map<string, number>();
+  for (const t of trades) {
+    if (left <= 0) break;
+    const open = round2(t.consignment!.remitQAR - t.consignment!.remittedQAR);
+    const take = Math.min(open, left);
+    if (take > 0) { paid.set(t.id, round2(t.consignment!.remittedQAR + take)); left = round2(left - take); }
+  }
+  if (paid.size === 0) return state;
+  return { ...state, trades: state.trades.map(t => (paid.has(t.id) ? { ...t, consignment: { ...t.consignment!, remittedQAR: paid.get(t.id)!, settledBy: [...(t.consignment!.settledBy || []), eventId] } } : t)) };
 }
 
 /** Records that the merchant handed over (part of) the cash for a consignment sale. */
@@ -237,11 +267,11 @@ export function recordConsignmentRemittance(state: TrackerState, saleId: string,
   };
 }
 
-/** Cash the merchants still owe me from consignment sales, per counterparty name. */
-export function consignmentReceivables(state: Pick<TrackerState, 'trades'>): { counterpartyName: string; owedQAR: number }[] {
+/** Cash still owed per counterparty: owed to me for an owner, owed by me for a receiving merchant. */
+export function consignmentReceivables(state: Pick<TrackerState, 'trades'>, role: 'owner' | 'receiver' = 'owner'): { counterpartyName: string; owedQAR: number }[] {
   const map = new Map<string, number>();
   for (const t of state.trades || []) {
-    if (t.voided || !t.consignment) continue;
+    if (t.voided || !t.consignment || (t.consignment.role || 'owner') !== role) continue;
     const name = t.exchangeCounterparty || '';
     map.set(name, (map.get(name) || 0) + (t.consignment.remitQAR - t.consignment.remittedQAR));
   }
@@ -281,7 +311,7 @@ export function undoConsignmentTransfer(state: TrackerState, transferId: string,
  */
 export function recordReceivedConsignmentSale(
   state: TrackerState,
-  input: { saleId: string; counterpartyName: string; qty: number; priceQAR: number; basePriceQAR: number; senderSharePct: number; ts?: number },
+  input: { saleId: string; consignmentId: string; counterpartyName: string; qty: number; priceQAR: number; basePriceQAR: number; senderSharePct: number; ts?: number },
   now = Date.now(),
 ): TrackerState {
   if ((state.trades || []).some(t => t.id === input.saleId)) return state;
@@ -301,6 +331,7 @@ export function recordReceivedConsignmentSale(
     buyerType: 'merchant',
     manualBuyPrice: input.basePriceQAR,
     exchangeCounterparty: input.counterpartyName,
+    consignment: { id: input.consignmentId, partnerSharePct: input.senderSharePct, remitQAR: split.remitQAR, remittedQAR: 0, role: 'receiver' },
   };
   return { ...state, trades: [...(state.trades || []), trade] };
 }

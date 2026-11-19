@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import type { ExchangeDismissReason } from '@/features/exchanges/types';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
 import { buildMerchantStatements, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
+import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
@@ -61,6 +62,10 @@ export function LoansPanel({
   const [limit, setLimit] = useState(PAGE);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [showSettled, setShowSettled] = useState(false);
+  const [tab, setTab] = useState<'balances' | 'review'>('balances');
+  const merchantOptions = useLoanMerchantNames(state);
+  const tabChosen = useRef(false);
+  const pickTab = (next: 'balances' | 'review') => { tabChosen.current = true; setTab(next); };
 
   const statements = useMemo(() => buildMerchantStatements(state.usdtTransfers), [state.usdtTransfers]);
   const open = statements.filter((s) => Math.abs(s.net) > 1e-6);
@@ -130,7 +135,7 @@ export function LoansPanel({
 
   const undo = (x: UsdtTransfer) => {
     if (!window.confirm(t('mloanUndoConfirm'))) return;
-    void commit(undoLoanMove(state, x.id), 'mloanUndone');
+    void commit(undoLoanMove(state, x.id), 'mloanUndone').then((ok) => { if (ok) setTab('review'); });
   };
 
   const balanceText = (s: MerchantStatement | { net: number; name: string }) => {
@@ -222,14 +227,52 @@ export function LoansPanel({
   };
 
   const visiblePending = filteredPending.slice(0, limit);
+  // Records waiting for a decision come first until the merchant picks a tab.
+  useEffect(() => {
+    if (!tabChosen.current && filteredPending.length > 0) setTab('review');
+  }, [filteredPending.length]);
+  const owedToMeRows = statements.filter((x) => x.net < -1e-6);
+  const iOweRows = statements.filter((x) => x.net > 1e-6);
+  const owedToMeTotal = owedToMeRows.reduce((sum, x) => sum - x.net, 0);
+  const iOweTotal = iOweRows.reduce((sum, x) => sum + x.net, 0);
+  const owedToMeCount = owedToMeRows.length;
+  const iOweCount = iOweRows.length;
+  const connectedCount = merchantOptions.filter((m) => m.connected).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 800 }}>{t('mloanPanelTitle')}</div>
-        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('mloanPanelHint')}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>{t('loansHeaderTitle')}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('loansHeaderHint')}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button type="button" className="btn" onClick={() => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }] })}>＋ {t('loansRecordMovement')}</button>
+          <button type="button" className="btn secondary" onClick={() => pickTab('review')}>{t('loansReviewInbox')}{filteredPending.length ? ` (${filteredPending.length})` : ''}</button>
+        </div>
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+        {[
+          { k: 'loansOwedToYou', v: fmtTotal(owedToMeTotal), sub: `${owedToMeCount} ${t('loansMerchantsWord')}`, c: 'var(--good)' },
+          { k: 'loansYouOwe', v: fmtTotal(iOweTotal), sub: `${iOweCount} ${t('loansMerchantsWord')}`, c: 'var(--bad)' },
+          { k: 'loansOpenBalances', v: String(open.length), sub: '', c: 'var(--text)' },
+          { k: 'loansConnected', v: String(connectedCount), sub: '', c: 'var(--text)' },
+        ].map((c) => (
+          <div key={c.k} className="panel" style={{ padding: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t(c.k as TranslationKey)}</div>
+            <div className="mono" style={{ fontSize: 15, fontWeight: 800, color: c.c }}>{c.v}</div>
+            {c.sub && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{c.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button type="button" className={`rowBtn${tab === 'balances' ? ' active' : ''}`} style={tab === 'balances' ? { borderColor: 'var(--brand)', fontWeight: 800 } : undefined} onClick={() => pickTab('balances')}>{t('loansTabBalances')}</button>
+        <button type="button" className={`rowBtn${tab === 'review' ? ' active' : ''}`} style={tab === 'review' ? { borderColor: 'var(--brand)', fontWeight: 800 } : undefined} onClick={() => pickTab('review')}>{t('loansTabReview')}{filteredPending.length ? ` (${filteredPending.length})` : ''}</button>
+      </div>
+
+      {tab === 'review' && (<>
       <ExchangeReferenceSearch
         state={state}
         onMerchantLoan={(hit) => { const item = pending.find((p) => p.key === hit.key); if (item) openLoanFor([item]); }}
@@ -330,6 +373,9 @@ export function LoansPanel({
         </div>
       )}
 
+      </>)}
+
+      {tab === 'balances' && (<>
       {/* ── Merchants ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 800 }}>{t('mloanMerchants')}</div>
@@ -347,6 +393,8 @@ export function LoansPanel({
           {showSettled && settled.map(renderMerchant)}
         </>
       )}
+
+      </>)}
 
       {dialog && (
         <MerchantLoanDialog

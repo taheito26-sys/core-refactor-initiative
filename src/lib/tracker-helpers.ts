@@ -437,7 +437,7 @@ export interface Trade {
    * the order never uses stock; `feeQAR` is the partner's profit share and
    * `remitQAR` is what the partner still has to hand over to me.
    */
-  consignment?: { id: string; partnerSharePct: number; remitQAR: number; remittedQAR: number };
+  consignment?: { id: string; partnerSharePct: number; remitQAR: number; remittedQAR: number; role?: 'owner' | 'receiver'; settledBy?: string[] };
 }
 
 export interface Customer {
