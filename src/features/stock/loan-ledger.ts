@@ -372,3 +372,33 @@ export function buildMerchantStatements(transfers: UsdtTransfer[] | undefined): 
   }
   return out.sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.lastTs - a.lastTs);
 }
+
+/**
+ * Delete the whole history with a settled merchant: every movement is voided,
+ * so the statement and balance disappear. Because the loan was settled the
+ * stock effects cancel out. Unlike undo, exchange records stay resolved — they
+ * do not go back to "needs a decision". Orders that were linked to these
+ * movements are returned so the caller can keep them resolved too.
+ */
+export function deleteMerchantLoanHistory(
+  state: TrackerState,
+  merchantKey: string,
+  now = Date.now(),
+): { state: TrackerState; orderIds: string[] } {
+  const rows = (state.usdtTransfers || []).filter(x => !x.voided && transferCounterpartyKey(x) === merchantKey);
+  if (rows.length === 0) throw new TagError('not_found');
+  const net = rows.reduce((s, x) => {
+    const q = Number(x.amountUSDT);
+    return s + (x.kind === 'borrow_in' || x.kind === 'lend_return' ? q : -q);
+  }, 0);
+  if (Math.abs(net) > EPS) throw new TagError('bad_amount');
+  const ids = new Set(rows.map(x => x.id));
+  const orderIds = rows.flatMap(x => (x.source?.type === 'exchange_order' ? [x.source.orderId] : []));
+  return {
+    state: {
+      ...state,
+      usdtTransfers: (state.usdtTransfers || []).map(x => (ids.has(x.id) ? { ...x, voided: true, updatedAt: now } : x)),
+    },
+    orderIds: Array.from(new Set(orderIds)),
+  };
+}

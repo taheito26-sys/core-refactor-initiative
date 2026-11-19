@@ -190,3 +190,24 @@ describe('one USDT record, one classification', () => {
     expect(plan.after).toBe(2000);
   });
 });
+
+import { deleteMerchantLoanHistory } from '@/features/stock/loan-ledger';
+import { transferCounterpartyKey, type UsdtTransfer } from '@/lib/usdt-transfers';
+
+describe('deleting an old settled loan', () => {
+  const mk = (id: string, kind: UsdtTransfer['kind'], q: number, extra: Partial<UsdtTransfer> = {}): UsdtTransfer =>
+    ({ id, ts: 1, kind, amountUSDT: q, counterpartyName: 'Ahmed', createdAt: 1, ...extra });
+  const key = transferCounterpartyKey({ counterpartyName: 'Ahmed' });
+
+  it('voids every movement of a settled merchant and reports the linked orders', () => {
+    const state = { usdtTransfers: [mk('a', 'lend_out', 100, { source: { type: 'exchange_order', exchange: 'binance', orderId: 'o1', orderNumber: '1', side: 'sell' } }), mk('b', 'lend_return', 100)] } as never;
+    const r = deleteMerchantLoanHistory(state, key);
+    expect(r.state.usdtTransfers!.every((x) => x.voided)).toBe(true);
+    expect(r.orderIds).toEqual(['o1']);
+  });
+
+  it('refuses a loan that is still open', () => {
+    const state = { usdtTransfers: [mk('a', 'lend_out', 100)] } as never;
+    expect(() => deleteMerchantLoanHistory(state, key)).toThrow();
+  });
+});

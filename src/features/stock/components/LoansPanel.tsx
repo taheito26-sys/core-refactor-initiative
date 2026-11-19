@@ -23,7 +23,7 @@ import { EXCHANGE_LABELS, transferKindLabel } from '@/features/exchanges/types';
 import { dismissExchangeRecord, restoreExchangeRecord } from '@/features/exchanges/api';
 import type { ExchangeDismissReason } from '@/features/exchanges/types';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
-import { buildMerchantStatements, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
+import { buildMerchantStatements, deleteMerchantLoanHistory, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
@@ -171,6 +171,21 @@ export function LoansPanel({
     void commit(undoLoanMove(state, x.id), 'mloanUndone');
   };
 
+  /** Old, settled loans can be deleted outright; their exchange records stay resolved. */
+  const deleteHistory = async (s: MerchantStatement) => {
+    if (!window.confirm(t('loansDeleteConfirm').split('{name}').join(s.name))) return;
+    try {
+      const { state: next, orderIds } = deleteMerchantLoanHistory(state, s.key);
+      if (await commit({ state: next }, 'loansDeleted')) {
+        setDetailKey(null);
+        await Promise.allSettled(orderIds.map((id) => dismissExchangeRecord({ source: 'order', id }, 'deleted')));
+        await refreshRecords();
+      }
+    } catch {
+      toast.error(t('mloanSaveFailed'));
+    }
+  };
+
   const balanceLabel = (net: number) => {
     if (Math.abs(net) <= EPS) return t('mloanSettledShort');
     return net > 0 ? t('mloanYouOweShort') : t('mloanOwesYouShort');
@@ -310,6 +325,11 @@ export function LoansPanel({
             </div>
           </div>
           <div className="ld-dialog-foot">
+            {Math.abs(s.net) <= EPS && (
+              <button type="button" className="ld-btn ghost" disabled={busy} onClick={() => { void deleteHistory(s); }}>
+                {t('loansDeleteHistory')}
+              </button>
+            )}
             <button type="button" className="ld-btn secondary" onClick={() => setDetailKey(null)}>{t('close')}</button>
             <button
               type="button"
