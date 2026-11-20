@@ -11,6 +11,7 @@ import { isTransferActive, type UsdtTransfer } from '@/lib/usdt-transfers';
 import { ConsignmentError, findConsignment, isConsignment, listConsignments } from './consignment';
 import { loanSourceAmount, loanSourceDirection, type LoanSource } from './loan-ledger';
 import { tagExchangeOrder, tagExchangeTransfer, untagTransfer, type TagResult } from './usdt-tagging';
+import { voidTransferFees } from './transfer-fee';
 
 const EPS = 1e-6;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -89,5 +90,6 @@ export function undoConsignmentRecord(state: TrackerState, transferId: string, n
     const hasReturns = (state.usdtTransfers || []).some(x => isTransferActive(x) && x.consignmentId === row.id);
     if ((row.consignment.soldUSDT || 0) > EPS || (row.consignment.shortUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
   }
-  return untagTransfer(state, transferId, now);
+  const result = untagTransfer(state, transferId, now);
+  return { ...result, state: voidTransferFees(result.state, [transferId]) };
 }

@@ -8,9 +8,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { computeFIFO, totalStock, type TrackerState } from '@/lib/tracker-helpers';
+import { exportMerchantStatementPdf } from '@/features/stock/utils/merchantStatementExport';
 import { consignmentPayables, consignmentReceivables, findConsignment, sendConsignment } from '@/features/stock/consignment';
 
 vi.mock('@/lib/i18n', () => ({ useT: () => Object.assign((k: string) => k, { lang: 'en', isRTL: false }) }));
+vi.mock('@/features/stock/utils/merchantStatementExport', async (orig) => ({
+  ...(await orig<typeof import('@/features/stock/utils/merchantStatementExport')>()),
+  exportMerchantStatementPdf: vi.fn(async () => {}),
+}));
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
 const MERCHANTS = {
@@ -477,6 +482,71 @@ describe('buy outright, unaccounted USDT, choosing a batch, and age — both mer
     expect(screen.getByRole('status').textContent).toContain('consOverdue');
     expect(screen.getByRole('status').textContent).toContain('zack');
     expect(screen.getByText('consOpenDays')).toBeTruthy();
+  });
+});
+
+describe('fee, bulk confirm and statement — both merchants', () => {
+  beforeEach(() => {
+    db.cons = []; db.evs = []; db.seq = 0; records.transfers = [];
+    trackers.A = emptyState(50000); trackers.B = emptyState(0);
+    vi.clearAllMocks();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it('a network fee on a send leaves stock at cost as an expense, and goes with the send when it is cancelled', async () => {
+    openAs('A');
+    await screen.findByRole('option', { name: 'zack' });
+    fireEvent.change(screen.getByLabelText('consMerchant'), { target: { value: 'rel-1' } });
+    fireEvent.change(screen.getByPlaceholderText('consQty'), { target: { value: '10000' } });
+    fireEvent.change(screen.getByLabelText('consFee'), { target: { value: '2' } });
+    fireEvent.click(screen.getByText('consSend'));
+    await waitFor(() => expect(trackers.A.usdtTransfers).toHaveLength(1));
+    await waitFor(() => expect(trackers.A.trades).toHaveLength(1));
+    expect(trackers.A.trades[0]).toMatchObject({ amountUSDT: 2, sellPriceQAR: 0, usesStock: true, transferFeeOf: trackers.A.usdtTransfers![0].id });
+    expect(stockOf('A')).toBeCloseTo(50000 - 10000 - 2, 6);
+    expect(db.cons[0].qty).toBe(10000); // the other merchant is told about the 10,000, not the fee
+
+    fireEvent.click(await screen.findByText('consCancel'));
+    await waitFor(() => expect(db.cons[0].status).toBe('cancelled'));
+    await waitFor(() => expect(trackers.A.trades[0].voided).toBe(true));
+    await waitFor(() => expect(stockOf('A')).toBe(50000));
+  });
+
+  it('confirms several waiting reports in one go, and both sides book all of them', async () => {
+    await sendFromA('10000');
+    openAs('B');
+    await reportSale('500', '3.80');
+    await waitFor(() => expect(db.evs).toHaveLength(1));
+    await reportSale('300', '3.90');
+    await waitFor(() => expect(db.evs).toHaveLength(2));
+
+    openAs('A');
+    fireEvent.click(await screen.findByText('consConfirmAll'));
+    await waitFor(() => expect(db.evs.every((e) => e.status === 'confirmed')).toBe(true));
+    await waitFor(() => expect(trackers.A.trades).toHaveLength(2));
+    openAs('B');
+    await waitFor(() => expect(trackers.B.trades).toHaveLength(2));
+    expect(trackers.A.trades.map((x) => x.amountUSDT).sort()).toEqual([300, 500]);
+  });
+
+  it('a single waiting report has no "confirm all" button', async () => {
+    await sendFromA('1000');
+    openAs('B');
+    await reportSale('100', '3.80');
+    await waitFor(() => expect(db.evs).toHaveLength(1));
+    openAs('A');
+    await screen.findByText('consConfirm');
+    expect(screen.queryByText('consConfirmAll')).toBeNull();
+  });
+
+  it('the statement button exports one merchant\'s loans and consignments', async () => {
+    await sendFromA('10000');
+    openAs('A');
+    fireEvent.click(await screen.findByText('stmtPdf'));
+    await waitFor(() => expect(exportMerchantStatementPdf).toHaveBeenCalledTimes(1));
+    const data = (exportMerchantStatementPdf as unknown as { mock: { calls: [{ merchant: string; consignments: unknown[] }][] } }).mock.calls[0][0];
+    expect(data.merchant).toBe('zack');
+    expect(data.consignments).toHaveLength(1);
   });
 });
 void within;

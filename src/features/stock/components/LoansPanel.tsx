@@ -23,12 +23,14 @@ import { EXCHANGE_LABELS, transferKindLabel } from '@/features/exchanges/types';
 import { dismissExchangeRecord, restoreExchangeRecord } from '@/features/exchanges/api';
 import type { ExchangeDismissReason } from '@/features/exchanges/types';
 import type { PendingExchangeItem } from '@/features/exchanges/reconcile';
-import { buildMerchantStatements, deleteMerchantLoanHistory, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
+import { buildMerchantStatements, canEditLoanMove, deleteMerchantLoanHistory, pendingItemToLoanSource, undoLoanMove, type LoanSource, type MerchantStatement } from '../loan-ledger';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { LoanRequestsBar } from './LoanRequestsBar';
 import { ConsignRecordDialog } from './ConsignRecordDialog';
+import { EditLoanMoveDialog } from './EditLoanMoveDialog';
+import { buildMerchantStatementData, exportMerchantStatementPdf } from '../utils/merchantStatementExport';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import '@/styles/loans-desk.css';
@@ -98,6 +100,7 @@ export function LoansPanel({
   const merchants = useLoanMerchantNames(state);
   const [tab, setTab] = useState<'balances' | 'review'>('balances');
   const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string } | null>(null);
+  const [editing, setEditing] = useState<UsdtTransfer | null>(null);
   const [consign, setConsign] = useState<{ mode: 'send' | 'return'; source: LoanSource; counterparty: string | null } | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
@@ -174,6 +177,16 @@ export function LoansPanel({
       toast.success(t('mloanRestored'));
     } catch {
       toast.error(t('mloanSaveFailed'));
+    }
+  };
+
+  /** One page for the merchant: loans, consignments and what is still owed, saved as a PDF. */
+  const exportStatement = async (name: string) => {
+    try {
+      await exportMerchantStatementPdf(buildMerchantStatementData(state, name, { lang: t.lang === 'ar' ? 'ar' : 'en' }));
+    } catch (err) {
+      console.error('[loans] statement export failed:', err);
+      toast.error(t('stmtFailed'));
     }
   };
 
@@ -327,6 +340,11 @@ export function LoansPanel({
                               {balanceText({ net: l.balanceAfter, name: s.name })}
                             </div>
                           </div>
+                          {canEditLoanMove(l.transfer) && (
+                            <button type="button" className="ld-btn small ghost" disabled={busy} onClick={() => setEditing(l.transfer)}>
+                              {t('loansEditMove')}
+                            </button>
+                          )}
                           {undoable && (
                             <button type="button" className="ld-btn small ghost" disabled={busy} onClick={() => undo(l.transfer)}>
                               <RotateCcw /> {t('mloanUndo')}
@@ -341,6 +359,9 @@ export function LoansPanel({
             </div>
           </div>
           <div className="ld-dialog-foot">
+            <button type="button" className="ld-btn secondary" onClick={() => { void exportStatement(s.name); }}>
+              {t('stmtPdf')}
+            </button>
             {Math.abs(s.net) <= EPS && (
               <button type="button" className="ld-btn ghost" disabled={busy} onClick={() => { void deleteHistory(s); }}>
                 {t('loansDeleteHistory')}
@@ -609,6 +630,15 @@ export function LoansPanel({
       )}
 
       {selected && renderStatement(selected)}
+
+      {editing && (
+        <EditLoanMoveDialog
+          transfer={editing}
+          state={state}
+          onSave={(next) => commit({ state: next }, 'loansEdited')}
+          onClose={() => setEditing(null)}
+        />
+      )}
 
       {consign && (
         <ConsignRecordDialog

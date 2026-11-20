@@ -13,6 +13,7 @@ import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { useMerchantConsignmentActions } from '../hooks/useMerchantConsignments';
 import type { TagResult } from '../usdt-tagging';
+import { TransferFeeError, withTransferFee } from '../transfer-fee';
 
 const MANUAL = '__manual__';
 const num = (s: string) => Number(String(s).replace(/,/g, ''));
@@ -53,6 +54,7 @@ export function ConsignRecordDialog({
   const [share, setShare] = useState('50');
   const [amount, setAmount] = useState(String(available));
   const [pick, setPick] = useState(open[0]?.id || '');
+  const [fee, setFee] = useState('');
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
@@ -64,7 +66,9 @@ export function ConsignRecordDialog({
   }, [connected.length]);
 
   const fail = (err: unknown) => {
-    if (err instanceof ConsignmentError) {
+    if (err instanceof TransferFeeError) {
+      toast.error(t('consInsufficientStock'));
+    } else if (err instanceof ConsignmentError) {
       toast.error(t(err.code === 'insufficient_stock' ? 'consInsufficientStock' : err.code === 'exceeds_open' ? 'consBadQty' : 'mloanErrAmount'));
     } else {
       console.error('[consign-record]', err);
@@ -109,6 +113,12 @@ export function ConsignRecordDialog({
         }
         result = returnFromRecord(state, source, { consignmentId: picked.id, returnId: id, amount: qty, remoteEventId });
       }
+      const feeUSDT = num(fee) || 0;
+      if (mode === 'send' && feeUSDT > 0) {
+        const sentId = (result.state.usdtTransfers || []).find(x => x.consignment && !(state.usdtTransfers || []).some(o => o.id === x.id))?.id;
+        const sentRow = (result.state.usdtTransfers || []).find(x => x.id === sentId);
+        if (sentRow) result = { ...result, state: withTransferFee(result.state, { feeUSDT, feeOf: sentRow.id, counterpartyName: sentRow.counterpartyName, ts: sentRow.ts, id: uid() }) };
+      }
       if (await commit(result, 'consSaved')) onClose();
     } catch (err) {
       fail(err);
@@ -146,6 +156,11 @@ export function ConsignRecordDialog({
               <label className="flex flex-col gap-1 text-xs font-medium">
                 {t('consMyShare')}
                 <Input className="w-28" inputMode="decimal" value={share} onChange={e => setShare(e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium">
+                {t('consFee')}
+                <Input className="w-32" inputMode="decimal" aria-label={t('consFee')} value={fee} onChange={e => setFee(e.target.value)} />
+                <span className="font-normal text-muted-foreground">{t('consFeeHint')}</span>
               </label>
             </>
           ) : open.length === 0 ? (

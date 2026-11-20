@@ -30,6 +30,7 @@ import {
 import { TagError, type TagResult } from '../usdt-tagging';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useSharedLoanMoveActions } from '../hooks/useSharedLoanMoves';
+import { TransferFeeError, withTransferFee } from '../transfer-fee';
 import { useExchangeOrderLinks } from '@/features/exchanges/hooks/useExchangeOrderLinks';
 import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
@@ -109,6 +110,7 @@ export function MerchantLoanDialog({
   const [manualMode, setManualMode] = useState(false);
   const [amount, setAmount] = useState('');
   const [manualDir, setManualDir] = useState<'in' | 'out'>('out');
+  const [fee, setFee] = useState('');
   const [manualDate, setManualDate] = useState(nowInput());
 
   useEffect(() => {
@@ -120,6 +122,7 @@ export function MerchantLoanDialog({
     // read-only form impossible to save.
     setAmount(single && !manual ? String(loanSourceAmount(single)) : '');
     setManualDir('out');
+    setFee('');
     setManualDate(nowInput());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -253,6 +256,20 @@ export function MerchantLoanDialog({
     } catch (err) {
       toast.error(err instanceof TagError && err.code === 'merchant_linked' ? t('mloanErrLinked') : t('mloanErrAmount'));
       return;
+    }
+    // A network fee on money going out leaves stock at cost. Checked before anything is sent anywhere, so a fee the stock cannot cover leaves nothing half done.
+    const feeUSDT = num(fee, 0);
+    if (feeUSDT > 0 && moves.some((m) => loanSourceDirection(m.src) === 'out')) {
+      const known = new Set((state.usdtTransfers || []).map((x) => x.id));
+      const first = (acc.state.usdtTransfers || []).find((x) => !known.has(x.id));
+      if (first) {
+        try {
+          acc = { ...acc, state: withTransferFee(acc.state, { feeUSDT, feeOf: first.id, counterpartyName: finalName, ts: first.ts, id: uid() }) };
+        } catch (err) {
+          toast.error(err instanceof TransferFeeError ? t('consInsufficientStock') : t('mloanSaveFailed'));
+          return;
+        }
+      }
     }
     // A connected merchant gets the movement as a request they approve. It is
     // sent before anything is saved here, so a failure leaves nothing half done.
@@ -424,6 +441,13 @@ export function MerchantLoanDialog({
             )}
             {connected.length === 0 && <small>{t('loansNoConnected')}</small>}
           </div>
+
+          {moves.some((m) => loanSourceDirection(m.src) === 'out') && (
+            <div className="ld-field">
+              <label htmlFor="loan-fee">{t('consFee')}</label>
+              <input id="loan-fee" className="ld-input" inputMode="decimal" placeholder="USDT" title={t('consFeeHint')} value={fee} onChange={(e) => setFee(e.target.value)} />
+            </div>
+          )}
 
           {preview && (
             <div className="ld-preview">

@@ -52,8 +52,21 @@ export function LoanRequestsBar({
     }
   };
 
+  const approveAll = async () => {
+    let failed = 0;
+    for (const m of incoming) {
+      try { await respond.mutateAsync({ id: m.id, accept: true }); } catch { failed += 1; }
+    }
+    if (failed) toast.error(t('mloanSaveFailed')); else toast.success(t('loansApproved'));
+  };
+
   return (
     <section className="ld-requests" aria-label={t('loansRequests')} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {incoming.length > 1 && (
+        <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} disabled={respond.isPending} onClick={() => { void approveAll(); }}>
+          {t('loansApproveAll').split('{n}').join(String(incoming.length))}
+        </button>
+      )}
       {incoming.map((m) => (
         <div key={m.id} className="panel" style={{ padding: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--brand)' }}>
           <div style={{ flex: 1, minWidth: 180 }}>

@@ -19,6 +19,7 @@
  */
 
 import type { TrackerState } from '@/lib/tracker-helpers';
+import { voidTransferFees } from './transfer-fee';
 import {
   getUsdtTransferBalances,
   isTransferActive,
@@ -259,7 +260,7 @@ export function undoLoanMove(state: TrackerState, transferId: string, now = Date
     removeOrderLinks.push(...(r.removeOrderLinks || []));
     acc = r;
   }
-  return { state: acc.state, undismiss: Array.from(undismiss), removeOrderLinks };
+  return { state: voidTransferFees(acc.state, ids), undismiss: Array.from(undismiss), removeOrderLinks };
 }
 
 export interface StatementLine {
@@ -400,5 +401,38 @@ export function deleteMerchantLoanHistory(
       usdtTransfers: (state.usdtTransfers || []).map(x => (ids.has(x.id) ? { ...x, voided: true, updatedAt: now } : x)),
     },
     orderIds: Array.from(new Set(orderIds)),
+  };
+}
+
+/**
+ * A loan movement typed by hand with nobody else involved can be corrected in
+ * place. One that came from an exchange record (the record fixes its amount),
+ * that was shared with a connected merchant (they approved those numbers), that
+ * was split across a balance, or that is part of a consignment must be undone
+ * and recorded again, so the audit trail stays clear.
+ */
+export function canEditLoanMove(t: UsdtTransfer): boolean {
+  return !t.voided && !t.source && !t.remoteLoanId && !t.groupId && !t.consignment && !t.consignmentId && !t.remoteEventId;
+}
+
+/** Change the amount, date or note of a hand-typed loan movement. */
+export function editLoanMove(
+  state: TrackerState,
+  transferId: string,
+  patch: { amountUSDT?: number; ts?: number; note?: string },
+  now = Date.now(),
+): TrackerState {
+  const row = (state.usdtTransfers || []).find(x => x.id === transferId);
+  if (!row) throw new TagError('not_found');
+  if (!canEditLoanMove(row)) throw new TagError('already_tagged');
+  const amount = patch.amountUSDT === undefined ? Number(row.amountUSDT) : round6(patch.amountUSDT);
+  if (!(amount > 0)) throw new TagError('bad_amount');
+  const ts = patch.ts === undefined ? row.ts : patch.ts;
+  if (!Number.isFinite(ts) || ts > now + 60_000) throw new TagError('bad_amount');
+  return {
+    ...state,
+    usdtTransfers: (state.usdtTransfers || []).map(x => (x.id === transferId
+      ? { ...x, amountUSDT: amount, ts, note: patch.note === undefined ? x.note : patch.note, updatedAt: now }
+      : x)),
   };
 }

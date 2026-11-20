@@ -431,6 +431,8 @@ export interface Trade {
    * Its exchange links stay "imported" so the inbox never re-offers it.
    */
   usdtTransferKind?: 'borrow_repay' | 'lend_out';
+  /** Set when this order is the network/transfer fee paid to move USDT, tied to that move's id; it goes with the move. */
+  transferFeeOf?: string;
   /**
    * Set when this order is a sale another merchant made of USDT I sent them
    * to sell (a consignment). Stock was already taken out when it was sent, so

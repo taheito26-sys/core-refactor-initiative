@@ -264,3 +264,53 @@ describe('connected loan, both merchants', () => {
     expect(net('B', 'MOHAMED')).toBe(2500);
   });
 });
+
+describe('bulk approve and edit', () => {
+  beforeEach(() => {
+    db.moves = []; db.seq = 0;
+    trackers.A = emptyState(50000); trackers.B = emptyState(0);
+    commits.A = 0; commits.B = 0;
+  });
+
+  it('approves several waiting requests at once, and both ledgers agree', async () => {
+    openAs('A');
+    await recordMovement('out', '1000');
+    await waitFor(() => expect(db.moves).toHaveLength(1));
+    await recordMovement('out', '2500');
+    await waitFor(() => expect(db.moves).toHaveLength(2));
+
+    openAs('B');
+    fireEvent.click(await screen.findByText('loansApproveAll'));
+    await waitFor(() => expect(db.moves.every((m) => m.status === 'approved')).toBe(true));
+    await waitFor(() => expect(trackers.B.usdtTransfers!.filter((x) => !x.voided)).toHaveLength(2));
+    expect(net('B', 'MOHAMED')).toBe(3500);
+    openAs('A');
+    await waitFor(() => expect(screen.queryByText('loansWaiting')).toBeNull());
+    expect(net('A', 'zack')).toBe(-3500);
+  });
+
+  it('corrects the amount of a hand-typed loan, but offers no edit on one shared with a merchant', async () => {
+    // A loan to a merchant who is not connected, typed by hand.
+    trackers.A = {
+      ...emptyState(50000),
+      usdtTransfers: [{ id: 'm1', ts: Date.now() - 86_400_000, kind: 'lend_out', amountUSDT: 1000, counterpartyName: 'Ahmed', createdAt: 1 }],
+    } as TrackerState;
+    openAs('A');
+    fireEvent.click(await screen.findByText('Ahmed'));
+    fireEvent.click(await screen.findByText('loansEditMove'));
+    fireEvent.change(await screen.findByLabelText('mloanAmount'), { target: { value: '1500' } });
+    fireEvent.click(screen.getByText('consSave'));
+    await waitFor(() => expect(trackers.A.usdtTransfers![0].amountUSDT).toBe(1500));
+    expect(net('A', 'Ahmed')).toBe(-1500);
+
+    // One that was shared with zack cannot be edited in place.
+    trackers.A = {
+      ...emptyState(50000),
+      usdtTransfers: [{ id: 'm2', ts: Date.now() - 86_400_000, kind: 'lend_out', amountUSDT: 700, counterpartyName: 'zack', remoteLoanId: 'mv9', createdAt: 1 }],
+    } as TrackerState;
+    openAs('A');
+    fireEvent.click(await screen.findByText('zack'));
+    await screen.findByText('mloanUndo');
+    expect(screen.queryByText('loansEditMove')).toBeNull();
+  });
+});

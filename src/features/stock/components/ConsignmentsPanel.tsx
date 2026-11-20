@@ -30,6 +30,8 @@ import {
   type ConsignmentSummary,
 } from '../consignment';
 import { undoConsignmentRecord } from '../consignment-sources';
+import { TransferFeeError, withTransferFee } from '../transfer-fee';
+import { buildMerchantStatementData, exportMerchantStatementPdf } from '../utils/merchantStatementExport';
 import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import {
   useConnectedMerchants,
@@ -65,7 +67,7 @@ export function ConsignmentsPanel({
   const { data: remote, create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel, buyout, shortfall } = useMerchantConsignments();
   const { commit } = useBorrowLendCommit(applyStateAndCommit);
   const { data: merchants = [] } = useConnectedMerchants();
-  const [form, setForm] = useState({ merchant: '', name: '', qty: '', share: '50', fromBatch: '' });
+  const [form, setForm] = useState({ merchant: '', name: '', qty: '', share: '50', fromBatch: '', fee: '' });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [counterDraft, setCounterDraft] = useState<{ eventId: string; qty: string; price: string } | null>(null);
@@ -170,7 +172,9 @@ export function ConsignmentsPanel({
   }, [remote, state, me]);
 
   const fail = (err: unknown) => {
-    if (err instanceof ConsignmentError) {
+    if (err instanceof TransferFeeError) {
+      toast.error(t('consInsufficientStock'));
+    } else if (err instanceof ConsignmentError) {
       toast.error(err.code === 'price_below_cost' ? t('consBadPrice') : err.code === 'insufficient_stock' ? t('consInsufficientStock') : err.code === 'exceeds_open' ? t('consBadQty') : t('consFailed'));
     } else {
       console.error('[consignments]', err);
@@ -199,8 +203,13 @@ export function ConsignmentsPanel({
         const remoteId = await create.mutateAsync({ relationshipId: linked.relationshipId, qty, basePrice: base, senderSharePct: share, trackerRef: id, clientRequestId: id });
         next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked.relationshipId, qty, profitSharePct: share, remoteId, fromBatchId: form.fromBatch || undefined });
       }
+      const feeUSDT = num(form.fee) || 0;
+      if (feeUSDT > 0) {
+        const sentRow = (next.usdtTransfers || []).find(x => x.id === id);
+        next = withTransferFee(next, { feeUSDT, feeOf: id, counterpartyName: name, ts: sentRow?.ts ?? Date.now(), id: newId() });
+      }
       await applyStateAndCommit(next);
-      setForm({ merchant: '', name: '', qty: '', share: form.share, fromBatch: '' });
+      setForm({ merchant: '', name: '', qty: '', share: form.share, fromBatch: '', fee: '' });
       toast.success(t('consSaved'));
     } catch (err) { fail(err); } finally { setBusy(false); }
   };
@@ -324,6 +333,27 @@ export function ConsignmentsPanel({
   };
 
   const overdue = useMemo(() => overdueConsignments(state), [state]);
+
+  const exportStatement = async (name: string) => {
+    try {
+      await exportMerchantStatementPdf(buildMerchantStatementData(state, name, { lang: t.lang === 'ar' ? 'ar' : 'en' }));
+    } catch (err) {
+      console.error('[consignments] statement export failed:', err);
+      toast.error(t('stmtFailed'));
+    }
+  };
+
+  /** Every report the other merchant is waiting on me to answer, confirmed one after the other. */
+  const waitingForMe = remote.events.filter(e => e.status === 'pending' && e.reportedBy !== me);
+  const confirmAll = async () => {
+    setBusy(true);
+    let failed = 0;
+    for (const e of waitingForMe) {
+      try { await respond.mutateAsync({ eventId: e.id, accept: true }); } catch { failed += 1; }
+    }
+    setBusy(false);
+    if (failed) toast.error(t('consFailed')); else toast.success(t('consSaved'));
+  };
   const receivables = consignmentReceivables(state);
   const payables = consignmentPayables(state);
   const pendingFor = (id: string) => eventsOf(id).filter(e => e.status === 'pending');
@@ -417,7 +447,10 @@ export function ConsignmentsPanel({
       <div key={c.id} className="space-y-2 rounded-lg border p-3">
         <div className="flex items-center justify-between">
           <strong>{c.counterpartyName}</strong>
-          <span className="text-xs text-muted-foreground">{c.status === 'closed' ? t('consClosed') : `${t('consWithMerchant')}: ${fmtTotal(c.open)}`}</span>
+          <span className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={() => { void exportStatement(c.counterpartyName); }}>{t('stmtPdf')}</Button>
+            <span className="text-xs text-muted-foreground">{c.status === 'closed' ? t('consClosed') : `${t('consWithMerchant')}: ${fmtTotal(c.open)}`}</span>
+          </span>
         </div>
         {c.status === 'open' && (
           <span className={`inline-block w-fit rounded px-1.5 py-0.5 text-[11px] ${consignmentAgeDays(c) >= CONSIGNMENT_OVERDUE_DAYS ? 'bg-amber-500/15 text-amber-600' : 'bg-muted text-muted-foreground'}`}>
@@ -475,6 +508,13 @@ export function ConsignmentsPanel({
         <p className="text-xs text-muted-foreground">{t('consHint')}</p>
       </div>
 
+      {waitingForMe.length > 1 && (
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <span className="text-sm">{t('consPending')}</span>
+          <Button disabled={busy} onClick={() => { void confirmAll(); }}>{t('consConfirmAll').split('{n}').join(String(waitingForMe.length))}</Button>
+        </div>
+      )}
+
       {overdue.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
           {t('consOverdue').split('{n}').join(String(overdue.length)).split('{days}').join(String(CONSIGNMENT_OVERDUE_DAYS))}
@@ -525,6 +565,7 @@ export function ConsignmentsPanel({
               <option key={b.id} value={b.id}>{fmtPrice(b.buyPriceQAR)} · {fmtTotal(b.remainingUSDT)} USDT</option>
             ))}
           </select>
+          <Input className="w-32" inputMode="decimal" placeholder={t('consFee')} title={t('consFeeHint')} aria-label={t('consFee')} value={form.fee} onChange={e => setForm({ ...form, fee: e.target.value })} />
           <Button disabled={busy} onClick={send}>{t('consSend')}</Button>
         </div>
       </div>

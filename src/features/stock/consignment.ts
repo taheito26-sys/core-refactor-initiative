@@ -22,6 +22,7 @@
 
 import { deriveCashQAR, uid, type Batch, type CashLedgerEntry, type LedgerEntryType, type TrackerState, type Trade } from '@/lib/tracker-helpers';
 import { isTransferActive, type UsdtTransfer } from '@/lib/usdt-transfers';
+import { voidTransferFees } from './transfer-fee';
 
 const EPS = 1e-6;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -472,7 +473,7 @@ export function undoConsignmentTransfer(state: TrackerState, transferId: string,
     const hasReturns = (state.usdtTransfers || []).some(x => isTransferActive(x) && x.consignmentId === t.id);
     if ((t.consignment.soldUSDT || 0) > EPS || (t.consignment.shortUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
   }
-  return replaceTransfer(state, { ...t, voided: true, updatedAt: now });
+  return voidTransferFees(replaceTransfer(state, { ...t, voided: true, updatedAt: now }), [transferId]);
 }
 
 /**

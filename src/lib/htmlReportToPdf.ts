@@ -168,7 +168,8 @@ export async function renderHtmlReportToPdf(
   // Dynamically imported so jsPDF only loads into a device's bundle when a
   // PDF export is actually triggered.
   const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ orientation, unit: 'pt', format: 'a4' });
+  // Compressed: the page image is lossless pixels, and left uncompressed a two-page report came to ~17 MB.
+  const doc = new jsPDF({ orientation, unit: 'pt', format: 'a4', compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   // A page-edge margin — the image used to be stretched flush to every
@@ -228,13 +229,18 @@ export async function renderHtmlReportToPdf(
     const slicesPx = computePageSlices(renderHeight, budgetPx, unbreakableRanges);
 
     if (i > 0) doc.addPage();
-    let position = margin;
+    let offsetPx = 0;
     for (let s = 0; s < slicesPx.length; s++) {
-      if (s > 0) {
-        position -= slicesPx[s - 1] * ptPerPx;
-        doc.addPage();
-      }
-      doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+      if (s > 0) doc.addPage();
+      doc.addImage(imgData, 'PNG', margin, margin - offsetPx * ptPerPx, imgWidth, imgHeight);
+      // The whole page image is drawn on every page, so whatever lies past this slice's end (the next
+      // slice, which starts on the next page) and whatever precedes its start (the previous slice) would
+      // show again at the page's edges. Mask both so a page break is a clean break, not a repeat.
+      const sliceBottom = margin + slicesPx[s] * ptPerPx;
+      doc.setFillColor(255, 255, 255);
+      if (sliceBottom < pageHeight) doc.rect(0, sliceBottom, pageWidth, pageHeight - sliceBottom, 'F');
+      if (s > 0) doc.rect(0, 0, pageWidth, margin, 'F');
+      offsetPx += slicesPx[s];
     }
   }
 
