@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { computeFIFO, totalStock, type TrackerState } from '@/lib/tracker-helpers';
-import { findConsignment } from '@/features/stock/consignment';
+import { consignmentPayables, consignmentReceivables, findConsignment, sendConsignment } from '@/features/stock/consignment';
 
 vi.mock('@/lib/i18n', () => ({ useT: () => Object.assign((k: string) => k, { lang: 'en', isRTL: false }) }));
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
@@ -24,10 +24,10 @@ const uidOf = (s: Side) => MERCHANTS[s].uid;
 vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ user: { id: me().uid } }) }));
 
 type Cons = { id: string; sender: Side; receiver: Side; qty: number; base: number; share: number; ref: string | null; status: 'open' | 'closed' | 'cancelled'; pendingShare: number | null; pendingBy: Side | null };
-type Ev = { id: string; cid: string; kind: 'sale' | 'return' | 'purchase' | 'settlement'; qty: number; price: number | null; by: Side; status: 'pending' | 'confirmed' | 'rejected'; share: number; replaces: string | null; seq: number };
+type Ev = { id: string; cid: string; kind: 'sale' | 'return' | 'purchase' | 'settlement' | 'shortfall'; buyout?: boolean; qty: number; price: number | null; by: Side; status: 'pending' | 'confirmed' | 'rejected'; share: number; replaces: string | null; seq: number };
 const db = { cons: [] as Cons[], evs: [] as Ev[], seq: 0 };
 const other = (s: Side): Side => (s === 'A' ? 'B' : 'A');
-const openQty = (c: Cons) => c.qty - db.evs.filter((e) => e.cid === c.id && (e.kind === 'sale' || e.kind === 'return') && e.status !== 'rejected').reduce((s, e) => s + e.qty, 0);
+const openQty = (c: Cons) => c.qty - db.evs.filter((e) => e.cid === c.id && (e.kind === 'sale' || e.kind === 'return' || e.kind === 'shortfall') && e.status !== 'rejected').reduce((s, e) => s + e.qty, 0);
 
 function rpc(fn: string, a: Record<string, unknown>): { data?: unknown; error?: Error } {
   const mine = current.side;
@@ -36,8 +36,8 @@ function rpc(fn: string, a: Record<string, unknown>): { data?: unknown; error?: 
   const report = (cid: string, kind: Ev['kind'], qty: number, price: number | null): { data?: unknown; error?: Error } => {
     const c = cons(cid);
     if (!c || (c.sender !== mine && c.receiver !== mine)) return fail('consignment not found');
-    if (c.status !== 'open' && (kind === 'sale' || kind === 'return')) return fail('consignment is closed');
-    if ((kind === 'sale' || kind === 'return') && qty > openQty(c) + 1e-6) return fail('quantity exceeds what is still with the receiver');
+    if (c.status !== 'open' && (kind === 'sale' || kind === 'return' || kind === 'shortfall')) return fail('consignment is closed');
+    if ((kind === 'sale' || kind === 'return' || kind === 'shortfall') && qty > openQty(c) + 1e-6) return fail('quantity exceeds what is still with the receiver');
     if (kind === 'sale' && !(price && price > 0)) return fail('sale price must be positive');
     const e: Ev = { id: `ev${(db.seq += 1)}`, cid, kind, qty, price: kind === 'return' ? null : price, by: mine, status: 'pending', share: c.share, replaces: null, seq: db.seq };
     db.evs.push(e);
@@ -49,6 +49,12 @@ function rpc(fn: string, a: Record<string, unknown>): { data?: unknown; error?: 
       db.cons.push(c);
       return { data: c.id };
     }
+    case 'report_consignment_buyout': {
+      const r = report(a.p_consignment_id as string, 'sale', Number(a.p_qty), Number(a.p_price));
+      if (!r.error) { const e = db.evs.find((x) => x.id === r.data)!; e.buyout = true; e.share = 100; }
+      return r;
+    }
+    case 'report_consignment_shortfall': return report(a.p_consignment_id as string, 'shortfall', Number(a.p_qty), null);
     case 'report_consignment_event_v2': return report(a.p_consignment_id as string, a.p_kind as Ev['kind'], Number(a.p_qty), a.p_price == null ? null : Number(a.p_price));
     case 'respond_consignment_event': {
       const e = db.evs.find((x) => x.id === a.p_event_id);
@@ -56,7 +62,7 @@ function rpc(fn: string, a: Record<string, unknown>): { data?: unknown; error?: 
       if (e.status !== 'pending') return fail('already answered');
       e.status = a.p_accept ? 'confirmed' : 'rejected';
       const c = cons(e.cid)!;
-      if (a.p_accept && openQty(c) <= 1e-6 && !db.evs.some((x) => x.cid === c.id && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'return'))) c.status = 'closed';
+      if (a.p_accept && openQty(c) <= 1e-6 && !db.evs.some((x) => x.cid === c.id && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'return' || x.kind === 'shortfall'))) c.status = 'closed';
       return {};
     }
     case 'counter_consignment_event': {
@@ -130,7 +136,7 @@ function select(table: string) {
       return db.evs.map((e) => ({
         id: e.id, consignment_id: e.cid, kind: e.kind, qty_usdt: e.qty, price_qar: e.price, amount_qar: null, funded_from_sale_id: null,
         reported_by: uidOf(e.by), status: e.status, created_at: `2026-11-20T00:00:${String(10 + e.seq).padStart(2, '0')}Z`,
-        sender_share_pct: e.share, replaces_event_id: e.replaces,
+        sender_share_pct: e.share, replaces_event_id: e.replaces, is_buyout: !!e.buyout,
       }));
     }
     return [];
@@ -370,6 +376,107 @@ describe('consignment corrections, both merchants', () => {
       expect(exchangeApi.undismissTransfer).toHaveBeenCalledWith('t-in');
       expect(stockOf('A')).toBe(40000);
     });
+  });
+});
+
+describe('buy outright, unaccounted USDT, choosing a batch, and age — both merchants', () => {
+  beforeEach(() => {
+    db.cons = []; db.evs = []; db.seq = 0; records.transfers = [];
+    trackers.A = emptyState(50000); trackers.B = emptyState(0);
+    vi.clearAllMocks();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it('zack keeps 4,000 at 3.75: all the profit is Mohamed\'s, zack gets the stock and owes the price', async () => {
+    await sendFromA('10000');
+    openAs('B');
+    fireEvent.click(await screen.findByText('consBuyout'));
+    const qtyBoxes = screen.getAllByPlaceholderText('consQty');
+    fireEvent.change(qtyBoxes[qtyBoxes.length - 1], { target: { value: '4000' } });
+    fireEvent.change(screen.getByPlaceholderText('consPrice'), { target: { value: '3.75' } });
+    fireEvent.click(screen.getByText('consSendBtn'));
+    await waitFor(() => expect(db.evs).toHaveLength(1));
+    expect(db.evs[0]).toMatchObject({ kind: 'sale', buyout: true, share: 100, qty: 4000, price: 3.75 });
+
+    openAs('A');
+    fireEvent.click(await screen.findByText('consConfirm'));
+    await waitFor(() => expect(db.evs[0].status).toBe('confirmed'));
+    await waitFor(() => expect(trackers.A.trades).toHaveLength(1));
+    expect(trackers.A.trades[0].consignment).toMatchObject({ buyout: true });
+    expect(netOf('A', db.evs[0].id)).toBeCloseTo(4000 * 0.05, 6); // 200 — no share given away
+    expect(consignmentReceivables(trackers.A)).toEqual([{ counterpartyName: 'zack', owedQAR: 15000 }]);
+
+    openAs('B');
+    await waitFor(() => expect(trackers.B.batches).toHaveLength(1));
+    expect(trackers.B.batches[0]).toMatchObject({ initialUSDT: 4000, buyPriceQAR: 3.75 });
+    expect(stockOf('B')).toBe(4000);
+    expect(consignmentPayables(trackers.B)).toEqual([{ counterpartyName: 'MOHAMED', owedQAR: 15000 }]);
+    expect(trackers.B.trades.filter((x) => !x.voided)).toHaveLength(0); // not a sale for zack
+  });
+
+  it('100 never came back: both agree, it is booked as a loss at cost, and the consignment closes', async () => {
+    await sendFromA('1000');
+    openAs('B');
+    fireEvent.click(await screen.findByText('consReportReturn'));
+    let qtyBoxes = screen.getAllByPlaceholderText('consQty');
+    fireEvent.change(qtyBoxes[qtyBoxes.length - 1], { target: { value: '900' } });
+    fireEvent.click(screen.getByText('consSendBtn'));
+    await waitFor(() => expect(db.evs).toHaveLength(1));
+    openAs('A');
+    fireEvent.click(await screen.findByText('consConfirm'));
+    await waitFor(() => expect(db.evs[0].status).toBe('confirmed'));
+    await waitFor(() => expect(trackers.A.usdtTransfers).toHaveLength(2));
+
+    // Mohamed reports the missing 100; zack confirms.
+    openAs('A');
+    fireEvent.click(await screen.findByText('consShortfall'));
+    qtyBoxes = screen.getAllByPlaceholderText('consQty');
+    fireEvent.change(qtyBoxes[qtyBoxes.length - 1], { target: { value: '100' } });
+    fireEvent.click(screen.getByText('consSendBtn'));
+    await waitFor(() => expect(db.evs).toHaveLength(2));
+    expect(db.evs[1]).toMatchObject({ kind: 'shortfall', qty: 100, by: 'A', status: 'pending' });
+    openAs('B');
+    fireEvent.click(await screen.findByText('consConfirm'));
+    await waitFor(() => expect(db.evs[1].status).toBe('confirmed'));
+    expect(db.cons[0].status).toBe('closed');
+
+    openAs('A');
+    await waitFor(() => expect(trackers.A.trades).toHaveLength(1));
+    expect(trackers.A.trades[0].consignment).toMatchObject({ shortfall: true });
+    expect(netOf('A', db.evs[1].id)).toBeCloseTo(-370, 6); // 100 × 3.70 lost
+    expect(findConsignment(trackers.A, trackers.A.usdtTransfers![0].id)).toMatchObject({ short: 100, returned: 900, open: 0, status: 'closed' });
+    expect(consignmentReceivables(trackers.A)).toEqual([]); // nothing owed for a loss
+  });
+
+  it('sending from a chosen batch takes that cost out and tells the other merchant the same cost', async () => {
+    trackers.A = {
+      ...emptyState(0),
+      batches: [
+        { id: 'old', ts: 1, source: 'S', note: '', buyPriceQAR: 3.70, initialUSDT: 6000, revisions: [] },
+        { id: 'new', ts: 2, source: 'S', note: '', buyPriceQAR: 3.72, initialUSDT: 6000, revisions: [] },
+      ],
+    } as TrackerState;
+    openAs('A');
+    await screen.findByRole('option', { name: 'zack' });
+    fireEvent.change(screen.getByLabelText('consMerchant'), { target: { value: 'rel-1' } });
+    fireEvent.change(screen.getByPlaceholderText('consQty'), { target: { value: '5000' } });
+    fireEvent.change(screen.getByLabelText('consTakeFrom'), { target: { value: 'new' } });
+    fireEvent.click(screen.getByText('consSend'));
+    await waitFor(() => expect(db.cons).toHaveLength(1));
+    expect(db.cons[0].base).toBeCloseTo(3.72, 9);
+    await waitFor(() => expect(trackers.A.usdtTransfers).toHaveLength(1));
+    const left = computeFIFO(trackers.A.batches, trackers.A.trades, trackers.A.usdtTransfers).batches;
+    expect(left.find((b) => b.id === 'old')!.remainingUSDT).toBe(6000); // the older, cheaper batch is untouched
+    expect(left.find((b) => b.id === 'new')!.remainingUSDT).toBe(1000);
+  });
+
+  it('flags a consignment that has been out too long, with how many days', () => {
+    current.side = 'A';
+    trackers.A = sendConsignment(emptyState(50000), { id: 'old', counterpartyName: 'zack', qty: 1000 }, Date.now() - 10 * 86_400_000);
+    openAs('A');
+    expect(screen.getByRole('status').textContent).toContain('consOverdue');
+    expect(screen.getByRole('status').textContent).toContain('zack');
+    expect(screen.getByText('consOpenDays')).toBeTruthy();
   });
 });
 void within;

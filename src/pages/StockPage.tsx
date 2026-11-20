@@ -156,7 +156,15 @@ export default function StockPage() {
   // The Loans section contains two separate merchant workflows. Loans is the
   // default; selling USDT for another merchant opens behind its own back bar
   // instead of stacking two unrelated tools on one screen.
-  const [merchantWorkspace, setMerchantWorkspace] = useState<'loans' | 'consignments'>('loans');
+  const [merchantWorkspace, setMerchantWorkspace] = useState<'loans' | 'consignments'>(
+    (routerLocation.state as { merchantWorkspace?: string } | null)?.merchantWorkspace === 'consignments' ? 'consignments' : 'loans',
+  );
+  // A notification tapped while this page is already open still has to land on the right workspace.
+  useEffect(() => {
+    const st = routerLocation.state as { stockSection?: string; merchantWorkspace?: string } | null;
+    if (st?.stockSection === 'transfers') setActiveStockSection('transfers');
+    if (st?.merchantWorkspace === 'consignments' || st?.merchantWorkspace === 'loans') setMerchantWorkspace(st.merchantWorkspace);
+  }, [routerLocation.state]);
   useEffect(() => {
     if (activeStockSection !== 'transfers') return;
     window.scrollTo({ top: 0, behavior: 'auto' });

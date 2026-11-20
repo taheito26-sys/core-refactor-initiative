@@ -87,7 +87,7 @@ export function undoConsignmentRecord(state: TrackerState, transferId: string, n
   if (!row) throw new ConsignmentError('not_found');
   if (isConsignment(row)) {
     const hasReturns = (state.usdtTransfers || []).some(x => isTransferActive(x) && x.consignmentId === row.id);
-    if ((row.consignment.soldUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
+    if ((row.consignment.soldUSDT || 0) > EPS || (row.consignment.shortUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
   }
   return untagTransfer(state, transferId, now);
 }

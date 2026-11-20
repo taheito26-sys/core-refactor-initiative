@@ -27,7 +27,7 @@ export interface RemoteConsignment {
 export interface RemoteConsignmentEvent {
   id: string;
   consignmentId: string;
-  kind: 'sale' | 'return' | 'purchase' | 'settlement';
+  kind: 'sale' | 'return' | 'purchase' | 'settlement' | 'shortfall';
   qty: number;
   priceQAR: number | null;
   /** Cash amount for a settlement event; null for sale/return/purchase. */
@@ -41,6 +41,8 @@ export interface RemoteConsignmentEvent {
   senderSharePct: number | null;
   /** Set when this report is a counter-proposal to an earlier one. */
   replacesEventId: string | null;
+  /** A sale where the merchant keeps the USDT at the price: the whole profit is the sender's. */
+  isBuyout: boolean;
 }
 
 export interface ConnectedMerchant {
@@ -116,6 +118,7 @@ export function useMerchantConsignments() {
         createdAt: e.created_at,
         senderSharePct: e.sender_share_pct == null ? null : Number(e.sender_share_pct),
         replacesEventId: e.replaces_event_id ?? null,
+        isBuyout: !!e.is_buyout,
       }));
       return { consignments, events };
     },
@@ -219,6 +222,26 @@ export function useMerchantConsignmentActions() {
     },
     onSuccess: invalidate,
   });
+  const buyout = useMutation({
+    mutationFn: async (a: { consignmentId: string; qty: number; price: number; clientRequestId?: string }): Promise<string> => {
+      const { data, error } = await db.rpc('report_consignment_buyout', {
+        p_consignment_id: a.consignmentId, p_qty: a.qty, p_price: a.price, p_client_request_id: a.clientRequestId ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: invalidate,
+  });
+  const shortfall = useMutation({
+    mutationFn: async (a: { consignmentId: string; qty: number; clientRequestId?: string }): Promise<string> => {
+      const { data, error } = await db.rpc('report_consignment_shortfall', {
+        p_consignment_id: a.consignmentId, p_qty: a.qty, p_client_request_id: a.clientRequestId ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: invalidate,
+  });
   const cancel = useMutation({
     mutationFn: async (consignmentId: string) => {
       const { error } = await db.rpc('cancel_merchant_consignment', { p_consignment_id: consignmentId });
@@ -227,7 +250,7 @@ export function useMerchantConsignmentActions() {
     onSuccess: invalidate,
   });
 
-  return { create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel };
+  return { create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel, buyout, shortfall };
 }
 
 /** Active merchant connections, so a consignment can be sent to a linked merchant. */

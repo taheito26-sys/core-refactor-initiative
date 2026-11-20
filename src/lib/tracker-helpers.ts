@@ -454,6 +454,10 @@ export interface Trade {
     purchaseIds?: string[];
     /** Receiver-side account that received the sale proceeds, reused for purchases and settlement. */
     cashAccountId?: string;
+    /** The merchant kept the USDT at an agreed price: all of the profit is the owner's and no sale is shared. */
+    buyout?: boolean;
+    /** USDT that never came back and both merchants agreed is unaccounted for; booked as a loss at cost. */
+    shortfall?: boolean;
   };
 }
 
@@ -1038,6 +1042,11 @@ function runFIFO(
         remainingQty: Math.max(0, remaining.get(b.id) || 0),
         buyPrice: b.buyPriceQAR,
       }));
+      // A move that names a batch takes from it first, then the rest by FIFO.
+      if (x.fromBatchId) {
+        const preferred = layers.findIndex(l => l.id === x.fromBatchId && l.remainingQty > 0);
+        if (preferred > 0) layers.unshift(...layers.splice(preferred, 1));
+      }
       const fifo = consumeFifo(layers, Number(x.amountUSDT));
       for (const row of fifo.consumed) {
         const rem = remaining.get(row.layerId) || 0;

@@ -41,7 +41,9 @@ export interface ConsignmentSummary {
   sent: number;
   sold: number;
   returned: number;
-  /** Still with the merchant: sent − sold − returned. */
+  /** USDT both merchants agreed never came back and was not sold. */
+  short: number;
+  /** Still with the merchant: sent − sold − returned − unaccounted. */
   open: number;
   profitSharePct: number;
   status: 'open' | 'closed';
@@ -70,7 +72,8 @@ export function listConsignments(state: Pick<TrackerState, 'usdtTransfers'>): Co
     );
     const sent = Number(c.amountUSDT);
     const sold = round6(Number(c.consignment.soldUSDT) || 0);
-    const open = Math.max(0, round6(sent - sold - returned));
+    const short = round6(Number(c.consignment.shortUSDT) || 0);
+    const open = Math.max(0, round6(sent - sold - returned - short));
     const status: ConsignmentSummary['status'] = open <= EPS ? 'closed' : 'open';
     return {
       id: c.id,
@@ -80,6 +83,7 @@ export function listConsignments(state: Pick<TrackerState, 'usdtTransfers'>): Co
       sent,
       sold,
       returned,
+      short,
       open,
       profitSharePct: c.consignment.profitSharePct,
       status,
@@ -225,7 +229,7 @@ function appendCashEntry(
 /** USDT leaves stock for another merchant to sell. */
 export function sendConsignment(
   state: TrackerState,
-  input: { id: string; counterpartyName: string; relationshipId?: string; qty: number; profitSharePct?: number; note?: string; remoteId?: string },
+  input: { id: string; counterpartyName: string; relationshipId?: string; qty: number; profitSharePct?: number; note?: string; remoteId?: string; /** Take from this batch first instead of the oldest. */ fromBatchId?: string },
   now = Date.now(),
 ): TrackerState {
   const qty = round6(input.qty);
@@ -241,6 +245,7 @@ export function sendConsignment(
     counterpartyName: input.counterpartyName.trim(),
     relationshipId: input.relationshipId,
     note: input.note,
+    ...(input.fromBatchId ? { fromBatchId: input.fromBatchId } : {}),
     consignment: { profitSharePct: pct, soldUSDT: 0, remoteId: input.remoteId },
     createdAt: now,
     updatedAt: now,
@@ -255,7 +260,7 @@ export function sendConsignment(
  */
 export function recordConsignmentSale(
   state: TrackerState,
-  input: { consignmentId: string; saleId: string; qty: number; priceQAR: number; unitCostQAR: number; ts?: number; /** The ratio the sale was reported under, when it differs from today's. */ profitSharePct?: number },
+  input: { consignmentId: string; saleId: string; qty: number; priceQAR: number; unitCostQAR: number; ts?: number; /** The ratio the sale was reported under, when it differs from today's. */ profitSharePct?: number; /** The merchant kept the USDT at this price: the whole profit is the owner's. */ buyout?: boolean },
   now = Date.now(),
 ): TrackerState {
   if ((state.trades || []).some(t => t.id === input.saleId)) return state;
@@ -289,6 +294,7 @@ export function recordConsignmentSale(
       remittedQAR: 0,
       purchaseOffsetQAR: 0,
       role: 'owner',
+      ...(input.buyout ? { buyout: true } : {}),
     },
   };
   const next = replaceTransfer(state, {
@@ -434,7 +440,7 @@ export function consignmentReceivables(state: Pick<TrackerState, 'trades'>): Con
 export function consignmentPayables(state: Pick<TrackerState, 'trades'>): ConsignmentPayable[] {
   const map = new Map<string, number>();
   for (const t of state.trades || []) {
-    if (t.voided || !t.consignment || t.consignment.role !== 'receiver') continue;
+    if ((t.voided && !t.consignment?.buyout) || !t.consignment || t.consignment.role !== 'receiver') continue;
     const name = t.exchangeCounterparty || '';
     map.set(name, (map.get(name) || 0) + consignmentPayableNetDue(t));
   }
@@ -464,7 +470,7 @@ export function undoConsignmentTransfer(state: TrackerState, transferId: string,
   if (!t) throw new ConsignmentError('not_found');
   if (isConsignment(t)) {
     const hasReturns = (state.usdtTransfers || []).some(x => isTransferActive(x) && x.consignmentId === t.id);
-    if ((t.consignment.soldUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
+    if ((t.consignment.soldUSDT || 0) > EPS || (t.consignment.shortUSDT || 0) > EPS || hasReturns) throw new ConsignmentError('exceeds_open');
   }
   return replaceTransfer(state, { ...t, voided: true, updatedAt: now });
 }
@@ -593,7 +599,7 @@ export function recordReceivedConsignmentSettlement(
   state: TrackerState,
   input: { saleId: string; amountQAR: number; settlementId?: string; cashAccountId?: string; ts?: number },
 ): TrackerState {
-  const sale = (state.trades || []).find(t => t.id === input.saleId && t.consignment?.role === 'receiver' && !t.voided);
+  const sale = (state.trades || []).find(t => t.id === input.saleId && t.consignment?.role === 'receiver' && (!t.voided || t.consignment.buyout));
   if (!sale) throw new ConsignmentError('not_found');
   const due = consignmentPayableNetDue(sale);
   const amount = round2(Math.min(input.amountQAR, due));
@@ -632,4 +638,90 @@ export function setConsignmentShare(state: TrackerState, consignmentId: string, 
   if (!isConsignment(transfer)) throw new ConsignmentError('not_found');
   if (transfer.consignment.profitSharePct === profitSharePct) return state;
   return replaceTransfer(state, { ...transfer, consignment: { ...transfer.consignment, profitSharePct }, updatedAt: now });
+}
+
+/**
+ * USDT both merchants agree never came back and was not sold. It stops
+ * counting as "with the merchant" and is booked as a loss at the cost it left
+ * stock at: an order with no revenue, so it shows in profit and loss as what it
+ * is. Booked once per report id.
+ */
+export function recordConsignmentShortfall(
+  state: TrackerState,
+  input: { consignmentId: string; shortId: string; qty: number; unitCostQAR: number; ts?: number },
+  now = Date.now(),
+): TrackerState {
+  if ((state.trades || []).some(t => t.id === input.shortId)) return state;
+  const c = findConsignment(state, input.consignmentId);
+  const transfer = (state.usdtTransfers || []).find(t => t.id === input.consignmentId);
+  if (!c || !isConsignment(transfer)) throw new ConsignmentError('not_found');
+  const qty = round6(input.qty);
+  if (!(qty > 0) || !(input.unitCostQAR > 0)) throw new ConsignmentError('bad_amount');
+  if (qty > c.open + EPS) throw new ConsignmentError('exceeds_open');
+  const trade: Trade = {
+    id: input.shortId,
+    ts: input.ts ?? now,
+    inputMode: 'USDT',
+    amountUSDT: qty,
+    sellPriceQAR: 0,
+    feeQAR: 0,
+    note: 'Consignment shortfall',
+    voided: false,
+    usesStock: false,
+    revisions: [],
+    customerId: '',
+    buyerType: 'merchant',
+    manualBuyPrice: input.unitCostQAR,
+    exchangeCounterparty: c.counterpartyName,
+    consignment: { id: c.id, partnerSharePct: 100 - c.profitSharePct, remitQAR: 0, remittedQAR: 0, purchaseOffsetQAR: 0, role: 'owner', shortfall: true },
+  };
+  const next = replaceTransfer(state, {
+    ...transfer,
+    consignment: { ...transfer.consignment, shortUSDT: round6((transfer.consignment.shortUSDT || 0) + qty) },
+    updatedAt: now,
+  });
+  return { ...next, trades: [...(next.trades || []), trade] };
+}
+
+/**
+ * Receiver's side of a buy-outright: the merchant kept the USDT at the agreed
+ * price. It becomes their stock at that price, and what they owe the owner is
+ * carried on a hidden record (it is not a sale, so it never reaches orders or
+ * profit) that settlement pays down like any other payable. Booked once.
+ */
+export function recordReceivedConsignmentBuyout(
+  state: TrackerState,
+  input: { buyoutId: string; consignmentId: string; counterpartyName: string; qty: number; priceQAR: number; cashAccountId?: string; ts?: number },
+  now = Date.now(),
+): TrackerState {
+  if ((state.trades || []).some(t => t.id === input.buyoutId)) return state;
+  const qty = round6(input.qty);
+  if (!(qty > 0) || !(input.priceQAR > 0)) throw new ConsignmentError('bad_amount');
+  const costQAR = round2(qty * input.priceQAR);
+  const accountId = activeCashAccountId(state, input.cashAccountId);
+  if (!accountId) throw new ConsignmentError('not_found');
+  const batch: Batch = {
+    id: input.buyoutId, ts: input.ts ?? now, source: input.counterpartyName, note: 'Consignment bought outright',
+    buyPriceQAR: input.priceQAR, initialUSDT: qty, revisions: [],
+  };
+  const carrier: Trade = {
+    id: input.buyoutId, ts: input.ts ?? now, inputMode: 'USDT', amountUSDT: qty, sellPriceQAR: input.priceQAR, feeQAR: 0,
+    note: 'Consignment bought outright (payable)', voided: true, usesStock: false, revisions: [], customerId: '',
+    buyerType: 'merchant', manualBuyPrice: input.priceQAR, exchangeCounterparty: input.counterpartyName,
+    consignment: { id: input.consignmentId, partnerSharePct: 0, remitQAR: costQAR, remittedQAR: 0, purchaseOffsetQAR: 0, payableQAR: costQAR, role: 'receiver', purchaseIds: [], cashAccountId: accountId, buyout: true },
+  };
+  return { ...state, batches: [...(state.batches || []), batch], trades: [...(state.trades || []), carrier] };
+}
+
+/** How long a consignment has been open, in whole days. */
+export function consignmentAgeDays(c: Pick<ConsignmentSummary, 'ts'>, now = Date.now()): number {
+  return Math.max(0, Math.floor((now - c.ts) / 86_400_000));
+}
+
+/** A consignment still holding USDT for longer than this is flagged. */
+export const CONSIGNMENT_OVERDUE_DAYS = 7;
+
+/** Open consignments past the overdue threshold, oldest first. */
+export function overdueConsignments(state: Pick<TrackerState, 'usdtTransfers'>, now = Date.now(), days = CONSIGNMENT_OVERDUE_DAYS): ConsignmentSummary[] {
+  return listConsignments(state).filter(c => c.status === 'open' && consignmentAgeDays(c, now) >= days).sort((a, b) => a.ts - b.ts);
 }

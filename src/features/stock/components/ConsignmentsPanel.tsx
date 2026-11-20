@@ -10,12 +10,17 @@ import {
   consignmentPayables,
   consignmentReceivables,
   consignmentSaleNetDue,
+  consignmentAgeDays,
   findConsignment,
   listConsignments,
+  overdueConsignments,
+  CONSIGNMENT_OVERDUE_DAYS,
   recordConsignmentPurchase,
   recordConsignmentReturn,
   recordConsignmentSale,
   recordConsignmentSettlement,
+  recordConsignmentShortfall,
+  recordReceivedConsignmentBuyout,
   recordReceivedConsignmentSale,
   recordReceivedConsignmentPurchase,
   recordReceivedConsignmentSettlement,
@@ -33,7 +38,7 @@ import {
   type RemoteConsignmentEvent,
 } from '../hooks/useMerchantConsignments';
 
-type Kind = 'sale' | 'return' | 'purchase';
+type Kind = 'sale' | 'return' | 'purchase' | 'buyout' | 'shortfall';
 interface Draft { target: string; kind: Kind; qty: string; price: string; fundedFromSaleId: string }
 
 const MANUAL_MERCHANT = '__manual__';
@@ -57,10 +62,10 @@ export function ConsignmentsPanel({
   const t = useT();
   const { user } = useAuth();
   const me = user?.id;
-  const { data: remote, create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel } = useMerchantConsignments();
+  const { data: remote, create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel, buyout, shortfall } = useMerchantConsignments();
   const { commit } = useBorrowLendCommit(applyStateAndCommit);
   const { data: merchants = [] } = useConnectedMerchants();
-  const [form, setForm] = useState({ merchant: '', name: '', qty: '', share: '50' });
+  const [form, setForm] = useState({ merchant: '', name: '', qty: '', share: '50', fromBatch: '' });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [counterDraft, setCounterDraft] = useState<{ eventId: string; qty: string; price: string } | null>(null);
@@ -126,13 +131,16 @@ export function ConsignmentsPanel({
         if (e.status !== 'confirmed') continue;
         try {
           if (mineLocal && findConsignment(next, mineLocal)) {
-            if (e.kind === 'sale') next = recordConsignmentSale(next, { consignmentId: mineLocal, saleId: e.id, qty: e.qty, priceQAR: e.priceQAR || 0, unitCostQAR: c.basePriceQAR, profitSharePct: e.senderSharePct ?? undefined }, Date.parse(e.createdAt));
+            if (e.kind === 'sale') next = recordConsignmentSale(next, { consignmentId: mineLocal, saleId: e.id, qty: e.qty, priceQAR: e.priceQAR || 0, unitCostQAR: c.basePriceQAR, profitSharePct: e.senderSharePct ?? undefined, buyout: e.isBuyout || undefined }, Date.parse(e.createdAt));
+            else if (e.kind === 'shortfall') next = recordConsignmentShortfall(next, { consignmentId: mineLocal, shortId: e.id, qty: e.qty, unitCostQAR: c.basePriceQAR }, Date.parse(e.createdAt));
             else if (e.kind === 'return') {
               // A return made from an exchange record was already booked when it was reported.
               if (!(next.usdtTransfers || []).some(x => x.remoteEventId === e.id)) next = recordConsignmentReturn(next, { consignmentId: mineLocal, returnId: e.id, qty: e.qty }, Date.parse(e.createdAt));
             }
             else if (e.kind === 'purchase') next = recordConsignmentPurchase(next, { batchId: e.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, fundedFromSaleId: e.fundedFromSaleId || undefined });
             else if (e.kind === 'settlement' && e.fundedFromSaleId) next = recordConsignmentSettlement(next, { saleId: e.fundedFromSaleId, amountQAR: e.amountQAR || 0, settlementId: e.id });
+          } else if (!c.iAmSender && e.kind === 'sale' && e.isBuyout) {
+            next = recordReceivedConsignmentBuyout(next, { buyoutId: e.id, consignmentId: c.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0 }, Date.parse(e.createdAt));
           } else if (!c.iAmSender && e.kind === 'sale') {
             next = recordReceivedConsignmentSale(next, { saleId: e.id, consignmentId: c.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, basePriceQAR: c.basePriceQAR, senderSharePct: e.senderSharePct ?? c.senderSharePct });
           } else if (!c.iAmSender && e.kind === 'purchase' && e.fundedFromSaleId) {
@@ -179,7 +187,7 @@ export function ConsignmentsPanel({
     setBusy(true);
     try {
       const id = newId();
-      let next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked?.relationshipId, qty, profitSharePct: share });
+      let next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked?.relationshipId, qty, profitSharePct: share, fromBatchId: form.fromBatch || undefined });
       const { transferCalc } = computeFIFO(next.batches, next.trades, next.usdtTransfers);
       const calc = transferCalc.get(id);
       if (!calc || calc.shortfallQty > 1e-6 || calc.coveredQty < qty - 1e-6 || !(calc.unitCost && calc.unitCost > 0)) {
@@ -189,10 +197,10 @@ export function ConsignmentsPanel({
       if (linked) {
         // The agreed cost is what this USDT left stock at, so both sides split the same profit.
         const remoteId = await create.mutateAsync({ relationshipId: linked.relationshipId, qty, basePrice: base, senderSharePct: share, trackerRef: id, clientRequestId: id });
-        next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked.relationshipId, qty, profitSharePct: share, remoteId });
+        next = sendConsignment(state, { id, counterpartyName: name, relationshipId: linked.relationshipId, qty, profitSharePct: share, remoteId, fromBatchId: form.fromBatch || undefined });
       }
       await applyStateAndCommit(next);
-      setForm({ merchant: '', name: '', qty: '', share: form.share });
+      setForm({ merchant: '', name: '', qty: '', share: form.share, fromBatch: '' });
       toast.success(t('consSaved'));
     } catch (err) { fail(err); } finally { setBusy(false); }
   };
@@ -208,18 +216,26 @@ export function ConsignmentsPanel({
       const remoteRow = theirs || (mine && remoteByRef.get(mine.id));
       if (remoteRow) {
         // Linked merchant: it is booked on both sides once the other one confirms.
-        await report.mutateAsync({
-          consignmentId: remoteRow.id,
-          kind: draft.kind,
-          qty,
-          price: draft.kind === 'return' ? undefined : price,
-          fundedFromSaleId: draft.kind === 'purchase' ? draft.fundedFromSaleId || undefined : undefined,
-          clientRequestId: newId(),
-        });
+        if (draft.kind === 'buyout') {
+          await buyout.mutateAsync({ consignmentId: remoteRow.id, qty, price, clientRequestId: newId() });
+        } else if (draft.kind === 'shortfall') {
+          await shortfall.mutateAsync({ consignmentId: remoteRow.id, qty, clientRequestId: newId() });
+        } else {
+          await report.mutateAsync({
+            consignmentId: remoteRow.id,
+            kind: draft.kind,
+            qty,
+            price: draft.kind === 'return' ? undefined : price,
+            fundedFromSaleId: draft.kind === 'purchase' ? draft.fundedFromSaleId || undefined : undefined,
+            clientRequestId: newId(),
+          });
+        }
       } else if (mine) {
         const id = newId();
         let next = state;
         if (draft.kind === 'sale') next = recordConsignmentSale(state, { consignmentId: mine.id, saleId: id, qty, priceQAR: price, unitCostQAR: unitCostOf(mine.id) });
+        else if (draft.kind === 'buyout') next = recordConsignmentSale(state, { consignmentId: mine.id, saleId: id, qty, priceQAR: price, unitCostQAR: unitCostOf(mine.id), profitSharePct: 100, buyout: true });
+        else if (draft.kind === 'shortfall') next = recordConsignmentShortfall(state, { consignmentId: mine.id, shortId: id, qty, unitCostQAR: unitCostOf(mine.id) });
         else if (draft.kind === 'return') next = recordConsignmentReturn(state, { consignmentId: mine.id, returnId: id, qty });
         else next = recordConsignmentPurchase(state, { batchId: id, counterpartyName: mine.counterpartyName, qty, priceQAR: price, fundedFromSaleId: draft.fundedFromSaleId || undefined });
         await applyStateAndCommit(next);
@@ -307,13 +323,14 @@ export function ConsignmentsPanel({
     } catch (err) { fail(err); } finally { setBusy(false); }
   };
 
+  const overdue = useMemo(() => overdueConsignments(state), [state]);
   const receivables = consignmentReceivables(state);
   const payables = consignmentPayables(state);
   const pendingFor = (id: string) => eventsOf(id).filter(e => e.status === 'pending');
   const renderEvents = (id: string) => pendingFor(id).map(e => (
     <div key={e.id} className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs">
       <span>
-        {t(e.kind === 'sale' ? 'consReportSold' : e.kind === 'return' ? 'consReportReturn' : e.kind === 'settlement' ? 'consSettlement' : 'consReportBuy')}
+        {t(e.kind === 'sale' ? (e.isBuyout ? 'consBuyout' : 'consReportSold') : e.kind === 'return' ? 'consReportReturn' : e.kind === 'shortfall' ? 'consShortfall' : e.kind === 'settlement' ? 'consSettlement' : 'consReportBuy')}
         {e.kind === 'settlement' ? `: ${fmtTotal(e.amountQAR || 0)}` : `: ${fmtTotal(e.qty)}${e.priceQAR ? ` @ ${fmtPrice(e.priceQAR)}` : ''}`}
       </span>
       {e.reportedBy === me
@@ -343,10 +360,10 @@ export function ConsignmentsPanel({
 
   const actions = (target: string, disabled: boolean) => (
     <div className="flex flex-wrap gap-2">
-      {(['sale', 'return', 'purchase'] as Kind[]).map(k => (
+      {(['sale', 'return', 'purchase', 'buyout', 'shortfall'] as Kind[]).map(k => (
         <Button key={k} size="sm" variant="outline" disabled={disabled}
           onClick={() => startDraft(target, k)}>
-          {t(k === 'sale' ? 'consReportSold' : k === 'return' ? 'consReportReturn' : 'consReportBuy')}
+          {t(k === 'sale' ? 'consReportSold' : k === 'return' ? 'consReportReturn' : k === 'buyout' ? 'consBuyout' : k === 'shortfall' ? 'consShortfall' : 'consReportBuy')}
         </Button>
       ))}
     </div>
@@ -360,6 +377,8 @@ export function ConsignmentsPanel({
     const draftCost = localRow ? unitCostOf(localRow.id) : remoteRow?.basePriceQAR || 0;
     return (
     <div className="space-y-2 rounded-md border p-2">
+      {draft.kind === 'buyout' && <p className="text-xs text-muted-foreground">{t('consBuyoutHint')}</p>}
+      {draft.kind === 'shortfall' && <p className="text-xs text-muted-foreground">{t('consShortfallHint')}</p>}
       {draft.kind === 'purchase' && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">{t('consNewPurchaseHint')}</p>
@@ -379,7 +398,7 @@ export function ConsignmentsPanel({
       )}
       <div className="flex flex-wrap gap-2">
         <Input className="w-36" inputMode="decimal" placeholder={t('consQty')} value={draft.qty} onChange={e => setDraft({ ...draft, qty: e.target.value })} />
-        {draft.kind !== 'return' && (
+        {draft.kind !== 'return' && draft.kind !== 'shortfall' && (
           <Input className="w-40" inputMode="decimal" placeholder={t('consPrice')} value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} />
         )}
         <Button size="sm" disabled={busy} onClick={submitDraft}>{t('consSendBtn')}</Button>
@@ -400,10 +419,16 @@ export function ConsignmentsPanel({
           <strong>{c.counterpartyName}</strong>
           <span className="text-xs text-muted-foreground">{c.status === 'closed' ? t('consClosed') : `${t('consWithMerchant')}: ${fmtTotal(c.open)}`}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        {c.status === 'open' && (
+          <span className={`inline-block w-fit rounded px-1.5 py-0.5 text-[11px] ${consignmentAgeDays(c) >= CONSIGNMENT_OVERDUE_DAYS ? 'bg-amber-500/15 text-amber-600' : 'bg-muted text-muted-foreground'}`}>
+            {t('consOpenDays').split('{n}').join(String(consignmentAgeDays(c)))}
+          </span>
+        )}
+        <div className="grid grid-cols-4 gap-2 text-sm">
           <div>{t('consSent')}<br /><b>{fmtTotal(c.sent)}</b></div>
           <div>{t('consSold')}<br /><b>{fmtTotal(c.sold)}</b></div>
           <div>{t('consReturned')}<br /><b>{fmtTotal(c.returned)}</b></div>
+          <div>{t('consUnaccounted')}<br /><b>{fmtTotal(c.short)}</b></div>
         </div>
         <div className="text-xs text-muted-foreground">{t('consBase')}: {fmtPrice(r?.basePriceQAR ?? unitCostOf(c.id))} · {t('consMyShare')}: {c.profitSharePct}</div>
         {r && ratioControls(r)}
@@ -450,6 +475,13 @@ export function ConsignmentsPanel({
         <p className="text-xs text-muted-foreground">{t('consHint')}</p>
       </div>
 
+      {overdue.length > 0 && (
+        <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+          {t('consOverdue').split('{n}').join(String(overdue.length)).split('{days}').join(String(CONSIGNMENT_OVERDUE_DAYS))}
+          {': '}{overdue.map(c => `${c.counterpartyName} ${fmtTotal(c.open)} (${consignmentAgeDays(c)}d)`).join(' · ')}
+        </div>
+      )}
+
       <div className="space-y-2 rounded-lg border p-3">
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium">
@@ -482,6 +514,17 @@ export function ConsignmentsPanel({
         <div className="flex flex-wrap items-end gap-2">
           <Input className="w-32" inputMode="decimal" placeholder={t('consQty')} value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} />
           <Input className="w-28" inputMode="decimal" placeholder={t('consMyShare')} value={form.share} onChange={e => setForm({ ...form, share: e.target.value })} />
+          <select
+            className="h-10 rounded-md border bg-background px-2 text-sm"
+            aria-label={t('consTakeFrom')}
+            value={form.fromBatch}
+            onChange={e => setForm({ ...form, fromBatch: e.target.value })}
+          >
+            <option value="">{t('consOldestFirst')}</option>
+            {derived.batches.filter(b => b.remainingUSDT > 0 && !b.isTransfer).map(b => (
+              <option key={b.id} value={b.id}>{fmtPrice(b.buyPriceQAR)} · {fmtTotal(b.remainingUSDT)} USDT</option>
+            ))}
+          </select>
           <Button disabled={busy} onClick={send}>{t('consSend')}</Button>
         </div>
       </div>

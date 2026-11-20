@@ -40,6 +40,8 @@ const KIND_META: Record<UsdtTransferKind, { icon: string; label: TranslationKey 
   lend_return: { icon: '↪', label: 'mloanKindReturned' },
 };
 
+/** An open balance with no movement for this long is flagged on its card. */
+const LOAN_STALE_DAYS = 14;
 const PAGE = 25;
 const EPS = 1e-6;
 
@@ -243,6 +245,11 @@ export function LoansPanel({
           </span>
           <span className="ld-merchant-meta">
             {s.lines.length} {t('loansMovements')} · {t('loansLastActivity')} {fmtDate(s.lastTs)}
+            {Math.abs(s.net) > EPS && Date.now() - s.lastTs >= LOAN_STALE_DAYS * 86_400_000 && (
+              <span style={{ color: 'var(--warn)', fontWeight: 700 }}>
+                {' · '}{t('loansStale').split('{n}').join(String(Math.floor((Date.now() - s.lastTs) / 86_400_000)))}
+              </span>
+            )}
           </span>
         </span>
         <span className={`ld-merchant-balance ${isOwed ? 'owed' : 'owe'}`}>

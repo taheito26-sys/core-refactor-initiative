@@ -93,6 +93,7 @@ export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
   if (row.entity_type === 'customer_connection' || row.category === 'customer') return 'invite';
   if (row.entity_type === 'capital_ledger' || row.entity_type === 'cash_custody') return 'deal';
   if (row.entity_type === 'otc_trade') return 'deal';
+  if (row.entity_type === 'merchant_loan_move' || row.entity_type === 'merchant_consignment') return 'deal';
   return 'system';
 }
 

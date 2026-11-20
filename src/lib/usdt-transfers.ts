@@ -87,7 +87,9 @@ export interface UsdtTransfer {
    * for me (a consignment). `soldUSDT` is the part already reported sold; it
    * is no longer owed back as USDT, and no return is ever matched against it.
    */
-  consignment?: { profitSharePct: number; soldUSDT: number; remoteId?: string };
+  consignment?: { profitSharePct: number; soldUSDT: number; remoteId?: string; /** Unaccounted USDT both merchants agreed on. */ shortUSDT?: number };
+  /** An outgoing move takes from this batch first, then the rest by FIFO — for choosing which cost leaves stock. */
+  fromBatchId?: string;
   /** Set on a lend_return that settles an open consignment (an unsold return). */
   consignmentId?: string;
   /** The shared report this return was made from, so its confirmation is not booked a second time. */
@@ -188,7 +190,7 @@ export function getUsdtTransferBalances(transfers: UsdtTransfer[] | undefined): 
     const qty = Number(t.amountUSDT);
     if (t.kind === 'borrow_in') row.owedToThem += qty;
     else if (t.kind === 'borrow_repay') row.owedToThem -= qty;
-    else if (t.kind === 'lend_out') row.owedToMe += qty - Math.min(qty, Number(t.consignment?.soldUSDT) || 0);
+    else if (t.kind === 'lend_out') row.owedToMe += qty - Math.min(qty, (Number(t.consignment?.soldUSDT) || 0) + (Number(t.consignment?.shortUSDT) || 0));
     else if (t.kind === 'lend_return') row.owedToMe -= qty;
     if (t.ts >= row.lastTs) {
       row.lastTs = t.ts;
@@ -286,7 +288,7 @@ export function resolveTransferInPrices(
     const outById = new Map(outs.map(o => [o.id, o]));
     const capacity = new Map(outs.map(o => [
       o.id,
-      Math.max(0, Number(o.amountUSDT) - Math.min(Number(o.amountUSDT), Number(o.consignment?.soldUSDT) || 0)),
+      Math.max(0, Number(o.amountUSDT) - Math.min(Number(o.amountUSDT), (Number(o.consignment?.soldUSDT) || 0) + (Number(o.consignment?.shortUSDT) || 0))),
     ]));
 
     // A consignment return carries the id of the lend_out it settles. Match

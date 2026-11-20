@@ -135,4 +135,15 @@ describe('cash custody notification destinations', () => {
     expect(buildNotificationNavigationTarget(notification)).toEqual({ pathname: '/trading/cash', search: '?tab=accounts&focusCustodyId=custody-1' });
     expect(isNotificationDeepLinkable(notification)).toBe(true);
   });
+
+  it('opens the Loans workspace for a loan request and the Consignments workspace for a consignment report', () => {
+    const row = (entity_type: string) => mapNotificationRowToModel({
+      id: `n-${entity_type}`, title: 'x', body: null, category: 'message', read_at: null, created_at: new Date().toISOString(), entity_type, entity_id: 'abc',
+    });
+    const loan = row('merchant_loan_move');
+    const cons = row('merchant_consignment');
+    expect(isNotificationDeepLinkable(loan)).toBe(true);
+    expect(buildNotificationNavigationTarget(loan)).toEqual({ pathname: '/trading/stock', state: { stockSection: 'transfers', merchantWorkspace: 'loans' } });
+    expect(buildNotificationNavigationTarget(cons)).toEqual({ pathname: '/trading/stock', state: { stockSection: 'transfers', merchantWorkspace: 'consignments' } });
+  });
 });
