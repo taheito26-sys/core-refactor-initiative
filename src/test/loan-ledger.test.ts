@@ -165,7 +165,7 @@ describe('canonicalMerchantName', () => {
   });
 });
 
-import { loanSourceConflict, planLoanMove } from '@/features/stock/loan-ledger';
+import { loanSourceConflict } from '@/features/stock/loan-ledger';
 
 describe('one USDT record, one classification', () => {
   const transfer = { type: 'exchange_transfer', transfer: { id: 't1', amount: 10000, direction: 'out' } } as never;
