@@ -23,6 +23,7 @@
 import { deriveCashQAR, uid, type Batch, type CashLedgerEntry, type LedgerEntryType, type TrackerState, type Trade } from '@/lib/tracker-helpers';
 import { isTransferActive, type UsdtTransfer } from '@/lib/usdt-transfers';
 import { voidTransferFees } from './transfer-fee';
+import { counterpartyCustomer } from './consignment-buyer';
 
 const EPS = 1e-6;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -273,6 +274,7 @@ export function recordConsignmentSale(
   if (qty > c.open + EPS) throw new ConsignmentError('exceeds_open');
   const sharePct = input.profitSharePct ?? c.profitSharePct;
   const split = splitConsignmentSale(qty, input.priceQAR, input.unitCostQAR, sharePct);
+  const buyer = counterpartyCustomer(state, c.counterpartyName);
   const trade: Trade = {
     id: input.saleId,
     ts: input.ts ?? now,
@@ -284,7 +286,7 @@ export function recordConsignmentSale(
     voided: false,
     usesStock: false,
     revisions: [],
-    customerId: '',
+    customerId: buyer.customerId,
     buyerType: 'merchant',
     manualBuyPrice: input.unitCostQAR,
     exchangeCounterparty: c.counterpartyName,
@@ -298,7 +300,7 @@ export function recordConsignmentSale(
       ...(input.buyout ? { buyout: true } : {}),
     },
   };
-  const next = replaceTransfer(state, {
+  const next = replaceTransfer(buyer.state, {
     ...transfer,
     consignment: { ...transfer.consignment, soldUSDT: round6((transfer.consignment.soldUSDT || 0) + qty) },
     updatedAt: now,
@@ -502,6 +504,7 @@ export function recordReceivedConsignmentSale(
   const split = splitConsignmentSale(input.qty, input.priceQAR, input.basePriceQAR, input.senderSharePct);
   const accountId = activeCashAccountId(state, input.cashAccountId);
   if (!accountId) throw new ConsignmentError('not_found');
+  const buyer = counterpartyCustomer(state, input.counterpartyName);
   const trade: Trade = {
     id: input.saleId,
     ts: input.ts ?? now,
@@ -513,7 +516,7 @@ export function recordReceivedConsignmentSale(
     voided: false,
     usesStock: false,
     revisions: [],
-    customerId: '',
+    customerId: buyer.customerId,
     buyerType: 'merchant',
     manualBuyPrice: input.basePriceQAR,
     exchangeCounterparty: input.counterpartyName,
@@ -529,7 +532,7 @@ export function recordReceivedConsignmentSale(
       cashAccountId: accountId,
     },
   };
-  const next: TrackerState = { ...state, trades: [...(state.trades || []), trade] };
+  const next: TrackerState = { ...buyer.state, trades: [...(buyer.state.trades || []), trade] };
   return appendCashEntry(next, {
     entryId: `cons-sale-cash-${input.saleId}`,
     accountId,
@@ -659,6 +662,7 @@ export function recordConsignmentShortfall(
   const qty = round6(input.qty);
   if (!(qty > 0) || !(input.unitCostQAR > 0)) throw new ConsignmentError('bad_amount');
   if (qty > c.open + EPS) throw new ConsignmentError('exceeds_open');
+  const buyer = counterpartyCustomer(state, c.counterpartyName);
   const trade: Trade = {
     id: input.shortId,
     ts: input.ts ?? now,
@@ -670,13 +674,13 @@ export function recordConsignmentShortfall(
     voided: false,
     usesStock: false,
     revisions: [],
-    customerId: '',
+    customerId: buyer.customerId,
     buyerType: 'merchant',
     manualBuyPrice: input.unitCostQAR,
     exchangeCounterparty: c.counterpartyName,
     consignment: { id: c.id, partnerSharePct: 100 - c.profitSharePct, remitQAR: 0, remittedQAR: 0, purchaseOffsetQAR: 0, role: 'owner', shortfall: true },
   };
-  const next = replaceTransfer(state, {
+  const next = replaceTransfer(buyer.state, {
     ...transfer,
     consignment: { ...transfer.consignment, shortUSDT: round6((transfer.consignment.shortUSDT || 0) + qty) },
     updatedAt: now,

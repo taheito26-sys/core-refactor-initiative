@@ -7,6 +7,7 @@
 // it belongs to so undoing the move takes the fee with it.
 
 import { computeFIFO, type TrackerState, type Trade } from '@/lib/tracker-helpers';
+import { counterpartyCustomer } from './consignment-buyer';
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -25,6 +26,7 @@ export function withTransferFee(
   if (!(fee > 0)) return state;
   if (!Number.isFinite(fee)) throw new TransferFeeError('bad_amount');
   if ((state.trades || []).some(t => t.id === input.id)) return state;
+  const buyer = counterpartyCustomer(state, input.counterpartyName);
   const trade: Trade = {
     id: input.id,
     // One millisecond after the move, so the fee is always costed after it.
@@ -37,12 +39,12 @@ export function withTransferFee(
     voided: false,
     usesStock: true,
     revisions: [],
-    customerId: '',
+    customerId: buyer.customerId,
     buyerType: 'merchant',
     exchangeCounterparty: input.counterpartyName,
     transferFeeOf: input.feeOf,
   };
-  const next: TrackerState = { ...state, trades: [...(state.trades || []), trade] };
+  const next: TrackerState = { ...buyer.state, trades: [...(buyer.state.trades || []), trade] };
   const calc = computeFIFO(next.batches, next.trades, next.usdtTransfers).tradeCalc.get(input.id);
   if (!calc || calc.shortfallQty > 1e-6) throw new TransferFeeError('insufficient_stock');
   return next;
