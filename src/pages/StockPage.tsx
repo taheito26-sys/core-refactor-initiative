@@ -4,7 +4,7 @@ import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-id
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -153,6 +153,7 @@ export default function StockPage() {
   // buttons still reference. Suppliers moved here from the old combined CRM
   // page; customers moved to the Orders page instead.
   const routerLocation = useLocation();
+  const navigate = useNavigate();
   const [activeStockSection, setActiveStockSection] = useState<'batches' | 'suppliers' | 'transfers'>(
     (routerLocation.state as { stockSection?: string } | null)?.stockSection === 'transfers' ? 'transfers' : 'batches',
   );
@@ -2112,7 +2113,7 @@ export default function StockPage() {
               )}
               {activeAccounts.length === 0 && (
                 <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
-                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => setStockTab('cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => navigate('/trading/cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
                 </div>
               )}
 
@@ -2346,7 +2347,7 @@ export default function StockPage() {
                   )}
                   {activeAccounts.length === 0 && (
                     <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
-                      💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => { setAddBatchSheetOpen(false); setStockTab('cash'); }} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                      💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => { setAddBatchSheetOpen(false); navigate('/trading/cash'); }} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
                     </div>
                   )}
                   <div className="formActions">

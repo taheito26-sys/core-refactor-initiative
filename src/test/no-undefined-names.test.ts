@@ -6,7 +6,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 /** Known, older undeclared names that are not part of any current change. Remove an entry when it is fixed. */
-const KNOWN = [/'setStockTab'/];
+const KNOWN: RegExp[] = [];
 
 describe('source has no undeclared names', () => {
   it('finds no "Cannot find name" in the app', () => {
