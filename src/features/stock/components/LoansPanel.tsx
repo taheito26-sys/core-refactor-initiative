@@ -28,6 +28,7 @@ import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { LoanRequestsBar } from './LoanRequestsBar';
+import { ConsignRecordDialog } from './ConsignRecordDialog';
 import { MerchantLoanDialog } from './MerchantLoanDialog';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
 import '@/styles/loans-desk.css';
@@ -95,6 +96,7 @@ export function LoansPanel({
   const merchants = useLoanMerchantNames(state);
   const [tab, setTab] = useState<'balances' | 'review'>('balances');
   const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string } | null>(null);
+  const [consign, setConsign] = useState<{ mode: 'send' | 'return'; source: LoanSource; counterparty: string | null } | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
 
@@ -127,6 +129,12 @@ export function LoansPanel({
     () => new Set(merchants.filter((m) => m.connected).map((m) => m.name.toLowerCase())),
     [merchants],
   );
+
+  /** An exchange record that is really USDT sent to sell, or the unsold part of one coming back. */
+  const openConsignFor = (item: PendingExchangeItem) => {
+    const source = pendingItemToLoanSource(item);
+    if (source) setConsign({ mode: item.direction === 'out' ? 'send' : 'return', source, counterparty: item.counterparty });
+  };
 
   const openLoanFor = (items: PendingExchangeItem[]) => {
     const sources = items.map(pendingItemToLoanSource).filter((s): s is LoanSource => !!s);
@@ -522,6 +530,9 @@ export function LoansPanel({
                       <button type="button" className="ld-btn primary small" onClick={() => openLoanFor([item])}>
                         <Handshake /> {t('mloanItsLoan')}
                       </button>
+                      <button type="button" className="ld-btn small ghost" onClick={() => openConsignFor(item)}>
+                        {item.direction === 'out' ? t('consItsConsignment') : t('consItsReturn')}
+                      </button>
                       <button
                         type="button"
                         className="ld-btn small ghost"
@@ -591,6 +602,17 @@ export function LoansPanel({
       )}
 
       {selected && renderStatement(selected)}
+
+      {consign && (
+        <ConsignRecordDialog
+          mode={consign.mode}
+          source={consign.source}
+          counterparty={consign.counterparty}
+          state={state}
+          applyStateAndCommit={applyStateAndCommit}
+          onClose={() => setConsign(null)}
+        />
+      )}
 
       {dialog && (
         <MerchantLoanDialog

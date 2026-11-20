@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -19,6 +19,9 @@ export interface RemoteConsignment {
   /** The other merchant's display name, from my point of view. */
   counterpartyName: string;
   iAmSender: boolean;
+  /** A profit ratio change waiting for an answer, and who proposed it. */
+  pendingSharePct: number | null;
+  pendingShareBy: string | null;
 }
 
 export interface RemoteConsignmentEvent {
@@ -34,6 +37,10 @@ export interface RemoteConsignmentEvent {
   reportedBy: string;
   status: 'pending' | 'confirmed' | 'rejected';
   createdAt: string;
+  /** The sender's share when this was reported; a later ratio change never re-prices it. */
+  senderSharePct: number | null;
+  /** Set when this report is a counter-proposal to an earlier one. */
+  replacesEventId: string | null;
 }
 
 export interface ConnectedMerchant {
@@ -46,10 +53,14 @@ export interface ConnectedMerchant {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+let channelSeq = 0;
+
 export function useMerchantConsignments() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const uid = user?.id;
+  // One channel per mounted copy: a repeated name returns the already-subscribed channel and adding listeners to it throws.
+  const channelName = useRef(`merchant-consignments-${uid}-${(channelSeq += 1)}`);
 
   const query = useQuery({
     queryKey: ['merchant-consignments', uid],
@@ -84,6 +95,8 @@ export function useMerchantConsignments() {
           createdAt: r.created_at,
           iAmSender,
           counterpartyName: names.get(iAmSender ? r.receiver_merchant_id : r.sender_merchant_id) || '',
+          pendingSharePct: r.pending_share_pct == null ? null : Number(r.pending_share_pct),
+          pendingShareBy: r.pending_share_by ?? null,
         };
       });
       const ids = consignments.map(c => c.id);
@@ -101,6 +114,8 @@ export function useMerchantConsignments() {
         reportedBy: e.reported_by,
         status: e.status,
         createdAt: e.created_at,
+        senderSharePct: e.sender_share_pct == null ? null : Number(e.sender_share_pct),
+        replacesEventId: e.replaces_event_id ?? null,
       }));
       return { consignments, events };
     },
@@ -110,13 +125,26 @@ export function useMerchantConsignments() {
     if (!uid) return;
     const refresh = () => { void qc.invalidateQueries({ queryKey: ['merchant-consignments', uid] }); };
     const channel = supabase
-      .channel(`merchant-consignments-${uid}`)
+      .channel(channelName.current)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_consignments' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_consignment_events' }, refresh)
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [uid, qc]);
 
+  const actions = useMerchantConsignmentActions();
+
+  return { ...query, data: query.data ?? { consignments: [], events: [] }, ...actions };
+}
+
+/**
+ * Send, report, answer, correct and cancel, without loading or watching the
+ * list — for the places that only act (dialogs).
+ */
+export function useMerchantConsignmentActions() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const uid = user?.id;
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchant-consignments', uid] });
 
   const create = useMutation({
@@ -142,13 +170,14 @@ export function useMerchantConsignments() {
       fundedFromSaleId?: string;
       clientRequestId?: string;
     }) => {
-      const { error } = await db.rpc('report_consignment_event_v2', {
+      const { data, error } = await db.rpc('report_consignment_event_v2', {
         p_consignment_id: a.consignmentId, p_kind: a.kind, p_qty: a.qty, p_price: a.price ?? null,
         p_amount_qar: a.amountQAR ?? null,
         p_funded_from_sale_id: a.fundedFromSaleId ?? null,
         p_client_request_id: a.clientRequestId ?? null,
       });
       if (error) throw error;
+      return data as string;
     },
     onSuccess: invalidate,
   });
@@ -161,7 +190,44 @@ export function useMerchantConsignments() {
     onSuccess: invalidate,
   });
 
-  return { ...query, data: query.data ?? { consignments: [], events: [] }, create, report, respond };
+  const counter = useMutation({
+    mutationFn: async (a: { eventId: string; qty: number; price?: number }): Promise<string> => {
+      const { data, error } = await db.rpc('counter_consignment_event', { p_event_id: a.eventId, p_qty: a.qty, p_price: a.price ?? null });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: invalidate,
+  });
+  const proposeShare = useMutation({
+    mutationFn: async (a: { consignmentId: string; senderSharePct: number }) => {
+      const { error } = await db.rpc('propose_consignment_share', { p_consignment_id: a.consignmentId, p_sender_share_pct: a.senderSharePct });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+  const respondShare = useMutation({
+    mutationFn: async (a: { consignmentId: string; accept: boolean }) => {
+      const { error } = await db.rpc('respond_consignment_share', { p_consignment_id: a.consignmentId, p_accept: a.accept });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+  const withdrawShare = useMutation({
+    mutationFn: async (consignmentId: string) => {
+      const { error } = await db.rpc('withdraw_consignment_share', { p_consignment_id: consignmentId });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+  const cancel = useMutation({
+    mutationFn: async (consignmentId: string) => {
+      const { error } = await db.rpc('cancel_merchant_consignment', { p_consignment_id: consignmentId });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
+  return { create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel };
 }
 
 /** Active merchant connections, so a consignment can be sent to a linked merchant. */

@@ -90,6 +90,8 @@ export interface UsdtTransfer {
   consignment?: { profitSharePct: number; soldUSDT: number; remoteId?: string };
   /** Set on a lend_return that settles an open consignment (an unsold return). */
   consignmentId?: string;
+  /** The shared report this return was made from, so its confirmation is not booked a second time. */
+  remoteEventId?: string;
   /** Id of the shared loan movement this copy was proposed as, for a connected merchant. */
   remoteLoanId?: string;
   /**

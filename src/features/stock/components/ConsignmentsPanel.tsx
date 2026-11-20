@@ -20,10 +20,12 @@ import {
   recordReceivedConsignmentPurchase,
   recordReceivedConsignmentSettlement,
   sendConsignment,
+  setConsignmentShare,
   undoConsignmentSale,
-  undoConsignmentTransfer,
   type ConsignmentSummary,
 } from '../consignment';
+import { undoConsignmentRecord } from '../consignment-sources';
+import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import {
   useConnectedMerchants,
   useMerchantConsignments,
@@ -55,11 +57,14 @@ export function ConsignmentsPanel({
   const t = useT();
   const { user } = useAuth();
   const me = user?.id;
-  const { data: remote, create, report, respond } = useMerchantConsignments();
+  const { data: remote, create, report, respond, counter, proposeShare, respondShare, withdrawShare, cancel } = useMerchantConsignments();
+  const { commit } = useBorrowLendCommit(applyStateAndCommit);
   const { data: merchants = [] } = useConnectedMerchants();
   const [form, setForm] = useState({ merchant: '', name: '', qty: '', share: '50' });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [counterDraft, setCounterDraft] = useState<{ eventId: string; qty: string; price: string } | null>(null);
+  const [shareDraft, setShareDraft] = useState<{ id: string; value: string } | null>(null);
 
   const local = useMemo(() => listConsignments(state), [state]);
   const sales = state.trades.filter(x => x.consignment && x.consignment.role !== 'receiver' && !x.voided);
@@ -87,20 +92,49 @@ export function ConsignmentsPanel({
   // Book every confirmed report exactly once. Each booking is keyed by the
   // report's id, so running this again or from another device changes nothing.
   const applying = useRef(false);
+  const warned = useRef(new Set<string>());
   useEffect(() => {
     if (!me || applying.current) return;
     let next = state;
+    let reverted = false;
+    const undismiss = new Set<string>();
+    const removeOrderLinks: { orderId: string; entityId: string }[] = [];
+    /** Takes a send or return back out and gives its exchange record back to "needs a decision". */
+    const revert = (transferId: string) => {
+      try {
+        const r = undoConsignmentRecord(next, transferId);
+        next = r.state;
+        for (const u of r.undismiss || []) undismiss.add(u);
+        removeOrderLinks.push(...(r.removeOrderLinks || []));
+        reverted = true;
+      } catch (err) {
+        if (!(err instanceof ConsignmentError)) console.error('[consignments] revert failed:', err);
+      }
+    };
     for (const c of remote.consignments) {
+      const mineLocal = c.iAmSender && c.trackerRef ? c.trackerRef : null;
+      // A ratio both merchants agreed to reaches the sender's own copy.
+      if (mineLocal && findConsignment(next, mineLocal)) {
+        try { next = setConsignmentShare(next, mineLocal, c.senderSharePct); } catch { /* not a consignment copy */ }
+      }
       for (const e of eventsOf(c.id)) {
+        // A return recorded from an exchange record that the other merchant rejected or countered is taken back out.
+        if (e.status === 'rejected' && e.kind === 'return' && c.iAmSender) {
+          const linkedReturn = (next.usdtTransfers || []).find(x => x.remoteEventId === e.id && !x.voided);
+          if (linkedReturn) revert(linkedReturn.id);
+        }
         if (e.status !== 'confirmed') continue;
         try {
-          if (c.iAmSender && c.trackerRef && findConsignment(next, c.trackerRef)) {
-            if (e.kind === 'sale') next = recordConsignmentSale(next, { consignmentId: c.trackerRef, saleId: e.id, qty: e.qty, priceQAR: e.priceQAR || 0, unitCostQAR: c.basePriceQAR }, Date.parse(e.createdAt));
-            else if (e.kind === 'return') next = recordConsignmentReturn(next, { consignmentId: c.trackerRef, returnId: e.id, qty: e.qty }, Date.parse(e.createdAt));
+          if (mineLocal && findConsignment(next, mineLocal)) {
+            if (e.kind === 'sale') next = recordConsignmentSale(next, { consignmentId: mineLocal, saleId: e.id, qty: e.qty, priceQAR: e.priceQAR || 0, unitCostQAR: c.basePriceQAR, profitSharePct: e.senderSharePct ?? undefined }, Date.parse(e.createdAt));
+            else if (e.kind === 'return') {
+              // A return made from an exchange record was already booked when it was reported.
+              if (!(next.usdtTransfers || []).some(x => x.remoteEventId === e.id)) next = recordConsignmentReturn(next, { consignmentId: mineLocal, returnId: e.id, qty: e.qty }, Date.parse(e.createdAt));
+            }
             else if (e.kind === 'purchase') next = recordConsignmentPurchase(next, { batchId: e.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, fundedFromSaleId: e.fundedFromSaleId || undefined });
             else if (e.kind === 'settlement' && e.fundedFromSaleId) next = recordConsignmentSettlement(next, { saleId: e.fundedFromSaleId, amountQAR: e.amountQAR || 0, settlementId: e.id });
           } else if (!c.iAmSender && e.kind === 'sale') {
-            next = recordReceivedConsignmentSale(next, { saleId: e.id, consignmentId: c.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, basePriceQAR: c.basePriceQAR, senderSharePct: c.senderSharePct });
+            next = recordReceivedConsignmentSale(next, { saleId: e.id, consignmentId: c.id, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0, basePriceQAR: c.basePriceQAR, senderSharePct: e.senderSharePct ?? c.senderSharePct });
           } else if (!c.iAmSender && e.kind === 'purchase' && e.fundedFromSaleId) {
             next = recordReceivedConsignmentPurchase(next, { purchaseId: e.id, saleId: e.fundedFromSaleId, counterpartyName: c.counterpartyName, qty: e.qty, priceQAR: e.priceQAR || 0 });
           } else if (!c.iAmSender && e.kind === 'settlement' && e.fundedFromSaleId) {
@@ -108,12 +142,22 @@ export function ConsignmentsPanel({
           }
         } catch (err) {
           if (!(err instanceof ConsignmentError)) console.error('[consignments] booking failed:', err);
+          // The receiving merchant books a sale into a QAR cash account; without one it cannot be booked, and they should know why.
+          else if (err.code === 'not_found' && !c.iAmSender && !warned.current.has(e.id)) {
+            warned.current.add(e.id);
+            toast.error(t('consNeedCashAccount'));
+          }
         }
       }
+      // A consignment cancelled by the sender comes back out of their stock book.
+      if (mineLocal && c.status === 'cancelled' && findConsignment(next, mineLocal)) revert(mineLocal);
     }
     if (next === state) return;
     applying.current = true;
-    applyStateAndCommit(next).catch(err => console.error('[consignments] commit failed:', err)).finally(() => { applying.current = false; });
+    const done = reverted
+      ? commit({ state: next, undismiss: Array.from(undismiss), removeOrderLinks }, 'consReverted')
+      : applyStateAndCommit(next);
+    Promise.resolve(done).catch(err => console.error('[consignments] commit failed:', err)).finally(() => { applying.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remote, state, me]);
 
@@ -194,6 +238,75 @@ export function ConsignmentsPanel({
     try { await applyStateAndCommit(fn()); } catch (err) { fail(err); }
   };
 
+  const submitCounter = async () => {
+    if (!counterDraft) return;
+    setBusy(true);
+    try {
+      const original = remote.events.find(e => e.id === counterDraft.eventId);
+      await counter.mutateAsync({ eventId: counterDraft.eventId, qty: num(counterDraft.qty), price: original?.kind === 'return' ? undefined : num(counterDraft.price) });
+      setCounterDraft(null);
+      toast.success(t('consCounterSent'));
+    } catch (err) { fail(err); } finally { setBusy(false); }
+  };
+
+  /** My share of the profit, from my point of view, given the sender's share. */
+  const myShare = (c: RemoteConsignment, senderPct: number) => (c.iAmSender ? senderPct : 100 - senderPct);
+
+  const submitShare = async (c: RemoteConsignment) => {
+    if (!shareDraft) return;
+    const mine = num(shareDraft.value);
+    if (!(mine >= 0 && mine <= 100)) return fail(new ConsignmentError('bad_ratio'));
+    setBusy(true);
+    try {
+      await proposeShare.mutateAsync({ consignmentId: c.id, senderSharePct: c.iAmSender ? mine : 100 - mine });
+      setShareDraft(null);
+      toast.success(t('consRatioProposedSent'));
+    } catch (err) { fail(err); } finally { setBusy(false); }
+  };
+
+  const ratioControls = (c: RemoteConsignment) => {
+    if (c.status !== 'open') return null;
+    if (c.pendingSharePct != null) {
+      const mineProposal = c.pendingShareBy === me;
+      return (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs">
+          <span>{t(mineProposal ? 'consRatioWaiting' : 'consRatioProposed').split('{pct}').join(String(myShare(c, c.pendingSharePct)))}</span>
+          {mineProposal
+            ? <Button size="sm" variant="outline" disabled={busy} onClick={() => { void withdrawShare.mutateAsync(c.id).catch(fail); }}>{t('loansWithdraw')}</Button>
+            : (<>
+                <Button size="sm" disabled={busy} onClick={() => { void respondShare.mutateAsync({ consignmentId: c.id, accept: true }).catch(fail); }}>{t('consConfirm')}</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => { void respondShare.mutateAsync({ consignmentId: c.id, accept: false }).catch(fail); }}>{t('consReject')}</Button>
+              </>)}
+        </div>
+      );
+    }
+    if (shareDraft?.id === c.id) {
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input className="w-28" inputMode="decimal" aria-label={t('consMyShare')} placeholder={t('consMyShare')} value={shareDraft.value} onChange={e => setShareDraft({ id: c.id, value: e.target.value })} />
+          <Button size="sm" disabled={busy} onClick={() => { void submitShare(c); }}>{t('consSendBtn')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setShareDraft(null)}>×</Button>
+        </div>
+      );
+    }
+    return <Button size="sm" variant="outline" onClick={() => setShareDraft({ id: c.id, value: String(myShare(c, c.senderSharePct)) })}>{t('consChangeRatio')}</Button>;
+  };
+
+  const cancelConsignment = async (r: RemoteConsignment | undefined, c: ConsignmentSummary) => {
+    if (!window.confirm(t('consCancelConfirm'))) return;
+    setBusy(true);
+    try {
+      // The shared id is kept on the send itself, so this works before the shared list has loaded.
+      const remoteId = r?.id ?? (state.usdtTransfers || []).find(x => x.id === c.id)?.consignment?.remoteId;
+      if (remoteId) {
+        // The other merchant is told and the local copy comes back out as soon as the cancellation is read back.
+        await cancel.mutateAsync(remoteId);
+      } else {
+        await commit(undoConsignmentRecord(state, c.id), 'consCancelled');
+      }
+    } catch (err) { fail(err); } finally { setBusy(false); }
+  };
+
   const receivables = consignmentReceivables(state);
   const payables = consignmentPayables(state);
   const pendingFor = (id: string) => eventsOf(id).filter(e => e.status === 'pending');
@@ -208,7 +321,18 @@ export function ConsignmentsPanel({
         : (<>
             <Button size="sm" disabled={busy} onClick={() => answer(e, true)}>{t('consConfirm')}</Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => answer(e, false)}>{t('consReject')}</Button>
+            {e.kind !== 'settlement' && (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setCounterDraft({ eventId: e.id, qty: String(e.qty), price: e.priceQAR ? String(e.priceQAR) : '' })}>{t('consCounter')}</Button>
+            )}
           </>)}
+      {counterDraft?.eventId === e.id && (
+        <div className="flex w-full flex-wrap items-center gap-2">
+          <Input className="w-32" inputMode="decimal" aria-label={t('consQty')} value={counterDraft.qty} onChange={ev => setCounterDraft({ ...counterDraft, qty: ev.target.value })} />
+          {e.kind !== 'return' && <Input className="w-36" inputMode="decimal" aria-label={t('consPrice')} value={counterDraft.price} onChange={ev => setCounterDraft({ ...counterDraft, price: ev.target.value })} />}
+          <Button size="sm" disabled={busy} onClick={() => { void submitCounter(); }}>{t('consSendCounter')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setCounterDraft(null)}>×</Button>
+        </div>
+      )}
     </div>
   ));
 
@@ -282,11 +406,12 @@ export function ConsignmentsPanel({
           <div>{t('consReturned')}<br /><b>{fmtTotal(c.returned)}</b></div>
         </div>
         <div className="text-xs text-muted-foreground">{t('consBase')}: {fmtPrice(r?.basePriceQAR ?? unitCostOf(c.id))} · {t('consMyShare')}: {c.profitSharePct}</div>
+        {r && ratioControls(r)}
         {renderEvents(r?.id || '')}
         {actions(c.id, false)}
         {draftForm(c.id)}
-        {!r && c.sold === 0 && c.returned === 0 && (
-          <Button size="sm" variant="ghost" onClick={() => undo(() => undoConsignmentTransfer(state, c.id))}>{t('consUndo')}</Button>
+        {c.sold === 0 && c.returned === 0 && !(r && eventsOf(r.id).some(e => e.status === 'confirmed')) && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => { void cancelConsignment(r, c); }}>{t('consCancel')}</Button>
         )}
       </div>
     );
@@ -301,9 +426,10 @@ export function ConsignmentsPanel({
       <div key={c.id} className="space-y-2 rounded-lg border p-3">
         <div className="flex items-center justify-between">
           <strong>{c.counterpartyName}</strong>
-          <span className="text-xs text-muted-foreground">{c.status === 'closed' ? t('consClosed') : `${t('consWithMerchant')}: ${fmtTotal(held)}`}</span>
+          <span className="text-xs text-muted-foreground">{c.status === 'cancelled' ? t('consCancelledLabel') : c.status === 'closed' ? t('consClosed') : `${t('consWithMerchant')}: ${fmtTotal(held)}`}</span>
         </div>
         <div className="text-xs text-muted-foreground">{t('consSent')}: {fmtTotal(c.qty)} · {t('consBase')}: {fmtPrice(c.basePriceQAR)} · {t('consMyShare')}: {100 - c.senderSharePct}</div>
+        {ratioControls(c)}
         {renderEvents(c.id)}
         {c.status === 'open' && actions(c.id, false)}
         {c.status !== 'open' && hasConfirmedSale && (

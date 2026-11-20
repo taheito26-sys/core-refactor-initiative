@@ -255,7 +255,7 @@ export function sendConsignment(
  */
 export function recordConsignmentSale(
   state: TrackerState,
-  input: { consignmentId: string; saleId: string; qty: number; priceQAR: number; unitCostQAR: number; ts?: number },
+  input: { consignmentId: string; saleId: string; qty: number; priceQAR: number; unitCostQAR: number; ts?: number; /** The ratio the sale was reported under, when it differs from today's. */ profitSharePct?: number },
   now = Date.now(),
 ): TrackerState {
   if ((state.trades || []).some(t => t.id === input.saleId)) return state;
@@ -265,7 +265,8 @@ export function recordConsignmentSale(
   const qty = round6(input.qty);
   if (!(qty > 0)) throw new ConsignmentError('bad_amount');
   if (qty > c.open + EPS) throw new ConsignmentError('exceeds_open');
-  const split = splitConsignmentSale(qty, input.priceQAR, input.unitCostQAR, c.profitSharePct);
+  const sharePct = input.profitSharePct ?? c.profitSharePct;
+  const split = splitConsignmentSale(qty, input.priceQAR, input.unitCostQAR, sharePct);
   const trade: Trade = {
     id: input.saleId,
     ts: input.ts ?? now,
@@ -283,7 +284,7 @@ export function recordConsignmentSale(
     exchangeCounterparty: c.counterpartyName,
     consignment: {
       id: c.id,
-      partnerSharePct: 100 - c.profitSharePct,
+      partnerSharePct: 100 - sharePct,
       remitQAR: split.remitQAR,
       remittedQAR: 0,
       purchaseOffsetQAR: 0,
@@ -619,4 +620,16 @@ export function recordReceivedConsignmentSettlement(
     tradeId: sale.id,
     ts: input.ts,
   });
+}
+
+/**
+ * A new profit ratio both merchants agreed to. It applies to sales reported
+ * from now on; every sale already booked keeps the ratio it was made under.
+ */
+export function setConsignmentShare(state: TrackerState, consignmentId: string, profitSharePct: number, now = Date.now()): TrackerState {
+  if (!(profitSharePct >= 0 && profitSharePct <= 100)) throw new ConsignmentError('bad_ratio');
+  const transfer = (state.usdtTransfers || []).find(t => t.id === consignmentId);
+  if (!isConsignment(transfer)) throw new ConsignmentError('not_found');
+  if (transfer.consignment.profitSharePct === profitSharePct) return state;
+  return replaceTransfer(state, { ...transfer, consignment: { ...transfer.consignment, profitSharePct }, updatedAt: now });
 }
