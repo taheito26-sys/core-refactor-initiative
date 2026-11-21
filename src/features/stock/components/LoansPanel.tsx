@@ -28,6 +28,9 @@ import { useBorrowLendCommit } from '../hooks/useBorrowLendCommit';
 import { useDismissedExchangeItems, usePendingExchangeItems } from '../hooks/usePendingExchangeItems';
 import { useLoanMerchantNames } from '../hooks/useLoanMerchantNames';
 import { LoanRequestsBar } from './LoanRequestsBar';
+import { LoansOverview } from './LoansOverview';
+import { useSharedLoanMoves } from '../hooks/useSharedLoanMoves';
+import { buildLoanLedger } from '../loans-ledger-view';
 import { ConsignRecordDialog } from './ConsignRecordDialog';
 import { EditLoanMoveDialog } from './EditLoanMoveDialog';
 import { buildMerchantStatementData, exportMerchantStatementPdf } from '../utils/merchantStatementExport';
@@ -99,13 +102,14 @@ export function LoansPanel({
   const dismissed = useDismissedExchangeItems(state);
   const merchants = useLoanMerchantNames(state);
   const [tab, setTab] = useState<'balances' | 'review'>('balances');
-  const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string } | null>(null);
+  const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string; presetDirection?: 'in' | 'out' } | null>(null);
   const [editing, setEditing] = useState<UsdtTransfer | null>(null);
   const [consign, setConsign] = useState<{ mode: 'send' | 'return'; source: LoanSource; counterparty: string | null } | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
 
-  const statements = useMemo(() => buildMerchantStatements(state.usdtTransfers), [state.usdtTransfers]);
+  // Consignments are not loans: their sold part is no longer owed back as USDT, so they stay out of loan balances.
+  const statements = useMemo(() => buildMerchantStatements((state.usdtTransfers || []).filter(x => !x.consignment && !x.consignmentId)), [state.usdtTransfers]);
   const open = statements.filter((s) => Math.abs(s.net) > EPS);
   const settled = statements.filter((s) => Math.abs(s.net) <= EPS);
   const selected = detailKey ? statements.find((s) => s.key === detailKey) ?? null : null;
@@ -134,6 +138,9 @@ export function LoansPanel({
     () => new Set(merchants.filter((m) => m.connected).map((m) => m.name.toLowerCase())),
     [merchants],
   );
+
+  const { moves: sharedMoves } = useSharedLoanMoves();
+  const ledger = useMemo(() => buildLoanLedger(state.usdtTransfers, sharedMoves, connectedNames), [state.usdtTransfers, sharedMoves, connectedNames]);
 
   /** An exchange record that is really USDT sent to sell, or the unsold part of one coming back. */
   const openConsignFor = (item: PendingExchangeItem) => {
@@ -233,8 +240,8 @@ export function LoansPanel({
     return t('mloanFromOrder');
   };
 
-  const openManual = (presetName?: string) =>
-    setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetName });
+  const openManual = (presetName?: string, direction: 'in' | 'out' = 'out') =>
+    setDialog({ sources: [{ type: 'manual', direction, ts: Date.now() }], presetName, presetDirection: direction });
 
   const showReview = () => {
     setTab('review');
@@ -387,57 +394,13 @@ export function LoansPanel({
   return (
     <div className="ld-desk">
       <LoanRequestsBar state={state} applyStateAndCommit={applyStateAndCommit} />
-      <section className="ld-hero">
+      <header className="lg-pagehead">
+        <div className="lg-pagehead-ic"><Handshake /></div>
         <div>
-          <div className="ld-kicker"><Handshake /> {t('loansEyebrow')}</div>
           <h1>{t('loansTitle')}</h1>
-          <p>{t('loansSubtitle')}</p>
+          <p>{t('lgSubtitle')}</p>
         </div>
-        <div className="ld-hero-actions">
-          <button type="button" className="ld-btn primary" onClick={() => openManual()}>
-            <Plus /> {t('loansRecordMovement')}
-          </button>
-          <button type="button" className="ld-btn ghost" onClick={showReview}>
-            <Inbox /> {t('loansOpenInbox')}
-            {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
-          </button>
-        </div>
-      </section>
-
-      <section className="ld-stats" aria-label={t('loansBalance')}>
-        <article className="ld-stat owed">
-          <div className="ld-stat-top">
-            <span className="ld-stat-label">{t('loansYouAreOwed')}</span>
-            <span className="ld-stat-icon"><ArrowDownLeft /></span>
-          </div>
-          <div className="ld-stat-value">{fmtTotal(owed)} <span style={{ fontSize: 11, opacity: 0.6 }}>USDT</span></div>
-          <div className="ld-stat-note">{owedCount} {t('loansMerchants')}</div>
-        </article>
-        <article className="ld-stat owe">
-          <div className="ld-stat-top">
-            <span className="ld-stat-label">{t('loansYouOwe')}</span>
-            <span className="ld-stat-icon"><ArrowUpRight /></span>
-          </div>
-          <div className="ld-stat-value">{fmtTotal(owe)} <span style={{ fontSize: 11, opacity: 0.6 }}>USDT</span></div>
-          <div className="ld-stat-note">{oweCount} {t('loansMerchants')}</div>
-        </article>
-        <article className="ld-stat open">
-          <div className="ld-stat-top">
-            <span className="ld-stat-label">{t('loansOpenMerchants')}</span>
-            <span className="ld-stat-icon"><Wallet /></span>
-          </div>
-          <div className="ld-stat-value">{open.length}</div>
-          <div className="ld-stat-note">{t('loansAcrossMerchants')}</div>
-        </article>
-        <article className="ld-stat connected">
-          <div className="ld-stat-top">
-            <span className="ld-stat-label">{t('loansConnectedMerchants')}</span>
-            <span className="ld-stat-icon"><ShieldCheck /></span>
-          </div>
-          <div className="ld-stat-value">{connectedCount}</div>
-          <div className="ld-stat-note">{connectedCount > 0 ? t('loansConnectedSync') : t('loansNoConnected')}</div>
-        </article>
-      </section>
+      </header>
 
       <div className="ld-tabs" role="tablist" aria-label={t('loansTitle')}>
         <button type="button" role="tab" aria-selected={tab === 'balances'} className={`ld-tab ${tab === 'balances' ? 'active' : ''}`} onClick={() => setTab('balances')}>
@@ -449,66 +412,15 @@ export function LoansPanel({
       </div>
 
       {tab === 'balances' ? (
-        <div className="ld-layout">
-          <div className="ld-main">
-            <div className="ld-section-head">
-              <div>
-                <h2>{t('loansMerchantBalances')}</h2>
-                <p>{t('loansMerchantBalancesHint')}</p>
-              </div>
-              <span className="ld-count">{open.length}</span>
-            </div>
-            {open.length === 0 ? (
-              <div className="ld-empty">
-                <Handshake />
-                <strong>{t('loansNoBalances')}</strong>
-                <span>{t('loansNoBalancesHint')}</span>
-                <button type="button" className="ld-btn primary small" onClick={() => openManual()}>
-                  <Plus /> {t('loansRecordMovement')}
-                </button>
-              </div>
-            ) : open.map(renderMerchant)}
-            {settled.length > 0 && (
-              <details className="ld-settled">
-                <summary>{t('loansSettledMerchants')} ({settled.length})</summary>
-                <div className="ld-settled-list">
-                  {settled.map((s) => (
-                    <button key={s.key} type="button" className="ld-settled-row" onClick={() => setDetailKey(s.key)}>
-                      <strong>{s.name}</strong>
-                      <span>{t('mloanSettledShort')} · {fmtDate(s.lastTs)}</span>
-                    </button>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
-          <aside className="ld-side">
-            <div className="ld-side-card brand">
-              <h3>{t('loansRecordMovement')}</h3>
-              <p>{t('loansHowItWorksBody')}</p>
-              <button type="button" className="ld-btn primary" onClick={() => openManual()}>
-                <Plus /> {t('loansRecordMovement')}
-              </button>
-            </div>
-            {onOpenConsignments && (
-              <div className="ld-side-card">
-                <h3>{t('loansSellForMerchant')}</h3>
-                <p>{t('loansSellForMerchantHint')}</p>
-                <button type="button" className="ld-btn secondary" onClick={onOpenConsignments}>
-                  <ArrowUpRight /> {t('loansSellForMerchant')}
-                </button>
-              </div>
-            )}
-            <div className="ld-side-card">
-              <h3>{t('loansHowItWorks')}</h3>
-              <div className="ld-side-list">
-                <div><Info /> <span>{t('loansHowItWorksBody')}</span></div>
-                <div><ShieldCheck /> <span>{t('loansConnectedSync')}</span></div>
-                <div><Wallet /> <span>{t('mloanNoProfit')}</span></div>
-              </div>
-            </div>
-          </aside>
-        </div>
+        <LoansOverview
+          ledger={ledger}
+          connectedNames={connectedNames}
+          onRecord={(direction, name) => openManual(name, direction)}
+          onOpenMerchant={(key) => setDetailKey(key)}
+          onOpenConsignments={onOpenConsignments}
+          onShowReview={showReview}
+          reviewCount={filteredPending.length}
+        />
       ) : (
         <div id="ld-review" className="ld-layout">
           <div className="ld-main">
@@ -656,6 +568,7 @@ export function LoansPanel({
           open
           sources={dialog.sources}
           presetName={dialog.presetName}
+          presetDirection={dialog.presetDirection}
           state={state}
           applyStateAndCommit={applyStateAndCommit}
           onClose={() => setDialog(null)}

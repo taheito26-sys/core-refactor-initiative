@@ -797,7 +797,8 @@
 .orders-tab-bar.stock-sections .orders-tab-btn.tone-warn { --tone: var(--warn); }
 .orders-tab-bar.stock-sections .orders-tab-btn.tone-good { --tone: var(--good); }
 .orders-tab-bar.stock-sections .orders-tab-btn:hover { color: var(--text); background: color-mix(in srgb, var(--tone) 28%, var(--card-bg)); }
-.orders-tab-bar.stock-sections .orders-tab-btn.active { color: var(--card-bg); background: linear-gradient(135deg, var(--tone), color-mix(in srgb, var(--tone) 68%, var(--card-bg))); box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 45%, transparent); }
+.orders-tab-bar.stock-sections .orders-tab-btn.active { color: var(--card-bg); background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 45%, var(--text)), color-mix(in srgb, var(--tone) 38%, var(--text))); box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 40%, transparent); }
+.dark .orders-tab-bar.stock-sections .orders-tab-btn.active { background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 85%, var(--text)), color-mix(in srgb, var(--tone) 70%, var(--card-bg))); box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 45%, transparent); }
 .orders-tab-bar.stock-sections .orders-tab-btn.active::after { display: none; }
 @media (max-width: 768px) {
   .orders-tab-bar.stock-sections .orders-tab-btn { padding: 13px 8px; font-size: 13px; gap: 6px; }

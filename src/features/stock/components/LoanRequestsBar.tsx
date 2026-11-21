@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ArrowDownLeft, ArrowUpRight, Bell, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { fmtDate, fmtTotal, type TrackerState } from '@/lib/tracker-helpers';
@@ -60,31 +61,39 @@ export function LoanRequestsBar({
     if (failed) toast.error(t('mloanSaveFailed')); else toast.success(t('loansApproved'));
   };
 
+  const fill = (text: string, name: string, amount: number) => text.split('{name}').join(name).split('{amount}').join(fmtTotal(amount));
+
   return (
-    <section className="ld-requests" aria-label={t('loansRequests')} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <section className="ld-requests lg-reqs" aria-label={t('loansRequests')}>
       {incoming.length > 1 && (
-        <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} disabled={respond.isPending} onClick={() => { void approveAll(); }}>
+        <button type="button" className="btn lg-req-all" disabled={respond.isPending} onClick={() => { void approveAll(); }}>
           {t('loansApproveAll').split('{n}').join(String(incoming.length))}
         </button>
       )}
       {incoming.map((m) => (
-        <div key={m.id} className="panel" style={{ padding: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--brand)' }}>
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={{ fontSize: 13, fontWeight: 800 }}>
-              {t(m.direction === 'out' ? 'loansReqSentYou' : 'loansReqYouSent').split('{name}').join(m.counterpartyName).split('{amount}').join(fmtTotal(m.amountUSDT))}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(m.ts)} · {t('loansReqNote')}</div>
+        <div key={m.id} className={`lg-req need ${m.direction === 'out' ? 'in' : 'out'}`}>
+          <span className="lg-req-ic">{m.direction === 'out' ? <ArrowDownLeft /> : <ArrowUpRight />}</span>
+          <div className="lg-req-body">
+            <b className="lg-req-tag"><Bell /> {t('lgReqNeed')}</b>
+            <strong>{fill(t(m.direction === 'out' ? 'loansReqSentYou' : 'loansReqYouSent'), m.counterpartyName, m.amountUSDT)}</strong>
+            <small>{fmtDate(m.ts)} · {t('loansReqNote')}</small>
           </div>
-          <button type="button" className="btn" disabled={respond.isPending} onClick={() => { void answer(m.id, true); }}>{t('loansApprove')}</button>
-          <button type="button" className="btn secondary" disabled={respond.isPending} onClick={() => { void answer(m.id, false); }}>{t('loansReject')}</button>
+          <div className="lg-req-btns">
+            <button type="button" className="btn lg-req-ok" disabled={respond.isPending} onClick={() => { void answer(m.id, true); }}>{t('loansApprove')}</button>
+            <button type="button" className="btn secondary" disabled={respond.isPending} onClick={() => { void answer(m.id, false); }}>{t('loansReject')}</button>
+          </div>
         </div>
       ))}
       {waiting.map((m) => (
-        <div key={m.id} className="panel" style={{ padding: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 180, fontSize: 12 }}>
-            {t('loansWaiting').split('{name}').join(m.counterpartyName).split('{amount}').join(fmtTotal(m.amountUSDT))}
+        <div key={m.id} className="lg-req wait">
+          <span className="lg-req-ic"><Clock /></span>
+          <div className="lg-req-body">
+            <b className="lg-req-tag">{t('lgReqWait').split('{name}').join(m.counterpartyName)}</b>
+            <strong>{fill(t('loansWaiting'), m.counterpartyName, m.amountUSDT)}</strong>
           </div>
-          <button type="button" className="btn secondary" disabled={cancel.isPending} onClick={() => { void cancel.mutateAsync(m.id).catch(() => toast.error(t('mloanSaveFailed'))); }}>{t('loansWithdraw')}</button>
+          <div className="lg-req-btns">
+            <button type="button" className="btn secondary" disabled={cancel.isPending} onClick={() => { void cancel.mutateAsync(m.id).catch(() => toast.error(t('mloanSaveFailed'))); }}>{t('loansWithdraw')}</button>
+          </div>
         </div>
       ))}
     </section>

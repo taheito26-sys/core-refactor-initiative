@@ -147,10 +147,9 @@ function openAs(side: Side) {
 
 /** Records a loan movement through the Record movement button and the dialog, as a merchant would. */
 async function recordMovement(direction: 'out' | 'in', amount: string) {
-  fireEvent.click(screen.getAllByText('loansRecordMovement')[0]);
+  fireEvent.click(screen.getAllByText(direction === 'in' ? 'lgRecvBtn' : 'lgSentBtn')[0]);
   fireEvent.click(await screen.findByRole('combobox'));
   fireEvent.click(await screen.findByRole('option', { name: new RegExp(current.side === 'A' ? 'zack' : 'MOHAMED') }));
-  if (direction === 'in') fireEvent.click(screen.getByText('loansReceivedUsdt'));
   fireEvent.change(screen.getByLabelText('mloanAmount'), { target: { value: amount } });
   fireEvent.click(screen.getByText('loansSaveMovement'));
 }

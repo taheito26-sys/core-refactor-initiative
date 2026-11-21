@@ -169,14 +169,14 @@ export function ExchangeInbox({
   const { data: linksByOrder } = useExchangeOrderLinks();
   const [collapsed, setCollapsed] = useState(false);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
-  const LoanButton = ({ source }: { source: LoanSource }) => (
+  const LoanButton = ({ source, label }: { source: LoanSource; label: string }) => (
     <button
       type="button"
       title={t('mloanInboxButton')}
       onClick={() => onLoanClick?.(source)}
-      className="flex shrink-0 items-center justify-center rounded border border-dashed border-muted-foreground/30 px-1 text-[12px] hover:border-primary/60"
+      className="w-full rounded border border-violet-500/50 bg-violet-500/10 px-2 py-1 text-start text-[11px] font-bold text-violet-700 hover:bg-violet-500/20 dark:text-violet-300"
     >
-      🤝
+      {label}
     </button>
   );
   const queryClient = useQueryClient();
@@ -459,6 +459,11 @@ export function ExchangeInbox({
                     </span>
                     <Chip className={EXCHANGE_CHIP[o.exchange]}>{EXCHANGE_LABELS[o.exchange]}</Chip>
                     <Chip className={KIND_CHIP.p2p.cls}>{KIND_CHIP.p2p.label}</Chip>
+                    {!imported && (
+                      <Chip className="bg-sky-500/15 text-sky-700 ring-sky-500/30 dark:text-sky-300">
+                        {t('inboxSaleChip').replace('{kind}', t(side === 'buy' ? 'inboxKindBuy' : 'inboxKindSale'))}
+                      </Chip>
+                    )}
                     {!imported && isOkxEscrowOrder(o) && o.price <= 0 && (
                       <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">{t('exchangeNeedsAmount')}</Chip>
                     )}
@@ -486,11 +491,11 @@ export function ExchangeInbox({
                   <Pencil className="h-3 w-3" />
                 </button>
               )}
-              {onLoanClick && !imported && (
-                <LoanButton source={{ type: 'exchange_order', order: o as ExchangeP2POrder, available: remaining }} />
-              )}
               {!imported && <RowActions source="order" id={o.id} />}
               </div>
+              {onLoanClick && !imported && (
+                <LoanButton label={t('inboxLoanAny')} source={{ type: 'exchange_order', order: o as ExchangeP2POrder, available: remaining }} />
+              )}
               {editingSaleId === o.id && (
                 <OkxOrderDetailsEditor order={o as ExchangeP2POrder} onClose={() => setEditingSaleId(null)} />
               )}
@@ -555,7 +560,9 @@ export function ExchangeInbox({
                     {imported && <ImportedMark />}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                    <span>{tr.direction === 'in' ? 'received' : 'sent'}</span>
+                    <Chip className={tr.direction === 'in' ? 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-700 ring-rose-500/30 dark:text-rose-300'}>
+                      {t(tr.direction === 'in' ? 'inboxRecv' : 'inboxSent')}
+                    </Chip>
                     <Chip className={EXCHANGE_CHIP[tr.exchange]}>{EXCHANGE_LABELS[tr.exchange]}</Chip>
                     <Chip className={kind.cls}>{transferKindLabel(tr)}</Chip>
                     {!imported && (
@@ -569,10 +576,10 @@ export function ExchangeInbox({
                 </div>
               </button>
               {!imported && <RowActions source="transfer" id={tr.id} />}
-              {onLoanClick && !imported && (
-                <LoanButton source={{ type: 'exchange_transfer', transfer: tr as ExchangeTransfer }} />
-              )}
               </div>
+              {onLoanClick && !imported && (
+                <LoanButton label={t(tr.direction === 'in' ? 'inboxLoanIn' : 'inboxLoanOut')} source={{ type: 'exchange_transfer', transfer: tr as ExchangeTransfer }} />
+              )}
               </div>
             );
           })())}

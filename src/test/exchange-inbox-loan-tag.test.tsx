@@ -59,6 +59,13 @@ describe('ExchangeInbox merchant-loan button', () => {
     expect(onLoanClick).toHaveBeenCalledWith({ type: 'exchange_order', order: expect.objectContaining({ id: 'o1' }), available: 95000 });
   });
 
+  it('labels each row so a sale and a loan cannot be confused', () => {
+    renderInbox(vi.fn());
+    expect(screen.getByText('inboxLoanOut')).toBeTruthy();
+    expect(screen.getByText('inboxLoanAny')).toBeTruthy();
+    expect(screen.getByText('inboxSent')).toBeTruthy();
+  });
+
   it('shows no loan button when the page does not support it', () => {
     renderInbox();
     expect(screen.queryAllByTitle('mloanInboxButton')).toHaveLength(0);

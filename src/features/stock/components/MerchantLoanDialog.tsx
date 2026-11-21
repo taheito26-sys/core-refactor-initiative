@@ -82,6 +82,7 @@ export function MerchantLoanDialog({
   open,
   sources,
   presetName,
+  presetDirection,
   state,
   applyStateAndCommit,
   onClose,
@@ -90,6 +91,8 @@ export function MerchantLoanDialog({
   /** Records being classified; a single `manual` source opens the hand-entry form. */
   sources: LoanSource[];
   presetName?: string;
+  /** Which way the USDT moved, when the merchant already chose it (the big "I sent / I received" buttons). */
+  presetDirection?: 'in' | 'out';
   state: TrackerState;
   applyStateAndCommit: (next: TrackerState) => Promise<void>;
   onClose: () => void;
@@ -109,7 +112,7 @@ export function MerchantLoanDialog({
   const [name, setName] = useState(presetName ?? '');
   const [manualMode, setManualMode] = useState(false);
   const [amount, setAmount] = useState('');
-  const [manualDir, setManualDir] = useState<'in' | 'out'>('out');
+  const [manualDir, setManualDir] = useState<'in' | 'out'>(presetDirection ?? 'out');
   const [fee, setFee] = useState('');
   const [manualDate, setManualDate] = useState(nowInput());
 
@@ -121,7 +124,7 @@ export function MerchantLoanDialog({
     // cannot be partially adjusted, so rounding 100.123456 to 100.12 makes the
     // read-only form impossible to save.
     setAmount(single && !manual ? String(loanSourceAmount(single)) : '');
-    setManualDir('out');
+    setManualDir(presetDirection ?? 'out');
     setFee('');
     setManualDate(nowInput());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,6 +324,10 @@ export function MerchantLoanDialog({
               {manual ? t('loansHowItWorksBody') : describeSource(sources[0], t)}
             </p>
           </div>
+        </div>
+
+        <div className="lg-loan-banner" role="note">
+          <Handshake /> <strong>{t('mloanBanner')}</strong>
         </div>
 
         <div className="ld-dialog-body">

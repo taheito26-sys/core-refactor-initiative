@@ -557,16 +557,21 @@
 .tracker-root.ov2 .orders-cards-list.grid .ov2-context-marks { min-height: calc(16 * var(--cpx)); }
 
 /* ── Colorful workspace tabs (Stock · Suppliers · Loans) ─────────────────────────────
-   Taller, bigger type and an icon chip, each tab in its own theme colour: tinted and outlined when
-   it is waiting, solid when it is the one open. Colours come from the theme tokens, never fixed. */
+   Taller, bigger type and an icon chip, each tab in its own theme colour: tinted and outlined when it
+   is waiting, solid when it is the one open. Colours come from the theme tokens, never fixed. The solid
+   and icon colours are mixed with the theme's text colour, which deepens them on light themes and lifts
+   them on dark ones, so the label and icon keep a readable contrast on every layout and theme. */
 .tracker-root.ov2 .ov2-tabs.ov2-tabs--color { gap: calc(7 * var(--px)); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab { --tone: var(--brand); height: max(40px, calc(40 * var(--px))); padding: 0 calc(6 * var(--px)); border-radius: calc(14 * var(--px)); gap: calc(7 * var(--px)); font-size: max(12px, calc(11.5 * var(--px))); font-weight: 800; letter-spacing: .01em; color: var(--text); background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 22%, var(--card-bg)), color-mix(in srgb, var(--tone) 10%, var(--card-bg))); border: 1.5px solid color-mix(in srgb, var(--tone) 60%, transparent); box-shadow: 0 calc(2 * var(--px)) calc(9 * var(--px)) color-mix(in srgb, var(--tone) 20%, transparent); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab--warn { --tone: var(--warn); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab--good { --tone: var(--good); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab--bad { --tone: var(--bad); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab-ic { display: inline-flex; align-items: center; justify-content: center; flex: none; width: max(26px, calc(26 * var(--px))); height: max(26px, calc(26 * var(--px))); border-radius: calc(9 * var(--px)); background: color-mix(in srgb, var(--tone) 28%, transparent); }
-.tracker-root.ov2 .ov2-tabs--color .ov2-tab-ic svg { width: max(16px, calc(16 * var(--px))); height: max(16px, calc(16 * var(--px))); stroke-width: 2.3; color: var(--tone); }
+.tracker-root.ov2 .ov2-tabs--color .ov2-tab-ic svg { width: max(16px, calc(16 * var(--px))); height: max(16px, calc(16 * var(--px))); stroke-width: 2.3; color: color-mix(in srgb, var(--tone) 35%, var(--text)); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tracker-root.ov2 .ov2-tabs--color .ov2-tab.on { color: var(--card-bg); background: linear-gradient(135deg, var(--tone), color-mix(in srgb, var(--tone) 68%, var(--card-bg))); border-color: var(--tone); box-shadow: 0 calc(6 * var(--px)) calc(16 * var(--px)) color-mix(in srgb, var(--tone) 48%, transparent); }
+.tracker-root.ov2 .ov2-tabs--color .ov2-tab.on { color: var(--card-bg); background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 45%, var(--text)), color-mix(in srgb, var(--tone) 38%, var(--text))); border-color: color-mix(in srgb, var(--tone) 60%, var(--text)); box-shadow: 0 calc(6 * var(--px)) calc(16 * var(--px)) color-mix(in srgb, var(--tone) 40%, transparent); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab.on .ov2-tab-ic { background: color-mix(in srgb, var(--card-bg) 24%, transparent); }
 .tracker-root.ov2 .ov2-tabs--color .ov2-tab.on .ov2-tab-ic svg { color: var(--card-bg); }
+/* Dark themes keep the vivid tone. */
+.dark .tracker-root.ov2 .ov2-tabs--color .ov2-tab-ic svg { color: color-mix(in srgb, var(--tone) 45%, var(--text)); }
+.dark .tracker-root.ov2 .ov2-tabs--color .ov2-tab.on { background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 85%, var(--text)), color-mix(in srgb, var(--tone) 70%, var(--card-bg))); border-color: var(--tone); box-shadow: 0 calc(6 * var(--px)) calc(16 * var(--px)) color-mix(in srgb, var(--tone) 48%, transparent); }
