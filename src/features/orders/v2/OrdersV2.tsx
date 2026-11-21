@@ -92,12 +92,18 @@ export function OrdersV2Kpis({ cards, extras, compact }: { cards: V2Kpi[]; extra
 }
 
 // ── Tabs ──
-export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll }: { tabs: Array<{ id: T; label: string; Icon: LucideIcon }>; active: T; onSelect: (id: T) => void; scroll?: boolean }) {
+export function OrdersV2Tabs<T extends string>({ tabs, active, onSelect, scroll, colorful }: {
+  tabs: Array<{ id: T; label: string; Icon: LucideIcon; /** Theme colour of this tab in colorful mode. */ tone?: 'brand' | 'warn' | 'good' | 'bad' }>;
+  active: T; onSelect: (id: T) => void; scroll?: boolean;
+  /** Bigger tabs that each carry their own theme colour — for the few tabs that switch whole workspaces. */
+  colorful?: boolean;
+}) {
   return (
-    <div className={cn('ov2-tabs', scroll && 'scroll')} role="tablist" style={scroll ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+    <div className={cn('ov2-tabs', scroll && 'scroll', colorful && 'ov2-tabs--color')} role="tablist" style={scroll ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
       {tabs.map(tab => (
-        <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={cn('ov2-tab', active === tab.id && 'on')} onClick={() => onSelect(tab.id)}>
-          <tab.Icon />{tab.label}
+        <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={cn('ov2-tab', active === tab.id && 'on', colorful && `ov2-tab--${tab.tone || 'brand'}`)} onClick={() => onSelect(tab.id)}>
+          {colorful ? <span className="ov2-tab-ic"><tab.Icon /></span> : <tab.Icon />}
+          {colorful ? <span className="ov2-tab-label">{tab.label}</span> : tab.label}
         </button>
       ))}
     </div>

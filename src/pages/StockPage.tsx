@@ -1334,12 +1334,13 @@ export default function StockPage() {
         <>
           {activeStockSection === 'batches' && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
+            colorful
             active={activeStockSection}
             onSelect={id => setActiveStockSection(id as typeof activeStockSection)}
             tabs={[
-              { id: 'batches', label: t('stock'), Icon: Package },
-              { id: 'suppliers', label: t('suppliers'), Icon: Factory },
-              { id: 'transfers', label: t('mloanTab'), Icon: Handshake },
+              { id: 'batches', label: t('stock'), Icon: Package, tone: 'brand' },
+              { id: 'suppliers', label: t('suppliers'), Icon: Factory, tone: 'warn' },
+              { id: 'transfers', label: t('mloanTab'), Icon: Handshake, tone: 'good' },
             ]}
           />
           {activeStockSection !== 'transfers' && (
@@ -1361,22 +1362,22 @@ export default function StockPage() {
       {activeStockSection !== 'transfers' && <ExchangeReferenceSearch state={state} scope="stock" compact />}
 
       {/* ─── SECTION TAB BAR ─── */}
-      <div className="orders-tab-bar">
+      <div className="orders-tab-bar stock-sections" role="tablist">
         <button
           onClick={() => setActiveStockSection('batches')}
-          className={`orders-tab-btn ${activeStockSection === 'batches' ? 'active' : ''}`}
+          className={`orders-tab-btn tone-brand ${activeStockSection === 'batches' ? 'active' : ''}`}
         >
           📦 {t('stock')}
         </button>
         <button
           onClick={() => setActiveStockSection('suppliers')}
-          className={`orders-tab-btn ${activeStockSection === 'suppliers' ? 'active' : ''}`}
+          className={`orders-tab-btn tone-warn ${activeStockSection === 'suppliers' ? 'active' : ''}`}
         >
           🏭 {t('suppliers')}
         </button>
         <button
           onClick={() => setActiveStockSection('transfers')}
-          className={`orders-tab-btn ${activeStockSection === 'transfers' ? 'active' : ''}`}
+          className={`orders-tab-btn tone-good ${activeStockSection === 'transfers' ? 'active' : ''}`}
         >
           🤝 {t('mloanTab')}
         </button>
