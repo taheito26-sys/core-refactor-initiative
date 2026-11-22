@@ -7,8 +7,15 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Loader2, Shield } from 'lucide-react';
+import { Loader2, ScanFace, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  describePasskeyError,
+  getPasskeyAvailability,
+  hasPasskeyEnrollmentHint,
+  isPasskeyCancellation,
+  signInWithDevicePasskey,
+} from '@/features/auth/passkeys';
 import {
   getRememberedIdentifier,
   getRememberPreference,
@@ -30,12 +37,13 @@ function toLoginEmail(identifier: string): string {
 }
 
 export default function LoginPage() {
-  const [busy, setBusy] = useState<'password' | 'google' | null>(null);
+  const [busy, setBusy] = useState<'password' | 'google' | 'passkey' | null>(null);
   const loading = busy !== null;
   const [username, setUsername] = useState(() => getRememberedIdentifier());
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(() => getRememberPreference());
   const [loginError, setLoginError] = useState('');
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const { login, loginWithGoogle, devLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const t = useT();
@@ -82,6 +90,19 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Face ID / Touch ID is offered only where the browser reports a usable
+  // platform authenticator *and* a passkey was set up from Settings on this
+  // device, so the button never leads to an empty credential picker.
+  useEffect(() => {
+    let alive = true;
+    void getPasskeyAvailability().then(result => {
+      if (alive) setPasskeyAvailable(result === 'available' && hasPasskeyEnrollmentHint());
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // iOS never offers its password sheet inside a home-screen web app, so the
   // page restores what the user chose to remember last time.
   useEffect(() => {
@@ -106,6 +127,22 @@ export default function LoginPage() {
       await withAuthDeadline(loginWithGoogle(), 15000);
     } catch (error: unknown) {
       const message = t(loginErrorKey(error));
+      setLoginError(message);
+      toast.error(message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    if (loading) return;
+    setLoginError('');
+    setBusy('passkey');
+    try {
+      const result = await signInWithDevicePasskey();
+      if (result.ok) return; // the session listener redirects to the dashboard
+      if (isPasskeyCancellation(result.error)) return;
+      const message = describePasskeyError(result.error, t.isRTL);
       setLoginError(message);
       toast.error(message);
     } finally {
@@ -161,7 +198,7 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right Panel (Desktop) / Full Screen (Mobile) ── */}
-      <div className="flex-1 min-w-0 relative overflow-hidden flex flex-col">
+      <div className="flex-1 min-w-0 relative overflow-hidden flex flex-col max-lg:h-[100dvh]">
         {/* Mobile: dark gradient background */}
         <div className="absolute inset-0 lg:hidden bg-[#0a0a0f]" />
         <div className="absolute inset-0 lg:hidden" style={{
@@ -298,6 +335,25 @@ export default function LoginPage() {
                       {busy === 'password' ? <Loader2 className="h-5 w-5 animate-spin" /> : (t.isRTL ? 'تسجيل الدخول' : 'Sign in')}
                     </Button>
                   </form>
+                  {/* Only shown on devices that can actually run a platform
+                      passkey ceremony (Face ID / Touch ID / fingerprint). */}
+                  {passkeyAvailable && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={handlePasskeyLogin}
+                      disabled={loading}
+                      className="w-full h-12 text-sm font-semibold gap-2 rounded-xl border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] hover:bg-[#d4af37]/15 hover:text-[#d4af37] lg:border-input lg:bg-transparent lg:text-foreground lg:hover:bg-muted"
+                    >
+                      {busy === 'passkey' ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <ScanFace className="h-5 w-5" />
+                      )}
+                      {t.isRTL ? 'الدخول بـ Face ID' : 'Sign in with Face ID'}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 text-[10px] text-white/30 lg:text-muted-foreground/60">
