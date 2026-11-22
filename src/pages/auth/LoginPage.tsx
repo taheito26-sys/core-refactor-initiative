@@ -117,16 +117,6 @@ export default function LoginPage() {
     <div
       className="flex min-h-[100dvh] w-full overflow-x-hidden bg-[#0a0a0f] lg:bg-background"
       dir={t.isRTL ? 'rtl' : 'ltr'}
-      style={{
-        // The PWA declares a translucent status bar (apple-mobile-web-app-
-        // status-bar-style) and viewport-fit=cover, so the page paints under
-        // the notch and the home indicator. Reserve those insets here instead
-        // of letting the language pill sit behind the Dynamic Island.
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        paddingLeft: 'env(safe-area-inset-left, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
-      }}
     >
       {/* ── Desktop Left Panel ── */}
       <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden">
@@ -185,7 +175,20 @@ export default function LoginPage() {
         }} />
         {/* Desktop: normal bg */}
         <div className="absolute inset-0 hidden lg:block bg-background" />
-        <div className="relative z-10 flex flex-1 min-h-0 flex-col">
+        <div
+          className="relative z-10 flex flex-1 min-h-0 flex-col"
+          style={{
+            // The PWA declares a translucent status bar (apple-mobile-web-app-
+            // status-bar-style) and viewport-fit=cover, so the page paints under
+            // the notch and the home indicator. Reserve those insets for the
+            // content while the background stays full-bleed, instead of letting
+            // the language pill sit behind the Dynamic Island.
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+          }}
+        >
           {/* Language Toggle */}
           <div className="flex justify-end px-4 pt-3 pb-1">
             <div className="flex items-center gap-0.5 rounded-full p-0.5 shadow-sm bg-white/[0.06] lg:bg-muted">
