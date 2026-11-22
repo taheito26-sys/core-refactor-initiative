@@ -54,6 +54,14 @@ describe('passkey error messages', () => {
     expect(message).toContain('Settings');
   });
 
+  it('explains a device that is already enrolled', () => {
+    expect(describePasskeyError({ code: 'webauthn_credential_exists' }, false)).toContain('already set up');
+  });
+
+  it('explains the per-account passkey limit', () => {
+    expect(describePasskeyError({ code: 'too_many_passkeys' }, false)).toContain('maximum number of devices');
+  });
+
   it('falls back to a retry message for unknown failures', () => {
     expect(describePasskeyError(new Error('boom'), false)).toBe(
       'Face ID could not verify you. Try again or use your password.',

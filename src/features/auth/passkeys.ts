@@ -134,6 +134,17 @@ export function describePasskeyError(error: unknown, isRTL: boolean): string {
       ? 'تسجيل الدخول بالبصمة غير مُفعّل لهذا التطبيق بعد. استخدم كلمة المرور.'
       : 'Face ID sign-in is not enabled for this app yet. Use your password for now.';
   }
+  const text = errorText(error);
+  if (text.includes('webauthn_credential_exists')) {
+    return isRTL
+      ? 'هذا الجهاز مسجّل بالفعل لهذا الحساب.'
+      : 'This device is already set up for Face ID on this account.';
+  }
+  if (text.includes('too_many_passkeys')) {
+    return isRTL
+      ? 'وصلت إلى الحد الأقصى للأجهزة المسجّلة. أزل جهازاً من الإعدادات أولاً.'
+      : 'You have reached the maximum number of devices. Remove one in Settings first.';
+  }
   if (isMissingPasskey(error)) {
     return isRTL
       ? 'لا توجد بصمة محفوظة لهذا الحساب على هذا الجهاز. سجّل الدخول بكلمة المرور ثم فعّل البصمة من الإعدادات.'
