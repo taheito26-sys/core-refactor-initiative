@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScanFace, ShieldCheck, Trash2, Loader2, Plus } from 'lucide-react';
@@ -27,12 +27,18 @@ function formatDate(value: string, isRTL: boolean): string {
   });
 }
 
+type Props = {
+  /** "card" is the merchant settings glass card; "customer" matches the
+   *  plain rounded panels of the customer portal settings screen. */
+  variant?: 'card' | 'customer';
+};
+
 /**
  * Opt-in Face ID / Touch ID sign-in. Rendered in Settings for browsers and the
  * installed web app; hidden in the native shell, where WebAuthn has no domain
  * to bind a passkey to.
  */
-export function PasskeyLoginCard() {
+export function PasskeyLoginCard({ variant = 'card' }: Props) {
   const t = useT();
   const isRTL = t.isRTL;
   const [availability, setAvailability] = useState<PasskeyAvailability | null>(null);
@@ -125,6 +131,114 @@ export function PasskeyLoginCard() {
 
   const hasPasskey = passkeys.length > 0;
 
+  const body: ReactNode = (
+    <>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        {isRTL
+          ? 'سجّل الدخول باستخدام Face ID أو Touch ID أو رمز الجهاز بدل كتابة كلمة المرور. يمكنك دائماً استخدام كلمة المرور كبديل.'
+          : 'Sign in with Face ID, Touch ID, or your device passcode instead of typing your password. Your password always keeps working as a backup.'}
+      </p>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {isRTL ? 'جارٍ التحقق…' : 'Checking…'}
+        </div>
+      ) : hasPasskey ? (
+        <div className="space-y-2">
+          {passkeys.map(passkey => (
+            <div
+              key={passkey.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    {passkey.friendlyName || (isRTL ? 'بصمة مسجّلة' : 'Registered passkey')}
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {isRTL ? 'أُضيفت في ' : 'Added '}
+                  {formatDate(passkey.createdAt, isRTL)}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                disabled={busy !== null}
+                onClick={() => void handleRemove(passkey)}
+              >
+                {busy === passkey.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                <span className="ms-1">{isRTL ? 'إزالة' : 'Remove'}</span>
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full h-9 text-[11px]"
+            disabled={busy !== null}
+            onClick={() => void handleEnroll()}
+          >
+            {busy === 'enroll' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            <span className="ms-1.5">
+              {isRTL ? 'إضافة بصمة لهذا الجهاز' : 'Add a passkey for this device'}
+            </span>
+          </Button>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          className="w-full h-10 text-xs font-semibold"
+          disabled={busy !== null}
+          onClick={() => void handleEnroll()}
+        >
+          {busy === 'enroll' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ScanFace className="h-4 w-4" />
+          )}
+          <span className="ms-1.5">{isRTL ? 'تفعيل Face ID' : 'Turn on Face ID'}</span>
+        </Button>
+      )}
+
+      {error && <p className="text-[10px] text-destructive leading-snug">{error}</p>}
+
+      <p className="text-[10px] text-muted-foreground/70 leading-snug">
+        {isRTL
+          ? 'تعمل البصمة في Safari وفي التطبيق المثبّت على الشاشة الرئيسية لنفس الموقع.'
+          : 'Works in Safari and in the installed home-screen app for this site.'}
+      </p>
+    </>
+  );
+
+  if (variant === 'customer') {
+    return (
+      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+          <ScanFace className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {isRTL ? 'الدخول بالبصمة' : 'Face ID sign-in'}
+          </p>
+        </div>
+        <div className="px-4 py-4 space-y-3">{body}</div>
+      </div>
+    );
+  }
+
   return (
     <Card className="glass">
       <CardHeader className="pb-2">
@@ -133,97 +247,7 @@ export function PasskeyLoginCard() {
           {isRTL ? 'الدخول بالبصمة' : 'Face ID sign-in'}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
-          {isRTL
-            ? 'سجّل الدخول باستخدام Face ID أو Touch ID أو رمز الجهاز بدل كتابة كلمة المرور. يمكنك دائماً استخدام كلمة المرور كبديل.'
-            : 'Sign in with Face ID, Touch ID, or your device passcode instead of typing your password. Your password always keeps working as a backup.'}
-        </p>
-
-        {loading ? (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {isRTL ? 'جارٍ التحقق…' : 'Checking…'}
-          </div>
-        ) : hasPasskey ? (
-          <div className="space-y-2">
-            {passkeys.map(passkey => (
-              <div
-                key={passkey.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    <span className="truncate">
-                      {passkey.friendlyName || (isRTL ? 'بصمة مسجّلة' : 'Registered passkey')}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {isRTL ? 'أُضيفت في ' : 'Added '}
-                    {formatDate(passkey.createdAt, isRTL)}
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[10px] text-muted-foreground hover:text-destructive"
-                  disabled={busy !== null}
-                  onClick={() => void handleRemove(passkey)}
-                >
-                  {busy === passkey.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
-                  )}
-                  <span className="ms-1">{isRTL ? 'إزالة' : 'Remove'}</span>
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full h-9 text-[11px]"
-              disabled={busy !== null}
-              onClick={() => void handleEnroll()}
-            >
-              {busy === 'enroll' ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
-              <span className="ms-1.5">
-                {isRTL ? 'إضافة بصمة لهذا الجهاز' : 'Add a passkey for this device'}
-              </span>
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            className="w-full h-10 text-xs font-semibold"
-            disabled={busy !== null}
-            onClick={() => void handleEnroll()}
-          >
-            {busy === 'enroll' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ScanFace className="h-4 w-4" />
-            )}
-            <span className="ms-1.5">{isRTL ? 'تفعيل Face ID' : 'Turn on Face ID'}</span>
-          </Button>
-        )}
-
-        {error && <p className="text-[10px] text-destructive leading-snug">{error}</p>}
-
-        <p className="text-[10px] text-muted-foreground/70 leading-snug">
-          {isRTL
-            ? 'تعمل البصمة في Safari وفي التطبيق المثبّت على الشاشة الرئيسية لنفس الموقع.'
-            : 'Works in Safari and in the installed home-screen app for this site.'}
-        </p>
-      </CardContent>
+      <CardContent className="space-y-3">{body}</CardContent>
     </Card>
   );
 }

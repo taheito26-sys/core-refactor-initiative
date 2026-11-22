@@ -7,6 +7,7 @@ import { Loader2, LogOut, Bell, Globe, User, ChevronRight, Check, Palette } from
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES, updateCustomerProfile, resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
+import { PasskeyLoginCard } from '@/features/auth/PasskeyLoginCard';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
@@ -80,6 +81,10 @@ export default function CustomerSettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* Face ID / Touch ID sign-in — the login screen is shared with the
+          merchant app, so customers can enrol the same way. */}
+      <PasskeyLoginCard variant="customer" />
 
       {/* Appearance — the same layouts and colour themes the merchant app
           offers, driven by the one shared ThemeProvider. */}
