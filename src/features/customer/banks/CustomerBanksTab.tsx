@@ -351,7 +351,8 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
     set.add(monthKeyOf(Date.now()));
     return [...set].sort().reverse();
   }, [scopedMoves]);
-  const [month, setMonth] = useState<string | null>(() => monthKeyOf(Date.now()));
+  // Opens on the whole history so the headline figures are never a single month's slice; months are one tap away.
+  const [month, setMonth] = useState<string | null>(null);
   const summary = useMemo(() => summarizeMoves(scopedMoves, month), [scopedMoves, month]);
   const prevMonthKey = useMemo(() => {
     if (!month) return null;
