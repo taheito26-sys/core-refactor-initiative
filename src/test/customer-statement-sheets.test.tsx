@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { CashStatementSheet, LoanStatementSheet } from '@/features/customer/components/StatementSheets';
 import { buildHistoryLines, eventsFromLedger } from '@/features/stock/utils/accountHistory';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
@@ -19,11 +19,15 @@ describe('LoanStatementSheet', () => {
   it('lists the orders as out and the payments as in, with the balance after each', () => {
     render(<LoanStatementSheet open onOpenChange={() => {}} lang="en" statements={[statement()]} />);
     const dialog = screen.getByRole('dialog');
+    // The whole history, so the dates relative to today never fall outside the shown month.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'All' }));
     const rows = within(dialog).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
-    expect(within(rows[0]).getByText('Out')).toBeTruthy();
+    // Newest on top: the latest payment first, the order that opened the account last.
+    expect(within(rows[0]).getByText('In')).toBeTruthy();
+    expect(within(rows[0]).getByText('Unpaid after 35,000')).toBeTruthy();
     expect(within(rows[1]).getByText('In')).toBeTruthy();
-    expect(within(rows[2]).getByText('Unpaid after 35,000')).toBeTruthy();
+    expect(within(rows[2]).getByText('Out')).toBeTruthy();
   });
 
   it('gives each currency its own statement', () => {
@@ -47,7 +51,9 @@ describe('CashStatementSheet', () => {
     render(<CashStatementSheet open onOpenChange={() => {}} lang="en" accountName="Savings" currency="EGP" ledger={ledger} typeLabel={t => ({ deposit: 'Deposit', withdrawal: 'Withdrawal' } as Record<string, string>)[t] ?? t} />);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Savings')).toBeTruthy();
-    const [dep, wd] = within(dialog).getAllByRole('listitem');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'All' }));
+    // Newest on top: the withdrawal comes before the deposit.
+    const [wd, dep] = within(dialog).getAllByRole('listitem');
     expect(within(dep).getByText('Deposit')).toBeTruthy();
     expect(within(dep).getByText('In')).toBeTruthy();
     expect(within(wd).getByText('Out')).toBeTruthy();

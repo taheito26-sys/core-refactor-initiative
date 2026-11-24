@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarDays, Check, ChevronDown, Crown, Edit2, Landmark,
-  FileUp, Loader2, Plus, Search, Send, Trash2, Trophy, Users, X, Zap,
+  FileUp, List as ListIcon, Loader2, MoreHorizontal, Plus, Search, Send, Trash2, Trophy, Users, X, Zap,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -14,9 +14,9 @@ import { ModernSelect } from '@/components/shared/ModernSelect';
 import { statementQueryOptions } from '@/features/customer/statements-api';
 import type { PublicStatement } from '@/features/stock/components/PublicStatementReport';
 import {
-  NO_PAYEE_KEY, accountBalances, activeAccounts, buildBankMoves, cleanPayeeName, encodePayeeNote, isIncome, isSpending,
+  NO_PAYEE_KEY, accountBalances, activeAccounts, buildBankMoves, cleanPayeeName, encodePayeeNote, isSpending,
   knownPayees, merchantOrdersFromStatements, monthKeyOf, dayKeyOf, orderLinkId, ordersStartOf, payeeKey, primaryAccountId,
-  runningBalances, summarizeMoves, type BankAccount, type BankLedgerRow, type BankMove,
+  summarizeMoves, bankStatement, monthRange, type BankAccount, type BankLedgerRow, type BankMove,
 } from './bank-book';
 import {
   mergeBeneficiaries, parseBankImport, planImport, readBeneficiaries, writeBeneficiaries,
@@ -321,7 +321,6 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   const orders = useMemo(() => merchantOrdersFromStatements(statements as any), [statements]);
   const allMoves = useMemo(() => buildBankMoves(accounts, ledger, orders), [accounts, ledger, orders]);
   const balances = useMemo(() => accountBalances(allMoves), [allMoves]);
-  const running = useMemo(() => runningBalances(allMoves), [allMoves]);
   const accById = useMemo(() => new Map(active.map(a => [a.id, a])), [active]);
   // Saved beneficiaries first (as the bank lists them), then anyone else already paid.
   const beneficiaries = useMemo(() => active.reduce((acc, a) => mergeBeneficiaries(acc, readBeneficiaries(a.notes)), [] as ReturnType<typeof readBeneficiaries>), [active]);
@@ -346,60 +345,49 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
     [allMoves, selAcc, viewCurrency],
   );
 
+  // ── period: one month at a time, the current month first; a custom range on request ──
+  const thisMonth = monthKeyOf(Date.now());
   const months = useMemo(() => {
-    const set = new Set(scopedMoves.filter(m => isIncome(m) || isSpending(m)).map(m => monthKeyOf(m.ts)));
-    set.add(monthKeyOf(Date.now()));
+    const set = new Set(scopedMoves.map(m => monthKeyOf(m.ts)));
+    set.add(thisMonth);
     return [...set].sort().reverse();
-  }, [scopedMoves]);
-  // Opens on the whole history so the headline figures are never a single month's slice; months are one tap away.
-  const [month, setMonth] = useState<string | null>(null);
-  const summary = useMemo(() => summarizeMoves(scopedMoves, month), [scopedMoves, month]);
-  const prevMonthKey = useMemo(() => {
-    if (!month) return null;
-    const [y, m] = month.split('-').map(Number);
-    return monthKeyOf(new Date(y, m - 2, 15).getTime());
-  }, [month]);
-  const prevSummary = useMemo(() => (prevMonthKey ? summarizeMoves(scopedMoves, prevMonthKey) : null), [scopedMoves, prevMonthKey]);
+  }, [scopedMoves, thisMonth]);
+  const [month, setMonth] = useState<string>(thisMonth);
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
+  const range = useMemo(() => {
+    if (custom) return { from: custom.from ? startOfDayStr(custom.from) : null, to: custom.to ? startOfDayStr(custom.to) + 86400000 - 1 : null };
+    return monthRange(month);
+  }, [custom, month]);
+  const statement = useMemo(() => bankStatement(scopedMoves, range.from, range.to), [scopedMoves, range]);
+  const periodMoves = useMemo(() => statement.lines.map(l => l.move), [statement]);
+  const summary = useMemo(() => summarizeMoves(periodMoves, null), [periodMoves]);
 
+  const [view, setView] = useState<'statement' | 'analysis'>('statement');
   const [flow, setFlow] = useState<'all' | 'in' | 'out'>('all');
   const [payeeFilter, setPayeeFilter] = useState('');
   const [search, setSearch] = useState('');
   const [showAllPayees, setShowAllPayees] = useState(false);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [menu, setMenu] = useState(false);
 
-  const listMoves = useMemo(() => {
+  const lines = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return scopedMoves.filter(m => {
-      if (month && monthKeyOf(m.ts) !== month) return false;
+    return statement.lines.filter(({ move: m }) => {
       if (flow === 'in' && m.direction !== 'in') return false;
       if (flow === 'out' && m.direction !== 'out') return false;
-      if (payeeFilter) {
-        if (!isSpending(m)) return false;
-        if ((m.payee ? payeeKey(m.payee) : NO_PAYEE_KEY) !== payeeFilter) return false;
-      }
+      if (payeeFilter && (!isSpending(m) || (m.payee ? payeeKey(m.payee) : NO_PAYEE_KEY) !== payeeFilter)) return false;
       if (q) {
         const hay = [m.payee, m.note, m.orderNumber, accById.get(m.accountId)?.name, String(m.amount)].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [scopedMoves, month, flow, payeeFilter, search, accById]);
-
-  const flowCounts = useMemo(() => {
-    const inMonth = scopedMoves.filter(m => !month || monthKeyOf(m.ts) === month);
-    return { all: inMonth.length, in: inMonth.filter(m => m.direction === 'in').length, out: inMonth.filter(m => m.direction === 'out').length };
-  }, [scopedMoves, month]);
-
-  const dayGroups = useMemo(() => {
-    const groups: Array<{ day: string; moves: BankMove[]; in: number; out: number }> = [];
-    for (const m of listMoves) {
-      const d = dayKeyOf(m.ts);
-      let g = groups[groups.length - 1];
-      if (!g || g.day !== d) { g = { day: d, moves: [], in: 0, out: 0 }; groups.push(g); }
-      g.moves.push(m);
-      if (m.direction === 'in') g.in += m.amount; else g.out += m.amount;
-    }
-    return groups;
-  }, [listMoves]);
+  }, [statement, flow, payeeFilter, search, accById]);
+  const flowCounts = useMemo(() => ({
+    all: statement.lines.length,
+    in: statement.lines.filter(l => l.move.direction === 'in').length,
+    out: statement.lines.filter(l => l.move.direction === 'out').length,
+  }), [statement]);
 
   // ── labels ──
   const monthLabel = (key: string) => {
@@ -427,10 +415,6 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   };
   const typeLabel = (t: string) => { const x = ACCOUNT_TYPES.find(a => a.value === t); return x ? (lang === 'ar' ? x.ar : x.en) : t; };
   const pct = (n: number) => `${Math.round(n * 100)}%`;
-  const delta = (now: number, before: number | undefined) => {
-    if (!before) return null;
-    return Math.round(((now - before) / before) * 100);
-  };
 
   // ── writes ──
   const invalidate = () => {
@@ -479,7 +463,7 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
       if (error) throw error;
       return plan.rows.length;
     },
-    onSuccess: (n) => { toast.success(L(`${n} transfers imported`, `تم استيراد ${n} تحويل`)); setImporting(null); setMonth(null); invalidate(); },
+    onSuccess: (n) => { toast.success(L(`${n} transfers imported`, `تم استيراد ${n} تحويل`)); setImporting(null); invalidate(); },
     onError: (e: any) => toast.error(e?.message ?? String(e)),
   });
 
@@ -593,8 +577,11 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   const topPayee = summary.payees.find(p => p.key !== NO_PAYEE_KEY) ?? null;
   const visiblePayees = showAllPayees ? summary.payees : summary.payees.slice(0, 5);
   const seriesMax = Math.max(1, ...summary.series.map(s => Math.max(s.in, s.out)));
-  const outDelta = delta(summary.moneyOut, prevSummary?.moneyOut);
-  const inDelta = delta(summary.moneyIn, prevSummary?.moneyIn);
+  const menuAccount = selAcc ?? (active.length === 1 ? active[0] : null);
+  const shortDate = (ts: number) => new Date(ts).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  const periodStart = range.from != null ? shortDate(range.from) : null;
+  const periodEnd = range.to != null ? shortDate(Math.min(range.to, Date.now())) : null;
+  const money = (n: number) => `${n < 0 ? '−' : ''}${fmtTotal(Math.abs(n))}`;
 
   if (active.length === 0) {
     return (
@@ -615,311 +602,298 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   return (
     <>
       <div className="co-mainwrap">
-        <div className="ch-card co-main">
-          <div className="co-mtop">
-            <div className="co-mlabel">{L('My bank accounts', 'حساباتي البنكية')}</div>
-            <button type="button" className="co-new" onClick={() => setEntrySheet({ mode: 'out', existing: null })}>
-              <Send strokeWidth={2.4} />{L('Send money', 'تحويل مبلغ')}
-            </button>
+        <div className="ch-card co-main bk2">
+          {/* Account and its balance */}
+          <div className="bk2-head">
+            <div className="bk2-acct">
+              <span className="bk2-acct-ic"><Landmark /></span>
+              <div className="bk2-acct-t">
+                {active.length > 1 ? (
+                  <ModernSelect className="bk2-acct-sel" value={selected} onChange={e => setSelected(e.target.value)} ariaLabel={L('Account', 'الحساب')} compact>
+                    <option value="all">{L('All accounts', 'كل الحسابات')} · {viewCurrency}</option>
+                    {active.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
+                  </ModernSelect>
+                ) : (
+                  <b>{active[0].name}</b>
+                )}
+                <small>{L('Balance now', 'الرصيد الآن')}</small>
+              </div>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button type="button" className="bk2-more" onClick={() => setMenu(v => !v)} aria-label={L('Account options', 'خيارات الحساب')}><MoreHorizontal /></button>
+              {menu && (
+                <>
+                  <div className="cw-scrim" onClick={() => setMenu(false)} />
+                  <div className="cw-pop">
+                    {menuAccount && <button type="button" onClick={() => { setMenu(false); importInput.current?.click(); }}><FileUp />{L('Import bank transfers', 'استيراد تحويلات البنك')}</button>}
+                    {menuAccount && <button type="button" onClick={() => { setMenu(false); setAccountSheet({ existing: menuAccount }); }}><Edit2 />{L('Edit account', 'تعديل الحساب')}</button>}
+                    {active.filter(a => a.currency === viewCurrency).length > 1 && <button type="button" onClick={() => { setMenu(false); setEntrySheet({ mode: 'move', existing: null }); }}><ArrowLeftRight />{L('Move between my accounts', 'تحويل بين حساباتي')}</button>}
+                    <button type="button" onClick={() => { setMenu(false); setAccountSheet({ existing: null }); }}><Plus />{L('Add bank account', 'إضافة حساب بنكي')}</button>
+                    {menuAccount && <button type="button" className="danger" onClick={() => { setMenu(false); setConfirmRemoveAcc(true); }}><Trash2 />{L('Remove account', 'حذف الحساب')}</button>}
+                  </div>
+                </>
+              )}
+              {menuAccount && <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={e => readImportFile(e.target.files?.[0], menuAccount)} />}
+            </div>
           </div>
-
-          {/* Accounts strip: the total first, then each account, then add. */}
-          <div className="bk-accts">
-            <button type="button" className={cn('bk-acct total', selected === 'all' && 'on')} onClick={() => setSelected('all')}>
-              <span className="bk-acct-top"><Landmark /><span>{L('All accounts', 'كل الحسابات')}</span></span>
-              <b><bdi dir="ltr">{fmtTotal(active.filter(a => a.currency === viewCurrency).reduce((s, a) => s + (balances.get(a.id) ?? 0), 0))}</bdi></b>
-              <small>{viewCurrency} · {active.filter(a => a.currency === viewCurrency).length} {L('accounts', 'حسابات')}</small>
-            </button>
-            {active.map(a => {
-              const isPrimary = primaryAccountId(a.currency, accounts) === a.id;
-              return (
-                <button key={a.id} type="button" className={cn('bk-acct', selected === a.id && 'on')} onClick={() => setSelected(a.id)}>
-                  <span className="bk-acct-top"><Landmark /><span>{a.name}</span>{isPrimary && <Crown className="bk-crown" aria-label={L('Primary', 'رئيسي')} />}</span>
-                  <b><bdi dir="ltr">{fmtTotal(balances.get(a.id) ?? 0)}</bdi></b>
-                  <small>{a.currency} · {typeLabel(a.type)}</small>
-                </button>
-              );
-            })}
-            <button type="button" className="bk-acct add" onClick={() => setAccountSheet({ existing: null })}>
-              <Plus /><span>{L('Add bank', 'إضافة بنك')}</span>
-            </button>
-          </div>
-
+          <div className={cn('bk2-bal', totalBalance < 0 && 'neg')}><bdi dir="ltr">{money(totalBalance)}</bdi> <span>{viewCurrency}</span></div>
+          {confirmRemoveAcc && menuAccount && (
+            <div className="bk2-confirm">
+              <span>{L(`Remove ${menuAccount.name}?`, `حذف ${menuAccount.name}؟`)}</span>
+              <button type="button" className="cw-mini danger" onClick={() => removeAccount.mutate(menuAccount.id)}>{L('Remove', 'حذف')}</button>
+              <button type="button" className="cw-mini" onClick={() => setConfirmRemoveAcc(false)}>{L('Cancel', 'إلغاء')}</button>
+            </div>
+          )}
           {!selAcc && currencies.length > 1 && (
             <div className="bk-curs">
               {currencies.map(c => <button key={c} type="button" className={cn('co-chip', currency === c && 'on')} onClick={() => setCurrency(c)}>{c}</button>)}
             </div>
           )}
 
-          {selAcc && (
-            <div className="bk-acctbar">
-              <span className="bk-acctbar-t">
-                {primaryAccountId(selAcc.currency, accounts) === selAcc.id
-                  ? <><Crown />{L('Primary — orders arrive here', 'رئيسي — تصل الطلبات هنا')}</>
-                  : L('Orders go to your primary account; you can move any order here.', 'الطلبات تذهب لحسابك الرئيسي، ويمكنك نقل أي طلب هنا.')}
-              </span>
-              <span className="bk-acctbar-a">
-                <button type="button" onClick={() => setEntrySheet({ mode: 'in', existing: null })}><Plus />{L('Add money', 'إيداع')}</button>
-                {active.filter(a => a.currency === selAcc.currency).length > 1 && (
-                  <button type="button" onClick={() => setEntrySheet({ mode: 'move', existing: null })}><ArrowLeftRight />{L('Move', 'تحويل داخلي')}</button>
-                )}
-                <button type="button" onClick={() => importInput.current?.click()}><FileUp />{L('Import', 'استيراد')}</button>
-                <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={e => readImportFile(e.target.files?.[0], selAcc)} />
-                <button type="button" onClick={() => setAccountSheet({ existing: selAcc })} aria-label={L('Edit', 'تعديل')}><Edit2 /></button>
-                {confirmRemoveAcc ? (
-                  <>
-                    <button type="button" className="danger" onClick={() => removeAccount.mutate(selAcc.id)}>{L('Remove', 'حذف')}</button>
-                    <button type="button" onClick={() => setConfirmRemoveAcc(false)}>{L('Keep', 'إلغاء')}</button>
-                  </>
-                ) : (
-                  <button type="button" onClick={() => setConfirmRemoveAcc(true)} aria-label={L('Remove', 'حذف')}><Trash2 /></button>
-                )}
-              </span>
+          <div className="bk2-actions">
+            <button type="button" className="bk2-act out" onClick={() => setEntrySheet({ mode: 'out', existing: null })}><ArrowUpRight />{L('Send money', 'تحويل مبلغ')}</button>
+            <button type="button" className="bk2-act in" onClick={() => setEntrySheet({ mode: 'in', existing: null })}><ArrowDownLeft />{L('Add money', 'إيداع')}</button>
+          </div>
+
+          {/* Month by month, newest first; a custom range on request */}
+          <div className="cw-months">
+            <div className="co-months">
+              {months.map(m => (
+                <button key={m} type="button" className={cn('co-chip', !custom && month === m && 'on')} onClick={() => { setCustom(null); setMonth(m); }}>{monthLabel(m)}</button>
+              ))}
+            </div>
+            <button type="button" className={cn('cw-card cw-cal', custom && 'on')} onClick={() => setCustom(c => c ?? { from: dayKeyOf(monthRange(month).from), to: todayStr() })} aria-label={L('Pick dates', 'اختيار تاريخ')}>
+              <CalendarDays />
+            </button>
+          </div>
+          {custom && (
+            <div className="bk2-range">
+              <label><span>{L('From', 'من')}</span><input type="date" value={custom.from} max={custom.to || undefined} onChange={e => setCustom({ ...custom, from: e.target.value })} /></label>
+              <label><span>{L('To', 'إلى')}</span><input type="date" value={custom.to} min={custom.from || undefined} onChange={e => setCustom({ ...custom, to: e.target.value })} /></label>
+              <button type="button" className="cw-mini" onClick={() => setCustom(null)}><X />{L('Months', 'الأشهر')}</button>
             </div>
           )}
 
-          {/* Months */}
-          <div className="cw-months">
-            <div className="co-months">
-              {[{ key: null as string | null, label: L('All time', 'كل الفترات') }, ...months.map(m => ({ key: m as string | null, label: monthLabel(m) }))].map(m => (
-                <button key={m.key ?? 'all'} type="button" className={cn('co-chip', month === m.key && 'on')} onClick={() => setMonth(m.key)}>{m.label}</button>
-              ))}
+          {/* The period in one line each: where it started, what came in, what went out, where it ended */}
+          <div className="bk2-sum">
+            <div className="bk2-sum-r edge">
+              <span>{L('Opening balance', 'الرصيد الافتتاحي')}{periodStart ? <small> · {periodStart}</small> : null}</span>
+              <b><bdi dir="ltr">{money(statement.opening)}</bdi></b>
             </div>
-          </div>
-
-          {/* In, out, balance */}
-          <div className="cw-stats">
-            <div className="cw-card cw-stat bk-in">
-              <div className="cw-stat-l">{L('Money in', 'الوارد')}</div>
-              <span className="cw-stat-ic"><ArrowDownLeft /></span>
-              <div className="cw-stat-v"><bdi dir="ltr">{fmtTotal(summary.moneyIn)}</bdi></div>
-              <div className="cw-stat-u">{inDelta === null ? `${summary.orderCount} ${L('orders', 'طلبات')}` : `${inDelta >= 0 ? '▲' : '▼'} ${Math.abs(inDelta)}% ${L('vs last month', 'عن الشهر الماضي')}`}</div>
+            <div className="bk2-sum-r in">
+              <span><i><ArrowDownLeft /></i>{L('Orders received', 'طلبات مستلمة')}<small> · {statement.orderCount}</small></span>
+              <b><bdi dir="ltr">+{fmtTotal(statement.ordersIn)}</bdi></b>
             </div>
-            <div className="cw-card cw-stat bk-out">
-              <div className="cw-stat-l">{L('Money out', 'الصادر')}</div>
-              <span className="cw-stat-ic"><ArrowUpRight /></span>
-              <div className="cw-stat-v"><bdi dir="ltr">{fmtTotal(summary.moneyOut)}</bdi></div>
-              <div className="cw-stat-u">{outDelta === null ? `${summary.transferCount} ${L('transfers', 'تحويلات')}` : `${outDelta >= 0 ? '▲' : '▼'} ${Math.abs(outDelta)}% ${L('vs last month', 'عن الشهر الماضي')}`}</div>
+            {statement.otherIn > 0 && (
+              <div className="bk2-sum-r in">
+                <span><i><Plus /></i>{L('Other money in', 'إيداعات أخرى')}</span>
+                <b><bdi dir="ltr">+{fmtTotal(statement.otherIn)}</bdi></b>
+              </div>
+            )}
+            <div className="bk2-sum-r out">
+              <span><i><ArrowUpRight /></i>{L('Transfers out', 'تحويلات صادرة')}<small> · {statement.transferCount}</small></span>
+              <b><bdi dir="ltr">−{fmtTotal(statement.transfersOut)}</bdi></b>
             </div>
-            <div className="cw-card cw-stat bk-bal">
-              <div className="cw-stat-l">{L('Balance now', 'الرصيد الآن')}</div>
-              <span className="cw-stat-ic"><Landmark /></span>
-              <div className="cw-stat-v"><bdi dir="ltr">{fmtTotal(totalBalance)}</bdi></div>
-              <div className="cw-stat-u">({viewCurrency})</div>
-            </div>
-          </div>
-
-          {/* How much of what came in has gone out */}
-          <div className="bk-flow">
-            <div className="bk-flow-t">
-              <span>{L('Spent of what came in', 'المصروف من الوارد')}</span>
-              <b className={cn(summary.net < 0 && 'neg')}>{L('Net', 'الصافي')} <bdi dir="ltr">{summary.net >= 0 ? '+' : '−'}{fmtTotal(Math.abs(summary.net))}</bdi></b>
-            </div>
-            <div className="bk-flow-track">
-              <div style={{ width: `${Math.min(100, summary.spentPct)}%` }} />
-            </div>
-            <div className="bk-flow-l">
-              <span className="o">{summary.moneyIn > 0 ? `${summary.spentPct}%` : '—'}</span>
-              <span>{summary.orderCount} {L('orders received', 'طلبات مستلمة')} · <bdi dir="ltr">{fmtTotal(summary.orderIn)}</bdi></span>
+            {statement.otherOut > 0 && (
+              <div className="bk2-sum-r out">
+                <span><i><ArrowLeftRight /></i>{L('Moved to my accounts', 'محوّل لحساباتي')}</span>
+                <b><bdi dir="ltr">−{fmtTotal(statement.otherOut)}</bdi></b>
+              </div>
+            )}
+            <div className={cn('bk2-sum-r edge close', statement.closing < 0 && 'neg')}>
+              <span>{L('Closing balance', 'الرصيد الختامي')}{periodEnd ? <small> · {periodEnd}</small> : null}</span>
+              <b><bdi dir="ltr">{money(statement.closing)}</bdi></b>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Where the money went */}
-      <section className="cw-card bk-sec">
-        <div className="bk-sec-h">
-          <span><Trophy />{L('Where your money went', 'أين ذهبت أموالك')}</span>
-          {payeeFilter && <button type="button" onClick={() => setPayeeFilter('')}><X />{L('Clear', 'مسح')}</button>}
-        </div>
-        {summary.payees.length === 0 ? (
-          <p className="bk-none">{L('No transfers yet in this period. Tap "Send money" each time you transfer from the bank.', 'لا توجد تحويلات في هذه الفترة. اضغط "تحويل مبلغ" في كل مرة تحوّل من البنك.')}</p>
-        ) : (
-          <>
-            <div className="bk-stack" aria-hidden="true">
-              {summary.payees.slice(0, 6).map((p, i) => (
-                <div key={p.key} style={{ width: `${p.share * 100}%`, background: RANK_COLORS[Math.min(i, RANK_COLORS.length - 1)] }} />
-              ))}
+      {/* Statement or analysis of the same period */}
+      <div className="cw-card bk-tabs bk2-seg" role="tablist">
+        <button type="button" role="tab" aria-selected={view === 'statement'} className={cn(view === 'statement' && 'on')} onClick={() => setView('statement')}><ListIcon />{L('Statement', 'كشف الحساب')}</button>
+        <button type="button" role="tab" aria-selected={view === 'analysis'} className={cn(view === 'analysis' && 'on')} onClick={() => setView('analysis')}><BarChart3 />{L('Where it went', 'أين ذهبت الأموال')}</button>
+      </div>
+
+      {view === 'statement' ? (
+        <>
+          <div className="cw-card cw-chips">
+            {([
+              { key: 'all', cls: 'all', label: L('All', 'الكل'), icon: <ArrowLeftRight />, n: flowCounts.all },
+              { key: 'in', cls: 'done', label: L('In', 'وارد'), icon: <ArrowDownLeft />, n: flowCounts.in },
+              { key: 'out', cls: 'wait', label: L('Out', 'صادر'), icon: <ArrowUpRight />, n: flowCounts.out },
+            ] as const).map(c => (
+              <button key={c.key} type="button" className={cn('cw-chip', c.cls, flow === c.key && 'on')} onClick={() => setFlow(c.key)}>
+                <span className="cw-chip-ic">{c.icon}</span>
+                <span className="cw-chip-l">{c.label}</span>
+                <span className="cw-chip-n">{c.n}</span>
+              </button>
+            ))}
+          </div>
+
+          <label className="cw-search bk-search">
+            <Search />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={L('Search by name, order or amount…', 'ابحث بالاسم أو رقم الطلب أو المبلغ…')} />
+          </label>
+
+          {payeeFilter && (
+            <div className="cw-fbar" role="status">
+              <Users className="cw-fbar-ic" />
+              <div className="cw-fbar-t">
+                <span>{L('Transfers to', 'التحويلات إلى')} <b>{summary.payees.find(p => p.key === payeeFilter)?.name ?? L('No name', 'بدون اسم')}</b></span>
+                <span className="cw-fbar-sum">{L('Total', 'الإجمالي')}: <b><bdi dir="ltr">{fmtTotal(lines.reduce((s, l) => s + l.move.amount, 0))}</bdi></b> {viewCurrency}</span>
+              </div>
+              <button type="button" className="cw-fbar-clear" onClick={() => setPayeeFilter('')}><X />{L('Clear', 'مسح')}</button>
             </div>
-            <ol className="bk-payees">
-              {visiblePayees.map((p, i) => {
-                const color = RANK_COLORS[Math.min(i, RANK_COLORS.length - 1)];
+          )}
+
+          {ordersLoading && statement.lines.length === 0 ? (
+            <div className="cw-loading"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : lines.length === 0 ? (
+            <div className="cw-card cw-empty">{L('No movements in this period', 'لا توجد حركات في هذه الفترة')}</div>
+          ) : (
+            <ol className="bk2-list">
+              {lines.map(({ move: m, before, after }) => {
+                const isIn = m.direction === 'in';
+                const internal = m.kind === 'move_in' || m.kind === 'move_out';
+                const editable = !!m.ledgerId && (m.kind === 'payout' || m.kind === 'withdrawal' || m.kind === 'deposit');
+                const deletable = !!m.ledgerId && m.kind !== 'order';
+                const movable = m.kind === 'order' && active.filter(a => a.currency === m.currency).length > 1;
+                const hasActions = editable || deletable || movable;
+                const open = openRow === m.id;
+                const accName = accById.get(m.accountId)?.name;
                 return (
-                  <li key={p.key}>
-                    <button type="button" className={cn('bk-payee', payeeFilter === p.key && 'on')} onClick={() => { setPayeeFilter(payeeFilter === p.key ? '' : p.key); setFlow('all'); }}>
-                      <span className="bk-rank" style={{ background: `${color}1a`, color }}>{i + 1}</span>
-                      <span className="bk-payee-m">
-                        <span className="bk-payee-n">{p.name ?? L('No name', 'بدون اسم')}</span>
-                        <span className="bk-payee-s">{p.count} {L(p.count === 1 ? 'transfer' : 'transfers', 'تحويل')} · {L('avg', 'متوسط')} <bdi dir="ltr">{fmtTotal(p.average)}</bdi></span>
-                        <span className="bk-payee-bar"><span style={{ width: `${p.share * 100}%`, background: color }} /></span>
+                  <li key={m.id} className={cn('bk2-row', internal ? 'mv' : isIn ? 'in' : 'out')}>
+                    <button type="button" className="bk2-row-in" onClick={() => hasActions && setOpenRow(open ? null : m.id)} aria-expanded={hasActions ? open : undefined}>
+                      <span className="bk2-row-m">
+                        <b>{moveTitle(m)}</b>
+                        <small>
+                          {shortDate(m.ts)} · {timeLabel(m.ts)}
+                          <em>{internal ? L('Own account', 'حساب خاص') : isIn ? L('In', 'وارد') : L('Out', 'صادر')}</em>
+                        </small>
+                        {(m.note || (!selAcc && active.length > 1 && accName)) && <small className="bk2-row-n">{[!selAcc && active.length > 1 ? accName : null, m.note].filter(Boolean).join(' · ')}</small>}
                       </span>
-                      <span className="bk-payee-v">
-                        <b><bdi dir="ltr">{fmtTotal(p.total)}</bdi></b>
-                        <small>{pct(p.share)}</small>
+                      <span className="bk2-row-v" dir="ltr">
+                        <small>{L('Before', 'قبل')} {money(before)}</small>
+                        <b>{isIn ? '+' : '−'}{fmtTotal(m.amount)}</b>
+                        <small className="after">{L('After', 'بعد')} {money(after)}</small>
                       </span>
                     </button>
+                    {open && hasActions && (
+                      <div className="bk-row-a">
+                        {confirmDelete === m.id ? (
+                          <>
+                            <span className="cw-act ask">{L('Remove this entry?', 'حذف هذه الحركة؟')}</span>
+                            <button type="button" className="cw-mini danger" onClick={() => deleteEntry.mutate(m)} disabled={deleteEntry.isPending}>{L('Remove', 'حذف')}</button>
+                            <button type="button" className="cw-mini" onClick={() => setConfirmDelete(null)}>{L('Cancel', 'إلغاء')}</button>
+                          </>
+                        ) : (
+                          <>
+                            {movable && <button type="button" className="cw-act" onClick={() => setMoveOrder(m)}><Landmark />{L('Change account', 'تغيير الحساب')}</button>}
+                            {editable && <button type="button" className="cw-act" onClick={() => setEntrySheet({ mode: m.direction === 'out' ? 'out' : 'in', existing: m })}><Edit2 />{L('Edit', 'تعديل')}</button>}
+                            {deletable && <button type="button" className="cw-act" onClick={() => setConfirmDelete(m.id)}><Trash2 />{L('Delete', 'حذف')}</button>}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ol>
-            {summary.payees.length > 5 && (
-              <button type="button" className="bk-more" onClick={() => setShowAllPayees(v => !v)}>
-                {showAllPayees ? L('Show less', 'عرض أقل') : `${L('Show all', 'عرض الكل')} (${summary.payees.length})`}
-                <ChevronDown className={cn(showAllPayees && 'up')} />
-              </button>
-            )}
-          </>
-        )}
-      </section>
-
-      {/* Highlights */}
-      <div className="bk-kpis">
-        <div className="cw-card bk-kpi k1">
-          <span className="bk-kpi-ic"><Crown /></span>
-          <span className="bk-kpi-l">{L('Paid the most', 'الأكثر استلاماً')}</span>
-          <b className="bk-kpi-v">{topPayee?.name ?? '—'}</b>
-          <small>{topPayee ? <><bdi dir="ltr">{fmtTotal(topPayee.total)}</bdi> · {pct(topPayee.share)}</> : L('No transfers', 'لا تحويلات')}</small>
-        </div>
-        <div className="cw-card bk-kpi k2">
-          <span className="bk-kpi-ic"><Zap /></span>
-          <span className="bk-kpi-l">{L('Largest transfer', 'أكبر تحويل')}</span>
-          <b className="bk-kpi-v"><bdi dir="ltr">{summary.largest ? fmtTotal(summary.largest.amount) : '—'}</bdi></b>
-          <small>{summary.largest ? (summary.largest.payee ?? L('Withdrawal', 'سحب')) : '—'}</small>
-        </div>
-        <div className="cw-card bk-kpi k3">
-          <span className="bk-kpi-ic"><Users /></span>
-          <span className="bk-kpi-l">{L('People paid', 'عدد المستفيدين')}</span>
-          <b className="bk-kpi-v">{summary.payees.filter(p => p.key !== NO_PAYEE_KEY).length}</b>
-          <small>{summary.transferCount} {L('transfers', 'تحويلات')} · {L('avg', 'متوسط')} <bdi dir="ltr">{fmtTotal(summary.transferCount ? summary.moneyOut / summary.transferCount : 0)}</bdi></small>
-        </div>
-        <div className="cw-card bk-kpi k4">
-          <span className="bk-kpi-ic"><CalendarDays /></span>
-          <span className="bk-kpi-l">{L('Busiest day', 'أكثر يوم صرفاً')}</span>
-          <b className="bk-kpi-v">{summary.busiestDay ? dayLabel(summary.busiestDay.day) : '—'}</b>
-          <small>{summary.busiestDay ? <bdi dir="ltr">{fmtTotal(summary.busiestDay.total)}</bdi> : '—'}</small>
-        </div>
-      </div>
-
-      {/* In and out over time */}
-      {summary.series.length > 0 && (
-        <section className="cw-card bk-sec">
-          <div className="bk-sec-h">
-            <span><BarChart3 />{month ? L('Daily in & out', 'الوارد والصادر يومياً') : L('Monthly in & out', 'الوارد والصادر شهرياً')}</span>
-            <span className="bk-legend"><i className="in" />{L('In', 'وارد')}<i className="out" />{L('Out', 'صادر')}</span>
-          </div>
-          <div className="bk-chart" role="img" aria-label={L('In and out chart', 'مخطط الوارد والصادر')}>
-            {summary.series.map(s => (
-              <div key={s.key} className="bk-col" title={`${s.key}: +${fmtTotal(s.in)} / −${fmtTotal(s.out)}`}>
-                <div className="bk-bars">
-                  <span className="in" style={{ height: `${(s.in / seriesMax) * 100}%` }} />
-                  <span className="out" style={{ height: `${(s.out / seriesMax) * 100}%` }} />
-                </div>
-                <small>{month ? Number(s.key.slice(8)) : monthLabel(s.key)}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Activity */}
-      <div className="cw-card cw-chips">
-        {([
-          { key: 'all', cls: 'all', label: L('All', 'الكل'), icon: <ArrowLeftRight />, n: flowCounts.all },
-          { key: 'in', cls: 'done', label: L('In', 'وارد'), icon: <ArrowDownLeft />, n: flowCounts.in },
-          { key: 'out', cls: 'wait', label: L('Out', 'صادر'), icon: <ArrowUpRight />, n: flowCounts.out },
-        ] as const).map(c => (
-          <button key={c.key} type="button" className={cn('cw-chip', c.cls, flow === c.key && 'on')} onClick={() => setFlow(c.key)}>
-            <span className="cw-chip-ic">{c.icon}</span>
-            <span className="cw-chip-l">{c.label}</span>
-            <span className="cw-chip-n">{c.n}</span>
-          </button>
-        ))}
-      </div>
-
-      <label className="cw-search bk-search">
-        <Search />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={L('Search by name, note or amount…', 'ابحث بالاسم أو الملاحظة أو المبلغ…')} />
-      </label>
-
-      {payeeFilter && (
-        <div className="cw-fbar" role="status">
-          <Users className="cw-fbar-ic" />
-          <div className="cw-fbar-t">
-            <span>{L('Transfers to', 'التحويلات إلى')} <b>{summary.payees.find(p => p.key === payeeFilter)?.name ?? L('No name', 'بدون اسم')}</b></span>
-            <span className="cw-fbar-sum">{L('Total', 'الإجمالي')}: <b><bdi dir="ltr">{fmtTotal(listMoves.reduce((s, m) => s + m.amount, 0))}</bdi></b> {viewCurrency}</span>
-          </div>
-          <button type="button" className="cw-fbar-clear" onClick={() => setPayeeFilter('')}><X />{L('Clear', 'مسح')}</button>
-        </div>
-      )}
-
-      {ordersLoading && allMoves.length === 0 ? (
-        <div className="cw-loading"><Loader2 className="h-6 w-6 animate-spin" /></div>
-      ) : dayGroups.length === 0 ? (
-        <div className="cw-card cw-empty">{L('No movements in this period', 'لا توجد حركات في هذه الفترة')}</div>
+          )}
+        </>
       ) : (
-        <div className="bk-days">
-          {dayGroups.map(g => (
-            <div key={g.day} className="bk-day">
-              <div className="bk-day-h">
-                <span>{dayLabel(g.day)}</span>
-                <span className="bk-day-s">
-                  {g.in > 0 && <i className="in"><bdi dir="ltr">+{fmtTotal(g.in)}</bdi></i>}
-                  {g.out > 0 && <i className="out"><bdi dir="ltr">−{fmtTotal(g.out)}</bdi></i>}
-                </span>
-              </div>
-              <div className="cw-list">
-                {g.moves.map(m => {
-                  const isIn = m.direction === 'in';
-                  const internal = m.kind === 'move_in' || m.kind === 'move_out';
-                  const accent = internal ? '#64748b' : isIn ? '#16a34a' : '#e11d48';
-                  const editable = !!m.ledgerId && (m.kind === 'payout' || m.kind === 'withdrawal' || m.kind === 'deposit');
-                  const deletable = !!m.ledgerId && m.kind !== 'order';
-                  const movable = m.kind === 'order' && active.filter(a => a.currency === m.currency).length > 1;
-                  const accName = accById.get(m.accountId)?.name;
-                  return (
-                    <div key={m.id} className="cw-card cw-row bk-row" style={{ ['--acc' as string]: accent }}>
-                      <div className="bk-row-in">
-                        <span className={cn('bk-row-ic', internal ? 'mv' : isIn ? 'in' : 'out')}>
-                          {internal ? <ArrowLeftRight /> : isIn ? <ArrowDownLeft /> : <ArrowUpRight />}
-                        </span>
-                        <span className="bk-row-m">
-                          <b>{moveTitle(m)}</b>
-                          <small>
-                            {timeLabel(m.ts)}
-                            {!selAcc && accName ? ` · ${accName}` : ''}
-                            {m.kind === 'order' && !m.ledgerId ? ` · ${L('auto', 'تلقائي')}` : ''}
-                            {m.note ? ` · ${m.note}` : ''}
-                          </small>
-                        </span>
-                        <span className="bk-row-v">
-                          <b style={{ color: accent }}><bdi dir="ltr">{isIn ? '+' : '−'}{fmtTotal(m.amount)}</bdi></b>
-                          {selAcc && <small><bdi dir="ltr">{fmtTotal(running.get(m.id) ?? 0)}</bdi></small>}
-                        </span>
-                      </div>
-                      {(editable || deletable || movable) && (
-                        <div className="bk-row-a">
-                          {confirmDelete === m.id ? (
-                            <>
-                              <span className="cw-act ask">{L('Remove this entry?', 'حذف هذه الحركة؟')}</span>
-                              <button type="button" className="cw-mini danger" onClick={() => deleteEntry.mutate(m)} disabled={deleteEntry.isPending}>{L('Remove', 'حذف')}</button>
-                              <button type="button" className="cw-mini" onClick={() => setConfirmDelete(null)}>{L('Cancel', 'إلغاء')}</button>
-                            </>
-                          ) : (
-                            <>
-                              {movable && <button type="button" className="cw-act" onClick={() => setMoveOrder(m)}><Landmark />{L('Change account', 'تغيير الحساب')}</button>}
-                              {editable && <button type="button" className="cw-act" onClick={() => setEntrySheet({ mode: m.direction === 'out' ? 'out' : 'in', existing: m })}><Edit2 />{L('Edit', 'تعديل')}</button>}
-                              {deletable && <button type="button" className="cw-act" onClick={() => setConfirmDelete(m.id)}><Trash2 />{L('Delete', 'حذف')}</button>}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+        <>
+          <section className="cw-card bk-sec">
+            <div className="bk-sec-h">
+              <span><Trophy />{L('Who received the most', 'الأكثر استلاماً')}</span>
             </div>
-          ))}
-        </div>
+            {summary.payees.length === 0 ? (
+              <p className="bk-none">{L('No transfers in this period.', 'لا توجد تحويلات في هذه الفترة.')}</p>
+            ) : (
+              <>
+                <div className="bk-stack" aria-hidden="true">
+                  {summary.payees.slice(0, 6).map((p, i) => (
+                    <div key={p.key} style={{ width: `${p.share * 100}%`, background: RANK_COLORS[Math.min(i, RANK_COLORS.length - 1)] }} />
+                  ))}
+                </div>
+                <ol className="bk-payees">
+                  {visiblePayees.map((p, i) => {
+                    const color = RANK_COLORS[Math.min(i, RANK_COLORS.length - 1)];
+                    return (
+                      <li key={p.key}>
+                        <button type="button" className="bk-payee" onClick={() => { setPayeeFilter(p.key); setFlow('all'); setView('statement'); }}>
+                          <span className="bk-rank" style={{ background: `${color}1a`, color }}>{i + 1}</span>
+                          <span className="bk-payee-m">
+                            <span className="bk-payee-n">{p.name ?? L('No name', 'بدون اسم')}</span>
+                            <span className="bk-payee-s">{p.count} {L(p.count === 1 ? 'transfer' : 'transfers', 'تحويل')} · {L('avg', 'متوسط')} <bdi dir="ltr">{fmtTotal(p.average)}</bdi></span>
+                            <span className="bk-payee-bar"><span style={{ width: `${p.share * 100}%`, background: color }} /></span>
+                          </span>
+                          <span className="bk-payee-v">
+                            <b><bdi dir="ltr">{fmtTotal(p.total)}</bdi></b>
+                            <small>{pct(p.share)}</small>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+                {summary.payees.length > 5 && (
+                  <button type="button" className="bk-more" onClick={() => setShowAllPayees(v => !v)}>
+                    {showAllPayees ? L('Show less', 'عرض أقل') : `${L('Show all', 'عرض الكل')} (${summary.payees.length})`}
+                    <ChevronDown className={cn(showAllPayees && 'up')} />
+                  </button>
+                )}
+              </>
+            )}
+          </section>
+
+          <div className="bk-kpis">
+            <div className="cw-card bk-kpi k2">
+              <span className="bk-kpi-ic"><Zap /></span>
+              <span className="bk-kpi-l">{L('Largest transfer', 'أكبر تحويل')}</span>
+              <b className="bk-kpi-v"><bdi dir="ltr">{summary.largest ? fmtTotal(summary.largest.amount) : '—'}</bdi></b>
+              <small>{summary.largest ? `${summary.largest.payee ?? L('Withdrawal', 'سحب')} · ${shortDate(summary.largest.ts)}` : '—'}</small>
+            </div>
+            <div className="cw-card bk-kpi k3">
+              <span className="bk-kpi-ic"><Users /></span>
+              <span className="bk-kpi-l">{L('People paid', 'عدد المستفيدين')}</span>
+              <b className="bk-kpi-v">{summary.payees.filter(p => p.key !== NO_PAYEE_KEY).length}</b>
+              <small>{summary.transferCount} {L('transfers', 'تحويلات')} · {L('avg', 'متوسط')} <bdi dir="ltr">{fmtTotal(summary.transferCount ? summary.moneyOut / summary.transferCount : 0)}</bdi></small>
+            </div>
+            <div className="cw-card bk-kpi k1">
+              <span className="bk-kpi-ic"><Crown /></span>
+              <span className="bk-kpi-l">{L('Paid the most', 'الأكثر استلاماً')}</span>
+              <b className="bk-kpi-v">{topPayee?.name ?? '—'}</b>
+              <small>{topPayee ? <><bdi dir="ltr">{fmtTotal(topPayee.total)}</bdi> · {pct(topPayee.share)}</> : '—'}</small>
+            </div>
+            <div className="cw-card bk-kpi k4">
+              <span className="bk-kpi-ic"><CalendarDays /></span>
+              <span className="bk-kpi-l">{L('Busiest day', 'أكثر يوم صرفاً')}</span>
+              <b className="bk-kpi-v">{summary.busiestDay ? dayLabel(summary.busiestDay.day) : '—'}</b>
+              <small>{summary.busiestDay ? <bdi dir="ltr">{fmtTotal(summary.busiestDay.total)}</bdi> : '—'}</small>
+            </div>
+          </div>
+
+          {summary.series.length > 0 && (
+            <section className="cw-card bk-sec">
+              <div className="bk-sec-h">
+                <span><BarChart3 />{L('In & out by day', 'الوارد والصادر يومياً')}</span>
+                <span className="bk-legend"><i className="in" />{L('In', 'وارد')}<i className="out" />{L('Out', 'صادر')}</span>
+              </div>
+              <div className="bk-chart" role="img" aria-label={L('In and out chart', 'مخطط الوارد والصادر')}>
+                {summary.series.map(s => (
+                  <div key={s.key} className="bk-col" title={`${s.key}: +${fmtTotal(s.in)} / −${fmtTotal(s.out)}`}>
+                    <div className="bk-bars">
+                      <span className="in" style={{ height: `${(s.in / seriesMax) * 100}%` }} />
+                      <span className="out" style={{ height: `${(s.out / seriesMax) * 100}%` }} />
+                    </div>
+                    <small>{s.key.length > 7 ? Number(s.key.slice(8)) : monthLabel(s.key)}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {accountSheet && <AccountSheet existing={accountSheet.existing} lang={lang} L={L} onClose={() => setAccountSheet(null)} saving={saveAccount.isPending} onSave={v => saveAccount.mutate(v)} />}

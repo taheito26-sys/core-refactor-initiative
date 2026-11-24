@@ -36,19 +36,24 @@ describe('CustomerBanksTab', () => {
     expect(screen.getByText('Track your bank accounts')).toBeTruthy();
   });
 
-  it('shows the order deposit, the balance and where the money went', async () => {
+  it('opens on this month as a statement, newest first, with the balance before and after each line', async () => {
     renderTab([misr], ledger);
     expect(await screen.findByText('Merchant order · ORD-7')).toBeTruthy();
-    // 1,000,000 opening + 400,000 order − 300,000 sent
+    // 1,000,000 opening (3 days ago) + 400,000 order − 300,000 sent
     expect(screen.getAllByText('1,100,000').length).toBeGreaterThan(0);
+    const titles = Array.from(document.querySelectorAll('.bk2-row-m b')).map(b => b.textContent);
+    expect(titles.slice(0, 3)).toEqual(['Supplier 2', 'Supplier 1', 'Merchant order · ORD-7']);
+    expect(screen.getByText('After 1,100,000')).toBeTruthy();
+    expect(screen.getByText('Orders received')).toBeTruthy();
+    expect(screen.getByText('−300,000')).toBeTruthy();
+    fireEvent.click(screen.getByText('Where it went'));
     expect(screen.getAllByText('Supplier 1').length).toBeGreaterThan(0);
-    expect(screen.getByText('Where your money went')).toBeTruthy();
   });
 
   it('previews an import, counting completed transfers only', async () => {
     renderTab([misr], []);
-    fireEvent.click(screen.getByText('Bank Misr'));
-    fireEvent.click(screen.getByText('Import'));
+    fireEvent.click(screen.getByLabelText('Account options'));
+    fireEvent.click(screen.getByText('Import bank transfers'));
     const input = document.querySelector('input[type=file]') as HTMLInputElement;
     const body = JSON.stringify({
       format: 'bank-transfers/1', bank: 'Banque Misr', currency: 'EGP',

@@ -402,3 +402,61 @@ export function knownPayees(moves: BankMove[]): string[] {
   }
   return [...m.values()].sort((a, b) => b.n - a.n || b.last - a.last).map(e => e.name);
 }
+
+// ─── Statement for a period ────────────────────────────────────────
+
+export interface StatementLine {
+  move: BankMove;
+  before: number;
+  after: number;
+}
+
+export interface BankStatement {
+  /** Balance at the start of the period: every move before it. */
+  opening: number;
+  closing: number;
+  ordersIn: number;
+  orderCount: number;
+  /** Deposits, opening balances and money moved in from the buyer's own accounts. */
+  otherIn: number;
+  transfersOut: number;
+  transferCount: number;
+  /** Money moved out to the buyer's own accounts. */
+  otherOut: number;
+  /** Newest first. */
+  lines: StatementLine[];
+}
+
+/*
+ * A bank statement over [from, to] (either end open) for the moves given,
+ * which share one currency. Balances run across all of them together, so
+ * opening + money in − money out = closing always holds.
+ */
+export function bankStatement(moves: BankMove[], from: number | null, to: number | null): BankStatement {
+  const asc = [...moves].sort((a, b) => a.ts - b.ts || a.id.localeCompare(b.id));
+  let bal = 0;
+  let opening = 0;
+  const s: BankStatement = { opening: 0, closing: 0, ordersIn: 0, orderCount: 0, otherIn: 0, transfersOut: 0, transferCount: 0, otherOut: 0, lines: [] };
+  for (const m of asc) {
+    if (to != null && m.ts > to) break;
+    const signed = m.direction === 'in' ? m.amount : -m.amount;
+    if (from != null && m.ts < from) { bal += signed; opening = bal; continue; }
+    const before = bal;
+    bal += signed;
+    s.lines.push({ move: m, before, after: bal });
+    if (m.kind === 'order') { s.ordersIn += m.amount; s.orderCount += 1; }
+    else if (isSpending(m)) { s.transfersOut += m.amount; s.transferCount += 1; }
+    else if (m.direction === 'in') s.otherIn += m.amount;
+    else s.otherOut += m.amount;
+  }
+  s.opening = from == null ? 0 : opening;
+  s.closing = bal;
+  s.lines.reverse();
+  return s;
+}
+
+/** First and last millisecond of a 'YYYY-MM' month in the viewer's timezone. */
+export function monthRange(key: string): { from: number; to: number } {
+  const [y, m] = key.split('-').map(Number);
+  return { from: new Date(y, m - 1, 1).getTime(), to: new Date(y, m, 1).getTime() - 1 };
+}

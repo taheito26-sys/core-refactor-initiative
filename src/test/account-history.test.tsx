@@ -22,7 +22,9 @@ describe('AccountHistory', () => {
     show();
     const rows = screen.getAllByRole('listitem');
     expect(rows).toHaveLength(3);
-    const fifty = rows[2];
+    // Newest on top: the two payments of the 14th come before the order of the 10th.
+    expect(within(rows[2]).getByText('+66,000')).toBeTruthy();
+    const fifty = rows.find(r => within(r).queryByText('−50,000')) as HTMLElement;
     expect(within(fifty).getByText('Unpaid before 71,000')).toBeTruthy();
     expect(within(fifty).getByText('−50,000')).toBeTruthy();
     expect(within(fifty).getByText('Unpaid after 21,000')).toBeTruthy();
@@ -32,6 +34,14 @@ describe('AccountHistory', () => {
     show();
     expect(screen.getByText('Opening balance').parentElement?.textContent).toContain('20,000 QAR');
     expect(screen.getByText('Closing balance').parentElement?.textContent).toContain('21,000 QAR');
+  });
+
+  it('opens on the current month, with the closing balance above the opening one', () => {
+    show();
+    expect(screen.getByRole('button', { name: 'This month' }).getAttribute('aria-pressed')).toBe('true');
+    const closing = screen.getByText('Closing balance');
+    const opening = screen.getByText('Opening balance');
+    expect(closing.compareDocumentPosition(opening) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('goes back in time to any period and any day', () => {
@@ -80,7 +90,8 @@ describe('AccountHistory as a statement of money held', () => {
   it('speaks of money in and out and the balance', () => {
     render(<AccountHistory events={rows} currency="EGP" lang="en" now={NOW} mode="cash" />);
     expect(screen.getByRole('region', { name: 'Account statement' })).toBeTruthy();
-    const [dep, wd] = screen.getAllByRole('listitem');
+    // Newest on top: the withdrawal of the 5th comes before the deposit of the 1st.
+    const [wd, dep] = screen.getAllByRole('listitem');
     expect(within(dep).getByText('Deposit')).toBeTruthy();
     expect(within(dep).getByText('In')).toBeTruthy();
     expect(within(dep).getByText('+5,000')).toBeTruthy();

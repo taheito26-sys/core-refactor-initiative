@@ -86,7 +86,8 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
   const cash = mode === 'cash';
   const T = <K extends keyof typeof TEXT>(k: K) => TEXT[k][lang];
   const id = useId();
-  const [preset, setPreset] = useState<Preset>('30d');
+  // Month by month: the current month from its first day, newest line on top.
+  const [preset, setPreset] = useState<Preset>('month');
   const [from, setFrom] = useState(() => toIso(now - 30 * 86400000));
   const [to, setTo] = useState(() => toIso(now));
   const [asOf, setAsOf] = useState(() => toIso(now));
@@ -151,7 +152,7 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
       </div>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }} role="group" aria-label={T('title')}>
-        {(['30d', 'month', 'last_month', 'all', 'custom'] as Preset[]).map(p => (
+        {(['month', 'last_month', '30d', 'all', 'custom'] as Preset[]).map(p => (
           <button key={p} type="button" aria-pressed={preset === p} onClick={() => setPreset(p)} style={css.chip(preset === p)}>{T(p === '30d' ? 'p30d' : p)}</button>
         ))}
         <button type="button" onClick={exportCsv} style={{ ...css.chip(false), marginInlineStart: 'auto' }}>{T('csv')}</button>
@@ -163,13 +164,13 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
         </div>
       )}
 
-      <div style={css.bar}><span>{T('opening')}</span><span dir="ltr">{withCur(view.opening)}</span></div>
+      <div style={css.bar}><span>{T('closing')}</span><span dir="ltr">{withCur(view.closing)}</span></div>
 
       {view.lines.length === 0 ? (
         <div style={{ ...css.muted, textAlign: 'center', padding: 16 }}>{T('none')}</div>
       ) : (
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, border: '1px solid var(--line, #e5e7eb)', borderRadius: 14, overflow: 'hidden' }}>
-          {view.lines.map((l, i) => (
+          {[...view.lines].reverse().map((l, i) => (
             <li key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderTop: i ? '1px solid var(--line, #e5e7eb)' : 0, color: 'var(--text, #111827)' }}>
               {(() => {
                 const increase = l.kind === 'charge';
@@ -204,7 +205,7 @@ export function AccountHistory({ events, currency, lang, expectedBalance, unappl
         </ol>
       )}
 
-      <div style={css.bar}><span>{T('closing')}</span><span dir="ltr">{withCur(view.closing)}</span></div>
+      <div style={css.bar}><span>{T('opening')}</span><span dir="ltr">{withCur(view.opening)}</span></div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', ...css.muted }}>
         <span>{T(cash ? 'totalCredit' : 'totalDebit')}: <b dir="ltr">{fmt(cash ? view.charges : view.charges)}</b></span>
         <span>{T(cash ? 'totalDebit' : 'totalCredit')}: <b dir="ltr">{fmt(view.payments)}</b></span>

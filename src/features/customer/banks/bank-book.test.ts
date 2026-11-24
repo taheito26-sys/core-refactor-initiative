@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   accountBalances, buildBankMoves, decodePayeeNote, encodePayeeNote, knownPayees, merchantOrdersFromStatements,
-  orderLinkId, primaryAccountId, runningBalances, summarizeMoves,
+  orderLinkId, primaryAccountId, runningBalances, summarizeMoves, bankStatement, monthRange,
   type BankAccount, type BankLedgerRow, type MerchantOrder,
 } from './bank-book';
 
@@ -135,5 +135,35 @@ describe('merchantOrdersFromStatements', () => {
     };
     const out = merchantOrdersFromStatements([st, st]);
     expect(out.map(o => [o.key, o.currency, o.amount])).toEqual([['N1', 'EGP', 1300], ['L2', 'QAR', 50], ['N9', 'EGP', 700]]);
+  });
+});
+
+describe('bankStatement', () => {
+  const ledger = [
+    row({ id: 'open', account_id: 'misr', type: 'opening', direction: 'in', amount: 1000000, ts: new Date(2026, 9, 5).getTime() }),
+    row({ id: 'a', account_id: 'misr', type: 'withdrawal', direction: 'out', amount: 200000, ts: new Date(2026, 10, 2, 10).getTime(), note: encodePayeeNote('Supplier 1', null) }),
+    row({ id: 'b', account_id: 'misr', type: 'withdrawal', direction: 'out', amount: 100000, ts: new Date(2026, 10, 3, 10).getTime(), note: encodePayeeNote('Supplier 2', null) }),
+  ];
+  const orders: MerchantOrder[] = [
+    { key: 'o0', date: new Date(2026, 9, 20).getTime(), currency: 'EGP', amount: 50000 },
+    { key: 'o1', date: new Date(2026, 10, 1, 9).getTime(), currency: 'EGP', amount: 400000 },
+  ];
+  const moves = buildBankMoves([{ ...misr, created_at: new Date(2026, 9, 1).getTime() }], ledger, orders);
+
+  it('opens with the balance carried from before the month and lists the month newest first', () => {
+    const { from, to } = monthRange('2026-11');
+    const s = bankStatement(moves, from, to);
+    expect(s.opening).toBe(1050000);
+    expect(s.lines.map(l => l.move.id)).toEqual(['b', 'a', 'order:o1']);
+    expect(s.lines.map(l => [l.before, l.after])).toEqual([[1250000, 1150000], [1450000, 1250000], [1050000, 1450000]]);
+    expect([s.ordersIn, s.orderCount, s.transfersOut, s.transferCount, s.closing]).toEqual([400000, 1, 300000, 2, 1150000]);
+    expect(s.opening + s.ordersIn + s.otherIn - s.transfersOut - s.otherOut).toBe(s.closing);
+  });
+
+  it('starts from zero over all time and counts the opening balance as money in', () => {
+    const s = bankStatement(moves, null, null);
+    expect(s.opening).toBe(0);
+    expect(s.otherIn).toBe(1000000);
+    expect(s.closing).toBe(1150000);
   });
 });
