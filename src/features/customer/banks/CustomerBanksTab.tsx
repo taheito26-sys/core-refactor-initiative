@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarDays, Check, ChevronDown, Crown, Edit2, Landmark,
-  Loader2, Plus, Search, Send, Trash2, Trophy, Users, X, Zap,
+  FileUp, Loader2, Plus, Search, Send, Trash2, Trophy, Users, X, Zap,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -18,6 +18,10 @@ import {
   knownPayees, merchantOrdersFromStatements, monthKeyOf, dayKeyOf, orderLinkId, ordersStartOf, payeeKey, primaryAccountId,
   runningBalances, summarizeMoves, type BankAccount, type BankLedgerRow, type BankMove,
 } from './bank-book';
+import {
+  mergeBeneficiaries, parseBankImport, planImport, readBeneficiaries, writeBeneficiaries,
+  type BankImportFile, type ImportPlan,
+} from './bank-import';
 import '@/styles/customer-banks.css';
 
 type Lang = 'en' | 'ar';
@@ -265,6 +269,41 @@ function MoveOrderSheet({ move, accounts, onClose, lang, L, onSave, saving }: {
   );
 }
 
+// ─── Import a bank's transfer history ────────────────────────────
+
+function ImportSheet({ file, plan, account, newBeneficiaries, onClose, lang, L, onConfirm, saving }: {
+  file: BankImportFile; plan: ImportPlan; account: BankAccount; newBeneficiaries: number;
+  onClose: () => void; lang: Lang; L: Tr; onConfirm: () => void; saving: boolean;
+}) {
+  const fmtAt = (at: string) => at.replace('T', ' ');
+  return (
+    <Sheet lang={lang} onClose={onClose} title={L('Import bank transfers', 'استيراد تحويلات البنك')} sub={`${file.bank ?? ''} → ${account.name}`}>
+      <div className="bk-imp">
+        <div><span>{L('Transfers to add', 'تحويلات ستُضاف')}</span><b>{plan.rows.length}</b></div>
+        <div><span>{L('Total sent', 'إجمالي المحوَّل')}</span><b><bdi dir="ltr">{fmtTotal(plan.total)} {account.currency}</bdi></b></div>
+        {plan.first && <div><span>{L('Period', 'الفترة')}</span><b><bdi dir="ltr">{plan.first.slice(0, 10)} → {plan.last?.slice(0, 10)}</bdi></b></div>}
+        {plan.alreadyImported > 0 && <div><span>{L('Already imported (left as is)', 'مستوردة سابقاً (لن تتكرر)')}</span><b>{plan.alreadyImported}</b></div>}
+        <div><span>{L('New beneficiaries', 'مستفيدون جدد')}</span><b>{newBeneficiaries}</b></div>
+      </div>
+      {plan.skipped.length > 0 && (
+        <div className="bk-imp-skip">
+          <b>{L('Not imported — did not go through', 'لن تُستورد — لم تكتمل')}</b>
+          {plan.skipped.map((t, i) => (
+            <span key={i}>{t.payee} · <bdi dir="ltr">{fmtTotal(t.amount)}</bdi> · <bdi dir="ltr">{fmtAt(t.at)}</bdi> · {t.status.replace(/_/g, ' ')}</span>
+          ))}
+        </div>
+      )}
+      <p className="bk-hint">{L('Only completed transfers are added. Importing the same file again adds nothing.', 'تُضاف التحويلات المكتملة فقط. استيراد نفس الملف مرة أخرى لا يضيف شيئاً.')}</p>
+      <div className="bk-btns">
+        <button type="button" className="bk-btn ghost" onClick={onClose}>{L('Cancel', 'إلغاء')}</button>
+        <button type="button" className="bk-btn" onClick={onConfirm} disabled={saving || (plan.rows.length === 0 && newBeneficiaries === 0)}>
+          {saving ? <Loader2 className="animate-spin" /> : <FileUp />}{L('Import', 'استيراد')}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 // ─── The tab ──────────────────────────────────────────────────────
 
 export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAccount[]; ledger: BankLedgerRow[]; lang: Lang }) {
@@ -284,7 +323,13 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   const balances = useMemo(() => accountBalances(allMoves), [allMoves]);
   const running = useMemo(() => runningBalances(allMoves), [allMoves]);
   const accById = useMemo(() => new Map(active.map(a => [a.id, a])), [active]);
-  const payeeNames = useMemo(() => knownPayees(allMoves), [allMoves]);
+  // Saved beneficiaries first (as the bank lists them), then anyone else already paid.
+  const beneficiaries = useMemo(() => active.reduce((acc, a) => mergeBeneficiaries(acc, readBeneficiaries(a.notes)), [] as ReturnType<typeof readBeneficiaries>), [active]);
+  const payeeNames = useMemo(() => {
+    const used = knownPayees(allMoves);
+    const seen = new Set(used.map(payeeKey));
+    return [...used, ...beneficiaries.map(b => b.name).filter(n => !seen.has(payeeKey(n)))];
+  }, [allMoves, beneficiaries]);
 
   const currencies = useMemo(() => [...new Set(active.map(a => a.currency))], [active]);
   const [selected, setSelected] = useState<string>('all');
@@ -401,6 +446,41 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
   const [moveOrder, setMoveOrder] = useState<BankMove | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmRemoveAcc, setConfirmRemoveAcc] = useState(false);
+  const [importing, setImporting] = useState<{ file: BankImportFile; plan: ImportPlan; account: BankAccount; newBeneficiaries: number } | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  const readImportFile = async (f: File | undefined, account: BankAccount) => {
+    if (!f) return;
+    try {
+      const file = parseBankImport(JSON.parse(await f.text()));
+      const plan = planImport(file, account.id, account.currency, new Set(ledger.map(r => r.id)));
+      const current = readBeneficiaries(account.notes);
+      const newBeneficiaries = mergeBeneficiaries(current, file.beneficiaries).length - current.length;
+      setImporting({ file, plan, account, newBeneficiaries });
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+    } finally {
+      if (importInput.current) importInput.current.value = '';
+    }
+  };
+
+  const runImport = useMutation({
+    mutationFn: async () => {
+      if (!userId || !importing) throw new Error('Not signed in');
+      const { plan, account, file } = importing;
+      for (let i = 0; i < plan.rows.length; i += 100) {
+        const chunk = plan.rows.slice(i, i + 100).map(r => ({ ...r, user_id: userId }));
+        const { error } = await db.from('cash_ledger').upsert(chunk, { onConflict: 'id', ignoreDuplicates: true });
+        if (error) throw error;
+      }
+      const merged = mergeBeneficiaries(readBeneficiaries(account.notes), file.beneficiaries);
+      const { error } = await db.from('cash_accounts').update({ notes: writeBeneficiaries(account.notes, merged) }).eq('id', account.id).eq('user_id', userId);
+      if (error) throw error;
+      return plan.rows.length;
+    },
+    onSuccess: (n) => { toast.success(L(`${n} transfers imported`, `تم استيراد ${n} تحويل`)); setImporting(null); setMonth(null); invalidate(); },
+    onError: (e: any) => toast.error(e?.message ?? String(e)),
+  });
 
   const saveAccount = useMutation({
     mutationFn: async (v: { name: string; type: string; currency: string; opening: number; startTs: number }) => {
@@ -582,6 +662,8 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
                 {active.filter(a => a.currency === selAcc.currency).length > 1 && (
                   <button type="button" onClick={() => setEntrySheet({ mode: 'move', existing: null })}><ArrowLeftRight />{L('Move', 'تحويل داخلي')}</button>
                 )}
+                <button type="button" onClick={() => importInput.current?.click()}><FileUp />{L('Import', 'استيراد')}</button>
+                <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={e => readImportFile(e.target.files?.[0], selAcc)} />
                 <button type="button" onClick={() => setAccountSheet({ existing: selAcc })} aria-label={L('Edit', 'تعديل')}><Edit2 /></button>
                 {confirmRemoveAcc ? (
                   <>
@@ -847,6 +929,9 @@ export function CustomerBanksTab({ accounts, ledger, lang }: { accounts: BankAcc
           balances={balances} defaultAccountId={defaultAccountId} payees={payeeNames}
           onClose={() => setEntrySheet(null)} saving={saveEntry.isPending} onSave={v => saveEntry.mutate(v)}
         />
+      )}
+      {importing && (
+        <ImportSheet {...importing} lang={lang} L={L} onClose={() => setImporting(null)} saving={runImport.isPending} onConfirm={() => runImport.mutate()} />
       )}
       {moveOrder && (
         <MoveOrderSheet move={moveOrder} accounts={active} lang={lang} L={L} onClose={() => setMoveOrder(null)} saving={routeOrder.isPending}

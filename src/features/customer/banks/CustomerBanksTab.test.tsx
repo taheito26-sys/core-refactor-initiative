@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { encodePayeeNote, type BankAccount, type BankLedgerRow } from './bank-book';
 
@@ -43,5 +43,26 @@ describe('CustomerBanksTab', () => {
     expect(screen.getAllByText('1,100,000').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supplier 1').length).toBeGreaterThan(0);
     expect(screen.getByText('Where your money went')).toBeTruthy();
+  });
+
+  it('previews an import, counting completed transfers only', async () => {
+    renderTab([misr], []);
+    fireEvent.click(screen.getByText('Bank Misr'));
+    fireEvent.click(screen.getByText('Import'));
+    const input = document.querySelector('input[type=file]') as HTMLInputElement;
+    const body = JSON.stringify({
+      format: 'bank-transfers/1', bank: 'Banque Misr', currency: 'EGP',
+      beneficiaries: [{ name: 'Supplier 1', bank: 'Banque Misr', account: '1' }],
+      transfers: [
+        { payee: 'Supplier 1', amount: 90590, at: '2026-11-01T15:41', status: 'completed' },
+        { payee: 'School', amount: 102000, at: '2026-08-23T20:25', status: 'failed_refunded' },
+      ],
+    });
+    const file = new File([body], 'bm.json', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: () => Promise.resolve(body) });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText('Import bank transfers')).toBeTruthy();
+    expect(screen.getByText('90,590 EGP')).toBeTruthy();
+    expect(screen.getByText('Not imported — did not go through')).toBeTruthy();
   });
 });

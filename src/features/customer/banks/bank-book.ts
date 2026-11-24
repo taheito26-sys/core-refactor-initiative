@@ -18,6 +18,8 @@ export interface BankAccount {
   /** Orders dated on or after this moment flow into the account; falls back to created_at. */
   last_reconciled?: number | null;
   bank_name?: string | null;
+  /** Free text; the Banks tab keeps the saved beneficiaries here as JSON. */
+  notes?: string | null;
 }
 
 export interface BankLedgerRow {
