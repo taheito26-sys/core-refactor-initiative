@@ -288,7 +288,7 @@ export function LoansPanel({
     const groups = s.monthGroups || [];
     return (
       <Dialog open={!!selected} onOpenChange={(o) => !o && setDetailKey(null)}>
-        <DialogContent className="ld-dialog tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'}>
+        <DialogContent className="ld-dialog tracker-root" overlayClassName="ld-overlay" dir={t.isRTL ? 'rtl' : 'ltr'}>
           <DialogTitle className="sr-only">{t('loansMerchantDetails')}</DialogTitle>
           <DialogDescription className="sr-only">
             {s.name} · {t('loansMerchantBalancesHint')}

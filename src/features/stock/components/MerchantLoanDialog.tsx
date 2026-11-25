@@ -313,7 +313,7 @@ export function MerchantLoanDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="ld-dialog tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <DialogContent className="ld-dialog tracker-root" overlayClassName="ld-overlay" dir={t.isRTL ? 'rtl' : 'ltr'}>
         <DialogTitle className="sr-only">{t('mloanTitle')}</DialogTitle>
         <DialogDescription className="sr-only">{t('loansHowItWorksBody')}</DialogDescription>
         <div className="ld-dialog-head">
