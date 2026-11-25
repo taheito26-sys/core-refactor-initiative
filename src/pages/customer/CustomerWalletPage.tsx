@@ -3,7 +3,7 @@ import { statementQueryOptions } from "@/features/customer/statements-api";
 import { CashStatementSheet, LoanStatementSheet } from "@/features/customer/components/StatementSheets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, User, Bell, Info, FilePlus, Users, UserPlus, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Edit2, ArrowLeftRight, BookOpen, HandCoins, ChevronDown, ChevronLeft, Pencil, Check, Minus, CalendarDays, Wallet2, Trophy, Search, ArrowUpDown, FileDown, FileSpreadsheet, Filter, CreditCard, Coins, List as ListIcon, FileText, Clock, CheckCircle2, XCircle, ChevronRight, MoreHorizontal, MessageSquare, Database, User, Bell, Info, FilePlus, Users, UserPlus, ArrowUpRight, ArrowDownRight, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/lib/theme-context";
@@ -26,6 +26,7 @@ import type { PublicStatement } from "@/features/stock/components/PublicStatemen
 import { useMonthlyStatementExport } from "@/features/stock/utils/useMonthlyStatementExport";
 import { useLoanPaymentClaims } from "@/hooks/useLoanPaymentClaims";
 import { ModernSelect } from '@/components/shared/ModernSelect';
+import { CustomerBanksTab } from "@/features/customer/banks/CustomerBanksTab";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -600,7 +601,15 @@ export default function CustomerWalletPage() {
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
   const displayName = resolveCustomerDisplayName(customerProfile, lang === "ar" ? "ar" : "en") ?? "—";
 
-  const [tab, setTab] = useState<"payments" | "accounts">("payments");
+  // Payments (what the merchant received) and Banks (the buyer's own accounts,
+  // where merchant orders land). The last one opened is remembered per device.
+  const [tab, setTabState] = useState<"payments" | "accounts" | "banks">(() => {
+    try { return localStorage.getItem("cw-tab") === "banks" ? "banks" : "payments"; } catch { return "payments"; }
+  });
+  const setTab = (t: "payments" | "accounts" | "banks") => {
+    setTabState(t);
+    try { localStorage.setItem("cw-tab", t); } catch { /* storage unavailable */ }
+  };
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [depositModal, setDepositModal] = useState<{ account: Account; mode: "deposit" | "withdrawal" } | null>(null);
@@ -1332,7 +1341,7 @@ export default function CustomerWalletPage() {
 
   return (
     <div className="ch-root co-root cw-root" dir={lang === "ar" ? "rtl" : "ltr"}>
-      {/* The Accounts tab is hidden; with Payments the only tab left there is nothing to switch between. */}
+      {/* The old Accounts tab stays hidden; Banks replaces it as the second sub-tab beside Payments. */}
       {isPhone && (
         <section className="co-hero2">
           <div className="co-hero2-bg" aria-hidden="true" />
@@ -1388,6 +1397,19 @@ export default function CustomerWalletPage() {
         <div className="cw-loading"><Loader2 className="h-6 w-6 animate-spin" /></div>
       ) : (
         <div className="cw-body">
+          <div className="cw-card bk-tabs" role="tablist" aria-label={L("Cash sections", "أقسام النقد")}>
+            <button type="button" role="tab" aria-selected={tab === "payments"} className={cn(tab === "payments" && "on")} onClick={() => setTab("payments")}>
+              <Wallet2 />{L("Payments", "الدفعات")}
+            </button>
+            <button type="button" role="tab" aria-selected={tab === "banks"} className={cn(tab === "banks" && "on")} onClick={() => setTab("banks")}>
+              <Landmark />{L("Banks", "البنوك")}
+            </button>
+          </div>
+
+          {tab === "banks" && (
+            <CustomerBanksTab accounts={accounts as any} ledger={ledger as any} lang={lang === "ar" ? "ar" : "en"} />
+          )}
+
           {/* ── ACCOUNTS TAB ── */}
           {tab === "accounts" && (
             <div className="space-y-3">

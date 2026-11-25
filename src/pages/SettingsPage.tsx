@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
 import { useAuth } from '@/features/auth/auth-context';
 import { BiometricsService } from '@/platform/biometrics';
+import { PasskeyLoginCard } from '@/features/auth/PasskeyLoginCard';
 import { triggerHapticSelection } from '@/platform/haptics';
 import { buildStateFrom } from '@/lib/tracker-state';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -442,6 +443,9 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── Face ID / Touch ID sign-in (WebAuthn passkey) ── */}
+          <PasskeyLoginCard />
 
           {/* ── Fonts & Accessibility ── */}
           <Card className="glass">
