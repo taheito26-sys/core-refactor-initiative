@@ -170,12 +170,13 @@ export function isNotificationDeepLinkable(notification: AppNotification): boole
 export function buildNotificationNavigationTarget(notification: AppNotification): NotificationNavigationTarget {
   const { target } = notification;
 
-  // Loan requests and consignment reports live on the Stock page's Loans workspace.
+  // Loan requests and consignment reports live on the Orders page's USDT transfers tab.
   const entityType = target.targetEntityType || target.entityType;
   if (entityType === 'merchant_loan_move' || entityType === 'merchant_consignment') {
     return {
-      pathname: '/trading/stock',
-      state: { stockSection: 'transfers', merchantWorkspace: entityType === 'merchant_consignment' ? 'consignments' : 'loans' },
+      pathname: '/trading/orders',
+      search: '?tab=usdt',
+      state: { merchantWorkspace: entityType === 'merchant_consignment' ? 'consignments' : 'loans' },
     };
   }
 

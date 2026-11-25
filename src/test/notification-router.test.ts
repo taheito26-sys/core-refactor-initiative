@@ -143,7 +143,7 @@ describe('cash custody notification destinations', () => {
     const loan = row('merchant_loan_move');
     const cons = row('merchant_consignment');
     expect(isNotificationDeepLinkable(loan)).toBe(true);
-    expect(buildNotificationNavigationTarget(loan)).toEqual({ pathname: '/trading/stock', state: { stockSection: 'transfers', merchantWorkspace: 'loans' } });
-    expect(buildNotificationNavigationTarget(cons)).toEqual({ pathname: '/trading/stock', state: { stockSection: 'transfers', merchantWorkspace: 'consignments' } });
+    expect(buildNotificationNavigationTarget(loan)).toEqual({ pathname: '/trading/orders', search: '?tab=usdt', state: { merchantWorkspace: 'loans' } });
+    expect(buildNotificationNavigationTarget(cons)).toEqual({ pathname: '/trading/orders', search: '?tab=usdt', state: { merchantWorkspace: 'consignments' } });
   });
 });

@@ -575,3 +575,9 @@
 /* Dark themes keep the vivid tone. */
 .dark .tracker-root.ov2 .ov2-tabs--color .ov2-tab-ic svg { color: color-mix(in srgb, var(--tone) 45%, var(--text)); }
 .dark .tracker-root.ov2 .ov2-tabs--color .ov2-tab.on { background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 85%, var(--text)), color-mix(in srgb, var(--tone) 70%, var(--card-bg))); border-color: var(--tone); box-shadow: 0 calc(6 * var(--px)) calc(16 * var(--px)) color-mix(in srgb, var(--tone) 48%, transparent); }
+
+/* Incoming / outgoing switch inside the merged Merchant deals tab */
+.deal-dir-switch { display:inline-flex; gap:4px; padding:3px; margin:2px 0 6px; border-radius:12px; border:1px solid var(--line); background: color-mix(in srgb, var(--brand) 6%, transparent); align-self:flex-start; }
+.deal-dir-switch button { border:0; background:transparent; color:var(--muted); font-weight:800; font-size:12px; padding:7px 14px; border-radius:9px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+.deal-dir-switch button.on { background: var(--brand); color:#fff; }
+.deal-dir-switch b { background: var(--warn); color:#000; border-radius:99px; font-size:10px; padding:1px 6px; }

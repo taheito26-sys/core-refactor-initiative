@@ -4,7 +4,7 @@ import { batchPurchaseKey, batchPurchaseId } from '@/features/stock/lib/batch-id
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { LookupMenuPortal } from '@/components/shared/LookupMenuPortal';
 import { ModernSelect } from '@/components/shared/ModernSelect';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -1391,28 +1391,7 @@ export default function StockPage() {
       )}
 
       {activeStockSection === 'transfers' && (
-        <div className={taheito ? 'th-embed th-panel' : undefined}>
-          {merchantWorkspace === 'loans' ? (
-            <LoansPanel
-              state={state}
-              derived={derived}
-              applyStateAndCommit={applyStateAndCommit}
-              onImportPurchase={() => { setActiveStockSection('batches'); toast(t('mloanImportPurchaseHint')); }}
-              onManualFix={setManualFixItems}
-              onOpenConsignments={() => setMerchantWorkspace('consignments')}
-            />
-          ) : (
-            <div className="ld-consignments-shell">
-              <div className="ld-consignments-head">
-                <button type="button" className="ld-back" onClick={() => setMerchantWorkspace('loans')}>
-                  <span aria-hidden="true">←</span> {t('loansBackToLoans')}
-                </button>
-                <span>{t('loansEyebrow')}</span>
-              </div>
-              <ConsignmentsPanel state={state} derived={derived} applyStateAndCommit={applyStateAndCommit} />
-            </div>
-          )}
-        </div>
+        <Navigate to="/trading/orders?tab=usdt" replace state={{ merchantWorkspace }} />
       )}
 
       {stockTab === 'batches' && (

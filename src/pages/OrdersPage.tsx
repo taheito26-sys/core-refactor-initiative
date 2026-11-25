@@ -3,7 +3,7 @@ import { isFullBuyerName, isMeaningfulBuyerName, normalizeBuyerName } from '@/li
 import { canSaveOrderBuyer, materializeOrderBuyer, hasSavedOrderBuyer, resolveSavedOrderBuyer } from '@/features/orders/utils/order-buyer';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
@@ -49,6 +49,7 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { addOrderLink, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { UsdtTransfersTab } from '@/features/stock/components/UsdtTransfersTab';
 import { MerchantLoanDialog } from '@/features/stock/components/MerchantLoanDialog';
 import { isTradeTaggable } from '@/features/stock/usdt-tagging';
 import type { LoanSource } from '@/features/stock/loan-ledger';
@@ -71,7 +72,7 @@ import {
   AUTO_MIRROR_TRADES_TO_PORTAL, ensureStatementLinks, isMissingFunctionError, mirrorAction, portalSignature, reconcileTradeInPortal, syncTradeToPortal,
 } from '@/features/customers/portal-order-sync';
 import {
-  ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, Plus as PlusIcon, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon, ShoppingCart,
+  ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText as FileTextIcon, Layers, ListChecks, Plus as PlusIcon, TrendingUp, Users as UsersIcon, ArrowLeftRight as ArrowLeftRightIcon, ShoppingCart, Handshake,
 } from 'lucide-react';
 import {
   MerchantHero, ThBox, ThChips, ThEmpty, ThHead, ThList, ThMain, ThSearch, ThSheet, ThTabs, ThTiles, ThTools, ThCard,
@@ -481,7 +482,8 @@ export default function OrdersPage() {
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers'>('my');
+  const routerLocation = useLocation();
+  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'customers' | 'usdt'>('my');
   // The redesigned phone layout; the switch at the top of the home page picks it (see features/orders/v2/design).
   const [design] = useOrdersDesign();
   const v2 = isMobile && design === 'v2';
@@ -1190,9 +1192,9 @@ export default function OrdersPage() {
   // URL-driven tab sync: read ?tab= and switch activeTab before focus
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['my', 'incoming', 'outgoing', 'customers'].includes(tabParam)) {
-      setActiveTab(tabParam as 'my' | 'incoming' | 'outgoing' | 'customers');
-      if (tabParam !== 'my' && tabParam !== 'customers') {
+    if (tabParam && ['my', 'incoming', 'outgoing', 'customers', 'usdt', 'deals'].includes(tabParam)) {
+      setActiveTab((tabParam === 'deals' ? 'incoming' : tabParam) as 'my' | 'incoming' | 'outgoing' | 'customers' | 'usdt');
+      if (tabParam !== 'my' && tabParam !== 'customers' && tabParam !== 'usdt') {
         setMerchantOrderEnabled(true);
       }
     }
@@ -4040,9 +4042,38 @@ export default function OrdersPage() {
     return { key: m, label: d.toLocaleString(loc, { month: 'short', year: '2-digit' }), long: d.toLocaleString(loc, { month: 'long', year: 'numeric' }) };
   }), [availableMonths, t.lang]);
 
+  /** Incoming and outgoing merchant deals share one tab; a small switch inside it picks the direction. */
+  const tabGroup: 'my' | 'deals' | 'usdt' | 'customers' = activeTab === 'incoming' || activeTab === 'outgoing' ? 'deals' : activeTab;
+  const selectTabGroup = (id: 'my' | 'deals' | 'usdt' | 'customers') => {
+    setThShown(40);
+    if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
+    else if (id === 'customers' || id === 'usdt') { setActiveTab(id); setMerchantOrderEnabled(false); }
+    else { setActiveTab(activeTab === 'outgoing' ? 'outgoing' : 'incoming'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }
+  };
+  const waitingInDeals = filteredIncomingMerchantDeals.filter(d => d.status === 'pending').length;
+  const dealDirectionSwitch = (activeTab === 'incoming' || activeTab === 'outgoing') ? (
+    <div className="deal-dir-switch" role="tablist" aria-label={t('tabMerchantDeals')}>
+      {([['incoming', t('incomingOrders'), '📥'], ['outgoing', t('outgoingOrders'), '📤']] as const).map(([id, label, ic]) => (
+        <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? 'on' : ''}
+          onClick={() => { setThShown(40); setActiveTab(id); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}>
+          {ic} {label}{id === 'incoming' && waitingInDeals > 0 ? <b>{waitingInDeals}</b> : null}
+        </button>
+      ))}
+    </div>
+  ) : null;
+  const usdtTransfersTab = (
+    <UsdtTransfersTab
+      state={state}
+      derived={derived}
+      applyStateAndCommit={applyStateAndCommit}
+      initialWorkspace={(routerLocation.state as { merchantWorkspace?: string } | null)?.merchantWorkspace === 'consignments' ? 'consignments' : 'loans'}
+      onImportPurchase={() => { navigate('/trading/stock'); toast(t('mloanImportPurchaseHint')); }}
+    />
+  );
+
   const v2KpiSource = activeTab === 'incoming' ? inKpi : activeTab === 'outgoing' ? outKpi : myKpi;
   const v2Kpis: V2Kpi[] = (() => {
-    if (!(v2 || taheito) || activeTab === 'customers') return [];
+    if (!(v2 || taheito) || activeTab === 'customers' || activeTab === 'usdt') return [];
     const isMy = activeTab === 'my';
     const rows = isMy ? subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId) : [];
     const sparkOf = (pick: (tr: Trade) => number) => bucketSeries(rows.map(tr => ({ ts: tr.ts, value: pick(tr) })));
@@ -4063,7 +4094,7 @@ export default function OrdersPage() {
   })();
   const v2Extras = !(v2 || taheito) ? [] : [
     ...(activeTab === 'my' && buyerFilter && myKpi.egpTotal != null ? [{ key: 'egp', label: t('ov2TotalEgp'), value: fmtTotal(myKpi.egpTotal) }] : []),
-    ...(activeTab !== 'my' && activeTab !== 'customers' && v2KpiSource.count > 0 ? [{ key: 'avg', label: t('ov2AvgDeal'), value: stripUnit(fmtC(v2KpiSource.vol / v2KpiSource.count)) }] : []),
+    ...(activeTab !== 'my' && activeTab !== 'customers' && activeTab !== 'usdt' && v2KpiSource.count > 0 ? [{ key: 'avg', label: t('ov2AvgDeal'), value: stripUnit(fmtC(v2KpiSource.vol / v2KpiSource.count)) }] : []),
   ];
 
   const tradeFigures = (tr: Trade) => {
@@ -4333,23 +4364,19 @@ export default function OrdersPage() {
           primary={activeTab === 'my' ? { label: t('newSale').replace(/^\+\s*/, ''), icon: <PlusIcon strokeWidth={2.2} />, onClick: () => setNewSaleSheetOpen(true) } : undefined}
           tabs={
             <ThTabs
-              label={t('orders')} active={activeTab}
-              onSelect={id => {
-                setThShown(40);
-                if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
-                else if (id === 'customers') setActiveTab('customers');
-                else { setActiveTab(id); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }
-              }}
+              label={t('orders')} active={tabGroup}
+              onSelect={selectTabGroup}
               tabs={[
                 { id: 'my', label: t('ov2AllOrders'), icon: ListChecks },
-                { id: 'incoming', label: t('incomingOrders'), icon: ArrowDownToLine, count: waitingIn },
-                { id: 'outgoing', label: t('outgoingOrders'), icon: ArrowUpFromLine },
+                { id: 'deals', label: t('tabMerchantDeals'), icon: ArrowLeftRightIcon, count: waitingIn },
+                { id: 'usdt', label: t('tabUsdtTransfers'), icon: Handshake },
                 { id: 'customers', label: t('customers'), icon: UsersIcon },
               ]}
             />
           }
         >
-          {activeTab !== 'customers' && (
+          {dealDirectionSwitch}
+          {activeTab !== 'customers' && activeTab !== 'usdt' && (
             <>
               <div className="th-bar">
               <ThChips chips={chips} selected={selectedMonth} onSelect={k => { setThShown(40); if (k === 'all') selectAllMonths(); else selectMonth(k); }} />
@@ -4379,7 +4406,7 @@ export default function OrdersPage() {
         </ThMain>
         {activeTab === 'customers'
           ? <div className="th-embed th-customers"><CustomersPanel state={state} applyState={applyState} derived={derived} /></div>
-          : renderTaheitoList()}
+          : activeTab === 'usdt' ? usdtTransfersTab : renderTaheitoList()}
       </ThRoot>
     );
   };
@@ -4446,19 +4473,16 @@ export default function OrdersPage() {
         <>
           {v2Kpis.length > 0 && <OrdersV2Kpis compact cards={v2Kpis} extras={v2Extras} />}
           <OrdersV2Tabs
-            active={activeTab}
-            onSelect={id => {
-              if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
-              else if (id === 'customers') setActiveTab('customers');
-              else { setActiveTab(id); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }
-            }}
+            active={tabGroup}
+            onSelect={selectTabGroup}
             tabs={[
               { id: 'my', label: t('ov2AllOrders'), Icon: ListChecks },
-              { id: 'incoming', label: t('incomingOrders'), Icon: ArrowDownToLine },
-              { id: 'outgoing', label: t('outgoingOrders'), Icon: ArrowUpFromLine },
+              { id: 'deals', label: t('tabMerchantDeals'), Icon: ArrowLeftRightIcon },
+              { id: 'usdt', label: t('tabUsdtTransfers'), Icon: Handshake },
               { id: 'customers', label: t('customers'), Icon: UsersIcon },
             ]}
           />
+          {dealDirectionSwitch}
           {activeTab === 'my' && (
             <>
               <OrdersV2SearchBar
@@ -4486,16 +4510,16 @@ export default function OrdersPage() {
           👤 {t('myOrders')}
         </button>
         <button
-          onClick={() => { setActiveTab('incoming'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
-          className={`orders-tab-btn ${activeTab === 'incoming' ? 'active' : ''}`}
+          onClick={() => selectTabGroup('deals')}
+          className={`orders-tab-btn ${tabGroup === 'deals' ? 'active' : ''}`}
         >
-          📥 {t('incomingOrders')}
+          🔁 {t('tabMerchantDeals')}
         </button>
         <button
-          onClick={() => { setActiveTab('outgoing'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
-          className={`orders-tab-btn ${activeTab === 'outgoing' ? 'active' : ''}`}
+          onClick={() => selectTabGroup('usdt')}
+          className={`orders-tab-btn ${tabGroup === 'usdt' ? 'active' : ''}`}
         >
-          📤 {t('outgoingOrders')}
+          🤝 {t('tabUsdtTransfers')}
         </button>
         <button
           onClick={() => setActiveTab('customers')}
@@ -4504,15 +4528,19 @@ export default function OrdersPage() {
           👥 {t('customers')}
         </button>
       </div>
+      {dealDirectionSwitch}
         </>
       )}
+
+      {/* ── USDT TRANSFERS TAB ── */}
+      {!taheito && activeTab === 'usdt' && usdtTransfersTab}
 
       {/* ── CUSTOMERS TAB — moved here from the old combined CRM page ── */}
       {!taheito && activeTab === 'customers' && (
         <CustomersPanel state={state} applyState={applyState} derived={derived} />
       )}
 
-      <div className="twoColPage orders-two-col" style={activeTab === 'customers' ? { display: 'none' } : undefined}>
+      <div className="twoColPage orders-two-col" style={activeTab === 'customers' || activeTab === 'usdt' ? { display: 'none' } : undefined}>
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
         <div>

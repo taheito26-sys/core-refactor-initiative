@@ -1897,6 +1897,8 @@ const translations = {
 
   // ── Orders Sub-tabs ──
   myOrders: { en: 'My Orders', ar: 'طلباتي' },
+  tabMerchantDeals: { en: 'Merchant deals', ar: 'صفقات التجار' },
+  tabUsdtTransfers: { en: 'USDT transfers', ar: 'تحويلات USDT' },
   incomingOrders: { en: 'Incoming', ar: 'الواردة' },
   outgoingOrders: { en: 'Outgoing', ar: 'الصادرة' },
   partnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
