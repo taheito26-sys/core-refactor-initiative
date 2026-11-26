@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowDown, ArrowDownLeft, ArrowLeftRight, ArrowUp, ArrowUpRight, BarChart3, Bell, CalendarClock, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Database, Download, Layers, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Scale, Send, Sigma, Users,
+  AlertTriangle, ArrowDown, ArrowDownLeft, ArrowLeftRight, ArrowUp, ArrowUpRight, BarChart3, Bell, CalendarClock, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Database, Download, Layers, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Scale, Search, Send, Sigma, Users,
 } from 'lucide-react';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { fmtDate, fmtTotal } from '@/lib/tracker-helpers';
@@ -60,7 +60,7 @@ export function LoansTiles({ ledger }: { ledger: LoanLedger }) {
 
 /** The quick actions row: record a movement either way, sell for a merchant, or open a statement. */
 export function LoansActions({
-  ledger, onRecord, onOpenMerchant,
+  ledger, onRecord, onOpenMerchant, onOpenConsignments,
 }: {
   ledger: LoanLedger;
   onRecord: (direction: 'in' | 'out', presetName?: string) => void;
@@ -80,7 +80,7 @@ export function LoansActions({
       <div className="lg-qa-row">
         <button type="button" className="lg-qa-btn primary" onClick={() => onRecord('out')}><span>{t('lgSentBtn')}</span><Send /></button>
         <button type="button" className="lg-qa-btn" onClick={() => onRecord('in')}><span>{t('lgRecvBtn')}</span><Plus /></button>
-        <button type="button" className="lg-qa-btn" onClick={() => onRecord('out')}><span>{t('lgTransferBalance')}</span><ArrowLeftRight /></button>
+        <button type="button" className="lg-qa-btn" onClick={() => (onOpenConsignments ? onOpenConsignments() : onRecord('out'))}><span>{t('lgTransferBalance')}</span><ArrowLeftRight /></button>
         <div className="lg-qa-wrap">
           <button type="button" className="lg-qa-btn" aria-expanded={pickStatement} onClick={() => setPickStatement(v => !v)} disabled={merchants.length === 0}>
             <span>{t('lgSettle')}</span><Scale />
@@ -118,12 +118,15 @@ export function LoansOverview({
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [merchantKey, setMerchantKey] = useState('');
   const [view, setView] = useState<'cards' | 'table'>('cards');
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const { totals, merchants, rows, consignments } = ledger;
   const Chev = t.isRTL ? ChevronLeft : ChevronRight;
 
   const visible = useMemo(() => {
-    return filterLedger(rows, filter, merchantKey || undefined);
-  }, [rows, filter, merchantKey]);
+    const q = query.trim().toLowerCase();
+    return filterLedger(rows, filter, merchantKey || undefined).filter(r => !q || r.merchant.toLowerCase().includes(q));
+  }, [rows, filter, merchantKey, query]);
   const counts = useMemo(() => ({
     all: rows.length,
     out: rows.filter(r => r.direction === 'out').length,
@@ -199,6 +202,7 @@ export function LoansOverview({
             <Database />
             <h2>{t('lgLatest')} ({visible.length})</h2>
             <div className="lg-head-tools">
+              <button type="button" className={`lg-search-toggle${searchOpen ? ' on' : ''}`} aria-pressed={searchOpen} aria-label={t('lgSearch')} title={t('lgSearch')} onClick={() => { setSearchOpen(v => !v); if (searchOpen) setQuery(''); }}><Search /></button>
               <div className="lg-view" role="group" aria-label={t('lgViewCards')}>
                 <button type="button" className={view === 'cards' ? 'on' : ''} aria-pressed={view === 'cards'} title={t('lgViewCards')} onClick={() => setView('cards')}><List /></button>
                 <button type="button" className={view === 'table' ? 'on' : ''} aria-pressed={view === 'table'} title={t('lgViewTable')} onClick={() => setView('table')}><LayoutGrid /></button>
@@ -211,6 +215,7 @@ export function LoansOverview({
               )}
             </div>
           </div>
+          {searchOpen && <label className="lg-search"><Search /><input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('lgSearch')} aria-label={t('lgSearch')} /></label>}
           <div className="lg-seg" role="tablist" aria-label={t('lgLedger')}>
             {filters.map(([id, key]) => (
               <button key={id} type="button" role="tab" aria-selected={filter === id} className={`lg-seg-btn ${id} ${filter === id ? 'on' : ''}`} onClick={() => setFilter(id)}>
@@ -230,7 +235,7 @@ export function LoansOverview({
                     <div role="button" tabIndex={0} className={`lgc ${r.direction}${r.status === 'pending' ? ' pending' : ''}`}
                       onClick={() => onOpenMerchant(r.merchantKey)}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenMerchant(r.merchantKey); } }}>
-                      <span className="lgc-more" aria-hidden="true"><MoreHorizontal /></span>
+                      <button type="button" className="lgc-more" aria-label={t('lgActStatement')} onClick={e => { e.stopPropagation(); onOpenMerchant(r.merchantKey); }}><MoreHorizontal /></button>
                       <i className="lg-avatar">{initials(r.merchant)}</i>
                       <span className="lgc-id">
                         <span className="lgc-name"><b dir="auto">{r.merchant}</b><span className="lg-chip tone">{typeLabel(r)}</span></span>

@@ -17,7 +17,7 @@ import '@/styles/taheito-merchant.css';
 export function AppLayout() {
   const location = useLocation();
   const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
-  const isMobile = useIsMobile(isLoans ? 1024 : 768);
+  const isMobile = useIsMobile(isLoans ? 1100 : 768);
   // This page sizes itself to the viewport. Do not compound the saved app zoom
   // with a second page scale, which previously left a miniature canvas on phones.
   useLayoutEffect(() => {
