@@ -856,3 +856,106 @@ button.lg-tr:hover { background: color-mix(in srgb, var(--brand) 7%, transparent
 .dark .lg-qa-btn.primary { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 55%, #000), color-mix(in srgb, var(--brand) 85%, #000)); }
 .lg-grid { align-items: stretch; }
 .lg-qa-btn .lg-badge { position: static; margin-inline-start: auto; }
+
+/* ═════ Reference look: hero, glowing tiles, action row, three tabs, ledger cards, side cards ═════ */
+.lg-hero { position: relative; overflow: hidden; padding: 22px 20px; border-radius: 22px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line));
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, #6d4aff 38%, transparent), transparent 55%), linear-gradient(135deg, color-mix(in srgb, var(--brand) 14%, var(--card-bg)), var(--card-bg)); }
+.lg-hero .lg-hero-tx { flex: 1; min-width: 0; }
+.lg-hero h1 { font-size: 30px; }
+.lg-coins { flex: none; width: 130px; height: 98px; filter: drop-shadow(0 8px 14px color-mix(in srgb, var(--brand) 40%, transparent)); }
+.lg-coins .coin ellipse, .lg-coins .coin rect { fill: color-mix(in srgb, var(--brand) 55%, #1b2b63); stroke: color-mix(in srgb, var(--brand) 80%, #fff); stroke-width: 1.2; }
+.lg-coins .coin text { fill: color-mix(in srgb, var(--brand) 40%, #fff); font-size: 13px; font-weight: 800; }
+.lg-hero .lg-pagehead-ic { width: 64px; height: 64px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 16%, var(--card-bg)); box-shadow: 0 0 24px color-mix(in srgb, var(--brand) 30%, transparent); }
+
+.lg.lg-tiles { gap: 12px; }
+.lg-tiles .lg-tile { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'lab ic' 'val val' 'spk spk' 'sub sub'; padding: 14px 16px 12px; border-radius: 20px; border: 1.5px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 16%, var(--card-bg)), color-mix(in srgb, var(--tone) 4%, var(--card-bg))); box-shadow: 0 0 22px color-mix(in srgb, var(--tone) 14%, transparent); }
+.lg-tiles .lg-tile small { grid-area: lab; align-self: center; font-size: 13px; }
+.lg-tiles .lg-tile .lg-tile-ic { grid-area: ic; position: static; width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--tone) 28%, transparent); }
+.lg-tiles .lg-tile strong { grid-area: val; margin-top: 6px; font-size: 30px; display: flex; align-items: baseline; gap: 8px; }
+.lg-tiles .lg-tile strong em { margin: 0; font-size: 13px; font-weight: 700; order: -1; }
+.lg-tiles .lg-tile .lg-spark { grid-area: spk; }
+.lg-tiles .lg-tile > span:last-child { grid-area: sub; }
+.lg-tiles .lg-tile.vol { --tone: #8b6bff; --tone-tx: color-mix(in srgb, #8b6bff 55%, var(--text)); }
+.lg-tiles .lg-tile.net { --tone: #7c5cff; }
+
+.lg.lg-qa { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.lg-qa .lg-qa-row { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.lg-qa .lg-qa-btn { justify-content: center; text-align: center; padding: 14px 16px; border-radius: 16px; background: color-mix(in srgb, var(--brand) 6%, var(--card-bg)); }
+.lg-qa .lg-qa-btn small { display: none; }
+.lg-qa .lg-qa-btn.primary { background: linear-gradient(135deg, #17d7c0, #19b6d8); color: #04222b; box-shadow: 0 6px 22px color-mix(in srgb, #17d7c0 40%, transparent); }
+.lg-qa .lg-qa-btn.primary svg { stroke: #04222b; }
+
+.ld-tabs { display: flex; padding: 4px; border-radius: 18px; border: 1px solid var(--line); background: color-mix(in srgb, var(--brand) 5%, var(--card-bg)); }
+.ld-tabs .ld-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 10px; font-size: 16px; font-weight: 800; border-radius: 14px; position: relative; }
+.ld-tabs .ld-tab.active { background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 22%, transparent), color-mix(in srgb, var(--brand) 6%, transparent)); box-shadow: inset 0 -3px 0 var(--brand), 0 0 18px color-mix(in srgb, var(--brand) 25%, transparent); }
+
+/* ledger first, then the side cards */
+.lg-grid { grid-template-columns: minmax(0, 1.9fr) minmax(280px, 1fr); }
+.lg-moves, .lg-side .lg-card { border-radius: 20px; background: color-mix(in srgb, var(--brand) 4%, var(--card-bg)); }
+.lg-view { display: inline-flex; padding: 3px; gap: 3px; border-radius: 12px; border: 1px solid var(--line); }
+.lg-view button { display: grid; place-items: center; width: 34px; height: 30px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); }
+.lg-view button.on { background: var(--brand); color: #04222b; }
+.lg-view svg { width: 16px; height: 16px; }
+.lg-moves .lg-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lg-moves .lg-seg-btn { justify-content: center; padding: 9px 8px; font-size: 13px; }
+.lg-moves .lg-seg-btn b { order: -1; }
+.lg-moves .lg-filters { flex-wrap: nowrap; }
+
+.lgc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.lgc { --tone: var(--lg-out); --tone-tx: var(--lg-out-tx); position: relative; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 16px 16px 16px 20px; border-radius: 18px; text-align: start; color: var(--text); overflow: hidden;
+  border: 1.5px solid color-mix(in srgb, var(--tone) 50%, var(--line)); background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 10%, var(--card-bg)), var(--card-bg)); box-shadow: 0 0 18px color-mix(in srgb, var(--tone) 10%, transparent); }
+.lgc.in { --tone: var(--lg-in); --tone-tx: var(--lg-in-tx); }
+.lgc::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 5px; background: var(--tone); }
+.lgc.pending { border-style: dashed; }
+.lgc-dir { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: color-mix(in srgb, var(--tone) 24%, transparent); color: var(--tone-tx); border: 1.5px solid color-mix(in srgb, var(--tone) 55%, transparent); }
+.lgc-dir svg { width: 22px; height: 22px; stroke-width: 2.6; }
+.lgc-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lgc-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lgc-top .lg-avatar { width: 42px; height: 42px; border-radius: 50%; font-style: normal; flex: none; --tone: var(--brand); --tone-tx: var(--text); }
+.lgc-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lgc-who > b { font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lgc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lgc-date { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
+.lgc-date svg { width: 14px; height: 14px; }
+.lg-chip.tone { background: color-mix(in srgb, var(--tone) 18%, transparent); color: var(--tone-tx); border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent); }
+.lgc-bot { display: flex; flex-wrap: wrap; gap: 6px; }
+.lgc-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: end; }
+.lgc-amt strong { display: flex; align-items: baseline; gap: 6px; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lgc-amt strong em { order: -1; font-style: normal; font-size: 13px; color: var(--muted); }
+.lgc-amt strong.out { color: var(--lg-out-tx); } .lgc-amt strong.in { color: var(--lg-owed-tx); }
+.lgc-amt small { font-size: 12.5px; color: var(--muted); } .lgc-amt small.owed { color: var(--lg-owed-tx); } .lgc-amt small.owe { color: var(--lg-owe-tx); }
+.lgc-more { width: 22px; height: 22px; color: var(--muted); }
+
+.lg-foot-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: color-mix(in srgb, var(--brand) 5%, var(--card-bg)); }
+.lg-foot-bar span { display: inline-flex; align-items: center; gap: 8px; }
+.lg-foot-bar svg { width: 20px; height: 20px; color: var(--muted); }
+.lg-foot-bar em { font-style: normal; font-size: 12px; color: var(--muted); }
+.lg-foot-bar b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.lg-foot-bar .lg-export { margin-inline-start: auto; background: transparent; color: var(--text); border: 1.5px solid var(--line); }
+
+.lg-mlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lg-mrow { --tone: var(--lg-owed); --tone-tx: var(--lg-owed-tx); width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border-radius: 14px; text-align: start; color: var(--text); border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--line)); background: color-mix(in srgb, var(--tone) 8%, var(--card-bg)); }
+.lg-mrow.owe { --tone: var(--lg-owe); --tone-tx: var(--lg-owe-tx); } .lg-mrow.even { --tone: var(--muted); --tone-tx: var(--muted); }
+.lg-mrow-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.lg-mrow-top b { font-size: 14.5px; display: inline-flex; align-items: center; gap: 6px; }
+.lg-mrow-top strong { font-size: 14px; color: var(--tone-tx); font-variant-numeric: tabular-nums; }
+.lg-mrow .lg-bar { height: 6px; background: color-mix(in srgb, var(--tone) 18%, transparent); }
+.lg-mrow .lg-bar i { background: var(--tone); }
+.lg-mrow small { font-size: 11.5px; color: var(--muted); }
+
+@media (max-width: 980px) { .lg-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .lg-hero { padding: 16px 14px; } .lg-hero h1 { font-size: 22px; } .lg-coins { width: 84px; height: 64px; }
+  .lg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lg-tiles .lg-tile strong { font-size: 24px; }
+  .lg-moves .lg-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lg-moves .lg-filters { flex-wrap: wrap; }
+  .lgc { grid-template-columns: auto minmax(0, 1fr) auto; padding: 14px 12px 14px 16px; } .lgc-more { display: none; }
+  .lgc-amt strong { font-size: 20px; } .lgc-who > b { font-size: 15px; }
+  .ld-tabs .ld-tab { font-size: 13px; padding: 12px 4px; }
+}
+.ld-tabs { width: 100%; box-sizing: border-box; }
+@media (max-width: 720px) {
+  .lgc { grid-template-columns: auto minmax(0, 1fr); }
+  .lgc-amt { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: baseline; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 8px; }
+}
