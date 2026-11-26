@@ -6,7 +6,10 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ChevronRight,
+  Database,
   Handshake,
+  ListChecks,
+  Send,
   Inbox,
   Info,
   MoreHorizontal,
@@ -395,16 +398,17 @@ export function LoansPanel({
     <div className="ld-desk">
       <LoanRequestsBar state={state} applyStateAndCommit={applyStateAndCommit} />
       <header className="lg-pagehead lg-hero">
-        <svg className="lg-coins" viewBox="0 0 120 90" aria-hidden="true">
-          <g className="coin"><ellipse cx="42" cy="70" rx="30" ry="10" /><rect x="12" y="52" width="60" height="18" /><ellipse cx="42" cy="52" rx="30" ry="10" /><text x="42" y="56" textAnchor="middle">$</text></g>
-          <g className="coin"><ellipse cx="82" cy="52" rx="26" ry="9" /><rect x="56" y="34" width="52" height="18" /><ellipse cx="82" cy="34" rx="26" ry="9" /><text x="82" y="38" textAnchor="middle">$</text></g>
-          <g className="coin"><ellipse cx="72" cy="30" rx="22" ry="8" /><rect x="50" y="14" width="44" height="16" /><ellipse cx="72" cy="14" rx="22" ry="8" /><text x="72" y="18" textAnchor="middle">$</text></g>
-        </svg>
+        <div className="lg-pagehead-ic"><Handshake /></div>
         <div className="lg-hero-tx">
           <h1>{t('loansTitle')}</h1>
           <p>{t('lgSubtitle')}</p>
         </div>
-        <div className="lg-pagehead-ic"><Handshake /></div>
+        <svg className="lg-coins" viewBox="0 0 160 110" aria-hidden="true">
+          <path className="streak" d="M0 100 L110 30 L160 20 L160 40 L60 110 Z" />
+          <g className="coin"><ellipse cx="46" cy="86" rx="32" ry="11" /><rect x="14" y="66" width="64" height="20" /><ellipse cx="46" cy="66" rx="32" ry="11" /><text x="46" y="70" textAnchor="middle">$</text></g>
+          <g className="coin"><ellipse cx="92" cy="62" rx="30" ry="10" /><rect x="62" y="42" width="60" height="20" /><ellipse cx="92" cy="42" rx="30" ry="10" /><text x="92" y="46" textAnchor="middle">$</text></g>
+          <g className="coin"><ellipse cx="80" cy="34" rx="26" ry="9" /><rect x="54" y="16" width="52" height="18" /><ellipse cx="80" cy="16" rx="26" ry="9" /><text x="80" y="20" textAnchor="middle">$</text></g>
+        </svg>
       </header>
 
       <LoansTiles ledger={ledger} />
@@ -417,15 +421,15 @@ export function LoansPanel({
 
       <div className="ld-tabs" role="tablist" aria-label={t('loansTitle')}>
         <button type="button" role="tab" aria-selected={tab === 'balances'} className={`ld-tab ${tab === 'balances' ? 'active' : ''}`} onClick={() => setTab('balances')}>
-          {t('loansBalances')} <span className="ld-count">{open.length}</span>
+          <Database /> {t('mloanTab')}
         </button>
         {onOpenConsignments && (
           <button type="button" role="tab" aria-selected={false} className="ld-tab" onClick={onOpenConsignments}>
-            {t('lgTabCons')} {ledger.consignments.openCount > 0 && <span className="ld-count">{ledger.consignments.openCount}</span>}
+            <Send /> {t('lgTabCons')}
           </button>
         )}
         <button type="button" role="tab" aria-selected={tab === 'review'} className={`ld-tab ${tab === 'review' ? 'active' : ''}`} onClick={() => setTab('review')}>
-          {t('loansReview')} {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
+          <ListChecks /> {t('loansReview')} {filteredPending.length > 0 && <span className="ld-count warn">{filteredPending.length}</span>}
         </button>
       </div>
 

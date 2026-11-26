@@ -94,7 +94,7 @@ describe('Loans tab, end to end as a user', () => {
 
   it('borrow 33k by Pay, then repay the four P2P sends: Abu Tamim ends settled', async () => {
     const app = renderLoop(baseState());
-    expect(screen.getByText('loansBalances')).toBeTruthy();
+    expect(screen.getByText('mloanTab')).toBeTruthy();
     openReview();
     expect(screen.getByText('loansInboxTitle')).toBeTruthy();
 
@@ -113,8 +113,8 @@ describe('Loans tab, end to end as a user', () => {
     expect(api.addOrderLink).toHaveBeenCalledTimes(4);
 
     // 3. All records answered; the merchant is settled with a five-line statement.
-    fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
-    expect(screen.getAllByText('lgStSettled').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('tab', { name: /mloanTab/ }));
+    expect(screen.getByText('lgNoDebtors')).toBeTruthy();
     fireEvent.click(screen.getAllByText('Abu Tamim')[0]);
     expect(screen.getAllByText(/mloanKindRepaid/)).toHaveLength(4);
     expect(screen.getAllByText(/mloanKindBorrowed/)).toHaveLength(1);
@@ -126,7 +126,7 @@ describe('Loans tab, end to end as a user', () => {
     await tagAsLoan(pendingRow(/33,000 USDT/));
     await waitFor(() => expect(app.commits).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /mloanTab/ }));
     fireEvent.click(screen.getAllByText('Abu Tamim')[0]);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('mloanUndo'));
