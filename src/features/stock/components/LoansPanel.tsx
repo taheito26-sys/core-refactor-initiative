@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -105,6 +105,12 @@ export function LoansPanel({
   const dismissed = useDismissedExchangeItems(state);
   const merchants = useLoanMerchantNames(state);
   const [tab, setTab] = useState<'balances' | 'review'>('balances');
+  useEffect(() => {
+    const add = () => setDialog({ sources: [{ type: 'manual', direction: 'out', ts: Date.now() }], presetDirection: 'out' });
+    window.addEventListener('loans:new-movement', add);
+    return () => window.removeEventListener('loans:new-movement', add);
+  }, []);
+
   const [dialog, setDialog] = useState<{ sources: LoanSource[]; presetName?: string; presetDirection?: 'in' | 'out' } | null>(null);
   const [editing, setEditing] = useState<UsdtTransfer | null>(null);
   const [consign, setConsign] = useState<{ mode: 'send' | 'return'; source: LoanSource; counterparty: string | null } | null>(null);
@@ -405,9 +411,16 @@ export function LoansPanel({
         </div>
         <svg className="lg-coins" viewBox="0 0 160 110" aria-hidden="true">
           <path className="streak" d="M0 100 L110 30 L160 20 L160 40 L60 110 Z" />
-          <g className="coin"><ellipse cx="46" cy="86" rx="32" ry="11" /><rect x="14" y="66" width="64" height="20" /><ellipse cx="46" cy="66" rx="32" ry="11" /><text x="46" y="70" textAnchor="middle">$</text></g>
-          <g className="coin"><ellipse cx="92" cy="62" rx="30" ry="10" /><rect x="62" y="42" width="60" height="20" /><ellipse cx="92" cy="42" rx="30" ry="10" /><text x="92" y="46" textAnchor="middle">$</text></g>
-          <g className="coin"><ellipse cx="80" cy="34" rx="26" ry="9" /><rect x="54" y="16" width="52" height="18" /><ellipse cx="80" cy="16" rx="26" ry="9" /><text x="80" y="20" textAnchor="middle">$</text></g>
+          {[{ x: 50, y: 87, r: 29, count: 4 }, { x: 94, y: 68, r: 29, count: 7 }].map(stack => (
+            <g className="coin" key={stack.x}>
+              {Array.from({ length: stack.count }, (_, index) => <g key={index}>
+                <rect x={stack.x - stack.r} y={stack.y - index * 8 - 6} width={stack.r * 2} height="8" />
+                <ellipse cx={stack.x} cy={stack.y - index * 8 + 2} rx={stack.r} ry="10" />
+              </g>)}
+              <ellipse cx={stack.x} cy={stack.y - (stack.count - 1) * 8 - 6} rx={stack.r} ry="10" />
+              <text x={stack.x} y={stack.y - (stack.count - 1) * 8 - 2} textAnchor="middle">$</text>
+            </g>
+          ))}
         </svg>
       </header>
 

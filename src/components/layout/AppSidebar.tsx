@@ -1,6 +1,10 @@
 import { useLocation, Link } from 'react-router-dom';
 import {
   ArrowLeftRight,
+  BarChart3,
+  Box,
+  Database,
+  Plus,
   LayoutDashboard,
   TrendingUp,
   Wallet,
@@ -60,7 +64,15 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   const location = useLocation();
   const t = useT();
   const isP2P = location.pathname === '/trading/p2p';
-  const primaryNav = isP2P ? [tradingNav[0], { ...tradingNav[6], icon: ArrowLeftRight }, tradingNav[1], { ...tradingNav[3], icon: Wallet, labelKey: 'pmWallet' }, tradingNav[5]] : [
+  const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
+  const primaryNav = isLoans ? [
+    tradingNav[0],
+    { labelKey: 'mloanTab', fallback: 'Loans', icon: Database, path: '/trading/orders?tab=usdt' },
+    { ...tradingNav[2], icon: Box },
+    { labelKey: 'add', fallback: 'Add', icon: Plus, path: '#new-loan' },
+    tradingNav[5],
+    { labelKey: 'loansReports', fallback: 'Reports', icon: BarChart3, path: '#loan-reports' },
+  ] : isP2P ? [tradingNav[0], { ...tradingNav[6], icon: ArrowLeftRight }, tradingNav[1], { ...tradingNav[3], icon: Wallet, labelKey: 'pmWallet' }, tradingNav[5]] : [
     tradingNav[0], // Dashboard
     tradingNav[1], // Orders
     tradingNav[2], // Stock
@@ -73,12 +85,18 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   // Mounted straight on the body and pinned to the screen's bottom edge, so no page height, zoom level,
   // transform or scroll container above it can push the main navigation out of view.
   const bar = (
-    <nav className={cn('mobile-bottom-nav', isP2P && 'pm-bottom-nav')} dir={settings.language === 'ar' ? 'rtl' : 'ltr'} aria-label="Main">
+    <nav className={cn('mobile-bottom-nav', isP2P && 'pm-bottom-nav', isLoans && 'loans-bottom-nav')} dir={settings.language === 'ar' ? 'rtl' : 'ltr'} aria-label="Main">
       {primaryNav.map((item) => {
         const [itemPath, itemQuery] = item.path.split('?');
         const active = itemQuery
           ? location.pathname === itemPath && location.search.includes(itemQuery)
-          : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+          : !isLoans && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
+        if (item.path === '#new-loan' || item.path === '#loan-reports') return (
+          <button key={item.path} type="button" className={cn('mobile-bottom-nav__item', item.path === '#new-loan' && 'loans-nav-add')} onClick={() => window.dispatchEvent(new Event(item.path === '#new-loan' ? 'loans:new-movement' : 'loans:reports'))}>
+            <span className="mobile-bottom-nav__icon-wrap"><item.icon className="mobile-bottom-nav__icon" /></span>
+            <span className="mobile-bottom-nav__label">{t(item.labelKey as any)}</span>
+          </button>
+        );
         return (
           <Link
             key={item.path}

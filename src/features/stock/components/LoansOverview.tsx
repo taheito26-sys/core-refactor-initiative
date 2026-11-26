@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, BarChart3, Bell, CalendarClock, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Database, Download, FileText, Layers, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Scale, Search, Send, Sigma, Users,
+  AlertTriangle, ArrowDown, ArrowDownLeft, ArrowLeftRight, ArrowUp, ArrowUpRight, BarChart3, Bell, CalendarClock, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Database, Download, Layers, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Scale, Send, Sigma, Users,
 } from 'lucide-react';
 import { useT, type TranslationKey } from '@/lib/i18n';
 import { fmtDate, fmtTotal } from '@/lib/tracker-helpers';
@@ -28,7 +28,7 @@ function Ring({ owed, owe, net }: { owed: number; owe: number; net: number }) {
       <circle cx="50" cy="50" r={R} className="base" />
       {total > 0 && <circle cx="50" cy="50" r={R} className="owe" strokeDasharray={`${C - owedLen} ${C}`} strokeDashoffset={-owedLen} />}
       {owedLen > 0 && <circle cx="50" cy="50" r={R} className="owed" strokeDasharray={`${owedLen} ${C}`} />}
-      <text x="50" y="49" textAnchor="middle" className="n">{net > 0 ? '+' : net < 0 ? '−' : ''}{fmtTotal(Math.abs(net))}</text>
+      <text x="50" y="49" textAnchor="middle" className="n">{fmtTotal(Math.abs(net))}{net > 0 ? '+' : net < 0 ? '−' : ''}</text>
       <text x="50" y="63" textAnchor="middle" className="u">USDT</text>
     </svg>
   );
@@ -40,8 +40,8 @@ export function LoansTiles({ ledger }: { ledger: LoanLedger }) {
   const { totals, rows } = ledger;
   const totalVolume = rows.reduce((s, r) => s + r.amount, 0);
   const tiles = [
-    { cls: 'owed', icon: ArrowUpRight, label: t('lgTileOwed'), value: fmtTotal(totals.owedToMe) },
-    { cls: 'owe', icon: ArrowDownLeft, label: t('lgTileOwe'), value: fmtTotal(totals.iOwe) },
+    { cls: 'owed', icon: ArrowUp, label: t('lgTileOwed'), value: fmtTotal(totals.owedToMe) },
+    { cls: 'owe', icon: ArrowDown, label: t('lgTileOwe'), value: fmtTotal(totals.iOwe) },
     { cls: 'vol', icon: Sigma, label: t('lgTotalVolume'), value: fmtTotal(totalVolume) },
     { cls: 'net', icon: BarChart3, label: t('lgTileNet'), value: `${fmtTotal(Math.abs(totals.net))}${totals.net > 0 ? '+' : totals.net < 0 ? '−' : ''}` },
   ];
@@ -51,7 +51,7 @@ export function LoansTiles({ ledger }: { ledger: LoanLedger }) {
         <article key={k.label} className={`lg-tile ${k.cls}`}>
           <span className="lg-tile-ic"><k.icon /></span>
           <small>{k.label}</small>
-          <strong>{k.value}<em>USDT</em></strong>
+          <strong><bdi dir="ltr">{k.value}</bdi><em>USDT</em></strong>
         </article>
       ))}
     </section>
@@ -60,7 +60,7 @@ export function LoansTiles({ ledger }: { ledger: LoanLedger }) {
 
 /** The quick actions row: record a movement either way, sell for a merchant, or open a statement. */
 export function LoansActions({
-  ledger, onRecord, onOpenMerchant, onOpenConsignments,
+  ledger, onRecord, onOpenMerchant,
 }: {
   ledger: LoanLedger;
   onRecord: (direction: 'in' | 'out', presetName?: string) => void;
@@ -69,16 +69,21 @@ export function LoansActions({
 }) {
   const t = useT();
   const [pickStatement, setPickStatement] = useState(false);
+  useEffect(() => {
+    const showReports = () => setPickStatement(true);
+    window.addEventListener('loans:reports', showReports);
+    return () => window.removeEventListener('loans:reports', showReports);
+  }, []);
   const { merchants } = ledger;
   return (
     <section className="lg lg-qa" aria-label={t('lgQuick')}>
       <div className="lg-qa-row">
         <button type="button" className="lg-qa-btn primary" onClick={() => onRecord('out')}><span>{t('lgSentBtn')}</span><Send /></button>
         <button type="button" className="lg-qa-btn" onClick={() => onRecord('in')}><span>{t('lgRecvBtn')}</span><Plus /></button>
-        {onOpenConsignments && <button type="button" className="lg-qa-btn" onClick={onOpenConsignments}><span>{t('lgActCons')}</span><Layers /></button>}
+        <button type="button" className="lg-qa-btn" onClick={() => onRecord('out')}><span>{t('lgTransferBalance')}</span><ArrowLeftRight /></button>
         <div className="lg-qa-wrap">
           <button type="button" className="lg-qa-btn" aria-expanded={pickStatement} onClick={() => setPickStatement(v => !v)} disabled={merchants.length === 0}>
-            <span>{t('lgActStatement')}</span><Scale />
+            <span>{t('lgSettle')}</span><Scale />
           </button>
           {pickStatement && (
             <ul className="lg-pop" role="menu">
@@ -112,15 +117,13 @@ export function LoansOverview({
   const t = useT();
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [merchantKey, setMerchantKey] = useState('');
-  const [query, setQuery] = useState('');
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const { totals, merchants, rows, consignments } = ledger;
   const Chev = t.isRTL ? ChevronLeft : ChevronRight;
 
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return filterLedger(rows, filter, merchantKey || undefined).filter(r => !q || r.merchant.toLowerCase().includes(q));
-  }, [rows, filter, merchantKey, query]);
+    return filterLedger(rows, filter, merchantKey || undefined);
+  }, [rows, filter, merchantKey]);
   const counts = useMemo(() => ({
     all: rows.length,
     out: rows.filter(r => r.direction === 'out').length,
@@ -197,8 +200,8 @@ export function LoansOverview({
             <h2>{t('lgLatest')} ({visible.length})</h2>
             <div className="lg-head-tools">
               <div className="lg-view" role="group" aria-label={t('lgViewCards')}>
-                <button type="button" className={view === 'cards' ? 'on' : ''} aria-pressed={view === 'cards'} title={t('lgViewCards')} onClick={() => setView('cards')}><LayoutGrid /></button>
-                <button type="button" className={view === 'table' ? 'on' : ''} aria-pressed={view === 'table'} title={t('lgViewTable')} onClick={() => setView('table')}><List /></button>
+                <button type="button" className={view === 'cards' ? 'on' : ''} aria-pressed={view === 'cards'} title={t('lgViewCards')} onClick={() => setView('cards')}><List /></button>
+                <button type="button" className={view === 'table' ? 'on' : ''} aria-pressed={view === 'table'} title={t('lgViewTable')} onClick={() => setView('table')}><LayoutGrid /></button>
               </div>
               {merchants.length > 1 && (
                 <select className="lg-select" aria-label={t('lgAllMerchants')} value={merchantKey} onChange={e => setMerchantKey(e.target.value)}>
@@ -208,7 +211,6 @@ export function LoansOverview({
               )}
             </div>
           </div>
-          <label className="lg-search"><Search /><input value={query} onChange={e => setQuery(e.target.value)} placeholder={t('lgSearch')} aria-label={t('lgSearch')} /></label>
           <div className="lg-seg" role="tablist" aria-label={t('lgLedger')}>
             {filters.map(([id, key]) => (
               <button key={id} type="button" role="tab" aria-selected={filter === id} className={`lg-seg-btn ${id} ${filter === id ? 'on' : ''}`} onClick={() => setFilter(id)}>
@@ -228,17 +230,17 @@ export function LoansOverview({
                     <div role="button" tabIndex={0} className={`lgc ${r.direction}${r.status === 'pending' ? ' pending' : ''}`}
                       onClick={() => onOpenMerchant(r.merchantKey)}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenMerchant(r.merchantKey); } }}>
-                      <button type="button" className="lgc-more" aria-label={t('lgActStatement')} onClick={e => { e.stopPropagation(); onOpenMerchant(r.merchantKey); }}><MoreHorizontal /></button>
+                      <span className="lgc-more" aria-hidden="true"><MoreHorizontal /></span>
                       <i className="lg-avatar">{initials(r.merchant)}</i>
                       <span className="lgc-id">
-                        <span className="lgc-name"><b>{r.merchant}</b><span className="lg-chip tone">{typeLabel(r)}</span></span>
-                        <span className="lgc-date"><CalendarDays />{fmtDate(r.ts)}</span>
-                        <strong className={`lgc-amt ${r.direction}`}>{fmtTotal(r.amount)}{r.direction === 'out' ? '−' : '+'}<em>USDT</em></strong>
+                        <span className="lgc-name"><b dir="auto">{r.merchant}</b></span>
+                        <span className="lgc-date"><CalendarDays />{new Date(r.ts).toLocaleDateString('en-US')}</span>
+                        <strong className={`lgc-amt ${r.direction}`}><bdi>{fmtTotal(r.amount)}{r.direction === 'out' ? '−' : '+'}</bdi><em>USDT</em></strong>
                       </span>
                       <span className="lgc-mid">
+                        <span className="lg-chip tone">{typeLabel(r)}</span>
                         {statusChip(r)}
                         <small className={bal.cls}>{t('lgBalAfter')}: {bal.text}</small>
-                        <span className="lg-chip muted lgc-src">{t(SOURCE_KEY[r.source])}</span>
                       </span>
                       <span className="lgc-dir" aria-hidden="true">{r.direction === 'out' ? <ArrowUpRight /> : <ArrowDownLeft />}</span>
                     </div>
@@ -257,7 +259,7 @@ export function LoansOverview({
                   <button key={r.id} type="button" role="row" className={`lg-tr ${r.direction}${r.status === 'pending' ? ' pending' : ''}`} onClick={() => onOpenMerchant(r.merchantKey)}>
                     <span className="c-type"><i className="lg-dir" aria-hidden="true">{r.direction === 'out' ? <ArrowUpRight /> : <ArrowDownLeft />}</i>
                       <b>{fill(t(ROW_KEY[r.label]), { name: r.merchant })}</b><small>{t(SOURCE_KEY[r.source])}</small></span>
-                    <span className="c-name"><i className="lg-avatar">{initials(r.merchant)}</i><b>{r.merchant}</b></span>
+                    <span className="c-name"><i className="lg-avatar">{initials(r.merchant)}</i><b dir="auto">{r.merchant}</b></span>
                     <span className="c-last"><em>{t('lgColDate')}</em>{fmtDate(r.ts)}</span>
                     <span className={`c-amt ${r.direction}`}><em>{t('lgColAmount')}</em>{r.direction === 'out' ? '−' : '+'}{fmtTotal(r.amount)}</span>
                     <span className={`c-after ${bal.cls}`}><em>{t('lgColBalAfter')}</em>{bal.text}</span>

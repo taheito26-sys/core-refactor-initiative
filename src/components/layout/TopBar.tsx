@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Menu, TrendingUp } from 'lucide-react';
+import { Menu, Search, SlidersHorizontal, TrendingUp } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -21,10 +21,11 @@ const RANGES = [
 
 type TopBarProps = {
   isMobile?: boolean;
+  loansReference?: boolean;
   onMenuClick?: () => void;
 };
 
-export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
+export function TopBar({ isMobile = false, loansReference = false, onMenuClick }: TopBarProps) {
   const { settings, update } = useTheme();
   const { merchantProfile, logout } = useAuth();
   const t = useT();
@@ -61,6 +62,28 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
     ro.observe(row);
     return () => ro.disconnect();
   }, [isMobile, settings.language, settings.currency, design]);
+
+  if (loansReference) return (
+    <header className="loans-topbar" dir="ltr">
+      <button type="button" className="loans-brand" onClick={() => setProfileOpen(true)}>
+        <span className="loans-brand-avatar">{merchantProfile?.display_name?.split(/\s+/).slice(0, 2).map(part => part[0]).join('') || 'MA'}<i /></span>
+        <span><b>The Tracker</b><small>P2P Operations</small></span>
+      </button>
+      <a className="loans-top-icon" href="/trading/orders" aria-label={t('search')}><Search /></a>
+      <a className="loans-top-icon" href="/settings" aria-label={t('settings')}><SlidersHorizontal /></a>
+      <ThemeColorPicker compact />
+      <div className="loans-top-toggles">
+        <button type="button" onClick={() => update({ language: settings.language === 'ar' ? 'en' : 'ar' })}>{settings.language === 'ar' ? 'AR' : 'EN'}</button>
+        <button type="button" className="on" onClick={() => { const currency = settings.currency === 'USDT' ? 'QAR' : 'USDT'; update({ currency }); }}>{settings.currency}</button>
+      </div>
+      <div className="loans-top-toggles loans-top-ranges">
+        {[...RANGES].reverse().map(range => <button key={range.id} type="button" className={settings.range === range.id ? 'on' : ''} onClick={() => update({ range: range.id })}>{range.label}</button>)}
+      </div>
+      <ActivityCenter compact />
+      {onMenuClick && <button type="button" className="loans-menu" aria-label={t('more')} onClick={onMenuClick}><Menu /></button>}
+      <UserProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+    </header>
+  );
 
   return (
     <header

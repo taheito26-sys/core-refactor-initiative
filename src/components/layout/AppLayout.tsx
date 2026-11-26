@@ -15,7 +15,9 @@ import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
 import '@/styles/taheito-merchant.css';
 
 export function AppLayout() {
-  const isMobile = useIsMobile();
+  const location = useLocation();
+  const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
+  const isMobile = useIsMobile(isLoans ? 1024 : 768);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
@@ -27,12 +29,11 @@ export function AppLayout() {
   useReadReceiptSync();
   useAutoVaultBackup();
 
-  const location = useLocation();
   const isChat = location.pathname.startsWith('/chat');
 
   return (
     <div
-      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, location.pathname === '/trading/p2p' && 'pm-shell')}
+      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, location.pathname === '/trading/p2p' && 'pm-shell', isLoans && 'loans-reference-shell')}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}
@@ -51,6 +52,7 @@ export function AppLayout() {
       <div className="main-shell flex flex-1 flex-col min-w-0 min-h-0">
         <TopBar
           isMobile={isMobile}
+          loansReference={isLoans}
           onMenuClick={isMobile ? () => setMobileSidebarOpen(true) : undefined}
         />
         

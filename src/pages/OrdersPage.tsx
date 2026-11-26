@@ -139,7 +139,7 @@ export default function OrdersPage() {
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
@@ -4045,6 +4045,7 @@ export default function OrdersPage() {
   /** Incoming and outgoing merchant deals share one tab; a small switch inside it picks the direction. */
   const tabGroup: 'my' | 'deals' | 'usdt' | 'customers' = activeTab === 'incoming' || activeTab === 'outgoing' ? 'deals' : activeTab;
   const selectTabGroup = (id: 'my' | 'deals' | 'usdt' | 'customers') => {
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', id); return next; });
     setThShown(40);
     if (id === 'my') { setActiveTab('my'); setMerchantOrderEnabled(false); }
     else if (id === 'customers' || id === 'usdt') { setActiveTab(id); setMerchantOrderEnabled(false); }
@@ -4499,12 +4500,12 @@ export default function OrdersPage() {
         </>
       ) : (
         <>
-      <ExchangeReferenceSearch state={state} scope="orders" compact />
+      {activeTab !== 'usdt' && <ExchangeReferenceSearch state={state} scope="orders" compact />}
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
         <button
-          onClick={() => { setActiveTab('my'); setMerchantOrderEnabled(false); }}
+          onClick={() => selectTabGroup('my')}
           className={`orders-tab-btn ${activeTab === 'my' ? 'active' : ''}`}
         >
           👤 {t('myOrders')}
@@ -4522,7 +4523,7 @@ export default function OrdersPage() {
           🤝 {t('tabUsdtTransfers')}
         </button>
         <button
-          onClick={() => setActiveTab('customers')}
+          onClick={() => selectTabGroup('customers')}
           className={`orders-tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
         >
           👥 {t('customers')}
