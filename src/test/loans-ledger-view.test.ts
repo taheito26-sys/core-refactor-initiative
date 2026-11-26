@@ -83,3 +83,20 @@ describe('loans ledger', () => {
     expect(l.merchants[0]).toMatchObject({ owesMe: 0, iOwe: 0, settledShare: 1 });
   });
 });
+
+
+describe('ledger trend series and CSV', () => {
+  it('tracks running owed/owe/net per movement and exports a quoted CSV', async () => {
+    const { buildLoanLedger, ledgerToCsv } = await import('@/features/stock/loans-ledger-view');
+    const l = buildLoanLedger([
+      { id: 'a', ts: 1000, kind: 'lend_out', amountUSDT: 100, counterpartyName: 'Zed Z', createdAt: 1 },
+      { id: 'b', ts: 2000, kind: 'lend_return', amountUSDT: 40, counterpartyName: 'Zed Z', createdAt: 2 },
+    ] as never);
+    expect(l.series.owed).toEqual([100, 60]);
+    expect(l.series.net).toEqual([100, 60]);
+    expect(l.series.count).toEqual([1, 2]);
+    const csv = ledgerToCsv(l.rows);
+    expect(csv.split('\n')).toHaveLength(3);
+    expect(csv).toContain('"Zed Z"');
+  });
+});

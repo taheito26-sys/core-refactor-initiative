@@ -114,9 +114,8 @@ describe('Loans tab, end to end as a user', () => {
 
     // 3. All records answered; the merchant is settled with a five-line statement.
     fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
-    expect(screen.getByText('loansNoBalances')).toBeTruthy();
-    fireEvent.click(screen.getByText(/loansSettledMerchants/));
-    fireEvent.click(screen.getByText('Abu Tamim'));
+    expect(screen.getAllByText('lgStSettled').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText('Abu Tamim')[0]);
     expect(screen.getAllByText(/mloanKindRepaid/)).toHaveLength(4);
     expect(screen.getAllByText(/mloanKindBorrowed/)).toHaveLength(1);
   });
@@ -128,7 +127,7 @@ describe('Loans tab, end to end as a user', () => {
     await waitFor(() => expect(app.commits).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /loansBalances/ }));
-    fireEvent.click(screen.getByText('Abu Tamim'));
+    fireEvent.click(screen.getAllByText('Abu Tamim')[0]);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('mloanUndo'));
     await waitFor(() => expect(app.commits).toHaveLength(2));

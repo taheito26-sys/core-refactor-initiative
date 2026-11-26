@@ -75,7 +75,11 @@ export interface ConsignmentSummaryRow {
   merchants: string[];
 }
 
+/** Running totals after each movement (oldest first, at most 24 points) — the little trend lines on the tiles. */
+export interface LedgerSeries { owed: number[]; owe: number[]; net: number[]; count: number[] }
+
 export interface LoanLedger {
+  series: LedgerSeries;
   rows: LedgerRow[];
   merchants: LedgerMerchant[];
   /** Requests from a connected merchant waiting for my answer: not booked on my side yet. */
@@ -139,6 +143,16 @@ export function buildLoanLedger(
   rows.sort((a, b) => b.ts - a.ts || (a.id < b.id ? 1 : -1));
   void connectedNames;
 
+  const series: LedgerSeries = { owed: [], owe: [], net: [], count: [] };
+  const bal = new Map<string, number>();
+  [...rows].reverse().forEach((r, i) => {
+    bal.set(r.merchantKey, r.balanceAfter);
+    let owed = 0, owe = 0;
+    bal.forEach(b => { if (b < -EPS) owed += -b; else if (b > EPS) owe += b; });
+    series.owed.push(owed); series.owe.push(owe); series.net.push(owed - owe); series.count.push(i + 1);
+  });
+  (Object.keys(series) as (keyof LedgerSeries)[]).forEach(k => { series[k] = series[k].slice(-24); });
+
   const incoming = sharedMoves.filter(m => !m.iAmProposer && m.status === 'pending');
   const waiting = sharedMoves.filter(m => m.iAmProposer && m.status === 'pending');
   const owedToMe = round6(merchants.reduce((s, m) => s + m.owesMe, 0));
@@ -146,7 +160,7 @@ export function buildLoanLedger(
   const open = listConsignments({ usdtTransfers: all }).filter(c => c.status === 'open');
 
   return {
-    rows, merchants, incoming,
+    series, rows, merchants, incoming,
     totals: {
       owedToMe, iOwe, net: round6(owedToMe - iOwe),
       merchantsOwingMe: merchants.filter(m => m.owesMe > 0).length,
@@ -173,4 +187,15 @@ export function filterLedger(rows: LedgerRow[], filter: LedgerFilter, merchantKe
     if (filter === 'pending') return r.status === 'pending';
     return true;
   });
+}
+
+
+/** The visible ledger as a CSV file body (UTF-8, comma separated, quotes doubled). */
+export function ledgerToCsv(rows: LedgerRow[]): string {
+  const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const head = ['date', 'merchant', 'type', 'direction', 'amount_usdt', 'balance_after_usdt', 'status', 'source'];
+  const lines = rows.map(r => [
+    new Date(r.ts).toISOString().slice(0, 10), r.merchant, r.label, r.direction, r.amount, r.balanceAfter, r.status, r.source,
+  ].map(q).join(','));
+  return [head.map(q).join(','), ...lines].join('\n');
 }

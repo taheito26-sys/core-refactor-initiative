@@ -295,7 +295,7 @@ describe('bulk approve and edit', () => {
       usdtTransfers: [{ id: 'm1', ts: Date.now() - 86_400_000, kind: 'lend_out', amountUSDT: 1000, counterpartyName: 'Ahmed', createdAt: 1 }],
     } as TrackerState;
     openAs('A');
-    fireEvent.click(await screen.findByText('Ahmed'));
+    fireEvent.click((await screen.findAllByText('Ahmed'))[0]);
     fireEvent.click(await screen.findByText('loansEditMove'));
     fireEvent.change(await screen.findByLabelText('mloanAmount'), { target: { value: '1500' } });
     fireEvent.click(screen.getByText('consSave'));
@@ -308,7 +308,7 @@ describe('bulk approve and edit', () => {
       usdtTransfers: [{ id: 'm2', ts: Date.now() - 86_400_000, kind: 'lend_out', amountUSDT: 700, counterpartyName: 'zack', remoteLoanId: 'mv9', createdAt: 1 }],
     } as TrackerState;
     openAs('A');
-    fireEvent.click(await screen.findByText('zack'));
+    fireEvent.click((await screen.findAllByText('zack'))[0]);
     await screen.findByText('mloanUndo');
     expect(screen.queryByText('loansEditMove')).toBeNull();
   });
