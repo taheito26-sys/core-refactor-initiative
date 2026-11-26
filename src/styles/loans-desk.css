@@ -986,7 +986,7 @@
 @container (max-width: 700px) { .ld-desk .lg-tile { height: 82px; } }
 @container (max-width: 500px) { .ld-desk .lg-tile { height: 74px; } }
 
-/* Scale a single reference canvas instead of reflowing it into a different design. */
+/* The page uses the available viewport without additional scaling. */
 .loans-reference-shell .main-shell { height: 100dvh; }
 .loans-reference-shell .app-content-scroll { padding-bottom: 120px; }
 .loans-reference-shell .app-page-shell { padding-inline: 15px !important; }
@@ -1014,9 +1014,6 @@
 .loans-bottom-nav .mobile-bottom-nav__label { font-size: 14px; }
 .loans-bottom-nav .mobile-bottom-nav__icon { width: 26px; height: 26px; }
 .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon-wrap { width: 62px; height: 62px; margin-top: -33px; }
-@media (max-width: 853px) {
- .loans-reference-shell .main-shell { zoom: var(--loans-scale, 1); flex: none; width: 853px; height: calc(100dvh / var(--loans-scale, 1)); }
-}
 .ld-desk .lg-foot-bar > span:nth-child(1) { grid-column: 3; grid-row: 1; }
 .ld-desk .lg-foot-bar > span:nth-child(2) { grid-column: 2; grid-row: 1; }
 .ld-desk .lg-foot-bar > span:nth-child(3) { grid-column: 1; grid-row: 1; }
@@ -1038,3 +1035,66 @@
 .ld-desk .lgc-name b { flex: none; max-width: calc(100% - 70px); }
 .ld-desk .lgc-name .tone { flex: none; }
 .ld-desk .lgc-id { padding-top: 27px; }
+
+/* Phone layout: real viewport width, readable controls, no fixed-width canvas. */
+.loans-reference-shell .main-shell { width: 100%; min-width: 0; flex: 1 1 0%; }
+.loans-bottom-nav.mobile-bottom-nav { width: 100%; right: 0; }
+@media (max-width: 700px) {
+ .loans-topbar { gap: 6px; min-height: 62px; padding: 8px; }
+ .loans-brand { min-width: 0; gap: 7px; margin-inline-end: auto; }
+ .loans-brand b { font-size: 12px; }
+ .loans-brand small { font-size: 9px; }
+ .loans-brand-avatar { width: 33px; height: 33px; font-size: 12px; }
+ .loans-top-icon { width: 30px; height: 32px; border-radius: 10px; }
+ .loans-top-icon svg { width: 17px; }
+ .loans-topbar > button[aria-label] { width: 30px; height: 32px; border-radius: 10px; }
+ .loans-topbar > button[aria-label] > span { width: 18px !important; height: 18px !important; }
+ .loans-top-toggles { padding: 2px; gap: 1px; border-radius: 10px; }
+ .loans-top-toggles button { min-width: 25px; min-height: 25px; padding: 3px 4px; border-radius: 7px; font-size: 10px; }
+ .loans-menu svg { width: 24px; }
+ .loans-reference-shell .app-page-shell { padding-inline: 10px !important; }
+ .loans-bottom-nav.mobile-bottom-nav { min-height: 78px; padding-inline: 5px; border-radius: 24px 24px 0 0; }
+ .loans-bottom-nav .mobile-bottom-nav__label { font-size: 10px; }
+ .loans-bottom-nav .mobile-bottom-nav__icon { width: 22px; height: 22px; }
+ .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon-wrap { width: 48px; height: 48px; margin-top: -24px; }
+ .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon { width: 29px; height: 29px; }
+}
+@media (max-width: 470px) {
+ .loans-brand > span:last-child { display: none; }
+ .loans-topbar { justify-content: space-between; gap: 4px; }
+ .loans-brand { margin: 0; }
+}
+@container (max-width: 580px) {
+ .ld-desk .lg-grid { grid-template-columns: minmax(0,1fr); }
+ .ld-desk .lg-side { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .ld-desk .lg.lg-tiles { gap: 6px; }
+ .ld-desk .lg-tiles .lg-tile { grid-template-columns: 1fr; grid-template-areas: 'lab' 'val'; min-height: 82px; height: auto; padding: 10px 7px; border-radius: 12px; }
+ .ld-desk .lg-tile .lg-tile-ic { display: none; }
+ .ld-desk .lg-tile small { white-space: normal; font-size: 10px; min-height: 24px; }
+ .ld-desk .lg-tile strong { flex-wrap: wrap; font-size: 20px; }
+ .ld-desk .lg-hero { min-height: 106px; gap: 10px; }
+ .ld-desk .lg-pagehead-ic { width: 48px; height: 54px; border-radius: 14px; }
+ .ld-desk .lg-pagehead-ic svg { width: 32px; }
+ .ld-desk .lg-hero-tx { padding-inline-end: 0; }
+ .ld-desk .lg-hero h1 { font-size: 25px; }
+ .ld-desk .lg-hero p { font-size: 12px; }
+ .ld-desk .lg-coins { opacity: .15; pointer-events: none; }
+ .ld-desk .lg-qa-row { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+ .ld-desk .lg-qa-btn { font-size: 13px; min-height: 46px; }
+ .ld-desk .ld-tab { gap: 5px; font-size: 12px; min-height: 50px; }
+ .ld-desk .ld-tab svg { width: 18px; }
+ .ld-desk .lg-card-head h2 { font-size: 15px; }
+ .ld-desk .lgc-name { inset-inline-start: 66px; inset-inline-end: 44px; }
+ .ld-desk .lgc-name b { font-size: 14px; }
+ .ld-desk .lgc-id { padding-top: 27px; }
+ .ld-desk .lgc-mid { padding-top: 27px; }
+ .ld-desk .lgc-mid small { font-size: 10px; width: 57%; }
+ .ld-desk .lgc-name .tone { position: static; }
+ .ld-desk .lgc-amt { font-size: 25px; }
+ .ld-desk .lg-select { max-width: 27cqi; }
+}
+@container (max-width: 580px) {
+ .ld-desk .lgc { min-height: 144px; }
+ .ld-desk .lgc-amt { bottom: 43px; }
+ .ld-desk .lgc-mid small { inset-inline: 12px; bottom: 12px; width: auto; font-size: 11px; text-align: start; white-space: normal; }
+}

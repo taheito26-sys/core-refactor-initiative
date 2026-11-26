@@ -1,9 +1,8 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { AppSidebar, MobileBottomNav } from './AppSidebar';
 import { TopBar } from './TopBar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useReferenceScale } from '@/hooks/use-reference-scale';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsModal';
@@ -19,7 +18,21 @@ export function AppLayout() {
   const location = useLocation();
   const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
   const isMobile = useIsMobile(isLoans ? 1024 : 768);
-  const referenceScale = useReferenceScale();
+  // This page sizes itself to the viewport. Do not compound the saved app zoom
+  // with a second page scale, which previously left a miniature canvas on phones.
+  useLayoutEffect(() => {
+    if (!isLoans) return;
+    const root = document.documentElement;
+    const previousZoom = root.style.zoom;
+    const previousAppZoom = root.style.getPropertyValue('--app-zoom');
+    root.style.zoom = '1';
+    root.style.setProperty('--app-zoom', '1');
+    return () => {
+      root.style.zoom = previousZoom;
+      if (previousAppZoom) root.style.setProperty('--app-zoom', previousAppZoom);
+      else root.style.removeProperty('--app-zoom');
+    };
+  }, [isLoans]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
@@ -36,7 +49,6 @@ export function AppLayout() {
   return (
     <div
       className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, location.pathname === '/trading/p2p' && 'pm-shell', isLoans && 'loans-reference-shell')}
-      style={isLoans ? { '--loans-scale': referenceScale } as CSSProperties : undefined}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}
