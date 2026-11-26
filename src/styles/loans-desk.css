@@ -940,28 +940,6 @@
   .ld-desk .lg-foot-bar b { font-size: 12px; }
   .ld-desk .lg-export { font-size: 10px; padding: 5px 7px; }
 }
-/* A readable single-column ledger on small phones; the four headline figures stay in one row. */
-@container (max-width: 500px) {
-  .ld-desk .lg-grid { grid-template-columns: minmax(0,1fr); }
-  .ld-desk .lg-side { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .ld-desk .lg-side .lg-card { padding: 9px; }
-  .ld-desk .lg-hero { min-height: 88px; }
-  .ld-desk .lg-coins { position: absolute; inset-inline-end: -15px; bottom: 0; opacity: .35; }
-  .ld-desk .lg-hero-tx { padding-inline-end: 12px; }
-  .ld-desk .lg-pagehead-ic { width: 48px; height: 48px; border-radius: 15px; }
-  .ld-desk .lg-pagehead-ic svg { width: 32px; height: 32px; }
-  .ld-desk .lg.lg-tiles { gap: 6px; }
-  .ld-desk .lg-tile { grid-template-columns: 1fr; grid-template-areas: 'lab' 'val'; padding: 9px 6px; min-height: 74px; border-radius: 12px; }
-  .ld-desk .lg-tile .lg-tile-ic { display: none; }
-  .ld-desk .lg-tile small { font-size: 9px; }
-  .ld-desk .lg-tile strong { flex-wrap: wrap; font-size: 18px; gap: 3px; }
-  .ld-desk .lg-qa-row { gap: 6px; grid-template-columns: 1.25fr 1fr 1fr .8fr; }
-  .ld-desk .lg-qa-btn { padding: 5px; gap: 4px; font-size: 10px; }
-  .ld-desk .lg-qa-btn svg { width: 16px; height: 16px; }
-  .ld-desk .ld-tab { gap: 6px; min-height: 49px; font-size: 12px; }
-  .ld-desk .ld-tab svg { width: 19px; }
-  .ld-desk .ld-count { min-width: 21px; height: 21px; font-size: 11px; }
-}
 /* Keep the page isolated from the merchant shell's selected palette and classic tabs. */
 .loans-reference-shell { --bg: #040e1a; --text: #eaf1f8; --muted: #a6b8c9; --line: #24394a; background: #040e1a; }
 .loans-reference-shell .app-content-scroll { background: #040e1a; }
@@ -987,23 +965,6 @@
 .loans-top-toggles .on { color: #043b3c; background: #42e1d5; box-shadow: 0 0 10px #1ad9cf44; }
 .loans-menu { flex: none; display: grid; place-items: center; border: 0; background: none; color: #d9e6ed; }
 .loans-menu svg { width: 30px; height: 30px; }
-@media (max-width: 700px) {
- .loans-topbar { gap: 6px; min-height: 64px; padding: 8px; }
- .loans-brand { min-width: 0; gap: 6px; }
- .loans-brand b { font-size: 12px; }
- .loans-brand small { font-size: 8px; }
- .loans-brand-avatar { width: 32px; height: 32px; font-size: 12px; }
- .loans-top-icon { width: 29px; height: 31px; border-radius: 10px; }
- .loans-top-icon svg { width: 17px; }
- .loans-top-toggles { gap: 1px; padding: 2px; border-radius: 9px; }
- .loans-top-toggles button { min-width: 25px; min-height: 24px; font-size: 9px; padding: 2px 4px; border-radius: 7px; }
- .loans-menu svg { width: 23px; }
- .loans-reference-shell .app-page-shell { padding-inline: 9px; }
-}
-@media (max-width: 420px) {
- .loans-brand > span:last-child { display: none; }
- .loans-topbar { gap: 5px; }
-}
 .loans-bottom-nav.mobile-bottom-nav { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 0; min-height: 102px; padding: 8px 12px max(12px,env(safe-area-inset-bottom)); border-radius: 32px 32px 0 0; border-top: 1px solid #284556; background: linear-gradient(#0a1524,#07111f); color: #d9e2ed; box-shadow: 0 -12px 30px #00000020; }
 .loans-bottom-nav .mobile-bottom-nav__item { min-width: 0; gap: 9px; border-radius: 23px; padding: 10px 2px; color: #d9e2ed; }
 .loans-bottom-nav .mobile-bottom-nav__item.is-active { border: 1px solid #376575; color: #8bf2e5; background: radial-gradient(ellipse at top,#1ad3d836,#142637 70%); box-shadow: inset 0 0 15px #3bcbdf21; }
@@ -1012,12 +973,7 @@
 .loans-bottom-nav .mobile-bottom-nav__label { font-size: 14px; }
 .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon-wrap { width: 62px; height: 62px; margin-top: -33px; border-radius: 50%; border: 1px solid #56f2e9; background: linear-gradient(130deg,#24e7db,#0797a9); box-shadow: inset 0 0 13px #82fff783,0 0 23px #13c5d544; }
 .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon { width: 35px; height: 35px; color: #edffff; }
-@media (max-width: 500px) {
- .loans-bottom-nav.mobile-bottom-nav { min-height: 77px; padding-inline: 5px; border-radius: 23px 23px 0 0; }
- .loans-bottom-nav .mobile-bottom-nav__label { font-size: 10px; }
- .loans-bottom-nav .mobile-bottom-nav__icon { width: 21px; height: 21px; }
- .loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon-wrap { width: 47px; height: 47px; margin-top: -24px; }
-}
+
 .ld-desk { gap: 16px; }
 .ld-desk .lg-hero { padding-block: 10px; }
 .ld-desk .lg-coins { height: 82px; }
@@ -1029,3 +985,56 @@
 .ld-desk .lg-view { direction: ltr; }
 @container (max-width: 700px) { .ld-desk .lg-tile { height: 82px; } }
 @container (max-width: 500px) { .ld-desk .lg-tile { height: 74px; } }
+
+/* Scale a single reference canvas instead of reflowing it into a different design. */
+.loans-reference-shell .main-shell { height: 100dvh; }
+.loans-reference-shell .app-content-scroll { padding-bottom: 120px; }
+.loans-reference-shell .app-page-shell { padding-inline: 15px !important; }
+.loans-topbar { min-height: 74px; padding-block: 8px; }
+.loans-topbar > button[aria-label] { width: 44px; height: 44px; border-radius: 15px; background: linear-gradient(#142133,#0b1827); border: 1px solid #2c3b4b; }
+.loans-topbar > button[aria-label] > span { width: 25px !important; height: 25px !important; background: conic-gradient(#21dcd0 0 70%,#124256 70% 100%) !important; }
+.loans-topbar .loans-menu { width: 32px !important; height: 40px !important; border: 0 !important; background: transparent !important; }
+.ld-desk .lgc-name b { text-align: end; }
+.ld-desk .lgc-id { align-items: stretch; }
+.ld-desk .lgc-mid > .tone { align-self: flex-start; }
+.ld-desk .lgc-mid small { width: 61%; bottom: 13px; }
+.ld-desk .lgc-mid { padding-inline-start: 2px; }
+.ld-desk .lgc-amt { inset-inline-start: 73px; }
+.ld-desk .lg-moves { padding-top: 12px; }
+.ld-desk .lg-card-head h2 { font-size: 19px; }
+.ld-desk .lg-hero { min-height: 104px; }
+.ld-desk .lg-tiles .lg-tile { grid-template-columns: minmax(0,1fr) 42px; }
+.ld-desk .lg-tiles .lg-tile strong { justify-content: flex-start; }
+.ld-desk .lgc-name b { font-size: 17px; }
+.ld-desk .lgc-mid .lg-chip { padding-inline: 12px; }
+.ld-desk .lg-mrow-tx { direction: ltr; align-items: flex-start; }
+.ld-desk .lg-foot-bar { direction: ltr; }
+.ld-desk .lg-foot-bar > span { direction: rtl; }
+.loans-bottom-nav.mobile-bottom-nav { min-height: 102px; padding-inline: 16px; max-width: none; left: 0; right: auto; transform: none; }
+.loans-bottom-nav .mobile-bottom-nav__label { font-size: 14px; }
+.loans-bottom-nav .mobile-bottom-nav__icon { width: 26px; height: 26px; }
+.loans-bottom-nav .loans-nav-add .mobile-bottom-nav__icon-wrap { width: 62px; height: 62px; margin-top: -33px; }
+@media (max-width: 853px) {
+ .loans-reference-shell .main-shell { zoom: var(--loans-scale, 1); flex: none; width: 853px; height: calc(100dvh / var(--loans-scale, 1)); }
+}
+.ld-desk .lg-foot-bar > span:nth-child(1) { grid-column: 3; grid-row: 1; }
+.ld-desk .lg-foot-bar > span:nth-child(2) { grid-column: 2; grid-row: 1; }
+.ld-desk .lg-foot-bar > span:nth-child(3) { grid-column: 1; grid-row: 1; }
+.ld-desk .lg-foot-bar > button { grid-column: 4; grid-row: 1; }
+
+.ld-desk .lg-card-head h2 { font-weight: 700; }
+.ld-desk .lgc-name b { font-weight: 700; }
+.ld-desk .lg-hero p { font-size: 15px; }
+.ld-desk .lg-coins { position: absolute; inset-inline-end: 0; top: -4px; width: 190px; height: 110px; }
+.ld-desk .lg-hero-tx { padding-inline-end: 150px; }
+.ld-desk .lg-coins .coin ellipse { fill: url(#loans-coin-face); stroke: #a68bfa; }
+.ld-desk .lg-coins .coin rect { fill: url(#loans-coin-side); }
+.ld-desk .lg-coins .coin .coin-ring { fill: none; stroke: #bda4fa; stroke-width: .7; opacity: .65; }
+.ld-desk .lgc-mid > .tone { position: absolute; inset-inline-start: 170px; top: 12px; }
+.ld-desk .lgc-mid { padding-top: 27px; }
+.ld-desk .lg-coins { inset-inline-end: -16px; }
+/* Keep the type chip next to the name even when a merchant has a long Latin name. */
+.ld-desk .lgc-name { position: absolute; inset-inline-start: 96px; inset-inline-end: 90px; top: 12px; width: auto; display: flex; align-items: center; gap: 12px; }
+.ld-desk .lgc-name b { flex: none; max-width: calc(100% - 70px); }
+.ld-desk .lgc-name .tone { flex: none; }
+.ld-desk .lgc-id { padding-top: 27px; }

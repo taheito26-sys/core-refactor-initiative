@@ -29,6 +29,7 @@ import { useT } from '@/lib/i18n';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '@/lib/theme-context';
+import { useReferenceScale } from '@/hooks/use-reference-scale';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 
 interface NavItem {
@@ -62,6 +63,7 @@ type AppSidebarProps = {
 
 export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   const location = useLocation();
+  const referenceScale = useReferenceScale();
   const t = useT();
   const isP2P = location.pathname === '/trading/p2p';
   const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
@@ -85,7 +87,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   // Mounted straight on the body and pinned to the screen's bottom edge, so no page height, zoom level,
   // transform or scroll container above it can push the main navigation out of view.
   const bar = (
-    <nav className={cn('mobile-bottom-nav', isP2P && 'pm-bottom-nav', isLoans && 'loans-bottom-nav')} dir={settings.language === 'ar' ? 'rtl' : 'ltr'} aria-label="Main">
+    <nav className={cn('mobile-bottom-nav', isP2P && 'pm-bottom-nav', isLoans && 'loans-bottom-nav')} dir={settings.language === 'ar' ? 'rtl' : 'ltr'} style={isLoans ? { zoom: referenceScale, width: `${window.innerWidth / referenceScale}px` } : undefined} aria-label="Main">
       {primaryNav.map((item) => {
         const [itemPath, itemQuery] = item.path.split('?');
         const active = itemQuery

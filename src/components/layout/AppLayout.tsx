@@ -1,8 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { AppSidebar, MobileBottomNav } from './AppSidebar';
 import { TopBar } from './TopBar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useReferenceScale } from '@/hooks/use-reference-scale';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsModal';
@@ -18,6 +19,7 @@ export function AppLayout() {
   const location = useLocation();
   const isLoans = location.pathname === '/trading/orders' && new URLSearchParams(location.search).get('tab') === 'usdt';
   const isMobile = useIsMobile(isLoans ? 1024 : 768);
+  const referenceScale = useReferenceScale();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
@@ -34,6 +36,7 @@ export function AppLayout() {
   return (
     <div
       className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, location.pathname === '/trading/p2p' && 'pm-shell', isLoans && 'loans-reference-shell')}
+      style={isLoans ? { '--loans-scale': referenceScale } as CSSProperties : undefined}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}

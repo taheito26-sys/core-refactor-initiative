@@ -233,12 +233,11 @@ export function LoansOverview({
                       <span className="lgc-more" aria-hidden="true"><MoreHorizontal /></span>
                       <i className="lg-avatar">{initials(r.merchant)}</i>
                       <span className="lgc-id">
-                        <span className="lgc-name"><b dir="auto">{r.merchant}</b></span>
+                        <span className="lgc-name"><b dir="auto">{r.merchant}</b><span className="lg-chip tone">{typeLabel(r)}</span></span>
                         <span className="lgc-date"><CalendarDays />{new Date(r.ts).toLocaleDateString('en-US')}</span>
                         <strong className={`lgc-amt ${r.direction}`}><bdi>{fmtTotal(r.amount)}{r.direction === 'out' ? '−' : '+'}</bdi><em>USDT</em></strong>
                       </span>
                       <span className="lgc-mid">
-                        <span className="lg-chip tone">{typeLabel(r)}</span>
                         {statusChip(r)}
                         <small className={bal.cls}>{t('lgBalAfter')}: {bal.text}</small>
                       </span>

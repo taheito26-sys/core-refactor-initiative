@@ -410,6 +410,10 @@ export function LoansPanel({
           <p>{t('lgSubtitle')}</p>
         </div>
         <svg className="lg-coins" viewBox="0 0 160 110" aria-hidden="true">
+          <defs>
+            <linearGradient id="loans-coin-face" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#9870f0" /><stop offset=".48" stopColor="#6943bf" /><stop offset="1" stopColor="#3b207b" /></linearGradient>
+            <linearGradient id="loans-coin-side"><stop stopColor="#24154e" /><stop offset=".5" stopColor="#764bd0" /><stop offset="1" stopColor="#291b58" /></linearGradient>
+          </defs>
           <path className="streak" d="M0 100 L110 30 L160 20 L160 40 L60 110 Z" />
           {[{ x: 50, y: 87, r: 29, count: 4 }, { x: 94, y: 68, r: 29, count: 7 }].map(stack => (
             <g className="coin" key={stack.x}>
@@ -418,6 +422,7 @@ export function LoansPanel({
                 <ellipse cx={stack.x} cy={stack.y - index * 8 + 2} rx={stack.r} ry="10" />
               </g>)}
               <ellipse cx={stack.x} cy={stack.y - (stack.count - 1) * 8 - 6} rx={stack.r} ry="10" />
+              <ellipse className="coin-ring" cx={stack.x} cy={stack.y - (stack.count - 1) * 8 - 6} rx={stack.r - 6} ry="7" />
               <text x={stack.x} y={stack.y - (stack.count - 1) * 8 - 2} textAnchor="middle">$</text>
             </g>
           ))}
