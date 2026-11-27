@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, Crown, Layers, Target, Wallet,
   type LucideIcon,
-  Eye, EyeOff,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
@@ -12,6 +11,7 @@ import {
 import { Sparkline } from './Sparkline';
 import { ProfitTrendCard } from './ProfitTrendCard';
 import { MASK, useHiddenNetProfit } from '../../hide-net-profit';
+import { NetProfitToggle } from '../../NetProfitToggle';
 import { DashboardFilterSheet, DashboardSearchSheet } from './DashboardSheets';
 
 /** A theme colour a card is tinted with. Every one resolves through the active theme's variables. */
@@ -36,6 +36,8 @@ export interface HomeTile {
   sub?: ReactNode;
   spark?: number[];
   path?: string;
+  /** A small control in the header, e.g. the net profit eye. */
+  action?: ReactNode;
 }
 
 export interface HomeCash {
@@ -120,7 +122,8 @@ export function DashboardHome({
     return () => ro.disconnect();
   }, []);
   const [clientMetric, setClientMetric] = useState<'profit' | 'volume'>('profit');
-  const [netHidden, toggleNet] = useHiddenNetProfit();
+  const [netHidden] = useHiddenNetProfit();
+  const hideNet = (v: string) => (netHidden ? MASK : v);
 
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
   const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
@@ -160,6 +163,7 @@ export function DashboardHome({
       <header>
         <span className={`dh-ic solid${tile.square ? ' sq' : ''}`}><tile.Icon /></span>
         <h3>{tile.label}</h3>
+        {tile.action}
         {tile.path && !isAdminView && <span className="dh-go" aria-hidden="true"><ArrowRight /></span>}
       </header>
       <div className="dh-val" style={tile.valueTone ? { color: toneVar(tile.valueTone) } : undefined}><b>{tile.value}</b>{tile.unit && <small style={{ color: tile.unitTone ? toneVar(tile.unitTone) : undefined }}>{tile.unit}</small>}</div>
@@ -180,11 +184,7 @@ export function DashboardHome({
             <section key={s.key} className="dh-card dh-stat" style={{ ['--tone' as string]: toneVar(s.tone) }}>
               <header>
                 <span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3>
-                {s.key === 'net' && (
-                  <button type="button" className="dh-eye" aria-pressed={netHidden} aria-label={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} title={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} onClick={toggleNet}>
-                    {netHidden ? <EyeOff /> : <Eye />}
-                  </button>
-                )}
+                {s.key === 'net' && <NetProfitToggle className="dh-eye" />}
               </header>
               {masked ? (
                 <div className="dh-val"><b>{MASK}</b></div>
@@ -206,6 +206,7 @@ export function DashboardHome({
         now={now}
         lang={lang}
         money={money}
+        profitHidden={netHidden}
         labels={{ title: t('dhProfitTrend'), profit: t('dhProfit'), volume: t('dhVolume'), monthly: t('dhMonthly'), weekly: t('dhWeekly'), daily: t('dhDaily') }}
       />
 
@@ -244,7 +245,7 @@ export function DashboardHome({
       {/* Top clients */}
       <section className="dh-card dh-top">
         <header className="dh-top-head">
-          <h2><Crown />{t('top5Clients')} · {monthLabel}</h2>
+          <h2><Crown />{t('top5Clients')} · {monthLabel}{clientMetric === 'profit' && <NetProfitToggle className="inline" />}</h2>
           <div className="dh-seg sm">
             <button type="button" className={clientMetric === 'profit' ? 'on' : ''} onClick={() => setClientMetric('profit')}>{t('dhNetProfitTab')}</button>
             <button type="button" className={clientMetric === 'volume' ? 'on' : ''} onClick={() => setClientMetric('volume')}>{t('dhVolume')}</button>
@@ -266,8 +267,8 @@ export function DashboardHome({
                     <td><span className="dh-medal" style={{ background: MEDALS[i] }}>{i + 1}</span></td>
                     <td className="dh-client-td"><div className="dh-client"><span className="dh-avatar" style={{ ['--tone' as string]: toneVar(SEGMENT_TONES[i % SEGMENT_TONES.length]) }}>{c.name.slice(0, 1).toUpperCase()}</span><span title={c.name}>{c.name}</span></div></td>
                     <td className="dh-ord-td"><div className="dh-ord"><span className="dh-ord-n">{c.orders}</span><span className="dh-ord-bar"><i><em style={{ width: `${(c.orders / maxOrders) * 100}%`, background: BARS[i] }} /></i></span></div></td>
-                    <td className="r dh-good">{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}<div className="muted" style={{ fontSize: 'calc(9px * var(--s))', fontWeight: 400 }}>{previousMonthLabel}: {money(c.previousValue)}</div></td>
-                    <td className={`r ${change == null ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</td>
+                    <td className="r dh-good">{clientMetric === 'profit' && netHidden ? MASK : <>{clientMetric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}<div className="muted" style={{ fontSize: 'calc(9px * var(--s))', fontWeight: 400 }}>{previousMonthLabel}: {money(c.previousValue)}</div></>}</td>
+                    <td className={`r ${change == null || (clientMetric === 'profit' && netHidden) ? '' : change >= 0 ? 'dh-good' : 'dh-bad'}`}>{change == null ? '—' : clientMetric === 'profit' && netHidden ? MASK : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</td>
                   </tr>
                 );
               })}
@@ -284,27 +285,27 @@ export function DashboardHome({
 
       <div className="dh-pair">
         <section className="dh-card dh-stats-list">
-          <h2 className="dh-sec-t">{t('dhPeriodStats')}<span>{rangeText}</span></h2>
+          <h2 className="dh-sec-t">{t('dhPeriodStats')}<NetProfitToggle className="inline" /><span>{rangeText}</span></h2>
           {[
             { k: t('dhVolume'), v: money(cur.vol) },
-            { k: t('dhCost'), v: money(cur.vol - cur.net - fees) },
+            { k: t('dhCost'), v: hideNet(money(cur.vol - cur.net - fees)) },
             ...(fees > 0 ? [{ k: t('dhFees'), v: money(fees) }] : []),
-            { k: t('dhNetProfitTab'), v: money(cur.net), tone: cur.net >= 0 ? 'good' : 'bad' },
-            { k: t('dhAvgMargin'), v: `${margin.toFixed(2)}%` },
+            { k: t('dhNetProfitTab'), v: hideNet(money(cur.net)), tone: netHidden ? undefined : cur.net >= 0 ? 'good' : 'bad' },
+            { k: t('dhAvgMargin'), v: hideNet(`${margin.toFixed(2)}%`) },
             { k: t('dhTrades'), v: String(cur.orders) },
           ].map(r => (
             <div key={r.k} className="dh-row"><span>{r.k}</span><b className={r.tone ? `dh-${r.tone}` : ''}>{r.v}</b></div>
           ))}
         </section>
         <section className="dh-card dh-stats-list">
-          <h2 className="dh-sec-t">{t('dhThisVsLast')}</h2>
+          <h2 className="dh-sec-t">{t('dhThisVsLast')}<NetProfitToggle className="inline" /></h2>
           <div className="dh-months">
             {monthStats.map(m => (
               <div key={m.label}>
                 <div className="dh-month-t">{m.label}</div>
                 <div className="dh-row"><span>{t('dhOwnLabel')}</span><b>{money(m.own.vol)}</b></div>
                 <div className="dh-row"><span>{t('dhTotalLabel')} {t('dhVolume')}</span><b>{money(m.all.vol)}</b></div>
-                <div className="dh-row"><span>{t('dhMyNetProfit')}</span><b className={m.all.net >= 0 ? 'dh-good' : 'dh-bad'}>{m.all.net >= 0 ? '+' : ''}{money(m.all.net)}</b></div>
+                <div className="dh-row"><span>{t('dhMyNetProfit')}</span><b className={netHidden ? '' : m.all.net >= 0 ? 'dh-good' : 'dh-bad'}>{hideNet(`${m.all.net >= 0 ? '+' : ''}${money(m.all.net)}`)}</b></div>
               </div>
             ))}
           </div>

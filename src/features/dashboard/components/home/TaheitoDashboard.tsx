@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { ArrowRight, CalendarDays, Crown, Eye, EyeOff, Layers, LayoutDashboard, ListChecks, Target, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CalendarDays, Crown, Layers, LayoutDashboard, ListChecks, Target, Wallet, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { MerchantHero, ThMain, ThRoot, ThTiles, type ThTile } from '@/features/taheito/kit';
 import { calendarMonthComparison, pctChange, scopePoints, summarize, summarizeWithPrevious, topClients } from '../../dashboard-model';
@@ -7,6 +7,7 @@ import { DashboardHome, type HomeTile } from './DashboardHome';
 import { DashboardFilterSheet, DashboardSearchSheet } from './DashboardSheets';
 import { ProfitTrendCard } from './ProfitTrendCard';
 import { MASK, useHiddenNetProfit } from '../../hide-net-profit';
+import { NetProfitToggle } from '../../NetProfitToggle';
 
 type Props = Omit<ComponentProps<typeof DashboardHome>, 'bare'>;
 
@@ -36,7 +37,8 @@ export function TaheitoDashboard(props: Props) {
   const t = useT();
   const { lang, points, allPoints, win, rangeText, now, tiles, moreTiles, parts, money, fees, cash, onGo, isAdminView, children } = props;
   const [metric, setMetric] = useState<'profit' | 'volume'>('profit');
-  const [netHidden, toggleNet] = useHiddenNetProfit();
+  const [netHidden] = useHiddenNetProfit();
+  const hideNet = (v: string) => (netHidden ? MASK : v);
 
   const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
@@ -63,6 +65,7 @@ export function TaheitoDashboard(props: Props) {
   const go = (path: string) => (!isAdminView ? () => onGo(path) : undefined);
 
   const toTile = (tile: HomeTile, i: number): ThTile => ({
+    action: tile.action,
     key: tile.key, cls: CLASSES[i % CLASSES.length], icon: tile.Icon as LucideIcon, label: tile.label, value: tile.value, unit: tile.unit,
     tone: tile.valueTone === 'bad' ? 'bad' : tile.valueTone === 'good' ? 'good' : undefined,
     onClick: tile.path ? go(tile.path) : undefined,
@@ -72,11 +75,7 @@ export function TaheitoDashboard(props: Props) {
     {
       key: 'month-net', cls: 't4', icon: Target, label: t('dhMyNetProfit'),
       value: netHidden ? MASK : parts(net).n, unit: netHidden ? undefined : parts(net).u, tone: netHidden ? undefined : net < 0 ? 'bad' : 'good',
-      action: (
-        <button type="button" className="th-eye" aria-pressed={netHidden} aria-label={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} title={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} onClick={toggleNet}>
-          {netHidden ? <EyeOff /> : <Eye />}
-        </button>
-      ),
+      action: <NetProfitToggle className="th-eye" />,
     },
     ...tiles.map((x, i) => toTile(x, i)),
   ];
@@ -97,7 +96,7 @@ export function TaheitoDashboard(props: Props) {
       <div className="th-dg">
         <div className="dh th-dh th-g-trend">
           <ProfitTrendCard
-            points={allPoints} now={now} lang={lang} money={money}
+            points={allPoints} now={now} lang={lang} money={money} profitHidden={netHidden}
             labels={{ title: t('dhProfitTrend'), profit: t('dhProfit'), volume: t('dhVolume'), monthly: t('dhMonthly'), weekly: t('dhWeekly'), daily: t('dhDaily') }}
           />
         </div>
@@ -118,6 +117,7 @@ export function TaheitoDashboard(props: Props) {
 
         <Card icon={Crown} title={`${t('top5Clients')} · ${monthName(monthly.window.from)}`} className="th-g-clients" action={
           <span className="th-dc-seg">
+            {metric === 'profit' && <NetProfitToggle className="inline" />}
             <button type="button" className={metric === 'profit' ? 'on' : ''} onClick={() => setMetric('profit')}>{t('dhNetProfitTab')}</button>
             <button type="button" className={metric === 'volume' ? 'on' : ''} onClick={() => setMetric('volume')}>{t('dhVolume')}</button>
           </span>
@@ -129,31 +129,35 @@ export function TaheitoDashboard(props: Props) {
                   <span className="medal" style={{ background: MEDALS[i] }}>{i + 1}</span>
                   <span className="who"><b title={c.name}>{c.name}</b><em><u style={{ width: `${c.orders / maxOrders * 100}%` }} /></em></span>
                   <span className="ord">{c.orders}</span>
-                  <span className="val"><b className={metric === 'profit' && c.value < 0 ? 'th-bad' : 'th-good'}>{metric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</b>
-                    <small className={c.change == null ? '' : c.change >= 0 ? 'th-good' : 'th-bad'}>{c.change == null ? '—' : `${c.change >= 0 ? '+' : ''}${c.change.toFixed(1)}%`}</small></span>
+                  {metric === 'profit' && netHidden ? (
+                    <span className="val"><b>{MASK}</b></span>
+                  ) : (
+                    <span className="val"><b className={metric === 'profit' && c.value < 0 ? 'th-bad' : 'th-good'}>{metric === 'profit' && c.value >= 0 ? '+' : ''}{money(c.value)}</b>
+                      <small className={c.change == null ? '' : c.change >= 0 ? 'th-good' : 'th-bad'}>{c.change == null ? '—' : `${c.change >= 0 ? '+' : ''}${c.change.toFixed(1)}%`}</small></span>
+                  )}
                 </li>
               ))}
             </ol>
           )}
         </Card>
 
-        <Card icon={ListChecks} title={t('dhPeriodStats')} className="th-g-period" action={<small className="th-dc-range">{rangeText}</small>}>
+        <Card icon={ListChecks} title={t('dhPeriodStats')} className="th-g-period" action={<><NetProfitToggle className="inline" /><small className="th-dc-range">{rangeText}</small></>}>
           <Row k={t('dhVolume')} v={money(cur.vol)} />
-          <Row k={t('dhCost')} v={money(cur.vol - cur.net - fees)} />
+          <Row k={t('dhCost')} v={hideNet(money(cur.vol - cur.net - fees))} />
           {fees > 0 && <Row k={t('dhFees')} v={money(fees)} />}
-          <Row k={t('dhNetProfitTab')} v={money(cur.net)} tone={cur.net >= 0 ? 'good' : 'bad'} />
-          <Row k={t('dhAvgMargin')} v={`${margin.toFixed(2)}%`} />
+          <Row k={t('dhNetProfitTab')} v={hideNet(money(cur.net))} tone={netHidden ? undefined : cur.net >= 0 ? 'good' : 'bad'} />
+          <Row k={t('dhAvgMargin')} v={hideNet(`${margin.toFixed(2)}%`)} />
           <Row k={t('dhTrades')} v={String(cur.orders)} />
         </Card>
 
-        <Card icon={CalendarDays} title={t('dhThisVsLast')} className="th-g-months">
+        <Card icon={CalendarDays} title={t('dhThisVsLast')} className="th-g-months" action={<NetProfitToggle className="inline" />}>
           <div className="th-dc-months">
             {months.map(m => (
               <div key={m.label}>
                 <div className="th-dc-mt">{m.label}</div>
                 <Row k={t('dhOwnLabel')} v={money(m.own.vol)} />
                 <Row k={`${t('dhTotalLabel')} ${t('dhVolume')}`} v={money(m.all.vol)} />
-                <Row k={t('dhMyNetProfit')} v={`${m.all.net >= 0 ? '+' : ''}${money(m.all.net)}`} tone={m.all.net >= 0 ? 'good' : 'bad'} />
+                <Row k={t('dhMyNetProfit')} v={hideNet(`${m.all.net >= 0 ? '+' : ''}${money(m.all.net)}`)} tone={netHidden ? undefined : m.all.net >= 0 ? 'good' : 'bad'} />
               </div>
             ))}
           </div>

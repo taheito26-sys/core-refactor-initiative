@@ -39,6 +39,8 @@ import { ArrowLeftRight, BadgeDollarSign, Boxes, Clock, Hourglass, Landmark, Pie
 const UsdtGlyph = () => <b className="dh-glyph">₮</b>;
 import ClassicDashboardPage from '@/pages/ClassicDashboardPage';
 import { useHomeDesign } from '@/features/orders/v2/design';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 import '@/styles/tracker.css';
 import '@/styles/dashboard-home.css';
 
@@ -61,6 +63,7 @@ export default function DashboardPage(props: DashboardPageProps = {}) {
 function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView, topSlot }: DashboardPageProps & { topSlot?: ReactNode }) {
   const { settings } = useTheme();
   const t = useT();
+  const [netHidden] = useHiddenNetProfit();
   const [pageDesign] = useHomeDesign();
   const DashboardView = pageDesign === 'taheito' ? TaheitoDashboard : DashboardHome;
   const navigate = useNavigate();
@@ -212,17 +215,17 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
       orders('Trades · 7 days', d7, 'tracker:trades7'),
       orders('Trades · 30 days', d30, 'tracker:trades30'),
       orders('Trades · this month', dM, 'tracker:tradesMonth'),
-      { id: 'tracker:profit7', group: g, label: 'Net profit · 7 days', value: fmtDashboardAmount(d7.net) },
-      { id: 'tracker:profit30', group: g, label: 'Net profit · 30 days', value: fmtDashboardAmount(d30.net) },
-      { id: 'tracker:profitMonth', group: g, label: 'Net profit · this month', value: fmtDashboardAmount(dM.net) },
+      { id: 'tracker:profit7', group: g, label: 'Net profit · 7 days', value: netHidden ? MASK : fmtDashboardAmount(d7.net) },
+      { id: 'tracker:profit30', group: g, label: 'Net profit · 30 days', value: netHidden ? MASK : fmtDashboardAmount(d30.net) },
+      { id: 'tracker:profitMonth', group: g, label: 'Net profit · this month', value: netHidden ? MASK : fmtDashboardAmount(dM.net) },
       { id: 'tracker:volume30', group: g, label: 'USDT sold · 30 days', value: fmtTotal(d30.qty), sub: 'USDT' },
-      { id: 'tracker:margin30', group: g, label: 'Avg margin · 30 days', value: `${fmtPrice(d30.avgMgn)}%` },
+      { id: 'tracker:margin30', group: g, label: 'Avg margin · 30 days', value: netHidden ? MASK : `${fmtPrice(d30.avgMgn)}%` },
       { id: 'tracker:stock', group: g, label: 'USDT in stock', value: fmtTotal(stk), sub: 'USDT' },
       { id: 'tracker:stockCost', group: g, label: 'Stock cost', value: fmtDashboardAmount(stCost) },
       { id: 'tracker:cash', group: g, label: 'Cash (QAR accounts)', value: fmtDashboardAmount(liveCashQAR) },
       { id: 'tracker:loans', group: g, label: 'Customer loans owed', value: loansUnpaid.lead ? `${fmtTotal(loansUnpaid.totalRemaining)}` : '0', sub: `${loansUnpaid.debtorCount} debtors` },
     ];
-  }, [d7, d30, dM, stk, stCost, liveCashQAR, loansUnpaid, fmtDashboardAmount]);
+  }, [d7, d30, dM, stk, stCost, liveCashQAR, loansUnpaid, fmtDashboardAmount, netHidden]);
 
   const cycleHours = useMemo(() => {
     const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
@@ -595,7 +598,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
     return [
       { key: 'orders', label: t('dhOrdersCount'), Icon: ShoppingCart, tone: 'good', unitTone: 'brand', value: String(homeCur.orders), unit: t('dhOrdersWord'), sub: pctLine(moreCur.orders, morePrev?.orders), spark: sparkline(points, win, () => 1, 10), path: '/trading/orders' },
       { key: 'avgorder', label: t('dhAvgOrder'), Icon: Ruler, tone: 'brand', unitTone: 'brand', square: true, value: avgOrder.n, unit: avgOrder.u, sub: pctLine(moreCur.orders ? moreCur.vol / moreCur.orders : 0, morePrev?.orders ? morePrev.vol / morePrev.orders : null) },
-      { key: 'margin', label: t('dhAvgMargin'), Icon: Percent, tone: 't5', unitTone: 'brand', value: margin.toFixed(2), unit: '%', valueTone: margin >= 0 ? undefined : 'bad', sub: t('dhNetOfFees') },
+      { key: 'margin', label: t('dhAvgMargin'), Icon: Percent, tone: 't5', unitTone: 'brand', value: netHidden ? MASK : margin.toFixed(2), unit: netHidden ? undefined : '%', valueTone: !netHidden && margin < 0 ? 'bad' : undefined, sub: t('dhNetOfFees'), action: <NetProfitToggle className="inline" /> },
       { key: 'fees', label: t('dhFees'), Icon: Receipt, tone: 'warn', unitTone: 'warn', square: true, value: feeParts.n, unit: feeParts.u },
       { key: 'pending', label: t('dhPending'), Icon: Hourglass, tone: pendingApprovals > 0 ? 'bad' : 'good', valueTone: pendingApprovals > 0 ? 'bad' : undefined, value: String(pendingApprovals), sub: pendingApprovals > 0 ? t('dhWaitingOn') : undefined, path: '/trading/orders' },
       { key: 'cover', label: t('dhStockCover'), Icon: Boxes, tone: 'brand2', square: true, unitTone: 'brand', value: stockCoverDays == null ? '—' : String(stockCoverDays), unit: stockCoverDays == null ? '' : t('dhDaysWord'), sub: stockCoverDays == null ? t('dhNoSales') : t('dhAtPace'), path: '/trading/stock' },
@@ -612,7 +615,7 @@ function DashboardHomePage({ adminUserId, adminMerchantId, adminTrackerState, is
     const vsP2p = averageStockPrice && p2pAvgs.avgSell ? (p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100 : null;
     const avg = averageStockPrice ? priceParts(averageStockPrice) : null;
     return [
-      { key: 'profit', label: t('dhProfit'), Icon: BadgeDollarSign, tone: 'good', unitTone: 'brand', value: profit.n, unit: profit.u, sub: `${t('dhFromWord')} ${homeCur.orders} ${t('dhOrdersWord')}`, spark: profitSpark, path: '/trading/orders' },
+      { key: 'profit', label: t('dhProfit'), Icon: BadgeDollarSign, tone: 'good', unitTone: 'brand', value: netHidden ? MASK : profit.n, unit: netHidden ? undefined : profit.u, sub: `${t('dhFromWord')} ${homeCur.orders} ${t('dhOrdersWord')}`, spark: netHidden ? undefined : profitSpark, path: '/trading/orders', action: <NetProfitToggle className="inline" /> },
       {
         key: 'rate', label: t('dhQarEgp'), Icon: ArrowLeftRight, tone: 'brand', square: true, fit: true, spark: tileSparks.rate, value: misrLoading ? '…' : misr ? misr.instaPayV1BanqueMisr.toFixed(4) : '—',
         sub: misr ? `${t('dhBanqueTop')} ${misr.egSellBanqueMisrAvg.toFixed(3)} EGP` : t('noDataAvailable'), path: '/trading/p2p',

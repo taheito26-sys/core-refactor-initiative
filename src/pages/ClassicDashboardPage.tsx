@@ -31,6 +31,8 @@ import {
   Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import '@/styles/tracker.css';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 
 interface DashboardPageProps {
   adminUserId?: string;
@@ -48,6 +50,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
   const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('today');
   const { settings } = useTheme();
   const t = useT();
+  const [netHidden] = useHiddenNetProfit();
   const navigate = useNavigate();
   const nowTs = useDashboardNow();
   const isMobile = useIsMobile();
@@ -199,17 +202,17 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
       orders('Trades · 7 days', d7, 'tracker:trades7'),
       orders('Trades · 30 days', d30, 'tracker:trades30'),
       orders('Trades · this month', dM, 'tracker:tradesMonth'),
-      { id: 'tracker:profit7', group: g, label: 'Net profit · 7 days', value: fmtDashboardAmount(d7.net) },
-      { id: 'tracker:profit30', group: g, label: 'Net profit · 30 days', value: fmtDashboardAmount(d30.net) },
-      { id: 'tracker:profitMonth', group: g, label: 'Net profit · this month', value: fmtDashboardAmount(dM.net) },
+      { id: 'tracker:profit7', group: g, label: 'Net profit · 7 days', value: netHidden ? MASK : fmtDashboardAmount(d7.net) },
+      { id: 'tracker:profit30', group: g, label: 'Net profit · 30 days', value: netHidden ? MASK : fmtDashboardAmount(d30.net) },
+      { id: 'tracker:profitMonth', group: g, label: 'Net profit · this month', value: netHidden ? MASK : fmtDashboardAmount(dM.net) },
       { id: 'tracker:volume30', group: g, label: 'USDT sold · 30 days', value: fmtTotal(d30.qty), sub: 'USDT' },
-      { id: 'tracker:margin30', group: g, label: 'Avg margin · 30 days', value: `${fmtPrice(d30.avgMgn)}%` },
+      { id: 'tracker:margin30', group: g, label: 'Avg margin · 30 days', value: netHidden ? MASK : `${fmtPrice(d30.avgMgn)}%` },
       { id: 'tracker:stock', group: g, label: 'USDT in stock', value: fmtTotal(stk), sub: 'USDT' },
       { id: 'tracker:stockCost', group: g, label: 'Stock cost', value: fmtDashboardAmount(stCost) },
       { id: 'tracker:cash', group: g, label: 'Cash (QAR accounts)', value: fmtDashboardAmount(liveCashQAR) },
       { id: 'tracker:loans', group: g, label: 'Customer loans owed', value: loansUnpaid.lead ? `${fmtTotal(loansUnpaid.totalRemaining)}` : '0', sub: `${loansUnpaid.debtorCount} debtors` },
     ];
-  }, [d7, d30, dM, stk, stCost, liveCashQAR, loansUnpaid, fmtDashboardAmount]);
+  }, [d7, d30, dM, stk, stCost, liveCashQAR, loansUnpaid, fmtDashboardAmount, netHidden]);
 
   const cycleHours = useMemo(() => {
     const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
@@ -687,7 +690,7 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
           </div>
         </div>
         <div className="kpi-band">
-          <div className="kpi-band-title">{t('myNetProfit')}</div>
+          <div className="kpi-band-title">{t('myNetProfit')}<NetProfitToggle className="inline" /></div>
           <div className="kpi-band-cols">
             {/* Current Month */}
             <div>
@@ -697,15 +700,15 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
+                  <span className={`mono ${netHidden ? '' : row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {netHidden ? MASK : `${row.val >= 0 ? '+' : ''}${fmtDashboardAmount(row.val)}`}
                   </span>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className={`mono ${segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.thisMonth.total)}
+                <span className={`mono ${netHidden ? '' : segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {netHidden ? MASK : `${segmentedProfit.thisMonth.total >= 0 ? '+' : ''}${fmtDashboardAmount(segmentedProfit.thisMonth.total)}`}
                 </span>
               </div>
             </div>
@@ -717,15 +720,15 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
-                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtDashboardAmount(row.val)}
+                  <span className={`mono ${netHidden ? '' : row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {netHidden ? MASK : `${row.val >= 0 ? '+' : ''}${fmtDashboardAmount(row.val)}`}
                   </span>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
-                <span className={`mono ${segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtDashboardAmount(segmentedProfit.lastMonth.total)}
+                <span className={`mono ${netHidden ? '' : segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {netHidden ? MASK : `${segmentedProfit.lastMonth.total >= 0 ? '+' : ''}${fmtDashboardAmount(segmentedProfit.lastMonth.total)}`}
                 </span>
               </div>
             </div>
@@ -735,9 +738,9 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
 
       <div className="kpis kpis-dashboard">
         <div className="kpi-card">
-          <div className="kpi-lbl">{t('kpiNetProfitShort')}</div>
-          <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
-          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
+          <div className="kpi-lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>{t('kpiNetProfitShort')}<NetProfitToggle className="inline" /></div>
+          <div className={`kpi-val ${netHidden ? '' : segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{netHidden ? MASK : fmtDashboardAmount(segmentedProfit.range.total)}</div>
+          <div className="kpi-sub">{t('ownOrdersLabel')} {netHidden ? MASK : fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
         <BanqueMisrInstaPayKPI />
         <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
@@ -821,13 +824,13 @@ export default function ClassicDashboardPage({ adminUserId, adminMerchantId, adm
           tradeNet={tradeNet}
         />
         <div className="panel">
-          <div className="panel-head"><h2>{t('periodStats')}</h2><span className="pill">{rLabel}</span></div>
+          <div className="panel-head"><h2>{t('periodStats')}<NetProfitToggle className="inline" /></h2><span className="pill">{rLabel}</span></div>
           <div className="panel-body">
             <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtDashboardAmount(dR.rev)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtDashboardAmount(dR.rev - dR.net - dR.fee)}</strong></div>
+            <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{netHidden ? MASK : fmtDashboardAmount(dR.rev - dR.net - dR.fee)}</strong></div>
             {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtDashboardAmount(dR.fee)}</strong></div>}
-            <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(dR.net)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{fmtPct(avgM)}</strong></div>
+            <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${netHidden ? '' : dR.net >= 0 ? 'good' : 'bad'}`}>{netHidden ? MASK : fmtDashboardAmount(dR.net)}</strong></div>
+            <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{netHidden ? MASK : fmtPct(avgM)}</strong></div>
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
           </div>
         </div>

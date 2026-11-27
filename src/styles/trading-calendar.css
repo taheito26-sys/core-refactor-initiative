@@ -296,3 +296,7 @@
   .tc-summary-totals strong { font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) { .tc-day { transition: none; } }
+
+/* net profit eye sits in the corner of the monthly profit card */
+.tc-profit-card { position: relative; }
+.tc-profit-card .tc-eye { position: absolute; top: 10px; inset-inline-end: 10px; margin: 0; }

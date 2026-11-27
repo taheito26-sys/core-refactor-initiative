@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { fmtTotal } from '@/lib/tracker-helpers';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 
 interface ClientData {
   name: string;
@@ -22,6 +24,7 @@ const RANK_COLORS = [
 export function TopClientsKPI({ top5ClientsByProfit, top5ClientsByVolume }: TopClientsKPIProps) {
   const t = useT();
   const [tab, setTab] = useState<'profit' | 'volume'>('profit');
+  const [netHidden] = useHiddenNetProfit();
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const data = tab === 'profit' ? top5ClientsByProfit : top5ClientsByVolume;
@@ -30,14 +33,14 @@ export function TopClientsKPI({ top5ClientsByProfit, top5ClientsByVolume }: TopC
 
   const fmt = (v: number) =>
     tab === 'profit'
-      ? `${v >= 0 ? '+' : ''}${fmtTotal(v)}`
+      ? netHidden ? MASK : `${v >= 0 ? '+' : ''}${fmtTotal(v)}`
       : `${fmtTotal(v)} USDT`;
 
   return (
     <div className="panel">
       {/* Header */}
       <div className="panel-head">
-        <h2>{t('top5Clients')}</h2>
+        <h2>{t('top5Clients')}{tab === 'profit' && <NetProfitToggle className="inline" />}</h2>
         <div style={{ display: 'flex', gap: 2, background: 'var(--panel2)', padding: 2, borderRadius: 6 }}>
           {(['profit', 'volume'] as const).map(k => (
             <span
@@ -133,7 +136,7 @@ export function TopClientsKPI({ top5ClientsByProfit, top5ClientsByVolume }: TopC
                       borderTop: '1px solid var(--line)', fontSize: 10, color: 'var(--muted)',
                     }}>
                       <span>📈 {c.trades} trades</span>
-                      <span>⌀ {c.trades > 0 ? fmtTotal(c.value / c.trades) : '—'}{tab === 'volume' ? ' USDT' : ''}/trade</span>
+                      <span>⌀ {c.trades > 0 ? (tab === 'profit' && netHidden ? MASK : fmtTotal(c.value / c.trades)) : '—'}{tab === 'volume' ? ' USDT' : ''}/trade</span>
                       <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text)' }}>
                         {pct.toFixed(1)}%
                       </span>

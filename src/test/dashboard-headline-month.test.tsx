@@ -58,11 +58,17 @@ describe('monthly headline KPI rendering', () => {
     const points: DashPoint[] = [{ ts: new Date(2026, 10, 1, 14).getTime(), vol: 21892, net: 685, fullNet: 685, own: true, client: 'Buyer' }];
     const { container } = render(<DashboardHome points={points} allPoints={points} now={now} win={rangeWindow('30d', now, null)} rangeText="" comparisonText="" lang="en" money={String} parts={n => ({ n: n.toLocaleString('en-US'), u: 'QAR' })} tiles={[]} moreTiles={[]} fees={0} cash={{ total: '0', unit: 'QAR', counted: 0, active: 0, accounts: [] }} onGo={() => {}} />);
     const net = () => container.querySelectorAll('.dh-stat')[1];
-    fireEvent.click(screen.getByRole('button', { name: 'dhHideNetProfit' }));
+    // One setting for the whole page: the eye on any card hides every net profit figure, and any eye brings them back.
+    const eyes = screen.getAllByRole('button', { name: 'dhHideNetProfit' });
+    expect(eyes.length).toBeGreaterThan(1);
+    fireEvent.click(eyes[eyes.length - 1]);
     expect(net().textContent).not.toContain('685');
     expect(net().textContent).toContain('••••••');
+    const periodStats = Array.from(container.querySelectorAll('.dh-stats-list')).map(el => el.textContent).join(' ');
+    expect(periodStats).not.toContain('685');
+    expect(screen.queryAllByRole('button', { name: 'dhHideNetProfit' })).toHaveLength(0);
     expect(container.querySelectorAll('.dh-stat')[0].textContent).toContain('21,892');
-    fireEvent.click(screen.getByRole('button', { name: 'dhShowNetProfit' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'dhShowNetProfit' })[0]);
     expect(net().textContent).toContain('685');
   });
 });

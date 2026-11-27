@@ -7,6 +7,8 @@ import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { buildCalendarMonth, leadPayment } from '@/features/calendar/calendar-model';
 import '@/styles/trading-calendar.css';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'] as const;
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -37,6 +39,7 @@ function Metric({ icon, tone, label, children, className = '' }: { icon: LucideI
 export default function CalendarPage() {
   const { settings } = useTheme();
   const t = useT();
+  const [netHidden] = useHiddenNetProfit();
   const { state, derived } = useTrackerState({ lowStockThreshold: settings.lowStockThreshold, priceAlertThreshold: settings.priceAlertThreshold, range: settings.range, currency: settings.currency });
   const [today] = useState(() => new Date());
   const [cal, setCal] = useState(() => ({ year: today.getFullYear(), month: today.getMonth(), day: today.getDate() }));
@@ -90,9 +93,16 @@ export default function CalendarPage() {
 
     <div className="tc-metrics">
     <section className="tc-metrics-top" aria-label={t('tcSummary')}>
-      <Metric icon={BarChart3} label={t('monthlyProfit')} className="tc-profit-card"><strong className={`tc-value tc-value-xl ${totalP < 0 ? 'tc-negative' : 'tc-positive'}`}>{signed(totalP)} <small>QAR</small></strong><p className={profitChange !== null && profitChange < 0 ? 'tc-negative' : 'tc-positive'}>{profitChange !== null && (profitChange < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}{changeLabel}</p><MiniTrend values={profitTrend} /></Metric>
+      <Metric icon={BarChart3} label={t('monthlyProfit')} className="tc-profit-card">
+        <NetProfitToggle className="inline tc-eye" />
+        {netHidden ? (
+          <strong className="tc-value tc-value-xl">{MASK}</strong>
+        ) : (
+          <><strong className={`tc-value tc-value-xl ${totalP < 0 ? 'tc-negative' : 'tc-positive'}`}>{signed(totalP)} <small>QAR</small></strong><p className={profitChange !== null && profitChange < 0 ? 'tc-negative' : 'tc-positive'}>{profitChange !== null && (profitChange < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}{changeLabel}</p><MiniTrend values={profitTrend} /></>
+        )}
+      </Metric>
       <Metric icon={Network} tone="blue" label={t('totalTrades')}><strong className="tc-value tc-value-xl">{totalT}</strong><p>{signed(totalT - previous.totalT)} {t('tcLastMonth')}</p><MiniTrend values={tradeTrend.length ? tradeTrend : [0]} bars tone="blue" /></Metric>
-      <Metric icon={CalendarDays} tone="orange" label={t('tradingDays')} className="tc-trading-days"><strong className="tc-value">{tradeDays} <small className="tc-muted">/ {daysInMonth}</small></strong><div className="tc-extremes"><div><span>{t('tcBestDay')}</span><b className="tc-positive">{bestDay ? signed(bestDay[1].profit) : '—'}</b><small>{bestDay ? `${t(MONTHS[month]).slice(0, 3)} ${bestDay[0]}` : '—'}</small></div><div><span>{t('tcWorstDay')}</span><b className="tc-negative">{worstDay ? signed(worstDay[1].profit) : '—'}</b><small>{worstDay ? `${t(MONTHS[month]).slice(0, 3)} ${worstDay[0]}` : '—'}</small></div></div></Metric>
+      <Metric icon={CalendarDays} tone="orange" label={t('tradingDays')} className="tc-trading-days"><strong className="tc-value">{tradeDays} <small className="tc-muted">/ {daysInMonth}</small></strong><div className="tc-extremes"><div><span>{t('tcBestDay')}</span><b className="tc-positive">{bestDay ? (netHidden ? MASK : signed(bestDay[1].profit)) : '—'}</b><small>{bestDay ? `${t(MONTHS[month]).slice(0, 3)} ${bestDay[0]}` : '—'}</small></div><div><span>{t('tcWorstDay')}</span><b className="tc-negative">{worstDay ? (netHidden ? MASK : signed(worstDay[1].profit)) : '—'}</b><small>{worstDay ? `${t(MONTHS[month]).slice(0, 3)} ${worstDay[0]}` : '—'}</small></div></div></Metric>
     </section>
     <section className="tc-metrics-bottom" aria-label={t('monthlyVolume')}>
       <Metric icon={Coins} tone="purple" label={t('monthlyVolume')}><strong className="tc-value">{fmtQRaw(totalV)} <small>QAR</small></strong><p>{fmtU(monthUSDT)} USDT</p><MiniTrend values={volumeTrend.length ? volumeTrend : [0]} bars tone="purple" /></Metric>
@@ -116,7 +126,7 @@ export default function CalendarPage() {
             const matches = filter === 'all' || (filter === 'profit' && d.profit > 0) || (filter === 'loss' && d.profit < 0) || (filter === 'inactive' && !hasActivity);
             const isToday = n === today.getDate() && month === today.getMonth() && year === today.getFullYear();
             const payment = leadPayment(d.paymentTotals);
-            return <button key={n} type="button" aria-label={`${dateLabel(n)} · ${t('tcDailyProfit')} ${signed(d.profit)} QAR · ${d.trades} ${t('trades')} · ${d.paymentCount} ${t('calPayments')}`} aria-pressed={day === n} aria-current={isToday ? 'date' : undefined} onClick={() => { setCal(c => ({ ...c, day: n })); setShowAll(false); }} className={`tc-day ${d.profit > 0 ? 'tc-day-profit' : d.profit < 0 ? 'tc-day-loss' : d.paymentCount > 0 ? 'tc-day-payment' : ''} ${day === n ? 'is-selected' : ''} ${isToday ? 'is-today' : ''} ${!matches ? 'is-filtered' : ''}`}>
+            return <button key={n} type="button" aria-label={`${dateLabel(n)} · ${t('tcDailyProfit')} ${netHidden ? MASK : `${signed(d.profit)} QAR`} · ${d.trades} ${t('trades')} · ${d.paymentCount} ${t('calPayments')}`} aria-pressed={day === n} aria-current={isToday ? 'date' : undefined} onClick={() => { setCal(c => ({ ...c, day: n })); setShowAll(false); }} className={`tc-day ${d.profit > 0 ? 'tc-day-profit' : d.profit < 0 ? 'tc-day-loss' : d.paymentCount > 0 ? 'tc-day-payment' : ''} ${day === n ? 'is-selected' : ''} ${isToday ? 'is-today' : ''} ${!matches ? 'is-filtered' : ''}`}>
               <span className="tc-day-number">{n}</span>{d.trades > 0 && <strong className={d.profit < 0 ? 'tc-negative' : 'tc-positive'}>{signed(d.profit)}</strong>}
               {showVolume && d.trades > 0 && <span className="tc-day-volume">{fmtQRaw(d.volumeQAR)}</span>}
               {d.paymentCount > 0 && d.trades === 0 && <span className="tc-day-volume tc-positive">{fmtQRaw(payment?.amount ?? 0)} <small>{payment?.currency}</small></span>}
@@ -129,7 +139,7 @@ export default function CalendarPage() {
 
       <aside className="tc-card tc-day-panel" aria-label={dateLabel(day)}>
         <div className="tc-section-heading"><h2>{dateLabel(day)}</h2><div className="tc-navigation"><button type="button" aria-label={t('tcPreviousDay')} onClick={() => moveDay(-1)}><ChevronLeft size={15} /></button><button type="button" aria-label={t('tcNextDay')} onClick={() => moveDay(1)}><ChevronRight size={15} /></button></div></div>
-        <div className={`tc-daily-profit ${selected.profit < 0 ? 'is-loss' : ''}`}><IconBadge icon={TrendingUp} /><div><span>{t('tcDailyProfit')}</span><strong className={selected.profit < 0 ? 'tc-negative' : 'tc-positive'}>{signed(selected.profit)} <small>QAR</small></strong>{dailyChange !== null && <p>{percent(dailyChange)} {t('tcVs')} {new Date(year, month, day - 1).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-US', { month: 'short', day: 'numeric' })}</p>}</div>{bestDay && Number(bestDay[0]) === day && <Trophy className="tc-trophy" size={17} aria-label={t('tcBestDay')} />}<MiniTrend values={selected.tradeList.length ? selected.tradeList.map(tr => tr.net) : [0]} bars /></div>
+        <div className={`tc-daily-profit ${selected.profit < 0 ? 'is-loss' : ''}`}><IconBadge icon={TrendingUp} /><div><span>{t('tcDailyProfit')}<NetProfitToggle className="inline" /></span><strong className={netHidden ? '' : selected.profit < 0 ? 'tc-negative' : 'tc-positive'}>{netHidden ? MASK : <>{signed(selected.profit)} <small>QAR</small></>}</strong>{!netHidden && dailyChange !== null && <p>{percent(dailyChange)} {t('tcVs')} {new Date(year, month, day - 1).toLocaleDateString(t.lang === 'ar' ? 'ar-QA' : 'en-US', { month: 'short', day: 'numeric' })}</p>}</div>{bestDay && Number(bestDay[0]) === day && <Trophy className="tc-trophy" size={17} aria-label={t('tcBestDay')} />}{!netHidden && <MiniTrend values={selected.tradeList.length ? selected.tradeList.map(tr => tr.net) : [0]} bars />}</div>
         <div className="tc-day-metrics">
           <div><IconBadge icon={Coins} tone="purple" /><div><span>{t('volume')}</span><strong>{fmtQRaw(selected.volumeQAR)} <small>QAR</small></strong><small>{fmtU(selected.tradeList.reduce((s, tr) => s + tr.amountUSDT, 0))} USDT</small></div></div>
           <div><IconBadge icon={ArrowLeftRight} tone="blue" /><div><span>{t('trades')}</span><strong>{selected.trades}</strong></div></div>
@@ -145,10 +155,10 @@ export default function CalendarPage() {
       </aside>
     </div>
 
-    <section className="tc-card tc-summary"><div className="tc-section-heading"><h2>{t('tcSummary')} <span>— {monthLabel}</span></h2><div className="tc-chart-tabs"><button type="button" aria-pressed={!cumulative} onClick={() => setCumulative(false)}>{t('tcDailyChart')}</button><button type="button" aria-pressed={cumulative} onClick={() => setCumulative(true)}>{t('tcCumulative')}</button></div></div><div className="tc-summary-body"><div className="tc-chart" role="img" aria-label={`${cumulative ? t('tcCumulative') : t('tcDailyChart')} · ${monthLabel} · ${signed(totalP)} QAR`}>
-      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+    <section className="tc-card tc-summary"><div className="tc-section-heading"><h2>{t('tcSummary')} <span>— {monthLabel}</span></h2><div className="tc-chart-tabs"><button type="button" aria-pressed={!cumulative} onClick={() => setCumulative(false)}>{t('tcDailyChart')}</button><button type="button" aria-pressed={cumulative} onClick={() => setCumulative(true)}>{t('tcCumulative')}</button></div></div><div className="tc-summary-body"><div className="tc-chart" role="img" aria-label={`${cumulative ? t('tcCumulative') : t('tcDailyChart')} · ${monthLabel} · ${netHidden ? MASK : `${signed(totalP)} QAR`}`}>
+      {netHidden ? <span className="tc-chart-empty">{MASK}</span> : <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         {cumulative ? <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}><CartesianGrid vertical={false} stroke="var(--tc-line)" /><XAxis dataKey="day" axisLine={false} tickLine={false} minTickGap={28} tick={{ fontSize: 10, fill: 'var(--tc-muted)' }} /><YAxis axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${v / 1000}K` : String(v)} tick={{ fontSize: 10, fill: 'var(--tc-muted)' }} /><Tooltip contentStyle={{ background: 'var(--tc-card)', color: 'var(--tc-text)', border: '1px solid var(--tc-line)', borderRadius: 7 }} labelStyle={{ color: 'var(--tc-text)' }} itemStyle={{ color: 'var(--tc-text)' }} formatter={(v: number) => [`${signed(v)} QAR`, t('tcCumulative')]} labelFormatter={d => dateLabel(Number(d))} /><ReferenceLine y={0} stroke="var(--tc-line)" /><Area dataKey="cumulative" stroke="var(--tc-green)" fill="var(--tc-accent-bg)" strokeWidth={2} isAnimationActive={false} /></AreaChart> : <BarChart data={chartData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}><CartesianGrid vertical={false} stroke="var(--tc-line)" /><XAxis dataKey="day" axisLine={false} tickLine={false} minTickGap={28} tick={{ fontSize: 10, fill: 'var(--tc-muted)' }} /><YAxis axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${v / 1000}K` : String(v)} tick={{ fontSize: 10, fill: 'var(--tc-muted)' }} /><Tooltip contentStyle={{ background: 'var(--tc-card)', color: 'var(--tc-text)', border: '1px solid var(--tc-line)', borderRadius: 7 }} labelStyle={{ color: 'var(--tc-text)' }} itemStyle={{ color: 'var(--tc-text)' }} formatter={(v: number) => [`${signed(v)} QAR`, t('tcDailyProfit')]} labelFormatter={d => dateLabel(Number(d))} cursor={{ fill: 'var(--tc-panel)' }} /><ReferenceLine y={0} stroke="var(--tc-line)" /><Bar dataKey="profit" maxBarSize={9} radius={[2, 2, 0, 0]} isAnimationActive={false}>{chartData.map(d => <Cell key={d.day} fill={d.profit < 0 ? 'var(--tc-red)' : 'var(--tc-positive)'} />)}</Bar></BarChart>}
-      </ResponsiveContainer>{!totalT && <span className="tc-chart-empty">{t('tcNoMonth')}</span>}
-    </div><div className="tc-summary-totals"><div><span>{t('tcTotalProfit')}</span><strong className={totalP < 0 ? 'tc-negative' : 'tc-positive'}>{signed(totalP)} QAR</strong></div><div><span>{t('tcTotalVolume')}</span><strong>{fmtQRaw(totalV)} QAR</strong></div><div><span>{t('totalTrades')}</span><strong>{totalT}</strong></div><div><span>{t('tradingDays')}</span><strong>{tradeDays} / {daysInMonth}</strong></div></div></div></section>
+      </ResponsiveContainer>}{!netHidden && !totalT && <span className="tc-chart-empty">{t('tcNoMonth')}</span>}
+    </div><div className="tc-summary-totals"><div><span>{t('tcTotalProfit')}<NetProfitToggle className="inline" /></span><strong className={netHidden ? '' : totalP < 0 ? 'tc-negative' : 'tc-positive'}>{netHidden ? MASK : `${signed(totalP)} QAR`}</strong></div><div><span>{t('tcTotalVolume')}</span><strong>{fmtQRaw(totalV)} QAR</strong></div><div><span>{t('totalTrades')}</span><strong>{totalT}</strong></div><div><span>{t('tradingDays')}</span><strong>{tradeDays} / {daysInMonth}</strong></div></div></div></section>
   </main>;
 }

@@ -3,6 +3,8 @@ import { useT } from '@/lib/i18n';
 import { fmtTotal, fmtPrice, fmtDate, uid, shortRef, type Supplier, type TrackerState } from '@/lib/tracker-helpers';
 import { localCur } from '@/lib/currency-locale';
 import { supplierKey, supplierProfitByName, type SupplierProfit } from './supplier-profit';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 
 // ── Modal wrapper — defined OUTSIDE the panel so React never remounts it ──
 function SupplierModal({
@@ -66,6 +68,7 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
   lang: 'en' | 'ar';
 }) {
   const pct = maxUSDT > 0 ? Math.round((supplier.totalUSDT / maxUSDT) * 100) : 0;
+  const [netHidden] = useHiddenNetProfit();
   return (
     <div style={{
       border: '1px solid var(--line)', borderRadius: 10, padding: 14,
@@ -102,10 +105,10 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
             <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>
-              {lang === 'ar' ? 'صافي الربح' : 'Net profit'} {localCur('QAR', lang)}
+              {lang === 'ar' ? 'صافي الربح' : 'Net profit'} {localCur('QAR', lang)}<NetProfitToggle className="inline" />
             </div>
             <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono, monospace)', color: supplier.profit.netProfitQAR >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-              {supplier.profit.netProfitQAR >= 0 ? '+' : ''}{fmtTotal(supplier.profit.netProfitQAR)}
+              {netHidden ? MASK : `${supplier.profit.netProfitQAR >= 0 ? '+' : ''}${fmtTotal(supplier.profit.netProfitQAR)}`}
             </div>
           </div>
           <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>

@@ -83,6 +83,8 @@ import {
   type V2Kpi, type V2MenuItem,
 } from '@/features/orders/v2/OrdersV2';
 import { useOrdersDesign } from '@/features/orders/v2/design';
+import { MASK, useHiddenNetProfit } from '@/features/dashboard/hide-net-profit';
+import { NetProfitToggle } from '@/features/dashboard/NetProfitToggle';
 import { avatarTone, bucketSeries, initialOf, orderCountChange, orderReferences, splitAmount as splitMoney } from '@/features/orders/v2/orders-v2-model';
 import '@/styles/tracker.css';
 import '@/styles/orders-v2.css';
@@ -138,6 +140,7 @@ export default function OrdersPage() {
   const { settings, update } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const t = useT();
+  const [netHidden] = useHiddenNetProfit();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -4011,7 +4014,9 @@ export default function OrdersPage() {
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
       { label: 'VOLUME', value: stripUnit(fmtC(kpi.vol)) },
-      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      netHidden
+        ? { label: 'NET P&L', value: MASK, eye: true }
+        : { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${stripUnit(fmtC(kpi.net))}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)', eye: true },
       ...(avgDeal != null ? [{ label: 'AVG DEAL', value: stripUnit(fmtC(avgDeal)) }] : []),
       ...(kpi.egpTotal != null ? [{ label: 'TOTAL EGP', value: fmtTotal(kpi.egpTotal) }] : []),
     ];
@@ -4025,8 +4030,8 @@ export default function OrdersPage() {
             border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
             borderRadius: 8,
           }}>
-            <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{k.label}</div>
-            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: k.color || 'var(--fg)', whiteSpace: 'nowrap' }}>{k.value}</div>
+            <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>{k.label}{'eye' in k && k.eye && <NetProfitToggle className="inline" />}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: ('color' in k && k.color) || 'var(--fg)', whiteSpace: 'nowrap' }}>{k.value}</div>
           </div>
         ))}
       </div>
@@ -4089,7 +4094,9 @@ export default function OrdersPage() {
       { key: 'count', label: t('ov2TotalOrders'), Icon: ListChecks, tone: 'brand', sparkTone: 'good', value: String(k.count), delta: change, deltaLabel: t('ov2VsLast'), spark: isMy ? sparkOf(() => 1) : undefined, kind: 'line' },
       ...(k.qty != null ? [{ key: 'qty', label: t('ov2UsdtQty'), Icon: Layers, tone: 'good' as const, sparkTone: 'brand' as const, value: fmtU(k.qty), unit: 'USDT', spark: sparkOf(tr => tr.amountUSDT) }] : []),
       { key: 'vol', label: t('ov2TotalVolume'), Icon: ArrowLeftRightIcon, tone: 'brand2', value: splitMoney(fmtC(k.vol)).n, unit: splitMoney(fmtC(k.vol)).u || undefined, spark: sparkOf(tr => tr.amountUSDT * tr.sellPriceQAR) },
-      { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', sparkWide: true, valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line' },
+      netHidden
+        ? { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', value: MASK, action: <NetProfitToggle className="inline" /> }
+        : { key: 'net', label: t('ov2NetProfit'), Icon: TrendingUp, tone: 'good', sparkWide: true, valueTone: k.net >= 0 ? 'good' : 'bad', value: `${k.net >= 0 ? '+' : ''}${splitMoney(fmtC(k.net)).n}`, unit: splitMoney(fmtC(k.net)).u || undefined, spark: sparkOf(netOf), kind: 'line', action: <NetProfitToggle className="inline" /> },
     ];
     return cards;
   })();
@@ -4349,7 +4356,7 @@ export default function OrdersPage() {
     const waitingMine = subFilteredMy.filter(tr => tr.approvalStatus === 'pending_approval').length;
     const waiting = waitingIn + waitingMine;
     const tones = ['t1', 't3', 't2', 't4'];
-    const tiles = v2Kpis.map((k, i) => ({ key: k.key, cls: tones[i % 4], icon: k.Icon, label: k.label, value: k.value, unit: k.unit, tone: k.valueTone === 'bad' ? 'bad' as const : k.valueTone === 'good' ? 'good' as const : undefined }));
+    const tiles = v2Kpis.map((k, i) => ({ key: k.key, cls: tones[i % 4], icon: k.Icon, label: k.label, value: k.value, unit: k.unit, action: k.action, tone: k.valueTone === 'bad' ? 'bad' as const : k.valueTone === 'good' ? 'good' as const : undefined }));
     const chips = [{ key: 'all', label: t('allMonths') }, ...v2Months.map(m => ({ key: m.key, label: m.label }))];
     return (
       <ThRoot lang={thLang} className="th-orders-page">

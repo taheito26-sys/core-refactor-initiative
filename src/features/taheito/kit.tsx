@@ -112,6 +112,15 @@ export function ThTiles({ tiles }: { tiles: ThTile[] }) {
             <div className={cn('co-t-v', tile.tone === 'bad' && 'th-bad', tile.tone === 'good' && 'th-good')}>{tile.value}{tile.unit && <small className="th-unit"> {tile.unit}</small>}</div>
           </>
         );
+        // A tile that carries its own control cannot itself be a button, so it becomes a clickable box instead.
+        if (tile.onClick && tile.action) {
+          const go = tile.onClick;
+          return (
+            <div key={tile.key} role="button" tabIndex={0} aria-pressed={!!tile.on} onClick={go}
+              onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go(); } }}
+              className={cn('co-t', tile.cls, tile.on && 'on')} style={{ cursor: 'pointer' }}>{body}</div>
+          );
+        }
         return tile.onClick
           ? <button key={tile.key} type="button" aria-pressed={!!tile.on} onClick={tile.onClick} className={cn('co-t', tile.cls, tile.on && 'on')}>{body}</button>
           : <div key={tile.key} className={cn('co-t', tile.cls)}>{body}</div>;

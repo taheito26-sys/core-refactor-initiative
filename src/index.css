@@ -403,3 +403,10 @@ html .app-shell {
 }
 /* The top bar keeps its size whatever the app zoom: the zoom on <html> (lib/app-zoom) is divided back out here. */
 .app-topbar { zoom: calc(1 / var(--app-zoom, 1)); }
+
+/* ── eye button that hides or shows net profit figures (src/features/dashboard/NetProfitToggle.tsx) ── */
+.np-eye { flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; cursor: pointer; background: color-mix(in srgb, var(--brand, #2563eb) 12%, transparent); color: var(--text, #111827); }
+.np-eye svg { width: 13px; height: 13px; stroke-width: 2; }
+.np-eye[aria-pressed="true"] { background: var(--brand, #2563eb); color: #fff; }
+.np-eye.inline { width: 20px; height: 20px; margin-inline-start: 6px; }
+.np-eye.inline svg { width: 11px; height: 11px; }

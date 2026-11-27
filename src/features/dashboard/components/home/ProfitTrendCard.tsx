@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { Bar, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import { DhSelect } from './DhSelect';
+import { NetProfitToggle } from '../../NetProfitToggle';
 import { trendBuckets, type DashPoint, type Granularity } from '../../dashboard-model';
 
 const compact = (n: number) => {
@@ -20,10 +21,12 @@ interface ProfitTrendCardProps {
   /** Formats a QAR amount in the currency the dashboard is showing. */
   money: (qar: number) => string;
   labels: { title: string; profit: string; volume: string; monthly: string; weekly: string; daily: string };
+  /** The merchant hid net profit: only volume is drawn. */
+  profitHidden?: boolean;
 }
 
 /** Profit as bars and volume as a line, by month, week or day, each in the theme's colours. */
-export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTrendCardProps) {
+export function ProfitTrendCard({ points, now, lang, money, labels, profitHidden = false }: ProfitTrendCardProps) {
   const [granularity, setGranularity] = useState<Granularity>('month');
   const locale = lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
 
@@ -48,8 +51,8 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
   return (
     <section className="dh-card dh-trend">
       <header className="dh-trend-head">
-        <h2><TrendingUp />{labels.title}</h2>
-        <span className="dh-legend"><i style={{ background: 'var(--dh-bar, var(--good))' }} />{labels.profit}</span>
+        <h2><TrendingUp />{labels.title}<NetProfitToggle className="inline" /></h2>
+        {!profitHidden && <span className="dh-legend"><i style={{ background: 'var(--dh-bar, var(--good))' }} />{labels.profit}</span>}
         <span className="dh-legend"><i style={{ background: 'var(--dh-line, var(--brand))' }} />{labels.volume}</span>
         <DhSelect<Granularity>
           className="dh-trend-sel"
@@ -70,7 +73,7 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
               </linearGradient>
             </defs>
             <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} height={20} />
-            <YAxis yAxisId="net" tick={tick} tickLine={false} axisLine={false} width={36} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
+            <YAxis yAxisId="net" hide={profitHidden} tick={tick} tickLine={false} axisLine={false} width={36} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
             <YAxis yAxisId="vol" orientation="right" tick={tick} tickLine={false} axisLine={false} width={34} tickCount={4} domain={[0, 'auto']} tickFormatter={compact} />
             <Tooltip
               cursor={{ fill: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}
@@ -80,13 +83,13 @@ export function ProfitTrendCard({ points, now, lang, money, labels }: ProfitTren
                 return (
                   <div className="dh-tip">
                     <div className="dh-tip-t">{row.full}</div>
-                    <div><i style={{ background: 'var(--dh-bar, var(--good))' }} />{row.net >= 0 ? '+' : ''}{money(row.net)}</div>
+                    {!profitHidden && <div><i style={{ background: 'var(--dh-bar, var(--good))' }} />{row.net >= 0 ? '+' : ''}{money(row.net)}</div>}
                     <div><i style={{ background: 'var(--dh-line, var(--brand))' }} />{money(row.vol)}</div>
                   </div>
                 );
               }}
             />
-            <Bar yAxisId="net" dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={15} fill={`url(#${gradId})`} />
+            {!profitHidden && <Bar yAxisId="net" dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={15} fill={`url(#${gradId})`} />}
             <Line yAxisId="vol" type="monotone" dataKey="vol" stroke="var(--dh-line, var(--brand))" strokeWidth={1.5} dot={{ r: 2.2, fill: 'var(--dh-line, var(--brand))', stroke: 'var(--card-bg)', strokeWidth: 0.8 }} activeDot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>

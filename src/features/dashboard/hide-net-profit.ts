@@ -53,8 +53,17 @@ export function setHiddenNetProfit(userId: string, hidden: boolean) {
   void supabase.auth.updateUser({ data: { [HIDE_NET_PROFIT_META]: hidden } }).catch(() => { /* the device copy still holds it */ });
 }
 
+/** The signed-in user, or none where a screen is drawn outside the app's sign-in (a preview or a test). */
+function useOptionalUser() {
+  try {
+    return useAuth().user;
+  } catch {
+    return null;
+  }
+}
+
 export function useHiddenNetProfit(): [boolean, () => void] {
-  const { user } = useAuth();
+  const user = useOptionalUser();
   const userId = user?.id ?? null;
   const metadata = user?.user_metadata as Record<string, unknown> | undefined;
   useEffect(() => { if (userId) loadHiddenNetProfit(userId, metadata); }, [userId, metadata]);

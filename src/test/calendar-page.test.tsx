@@ -12,11 +12,13 @@ vi.mock('recharts', async () => {
   const React = await import('react');
   return { ResponsiveContainer: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children), BarChart: () => null, AreaChart: () => null, Area: () => null, Bar: () => null, CartesianGrid: () => null, Cell: () => null, ReferenceLine: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null };
 });
+vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ user: { id: 'cal-user', user_metadata: {} } }) }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { updateUser: () => Promise.resolve({ data: {}, error: null }) } } }));
 import CalendarPage from '@/pages/CalendarPage';
 
 describe('trading calendar controls', () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 9, 29, 12)); view.language = 'en'; });
-  afterEach(() => { cleanup(); vi.useRealTimers(); });
+  afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); });
   it('selects a day, expands its trades, filters losses and switches chart mode', () => {
     render(<CalendarPage />);
     fireEvent.click(screen.getByRole('button', { name: /^October 19, 2026/ }));
@@ -49,5 +51,18 @@ describe('trading calendar controls', () => {
     render(<CalendarPage />);
     expect(screen.getByRole('main').getAttribute('dir')).toBe('rtl');
     expect(screen.getByRole('heading', { name: 'تقويم التداول' })).toBeTruthy();
+  });
+
+  it('hides every profit figure of the month behind the eye, and shows them again', () => {
+    render(<CalendarPage />);
+    const profitCard = () => document.querySelector('.tc-profit-card') as HTMLElement;
+    const shown = profitCard().textContent ?? '';
+    expect(shown).toMatch(/\d/);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Hide net profit' })[0]);
+    expect(profitCard().textContent).toContain('••••••');
+    expect(profitCard().textContent).not.toMatch(/\d/);
+    expect(document.querySelector('.tc-summary-totals')?.textContent).toContain('••••••');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Show net profit' })[0]);
+    expect(profitCard().textContent).toBe(shown);
   });
 });

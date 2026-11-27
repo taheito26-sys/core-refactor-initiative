@@ -60,6 +60,8 @@ export interface V2Kpi {
   /** A trend drawn across the whole card instead of in its corner. */
   sparkWide?: boolean;
   kind?: 'line' | 'bars';
+  /** A small control in the card header, e.g. the net profit eye. */
+  action?: ReactNode;
 }
 
 /** `compact` draws each figure in a short card: one-line label, the unit beside the number and a thin trend strip. */
@@ -69,7 +71,7 @@ export function OrdersV2Kpis({ cards, extras, compact }: { cards: V2Kpi[]; extra
       <div className={cn('ov2-kpis', compact && 'compact')} style={cards.length < 4 ? { gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` } : undefined}>
         {cards.map(k => (
           <section key={k.key} className="ov2-kpi" style={{ ['--tone' as string]: toneVar(k.tone) }}>
-            <header><span className="ov2-ic"><k.Icon /></span><h3 title={k.label}>{k.label}</h3></header>
+            <header><span className="ov2-ic"><k.Icon /></span><h3 title={k.label}>{k.label}</h3>{k.action}</header>
             <div className="ov2-kval" style={k.valueTone ? { color: toneVar(k.valueTone) } : undefined}><b>{k.value}</b>{compact && k.unit && <small>{k.unit}</small>}</div>
             {!compact && k.unit && <div className="ov2-kunit">{k.unit}</div>}
             {k.delta != null && (
