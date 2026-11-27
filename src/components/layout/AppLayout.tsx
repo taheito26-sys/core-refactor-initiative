@@ -12,6 +12,7 @@ import { useWebPushRegistration } from '@/hooks/useWebPush';
 import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
+import { P2POrderAlertOverlay } from '@/features/exchanges/components/P2POrderAlertOverlay';
 import '@/styles/taheito-merchant.css';
 
 export function AppLayout() {
@@ -90,6 +91,9 @@ export function AppLayout() {
 
       {/* Blocks the app if display_name or merchant_id are missing */}
       <RequiredFieldsModal />
+
+      {/* Loud alert for an open Binance P2P order, on every merchant page */}
+      <P2POrderAlertOverlay />
     </div>
   );
 }

@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.bank-misr-rates]
 verify_jwt = false
+
+# Called by pg_cron every 20 seconds without a session (poll), by the service
+# worker's Acknowledge button (ack token), and by signed-in users (check, which
+# verifies the JWT itself).
+[functions.p2p-order-watch]
+verify_jwt = false

@@ -771,7 +771,12 @@ Deno.serve(async (req) => {
       Object.entries(body.data ?? {}).map(([k, v]) => [k, String(v)]),
     );
 
-    const result = await deliver(String(body.user_id), title, bodyText, data, category);
+    // An urgent alert (a waiting Binance P2P order) must reach every device
+    // even during quiet hours or while another device has the app open.
+    const options: SendOptions = body?.urgent === true
+      ? { ignoreQuietHours: true, ignorePresence: true, ignoreCategory: true }
+      : {};
+    const result = await deliver(String(body.user_id), title, bodyText, data, category, options);
     return json({ ok: true, ...result });
   } catch (err) {
     console.error('[push-send] Error:', err);

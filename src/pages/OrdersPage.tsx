@@ -39,6 +39,7 @@ import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPr
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { splitOrder, validateSplitOrder } from '@/lib/trading/split-order';
 import { ExchangeReferenceSearch } from '@/features/exchanges/components/ExchangeReferenceSearch';
+import { P2POrderAlertsToggle } from '@/features/exchanges/components/P2POrderAlertsToggle';
 import { applySplitOffFinancials, getSplitBlockReason } from '@/features/orders/utils/splitOrderFinancials';
 import { SplitOrderPanel, type SplitLegState, type SplitLegHandlers, type SplitPanelOption } from '@/features/orders/components/SplitOrderPanel';
 import {
@@ -4476,6 +4477,8 @@ export default function OrdersPage() {
 
   return (
     <div className={`tracker-root${isMobile && !taheito ? ' orders-mobile-root' : ''}${v2 ? ' ov2' : ''}${taheito ? ` th-orders${newSaleSheetOpen ? ' th-sale-open' : ''}` : ''}${isMobile && !taheito && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+
+      <P2POrderAlertsToggle />
 
       {taheito ? renderTaheitoPage() : v2 ? (
         <>

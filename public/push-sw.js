@@ -23,6 +23,22 @@ self.addEventListener('push', (event) => {
     timestamp: Date.now(),
   };
 
+  // A waiting Binance P2P order: keep it on screen, vibrate hard, and alert
+  // again on every reminder until the merchant acknowledges it.
+  if (data.category === 'p2p_order_alert') {
+    options.tag = `p2p-order-${data.order_number || data.p2p_alert_id || ''}`;
+    options.renotify = true;
+    options.requireInteraction = true;
+    options.silent = false;
+    options.vibrate = [500, 200, 500, 200, 500, 200, 1000];
+    if (data.p2p_alert_id && data.p2p_ack_token) {
+      options.actions = [
+        { action: 'p2p-ack', title: 'تم / Acknowledge' },
+        { action: 'open', title: 'فتح / Open' },
+      ];
+    }
+  }
+
   event.waitUntil((async () => {
     await self.registration.showNotification(title, options);
 
@@ -39,6 +55,12 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  const clickData = event.notification.data || {};
+  if (event.action === 'p2p-ack' && clickData.p2p_alert_id && clickData.p2p_ack_token) {
+    event.waitUntil(acknowledgeP2PAlert(clickData));
+    return;
+  }
 
   const targetPath = event.notification.data?.path || '/notifications';
 
@@ -75,3 +97,19 @@ self.addEventListener('pushsubscriptionchange', (event) => {
     }
   })());
 });
+
+// The push payload carries the functions URL and a per-alert token, so the
+// Acknowledge button works without the app being open or signed in here.
+async function acknowledgeP2PAlert(data) {
+  const base = data.functions_url;
+  if (!base) return;
+  try {
+    await fetch(`${base}/p2p-order-watch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ack', alert_id: data.p2p_alert_id, token: data.p2p_ack_token }),
+    });
+  } catch {
+    /* the in-app alert still offers Acknowledge */
+  }
+}
