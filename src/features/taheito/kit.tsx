@@ -100,7 +100,7 @@ export function ThSearch({ value, onChange, placeholder, label }: { value: strin
   );
 }
 
-export interface ThTile { key: string; cls: string; icon: LucideIcon; label: string; value: ReactNode; unit?: string; tone?: 'good' | 'bad'; on?: boolean; onClick?: () => void }
+export interface ThTile { key: string; cls: string; icon: LucideIcon; label: string; value: ReactNode; unit?: string; tone?: 'good' | 'bad'; on?: boolean; onClick?: () => void; /** A small control beside the label, e.g. a show/hide toggle. */ action?: ReactNode }
 
 export function ThTiles({ tiles }: { tiles: ThTile[] }) {
   return (
@@ -108,7 +108,7 @@ export function ThTiles({ tiles }: { tiles: ThTile[] }) {
       {tiles.map(tile => {
         const body = (
           <>
-            <div className="co-t-top"><span className="co-t-l">{tile.label}</span><span className="co-t-ic"><tile.icon /></span></div>
+            <div className="co-t-top"><span className="co-t-l">{tile.label}</span>{tile.action}<span className="co-t-ic"><tile.icon /></span></div>
             <div className={cn('co-t-v', tile.tone === 'bad' && 'th-bad', tile.tone === 'good' && 'th-good')}>{tile.value}{tile.unit && <small className="th-unit"> {tile.unit}</small>}</div>
           </>
         );

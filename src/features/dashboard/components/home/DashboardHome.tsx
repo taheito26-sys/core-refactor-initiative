@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, Crown, Layers, Target, Wallet,
   type LucideIcon,
+  Eye, EyeOff,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
@@ -10,6 +11,7 @@ import {
 } from '../../dashboard-model';
 import { Sparkline } from './Sparkline';
 import { ProfitTrendCard } from './ProfitTrendCard';
+import { MASK, useHiddenNetProfit } from '../../hide-net-profit';
 import { DashboardFilterSheet, DashboardSearchSheet } from './DashboardSheets';
 
 /** A theme colour a card is tinted with. Every one resolves through the active theme's variables. */
@@ -118,6 +120,7 @@ export function DashboardHome({
     return () => ro.disconnect();
   }, []);
   const [clientMetric, setClientMetric] = useState<'profit' | 'volume'>('profit');
+  const [netHidden, toggleNet] = useHiddenNetProfit();
 
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
   const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
@@ -171,13 +174,28 @@ export function DashboardHome({
       <div className="dh-stats">
         {stats.map(s => {
           const p = parts(s.value);
+          // The net profit can be masked; while hidden nothing that reveals it is drawn.
+          const masked = s.key === 'net' && netHidden;
           return (
             <section key={s.key} className="dh-card dh-stat" style={{ ['--tone' as string]: toneVar(s.tone) }}>
-              <header><span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3></header>
-              <div className="dh-val"><b>{p.n}</b><small style={{ color: s.unit }}>{p.u}</small></div>
-              <Delta pct={s.pct} label={monthlyComparisonLabel} />
-              <p className="dh-sub">{previousMonthLabel} {lang === 'ar' ? 'الإجمالي' : 'total'}: {parts(s.previous).n} {parts(s.previous).u}</p>
-              <Sparkline className={`dh-stat-spark ${s.kind}`} values={s.spark} color={toneVar(s.tone)} kind={s.kind} />
+              <header>
+                <span className="dh-ic solid"><s.Icon /></span><h3>{s.label}</h3>
+                {s.key === 'net' && (
+                  <button type="button" className="dh-eye" aria-pressed={netHidden} aria-label={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} title={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} onClick={toggleNet}>
+                    {netHidden ? <EyeOff /> : <Eye />}
+                  </button>
+                )}
+              </header>
+              {masked ? (
+                <div className="dh-val"><b>{MASK}</b></div>
+              ) : (
+                <>
+                  <div className="dh-val"><b>{p.n}</b><small style={{ color: s.unit }}>{p.u}</small></div>
+                  <Delta pct={s.pct} label={monthlyComparisonLabel} />
+                  <p className="dh-sub">{previousMonthLabel} {lang === 'ar' ? 'الإجمالي' : 'total'}: {parts(s.previous).n} {parts(s.previous).u}</p>
+                  <Sparkline className={`dh-stat-spark ${s.kind}`} values={s.spark} color={toneVar(s.tone)} kind={s.kind} />
+                </>
+              )}
             </section>
           );
         })}

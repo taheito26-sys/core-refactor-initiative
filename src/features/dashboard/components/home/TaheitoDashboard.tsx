@@ -1,11 +1,12 @@
 import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { ArrowRight, CalendarDays, Crown, Layers, LayoutDashboard, ListChecks, Target, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CalendarDays, Crown, Eye, EyeOff, Layers, LayoutDashboard, ListChecks, Target, Wallet, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { MerchantHero, ThMain, ThRoot, ThTiles, type ThTile } from '@/features/taheito/kit';
 import { calendarMonthComparison, pctChange, scopePoints, summarize, summarizeWithPrevious, topClients } from '../../dashboard-model';
 import { DashboardHome, type HomeTile } from './DashboardHome';
 import { DashboardFilterSheet, DashboardSearchSheet } from './DashboardSheets';
 import { ProfitTrendCard } from './ProfitTrendCard';
+import { MASK, useHiddenNetProfit } from '../../hide-net-profit';
 
 type Props = Omit<ComponentProps<typeof DashboardHome>, 'bare'>;
 
@@ -35,6 +36,7 @@ export function TaheitoDashboard(props: Props) {
   const t = useT();
   const { lang, points, allPoints, win, rangeText, now, tiles, moreTiles, parts, money, fees, cash, onGo, isAdminView, children } = props;
   const [metric, setMetric] = useState<'profit' | 'volume'>('profit');
+  const [netHidden, toggleNet] = useHiddenNetProfit();
 
   const monthly = useMemo(() => calendarMonthComparison(points, now), [points, now]);
   const { cur } = useMemo(() => summarizeWithPrevious(points, win), [points, win]);
@@ -67,7 +69,15 @@ export function TaheitoDashboard(props: Props) {
   });
   const headline: ThTile[] = [
     { key: 'month-volume', cls: 't3', icon: Layers, label: t('dhTotalVolume'), value: parts(monthly.cur.vol).n, unit: parts(monthly.cur.vol).u },
-    { key: 'month-net', cls: 't4', icon: Target, label: t('dhMyNetProfit'), value: parts(net).n, unit: parts(net).u, tone: net < 0 ? 'bad' : 'good' },
+    {
+      key: 'month-net', cls: 't4', icon: Target, label: t('dhMyNetProfit'),
+      value: netHidden ? MASK : parts(net).n, unit: netHidden ? undefined : parts(net).u, tone: netHidden ? undefined : net < 0 ? 'bad' : 'good',
+      action: (
+        <button type="button" className="th-eye" aria-pressed={netHidden} aria-label={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} title={netHidden ? t('dhShowNetProfit') : t('dhHideNetProfit')} onClick={toggleNet}>
+          {netHidden ? <EyeOff /> : <Eye />}
+        </button>
+      ),
+    },
     ...tiles.map((x, i) => toTile(x, i)),
   ];
   const cashOpen = go('/trading/cash');
@@ -76,8 +86,8 @@ export function TaheitoDashboard(props: Props) {
     <ThRoot lang={lang} className="th-dash">
       <MerchantHero
         lang={lang} icon={<LayoutDashboard className="co-ttl-ic" strokeWidth={1.7} />} title={t('dashboard')} subtitle={t('thDashSub')}
-        trendDown={net < 0} trendTitle={`${parts(net).n} ${parts(net).u}`}
-        trendText={netPct == null ? t('dhMyNetProfit') : `${netPct >= 0 ? '+' : ''}${netPct.toFixed(1)}% · ${t('dhMyNetProfit')}`}
+        trendDown={!netHidden && net < 0} trendTitle={netHidden ? MASK : `${parts(net).n} ${parts(net).u}`}
+        trendText={netHidden || netPct == null ? t('dhMyNetProfit') : `${netPct >= 0 ? '+' : ''}${netPct.toFixed(1)}% · ${t('dhMyNetProfit')}`}
       />
       <ThMain label={t('dashboard')}>
         <ThTiles tiles={headline} />

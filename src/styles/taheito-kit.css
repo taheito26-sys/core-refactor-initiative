@@ -182,3 +182,8 @@
   .tracker-root .dh.th-dh .dh-kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 639px) { .th-dash .co-tiles > :last-child:nth-child(3n+2) { grid-column: span 2; } }
+
+/* show/hide toggle on a tile figure (the monthly net profit) */
+.co-t .th-eye { flex: none; margin-inline-start: auto; margin-inline-end: calc(3 * var(--q)); width: calc(19 * var(--q)); height: calc(19 * var(--q)); border-radius: 50%; border: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, .75); color: #4d5d88; cursor: pointer; }
+.co-t .th-eye svg { width: calc(11 * var(--q)); height: calc(11 * var(--q)); stroke-width: 2; }
+.co-t .th-eye[aria-pressed="true"] { background: var(--th-a, #1f63f0); color: #fff; }

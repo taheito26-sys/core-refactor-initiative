@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardHome } from '@/features/dashboard/components/home/DashboardHome';
 import { rangeWindow, type DashPoint } from '@/features/dashboard/dashboard-model';
 vi.mock('@/lib/i18n', () => ({ useT: () => (key: string) => key }));
+vi.mock('@/features/auth/auth-context', () => ({ useAuth: () => ({ user: { id: 'm1', user_metadata: {} } }) }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { updateUser: () => Promise.resolve({ data: {}, error: null }) } } }));
 vi.mock('@/features/dashboard/components/home/ProfitTrendCard', () => ({ ProfitTrendCard: () => null }));
 vi.mock('@/features/dashboard/components/home/DashboardSheets', () => ({ DashboardFilterSheet: () => null, DashboardSearchSheet: () => null }));
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} }));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 describe('monthly headline KPI rendering', () => {
   it('shows November values against full October totals even when the toolbar range is 30D', () => {
@@ -50,4 +52,17 @@ describe('monthly headline KPI rendering', () => {
     expect(row().textContent).toContain('-98.0%');
   });
 
+
+  it('masks the net profit when the merchant hides it, and shows it again on the second tap', () => {
+    const now = new Date(2026, 10, 1, 22).getTime();
+    const points: DashPoint[] = [{ ts: new Date(2026, 10, 1, 14).getTime(), vol: 21892, net: 685, fullNet: 685, own: true, client: 'Buyer' }];
+    const { container } = render(<DashboardHome points={points} allPoints={points} now={now} win={rangeWindow('30d', now, null)} rangeText="" comparisonText="" lang="en" money={String} parts={n => ({ n: n.toLocaleString('en-US'), u: 'QAR' })} tiles={[]} moreTiles={[]} fees={0} cash={{ total: '0', unit: 'QAR', counted: 0, active: 0, accounts: [] }} onGo={() => {}} />);
+    const net = () => container.querySelectorAll('.dh-stat')[1];
+    fireEvent.click(screen.getByRole('button', { name: 'dhHideNetProfit' }));
+    expect(net().textContent).not.toContain('685');
+    expect(net().textContent).toContain('••••••');
+    expect(container.querySelectorAll('.dh-stat')[0].textContent).toContain('21,892');
+    fireEvent.click(screen.getByRole('button', { name: 'dhShowNetProfit' }));
+    expect(net().textContent).toContain('685');
+  });
 });

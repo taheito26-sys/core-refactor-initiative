@@ -268,3 +268,8 @@
 .tracker-root .dh-table .dh-ord .dh-ord-bar { display: block; width: calc(34 * var(--u)); min-width: 0; padding: 0 !important; }
 .tracker-root .dh-table td.r, .tracker-root .dh-table th.r { padding-inline-start: calc(8 * var(--u)); }
 @media (max-width: 380px) { .tracker-root .dh-table .dh-client span:last-child { white-space: normal; overflow-wrap: anywhere; } }
+
+/* show/hide toggle on the net profit figure */
+.tracker-root .dh-stat .dh-eye { margin-inline-start: auto; flex: none; width: calc(26 * var(--u)); height: calc(26 * var(--u)); border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--text); cursor: pointer; }
+.tracker-root .dh-stat .dh-eye svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); }
+.tracker-root .dh-stat .dh-eye[aria-pressed="true"] { background: var(--tone); color: #fff; }

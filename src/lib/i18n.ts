@@ -79,6 +79,8 @@ const translations = {
   dhTradingVolume: { en: 'Trading Volume', ar: 'حجم التداول' },
   dhTotalVolume: { en: 'Total Volume', ar: 'إجمالي الحجم' },
   dhMyNetProfit: { en: 'My Net Profit', ar: 'صافي ربحي' },
+  dhShowNetProfit: { en: 'Show net profit', ar: 'إظهار صافي الربح' },
+  dhHideNetProfit: { en: 'Hide net profit', ar: 'إخفاء صافي الربح' },
   dhCalendarComparison: { en: '{current} so far vs {previous} in full', ar: '{current} حتى الآن مقابل {previous} كاملًا' },
   dhVsPrev: { en: 'vs previous period', ar: 'مقارنة بالفترة السابقة' },
   dhProfitTrend: { en: 'Profit Trend', ar: 'اتجاه الأرباح' },
