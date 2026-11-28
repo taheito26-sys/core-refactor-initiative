@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { BellRing, ExternalLink } from 'lucide-react';
+import { BellRing, ExternalLink, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -13,75 +12,15 @@ import {
 import { useT } from '@/lib/i18n';
 import { useAcknowledgeP2POrderAlerts, useOpenP2POrderAlerts } from '../hooks/useP2POrderAlerts';
 import { binanceOrderUrl } from '../p2p-order-alerts';
-import { loadAlarmSound } from '../p2p-alarm-sound';
+import { useAlarm } from '../p2p-alarm-sound';
 
-/** Built-in two-tone beep, used when no custom sound is chosen or it cannot play. */
-function beep(ctx: AudioContext | null) {
-  if (!ctx) return;
-  void ctx.resume().catch(() => undefined);
-  const start = ctx.currentTime;
-  [880, 660, 880, 660].forEach((freq, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.25, start + i * 0.25);
-    gain.gain.exponentialRampToValueAtTime(0.001, start + i * 0.25 + 0.22);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start + i * 0.25);
-    osc.stop(start + i * 0.25 + 0.23);
-  });
-}
-
-/** Plays the merchant's chosen sound on repeat (or the beep) with long vibration while an order waits. */
-export function useAlarm(active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    let ctx: AudioContext | null = null;
-    let audio: HTMLAudioElement | null = null;
-    let url: string | null = null;
-    let useBeep = true;
-    try {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      ctx = Ctx ? new Ctx() : null;
-    } catch {
-      ctx = null;
-    }
-
-    const ring = () => {
-      if (useBeep) beep(ctx);
-      if ('vibrate' in navigator) navigator.vibrate([400, 150, 400, 150, 400]);
-    };
-
-    void loadAlarmSound().then((sound) => {
-      if (cancelled || !sound?.blob) return;
-      url = URL.createObjectURL(sound.blob);
-      audio = new Audio(url);
-      audio.loop = true;
-      audio.play().then(() => { useBeep = false; }).catch(() => { useBeep = true; });
-    });
-
-    ring();
-    const timer = window.setInterval(ring, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      if ('vibrate' in navigator) navigator.vibrate(0);
-      audio?.pause();
-      if (url) URL.revokeObjectURL(url);
-      void ctx?.close().catch(() => undefined);
-    };
-  }, [active]);
-}
-
-/** Full-screen alert for open Binance P2P orders, mounted once in the merchant layout. */
+/** Full-screen alert for open Binance P2P orders, mounted in both merchant shells. */
 export function P2POrderAlertOverlay() {
   const t = useT();
   const { data: alerts } = useOpenP2POrderAlerts();
   const ack = useAcknowledgeP2POrderAlerts();
   const open = (alerts?.length ?? 0) > 0;
-  useAlarm(open);
+  const alarm = useAlarm(open);
 
   if (!open) return null;
 
@@ -100,6 +39,16 @@ export function P2POrderAlertOverlay() {
             {t('p2pAlertTitle')}
           </AlertDialogTitle>
           <AlertDialogDescription>{t('p2pAlertBody')}</AlertDialogDescription>
+          {alarm.blocked && (
+            <button
+              type="button"
+              onClick={() => void alarm.enable()}
+              className="flex items-center justify-center gap-2 rounded-md bg-destructive px-3 py-2 text-sm font-bold text-white"
+            >
+              <Volume2 className="h-4 w-4" />
+              {t('p2pAlarmEnable')}
+            </button>
+          )}
         </AlertDialogHeader>
 
         <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">

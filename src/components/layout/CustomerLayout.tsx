@@ -12,6 +12,7 @@ import { useNotificationPresence } from '@/hooks/useNotificationPresence';
 import { useNotifications } from '@/hooks/useNotifications';
 import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
 import { CustomerHomeNav } from '@/features/customer/home/CustomerHomeNav';
+import { P2POrderAlertOverlay } from '@/features/exchanges/components/P2POrderAlertOverlay';
 import { useChatStore } from '@/lib/chat-store';
 import { resolveCustomerDisplayName } from '@/features/customer/customer-portal';
 import '@/styles/tracker.css';
@@ -202,6 +203,7 @@ export function CustomerLayout() {
           </nav>
         )}
       </div>
+      <P2POrderAlertOverlay />
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { useExchangeCredentials } from '../hooks/useExchangeCredentials';
 import { useP2POrderWatch, useSetP2POrderWatch } from '../hooks/useP2POrderAlerts';
 import { p2pWatchHealth } from '../p2p-order-alerts';
 import { clearAlarmSound, loadAlarmSound, MAX_ALARM_SOUND_BYTES, saveAlarmSound } from '../p2p-alarm-sound';
-import { useAlarm } from './P2POrderAlertOverlay';
+import { unlockP2PAlarmAudio, useAlarm } from '../p2p-alarm-sound';
 
 /** Compact switch on the Orders page for the 20-second Binance P2P order alert. */
 export function P2POrderAlertsToggle() {
@@ -122,7 +122,15 @@ export function P2POrderAlertsToggle() {
             {t('p2pAlarmDefault')}
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setTesting((v) => !v)}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-xs"
+          onClick={() => {
+            if (!testing) void unlockP2PAlarmAudio();
+            setTesting((v) => !v);
+          }}
+        >
           {testing ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
           {testing ? t('p2pAlarmStop') : t('p2pAlarmTest')}
         </Button>

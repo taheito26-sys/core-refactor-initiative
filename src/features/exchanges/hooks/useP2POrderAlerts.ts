@@ -95,6 +95,9 @@ export function useOpenP2POrderAlerts() {
     queryKey: alertsKey(userId),
     enabled: Boolean(userId),
     refetchOnWindowFocus: true,
+    // Realtime is the fast path; this makes sure a dropped socket still
+    // raises the alert within one server-check interval.
+    refetchInterval: 20_000,
     queryFn: async (): Promise<P2POrderAlert[]> => {
       const { data, error } = await supabase
         .from('p2p_order_alerts' as any)

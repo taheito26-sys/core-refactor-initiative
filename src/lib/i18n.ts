@@ -654,6 +654,7 @@ const translations = {
   p2pAlarmSaved: { en: 'Alarm sound saved on this device', ar: 'تم حفظ صوت التنبيه على هذا الجهاز' },
   p2pAlarmSaveFailed: { en: 'Could not save the sound on this device', ar: 'تعذر حفظ الصوت على هذا الجهاز' },
   p2pAlarmTooBig: { en: 'Sound file is too large (max 5 MB)', ar: 'ملف الصوت كبير جداً (الحد 5 ميجابايت)' },
+  p2pAlarmEnable: { en: 'Tap to enable the alarm sound', ar: 'اضغط لتشغيل صوت التنبيه' },
   ov2Search: { en: 'Find by customer name, order number, transaction hash…', ar: 'ابحث باسم العميل أو رقم الطلب أو هاش المعاملة…' },
   ov2OrdersWord: { en: 'Orders', ar: 'طلبات' },
   ov2LatestFirst: { en: 'Latest First', ar: 'الأحدث أولاً' },
