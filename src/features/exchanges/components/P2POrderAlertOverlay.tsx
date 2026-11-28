@@ -13,41 +13,63 @@ import {
 import { useT } from '@/lib/i18n';
 import { useAcknowledgeP2POrderAlerts, useOpenP2POrderAlerts } from '../hooks/useP2POrderAlerts';
 import { binanceOrderUrl } from '../p2p-order-alerts';
+import { loadAlarmSound } from '../p2p-alarm-sound';
 
-/** Repeating two-tone alarm and long vibration while an order waits. */
-function useAlarm(active: boolean) {
+/** Built-in two-tone beep, used when no custom sound is chosen or it cannot play. */
+function beep(ctx: AudioContext | null) {
+  if (!ctx) return;
+  void ctx.resume().catch(() => undefined);
+  const start = ctx.currentTime;
+  [880, 660, 880, 660].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.25, start + i * 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + i * 0.25 + 0.22);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start + i * 0.25);
+    osc.stop(start + i * 0.25 + 0.23);
+  });
+}
+
+/** Plays the merchant's chosen sound on repeat (or the beep) with long vibration while an order waits. */
+export function useAlarm(active: boolean) {
   useEffect(() => {
     if (!active) return;
+    let cancelled = false;
     let ctx: AudioContext | null = null;
+    let audio: HTMLAudioElement | null = null;
+    let url: string | null = null;
+    let useBeep = true;
     try {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       ctx = Ctx ? new Ctx() : null;
     } catch {
       ctx = null;
     }
+
     const ring = () => {
-      if (ctx) {
-        void ctx.resume().catch(() => undefined);
-        const start = ctx.currentTime;
-        [880, 660, 880, 660].forEach((freq, i) => {
-          const osc = ctx!.createOscillator();
-          const gain = ctx!.createGain();
-          osc.type = 'square';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.25, start + i * 0.25);
-          gain.gain.exponentialRampToValueAtTime(0.001, start + i * 0.25 + 0.22);
-          osc.connect(gain).connect(ctx!.destination);
-          osc.start(start + i * 0.25);
-          osc.stop(start + i * 0.25 + 0.23);
-        });
-      }
+      if (useBeep) beep(ctx);
       if ('vibrate' in navigator) navigator.vibrate([400, 150, 400, 150, 400]);
     };
+
+    void loadAlarmSound().then((sound) => {
+      if (cancelled || !sound?.blob) return;
+      url = URL.createObjectURL(sound.blob);
+      audio = new Audio(url);
+      audio.loop = true;
+      audio.play().then(() => { useBeep = false; }).catch(() => { useBeep = true; });
+    });
+
     ring();
     const timer = window.setInterval(ring, 3000);
     return () => {
+      cancelled = true;
       window.clearInterval(timer);
       if ('vibrate' in navigator) navigator.vibrate(0);
+      audio?.pause();
+      if (url) URL.revokeObjectURL(url);
       void ctx?.close().catch(() => undefined);
     };
   }, [active]);
